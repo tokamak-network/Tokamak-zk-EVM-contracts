@@ -6582,6 +6582,10 @@ Commands:
 Secret source options:
   Use account import --private-key-file once to create a protected local account secret.
   L1 signing commands use --account only.
+  A wallet secret source file is arbitrary high-entropy secret text read once by join-channel.
+  Create one before joining a channel, for example:
+      openssl rand -hex 32 > ./wallet-secret.txt
+      private-state-cli join-channel --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path ./wallet-secret.txt
   Bridge-facing commands accept optional --rpc-url. When provided, it is saved to
   ~/tokamak-private-channels/secrets/<network>/.env as RPC_URL. When omitted, the CLI reads RPC_URL from that file.
   Wallet commands use wallet-local default password files only.

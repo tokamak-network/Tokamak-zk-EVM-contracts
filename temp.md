@@ -25,32 +25,7 @@ Most previously identified issues are resolved:
 
 ## Open Findings
 
-### 1. Medium: wallet secret source file creation is underspecified
-
-`join-channel` requires `--wallet-secret-path <PATH>`, but help text does not tell a user how
-to create a source wallet-secret file. It only says the option imports an existing source file.
-
-Why this matters:
-
-- A new user cannot join a channel until they create this source file.
-- The CLI intentionally removed raw password arguments and interactive wallet initialization, so
-  the non-interactive source-file path must be obvious.
-- This CLI is intended to be usable by LLM agents, and agents need a precise command recipe.
-
-Recommended improvement:
-
-- Add a short `Wallet secret source file` section to help and README.
-- Document that the source file is arbitrary high-entropy secret text read by the CLI.
-- Provide a concrete command example, such as:
-
-```bash
-openssl rand -hex 32 > ./wallet-secret.txt
-```
-
-- State that the import source file does not need `0600`, but the canonical wallet-local secret
-  written by the CLI remains protected.
-
-### 2. Medium-Low: package version and changelog do not yet reflect the UX surface change
+### 1. Medium-Low: package version and changelog do not yet reflect the UX surface change
 
 The private-state CLI package version is still `0.1.9`, while the local code now contains a
 large user-facing change set after the deployed/published baseline:
@@ -81,7 +56,37 @@ Recommended improvement:
 
 ## Resolved Historical Findings
 
-### A. `guide` default output was too close to raw JSON
+### A. Wallet secret source file creation was underspecified
+
+Status: Resolved.
+
+`join-channel` requires `--wallet-secret-path <PATH>`, but help text did not tell a user how
+to create a source wallet-secret file. It only said the option imports an existing source file.
+
+Why this mattered:
+
+- A new user cannot join a channel until they create this source file.
+- The CLI intentionally removed raw password arguments and interactive wallet initialization, so
+  the non-interactive source-file path must be obvious.
+- This CLI is intended to be usable by LLM agents, and agents need a precise command recipe.
+
+Resolution:
+
+- Added a `Wallet Secret Source File` section to the CLI README.
+- Added the same source-file recipe to `private-state-cli --help`.
+- Documented that the source file is arbitrary high-entropy secret text read once by
+  `join-channel`.
+- Added the concrete command recipe:
+
+```bash
+openssl rand -hex 32 > ./wallet-secret.txt
+private-state-cli join-channel --channel-name <CHANNEL> --network sepolia --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
+```
+
+- Clarified that the import source file does not need `0600`, while the canonical wallet-local
+  secret written by the CLI remains protected.
+
+### B. `guide` default output was too close to raw JSON
 
 Status: Resolved.
 
@@ -104,7 +109,7 @@ Resolution:
   `Next Safe Action`, `Why`, and candidate commands.
 - The full `state` object remains available through `guide --json`.
 
-### B. Invalid wallet selectors made `guide` fail instead of guiding
+### C. Invalid wallet selectors made `guide` fail instead of guiding
 
 Status: Resolved.
 
@@ -126,7 +131,7 @@ Resolution:
   `list-local-wallets --network <NETWORK>`.
 - Unexpected internal failures can still surface as hard command failures.
 
-### C. Secrets as first-class CLI arguments
+### D. Secrets as first-class CLI arguments
 
 Status: Resolved.
 
@@ -145,7 +150,7 @@ Resolution:
 - Canonical CLI secret files remain protected with POSIX `0600` or Windows ACL repair and
   inspection where possible.
 
-### D. Help output as only a command catalog
+### E. Help output as only a command catalog
 
 Status: Resolved.
 
@@ -155,7 +160,7 @@ Resolution:
 - Updated README command flow.
 - Added actionable recovery hints to common errors.
 
-### E. `doctor` was machine-friendly but not human-friendly
+### F. `doctor` was machine-friendly but not human-friendly
 
 Status: Resolved.
 
@@ -165,7 +170,7 @@ Resolution:
 - `doctor --json` prints the full machine-readable report.
 - CLI-wide `--json` is now the structured-output switch.
 
-### F. Long proof-backed commands lacked durable progress phases
+### G. Long proof-backed commands lacked durable progress phases
 
 Status: Resolved.
 
@@ -175,7 +180,7 @@ Resolution:
   print `loading`, `proving`, `submitting`, `persisting`, and `done`.
 - In `--json` mode, progress goes to stderr and the final JSON result stays on stdout.
 
-### G. Common errors lacked recovery actions
+### H. Common errors lacked recovery actions
 
 Status: Resolved enough for current UX.
 
@@ -188,5 +193,4 @@ Resolution:
 
 ## Recommended Priority
 
-1. Document wallet secret source-file creation in help and README.
-2. Bump the private-state CLI package version and finalize its changelog before publishing.
+1. Bump the private-state CLI package version and finalize its changelog before publishing.

@@ -115,6 +115,22 @@ encrypted local wallet. `list-local-wallets` reads only the local workspace and 
 on-chain channel registration match state. `get-my-l1-address` is a simple offline helper that derives the L1 address
 for a local account.
 
+### Wallet Secret Source File
+
+`join-channel` needs a wallet secret source file because the CLI no longer accepts raw wallet passwords on the command
+line. The source file is arbitrary high-entropy secret text that the CLI reads once and imports into the protected
+wallet-local canonical secret.
+
+Create one before joining a channel:
+
+```bash
+openssl rand -hex 32 > ./wallet-secret.txt
+private-state-cli join-channel --channel-name <CHANNEL> --network sepolia --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
+```
+
+The import source file does not need `0600` permissions. The canonical wallet-local secret written by the CLI remains
+protected: macOS/Linux uses `0600`, while Windows uses ACL repair and inspection when possible.
+
 ## Workspace
 
 The CLI stores user workspaces under:

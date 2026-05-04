@@ -985,6 +985,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     bridgeResources,
     persist: true,
     allowExistingWorkspaceSync: true,
+    useWorkspaceRecoveryIndex: true,
     progressAction: "recover-wallet",
   });
   const context = {
@@ -1067,6 +1068,14 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
   });
 
   if (existingWallet) {
+    const { recoveredDeliveryState } = await recoverWalletReceivedNotes({
+      walletContext: existingWallet,
+      context,
+      provider,
+      signer,
+      noteReceiveKeyMaterial,
+      progressAction: "recover-wallet",
+    });
     printJson({
       action: "recover-wallet",
       status: "already-recovered",
@@ -1082,6 +1091,10 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       l2StorageKey: storageKey,
       leafIndex: registration.leafIndex.toString(),
       noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
+      l2Nonce: existingWallet.wallet.l2Nonce,
+      recoveredFromLogs: recoveredDeliveryState.importedNotes,
+      scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
+      noteReceiveScanRange: recoveredDeliveryState.scanRange,
     });
     return;
   }
@@ -1102,11 +1115,12 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
   walletContext.wallet.l2Nonce = 0;
   persistWallet(walletContext);
 
-  const recoveredDeliveryState = await recoverDeliveredNotesFromEventLogs({
+  const { recoveredDeliveryState } = await recoverWalletReceivedNotes({
     walletContext,
     context,
     provider,
-    noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
+    signer,
+    noteReceiveKeyMaterial,
     progressAction: "recover-wallet",
   });
 
@@ -2140,9 +2154,13 @@ async function handleGetMyWalletMeta({ args, provider }) {
   });
 }
 
-async function loadWalletChannelFundState({ walletContext, provider }) {
+async function loadWalletChannelFundState({ walletContext, provider, progressAction = null }) {
   const { signer, l2Identity } = restoreWalletParticipant(walletContext, provider);
-  const contextResult = await loadPreferredWalletChannelContext({ walletContext, provider });
+  const contextResult = await loadPreferredWalletChannelContext({
+    walletContext,
+    provider,
+    progressAction,
+  });
   const context = contextResult.context;
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   expect(
@@ -2369,7 +2387,11 @@ async function handleGrothVaultMove({ args, provider, direction }) {
       : "withdraw";
   emitProgress(operationName, "loading");
   const { wallet: walletContext } = loadUnlockedWalletWithMetadata(args);
-  const contextResult = await loadPreferredWalletChannelContext({ walletContext, provider });
+  const contextResult = await loadPreferredWalletChannelContext({
+    walletContext,
+    provider,
+    progressAction: operationName,
+  });
   const context = contextResult.context;
   const network = contextResult.network;
   expect(
@@ -2415,6 +2437,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     "The derived L2 address does not match the registered channel L2 address.",
   );
 
+  await assertWorkspaceAlignedWithChain(context);
   const stateManager = await buildStateManager(context.currentSnapshot, context.contractCodes);
   const keyHex = storageKey;
   const currentValue = await currentStorageBigInt(stateManager, context.workspace.l2AccountingVault, keyHex);
@@ -2590,6 +2613,7 @@ async function handleMintNotes({ args, provider }) {
   const { channelFund } = await loadWalletChannelFundState({
     walletContext: wallet,
     provider,
+    progressAction: "mint-notes",
   });
   expect(
     totalMintAmount <= channelFund,
@@ -2681,20 +2705,18 @@ async function handleGetMyNotes({ args, provider }) {
     `Wallet ${wallet.walletName} is missing the stored controller address.`,
   );
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
-  const { context } = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
-  const signer = restoreWalletSigner(wallet, provider);
-  const noteReceiveKeyMaterial = await deriveNoteReceiveKeyMaterial({
-    signer,
-    chainId: context.workspace.chainId,
-    channelId: context.workspace.channelId,
-    channelName: context.workspace.channelName,
-    account: signer.address,
+  const { context } = await loadPreferredWalletChannelContext({
+    walletContext: wallet,
+    provider,
+    progressAction: "get-my-notes",
   });
-  const recoveredDeliveryState = await recoverDeliveredNotesFromEventLogs({
+  const signer = restoreWalletSigner(wallet, provider);
+  const { recoveredDeliveryState } = await recoverWalletReceivedNotes({
     walletContext: wallet,
     context,
     provider,
-    noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
+    signer,
+    progressAction: "get-my-notes",
   });
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
@@ -2740,7 +2762,11 @@ async function handleGetMyNotes({ args, provider }) {
 async function handleTransferNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
   const { signer } = restoreWalletParticipant(wallet, provider);
-  const preparedContextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
+  const preparedContextResult = await loadPreferredWalletChannelContext({
+    walletContext: wallet,
+    provider,
+    progressAction: "transfer-notes",
+  });
   const context = preparedContextResult.context;
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
@@ -3102,6 +3128,34 @@ function buildLifecycleTrackedOutputs({
   return (outputNotes ?? []).map((note, index) => buildTrackedNote(note, sourceFunction, sourceTxHash, {
     bridgeCommitmentKey: bridgeCommitmentKeys?.[index] ?? null,
   }));
+}
+
+async function recoverWalletReceivedNotes({
+  walletContext,
+  context,
+  provider,
+  signer,
+  noteReceiveKeyMaterial = null,
+  progressAction = null,
+}) {
+  const resolvedNoteReceiveKeyMaterial = noteReceiveKeyMaterial ?? await deriveNoteReceiveKeyMaterial({
+    signer,
+    chainId: context.workspace.chainId,
+    channelId: context.workspace.channelId,
+    channelName: context.workspace.channelName,
+    account: signer.address,
+  });
+  const recoveredDeliveryState = await recoverDeliveredNotesFromEventLogs({
+    walletContext,
+    context,
+    provider,
+    noteReceivePrivateKey: resolvedNoteReceiveKeyMaterial.privateKey,
+    progressAction,
+  });
+  return {
+    noteReceiveKeyMaterial: resolvedNoteReceiveKeyMaterial,
+    recoveredDeliveryState,
+  };
 }
 
 async function recoverDeliveredNotesFromEventLogs({
@@ -3682,10 +3736,15 @@ function walletChannelWorkspaceIsReady(walletContext) {
     && fs.existsSync(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"));
 }
 
-async function loadPreferredWalletChannelContext({ walletContext, provider, forceRecover = false }) {
+async function loadPreferredWalletChannelContext({
+  walletContext,
+  provider,
+  forceRecover = false,
+  progressAction = null,
+}) {
   let recoveredWorkspace = false;
   if (forceRecover || !walletChannelWorkspaceIsReady(walletContext)) {
-    await recoverWalletChannelWorkspace({ walletContext, provider });
+    await recoverWalletChannelWorkspace({ walletContext, provider, progressAction });
     recoveredWorkspace = true;
   }
   let context = await loadWorkspaceContext(walletContext.wallet.channelName, walletContext.wallet.network, provider);
@@ -3695,7 +3754,7 @@ async function loadPreferredWalletChannelContext({ walletContext, provider, forc
     if (!isRecoverableWalletWorkspaceFailure(error)) {
       throw error;
     }
-    await recoverWalletChannelWorkspace({ walletContext, provider });
+    await recoverWalletChannelWorkspace({ walletContext, provider, progressAction });
     recoveredWorkspace = true;
     context = await loadWorkspaceContext(walletContext.wallet.channelName, walletContext.wallet.network, provider);
     await assertWorkspaceAlignedWithChain(context);
@@ -3708,7 +3767,7 @@ async function loadPreferredWalletChannelContext({ walletContext, provider, forc
   };
 }
 
-async function recoverWalletChannelWorkspace({ walletContext, provider }) {
+async function recoverWalletChannelWorkspace({ walletContext, provider, progressAction = null }) {
   const networkName = walletContext.wallet.network ?? networkNameFromChainId(Number(walletContext.wallet.chainId));
   const network = resolveCliNetwork(networkName);
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
@@ -3720,6 +3779,8 @@ async function recoverWalletChannelWorkspace({ walletContext, provider }) {
     bridgeResources,
     persist: true,
     allowExistingWorkspaceSync: true,
+    useWorkspaceRecoveryIndex: true,
+    progressAction,
   });
 }
 
@@ -3748,7 +3809,11 @@ async function executeWalletDirectTemplateCommand({
 }) {
   emitProgress(operationName, "loading");
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
-  let contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
+  let contextResult = await loadPreferredWalletChannelContext({
+    walletContext: wallet,
+    provider,
+    progressAction: operationName,
+  });
   let recoveredWorkspace = contextResult.recoveredWorkspace;
 
   try {
@@ -3777,6 +3842,7 @@ async function executeWalletDirectTemplateCommand({
     walletContext: wallet,
     provider,
     forceRecover: true,
+    progressAction: operationName,
   });
   recoveredWorkspace = contextResult.recoveredWorkspace;
   const execution = await executeWalletTemplateSend({

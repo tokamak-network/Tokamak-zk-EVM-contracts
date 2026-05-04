@@ -527,14 +527,14 @@
         json: {
           label: "JSON Output",
           type: "checkbox",
-          hint: "Print the full machine-readable doctor report.",
+          hint: "Print the command result as JSON.",
         },
       };
 
       const commands = [
         { id: "account-import", description: "Import a private-key source file into a protected local L1 account secret for later --account use.", fields: ["account", "network", "privateKeyFile"] },
         { id: "install", description: "Install the local Tokamak zk-EVM toolchain. Optionally forward --docker for Linux-host Docker installs.", fields: ["docker"] },
-        { id: "doctor", description: "Check the CLI package, runtime install state, Docker mode, CUDA mode, and deployment artifacts.", fields: ["json"] },
+        { id: "doctor", description: "Check the CLI package, runtime install state, Docker mode, CUDA mode, and deployment artifacts.", fields: [] },
         { id: "guide", description: "Inspect local state and available on-chain state, then print the next safe command. The guide does not accept RPC URLs.", fields: ["network", "channelName", "account", "wallet"] },
         { id: "uninstall", description: "Interactively remove local private-state workspaces, wallet secrets, proof artifacts, Tokamak zk-EVM runtime data, and the global CLI package when installed.", fields: [] },
         { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "network", "account", "rpcUrl"] },
@@ -555,7 +555,7 @@
         { id: "transfer-notes", description: "Spend tracked notes into the registered 1->1, 1->2, or 2->1 encrypted transfer shapes.", fields: ["wallet", "network", "noteIds", "recipients", "amounts"] },
         { id: "redeem-notes", description: "Redeem exactly one tracked note back into liquid accounting balance.", fields: ["wallet", "network", "noteIds"] },
         { id: "get-my-notes", description: "Refresh encrypted note-log recovery and show current wallet notes.", fields: ["wallet", "network"] },
-      ];
+      ].map((command) => ({ ...command, fields: [...command.fields, "json"] }));
 
       const defaultState = {
         commandId: "join-channel",

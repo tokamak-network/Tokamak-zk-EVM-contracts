@@ -112,6 +112,7 @@ The CLI:
 Important rules:
 
 - `--amount` is always a human token amount and is converted with the canonical token decimals
+- commands print human-readable output by default; pass `--json` when automation needs a machine-readable result
 - L1 signing commands use `--account`; create the local account secret once with `account import --private-key-file`
 - wallet commands use the wallet-local default password file and do not accept explicit password arguments
 - `join-channel` requires `--wallet-secret-path <PATH>` and imports that source file into the protected wallet-local secret
@@ -122,6 +123,7 @@ Important rules:
 - wallet folder names are fixed to `<channelName>-<l1Address>`
 - recipient note delivery is recovered from bridge-propagated Ethereum event logs through `get-my-notes`
 - `anvil` support exists only for command-driven local end-to-end testing
+- proof-backed commands print four progress phases, `loading`, `proving`, `submitting`, and `persisting`, followed by `done`
 
 ## Recipient Note Delivery
 
@@ -157,7 +159,7 @@ The commands below are ordered by the normal execution flow.
 
 - checks private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
 - prints a concise human-readable table by default
-- accepts `--json` to print the full machine-readable report used by automation
+- accepts `--json` to print the full machine-readable report
 
 `install`
 

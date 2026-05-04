@@ -444,31 +444,25 @@ function run(command, args, {
 }
 
 function runJsonCommand(command, args, options = {}) {
-  const jsonOutputPath = path.resolve(outputRoot, ".tmp", `${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
-  run(command, args, {
+  const stdout = run(command, [...args, "--json"], {
     ...options,
-    env: {
-      ...process.env,
-      ...(options.env ?? {}),
-      PRIVATE_STATE_CLI_JSON_OUTPUT: jsonOutputPath,
-    },
+    captureStdout: true,
+    quiet: options.quiet ?? true,
   });
-  const stdout = fs.readFileSync(jsonOutputPath, "utf8").trim();
+  const trimmedStdout = stdout.trim();
   try {
-    return JSON.parse(stdout);
+    return JSON.parse(trimmedStdout);
   } catch (error) {
-    const trailingJson = extractTrailingJsonObject(stdout);
+    const trailingJson = extractTrailingJsonObject(trimmedStdout);
     if (trailingJson !== null) {
       return trailingJson;
     }
     throw new Error(
       [
         `Expected JSON output from ${command} ${args.join(" ")}.`,
-        `stdout:\n${stdout}`,
+        `stdout:\n${trimmedStdout}`,
       ].join("\n"),
     );
-  } finally {
-    fs.rmSync(jsonOutputPath, { force: true });
   }
 }
 

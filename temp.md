@@ -56,7 +56,7 @@ Resolution:
 
 - Implemented `doctor` as a human-readable summary by default.
 - Added `doctor --json` for the full machine-readable report.
-- Preserved `PRIVATE_STATE_CLI_JSON_OUTPUT` as an automation path for the full JSON report.
+- Generalized `--json` as the CLI-wide machine-readable output switch.
 - Updated CLI help, the browser assistant command builder, and README guidance.
 
 `doctor` previously emitted a large JSON object by default. This was useful for automation, but difficult for a human operator. It could also be confusing when `ok: true` appeared together with verbose Docker or GPU probe failures that were irrelevant because Docker/GPU mode was not requested.
@@ -66,9 +66,16 @@ Recommended improvement:
 - Make the default output a concise human-readable table.
 - Show only pass, fail, and relevant warning rows.
 - Include exact installed versions and compatible backend versions.
-- Keep the full JSON report behind `--json` or an environment variable.
+- Keep the full JSON report behind `--json`.
 
 ### 4. Medium: long proof-backed commands need explicit progress phases
+
+Resolution:
+
+- Added progress phases for `deposit-channel`, `withdraw-channel`, `mint-notes`, `transfer-notes`, and `redeem-notes`.
+- The phase sequence is `loading`, `proving`, `submitting`, `persisting`, and `done`.
+- Commands print human-readable output by default.
+- `--json` is now the CLI-wide machine-readable output switch; e2e uses `--json` when it needs structured results.
 
 Proof-backed commands can take tens of seconds or minutes:
 
@@ -82,16 +89,8 @@ Internally these commands load workspace state, run Groth16 or Tokamak proof gen
 
 Recommended improvement:
 
-- Emit durable progress phases to stderr by default.
-- Suggested phases:
-  - loading wallet
-  - checking channel policy compatibility
-  - loading workspace snapshot
-  - generating proof
-  - submitting transaction
-  - waiting for receipt
-  - updating local wallet and workspace
-- When JSON output is requested, emit machine-readable progress events or write a sidecar progress log.
+- Emit durable progress phases by default.
+- Keep the phase set small enough to be readable during normal CLI use.
 
 ### 5. Medium-Low: common errors need recovery actions
 
@@ -117,7 +116,7 @@ Recommended improvement:
 - The immutable channel policy warning is explicit before channel creation and first channel registration.
 - `list-local-wallets` gives useful local wallet metadata and helps users avoid filesystem inspection.
 - Wallet flows can auto-recover missing or stale channel workspace data.
-- JSON output through `PRIVATE_STATE_CLI_JSON_OUTPUT` is useful for automation and e2e harnesses.
+- CLI-wide `--json` output is useful for automation and e2e harnesses.
 - The CLI checks proof backend compatibility against the channel's immutable verifier snapshot before proof-backed execution.
 
 ## Recommended Priority

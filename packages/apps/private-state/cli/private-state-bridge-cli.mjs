@@ -102,6 +102,7 @@ const DOCKER_CUDA_PROBE_IMAGE = "nvidia/cuda:12.2.0-base-ubuntu22.04";
 const DOCTOR_GPU_PROBE_TIMEOUT_MS = 120000;
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
+let jsonOutputRequested = false;
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
@@ -289,6 +290,7 @@ function requireInstalledDeploymentArtifacts(artifactPaths, chainId) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  configureOutput(args);
 
   rejectDashPrefixedCommandAliases(args);
 
@@ -1415,7 +1417,7 @@ function uninstallGlobalPrivateStateCliPackage() {
 
 async function handleDoctor({ args }) {
   const report = buildDoctorReport();
-  if (args.json === true || process.env.PRIVATE_STATE_CLI_JSON_OUTPUT?.trim()) {
+  if (isJsonOutputRequested()) {
     printJson(report);
   } else {
     printDoctorHumanReport(report);
@@ -2423,15 +2425,16 @@ async function handleExitChannel({ args, provider }) {
 }
 
 async function handleGrothVaultMove({ args, provider, direction }) {
-  const { wallet: walletContext } = loadUnlockedWalletWithMetadata(args);
-  const contextResult = await loadPreferredWalletChannelContext({ walletContext, provider });
-  const context = contextResult.context;
-  const network = contextResult.network;
   const operationName = args.command === "withdraw-channel"
     ? "withdraw-channel"
     : direction === "deposit"
       ? "deposit-channel"
       : "withdraw";
+  emitProgress(operationName, "loading");
+  const { wallet: walletContext } = loadUnlockedWalletWithMetadata(args);
+  const contextResult = await loadPreferredWalletChannelContext({ walletContext, provider });
+  const context = contextResult.context;
+  const network = contextResult.network;
   expect(
     ethers.toBigInt(walletContext.wallet.channelId) === ethers.toBigInt(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
@@ -2494,6 +2497,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     `${operationName}-${shortAddress(signer.address)}`,
   );
 
+  emitProgress(operationName, "proving");
   const transition = await buildGrothTransition({
     operationDir,
     workspace: context.workspace,
@@ -2504,6 +2508,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   });
 
   const methodName = direction === "deposit" ? "depositToChannelVault" : "withdrawFromChannelVault";
+  emitProgress(operationName, "submitting");
   const receipt = await waitForReceipt(
     await bridgeTokenVault[methodName](ethers.toBigInt(context.workspace.channelId), transition.proof, transition.update),
   );
@@ -2513,6 +2518,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     `On-chain roots do not match the ${direction} post-state roots.`,
   );
 
+  emitProgress(operationName, "persisting");
   writeJson(path.join(operationDir, `${operationName}-receipt.json`), sanitizeReceipt(receipt));
   writeJson(path.join(operationDir, "state_snapshot.json"), transition.nextSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), transition.nextSnapshot);
@@ -2521,6 +2527,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   context.currentSnapshot = transition.nextSnapshot;
   persistCurrentState(context);
 
+  emitProgress(operationName, "done");
   printJson({
     action: operationName,
     workspace: context.workspaceName,
@@ -4176,6 +4183,7 @@ async function executeWalletDirectTemplateCommand({
   operationName,
   templatePayload,
 }) {
+  emitProgress(operationName, "loading");
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
   let contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
   let recoveredWorkspace = contextResult.recoveredWorkspace;
@@ -4190,6 +4198,7 @@ async function executeWalletDirectTemplateCommand({
       functionName: templatePayload.method,
       templatePayload,
     });
+    emitProgress(operationName, "done");
     return {
       execution,
       contextResult,
@@ -4216,6 +4225,7 @@ async function executeWalletDirectTemplateCommand({
     functionName: templatePayload.method,
     templatePayload,
   });
+  emitProgress(operationName, "done");
   return {
     execution,
     contextResult,
@@ -4265,7 +4275,7 @@ async function executeWalletTemplateSend({
   writeJson(path.join(operationDir, "contract_codes.json"), context.contractCodes);
 
   const bundlePath = path.join(operationDir, `${operationName}.zip`);
-  printLocalProofGenerationNotice(operationName);
+  emitProgress(operationName, "proving");
   runTokamakProofPipeline({ operationDir, bundlePath });
 
   const rawNextSnapshot = readJson(path.join(operationDir, "resource", "synthesizer", "output", "state_snapshot.json"));
@@ -4300,6 +4310,7 @@ async function executeWalletTemplateSend({
     "Generated Tokamak proof does not match the channel aPubBlockHash. Check the workspace block_info.json context.",
   );
 
+  emitProgress(operationName, "submitting");
   const receipt =
     await waitForReceipt(
       await context.channelManager.connect(signer).executeChannelTransaction(payload, functionProof),
@@ -4315,6 +4326,7 @@ async function executeWalletTemplateSend({
   writeJson(path.join(operationDir, "state_snapshot.json"), nextSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), nextSnapshot);
 
+  emitProgress(operationName, "persisting");
   wallet.wallet.l2Nonce = nonce + 1;
   applyNoteLifecycleToWallet(wallet, noteLifecycle, functionName, receipt.hash);
   context.currentSnapshot = nextSnapshot;
@@ -4985,15 +4997,6 @@ function runTokamakProofPipeline({ operationDir, bundlePath }) {
     args: ["--verify", bundlePath],
   });
   copyTokamakOperationArtifacts(operationDir);
-}
-
-function printLocalProofGenerationNotice(operationName) {
-  console.error(
-    [
-      `Starting local zero-knowledge proof generation for ${operationName}.`,
-      "This runs on your machine and may take a few minutes.",
-    ].join(" "),
-  );
 }
 
 function runTokamakCliStage({ operationDir, stageName, args }) {
@@ -5807,6 +5810,14 @@ function parseArgs(argv) {
   return parsed;
 }
 
+function configureOutput(args) {
+  jsonOutputRequested = args.json === true;
+}
+
+function isJsonOutputRequested() {
+  return jsonOutputRequested;
+}
+
 function toCamelCase(value) {
   return value.replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase());
 }
@@ -6118,12 +6129,15 @@ function walletConfigExists(walletDir) {
 
 function assertAllowedCommandKeys(args, commandName, allowedKeys, acceptedUsage) {
   const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
+    .filter((key) => key !== "json" && !allowedKeys.has(key))
     .map((key) => `--${toKebabCase(key)}`);
   if (unsupported.length > 0) {
     throw new Error(
       `${commandName} only accepts ${acceptedUsage}. Unsupported option(s): ${unsupported.join(", ")}.`,
     );
+  }
+  if (args.json !== undefined && args.json !== true) {
+    throw new Error(`${commandName} option --json does not accept a value.`);
   }
   expect(
     (args.positional ?? []).length === 1,
@@ -6549,6 +6563,9 @@ Secret source options:
   canonical CLI secret files remain protected. On macOS/Linux this means 0600; on Windows the CLI repairs ACLs when possible.
 
 Options:
+  --json
+      Print the command result as JSON. Without --json, commands print human-readable output.
+
   --help
       Show this help
 `);
@@ -6966,14 +6983,53 @@ function normalizePrivateKey(value) {
 }
 
 function printJson(value) {
-  const output = `${JSON.stringify(normalizeCliOutput(value), null, 2)}\n`;
-  const outputPath = process.env.PRIVATE_STATE_CLI_JSON_OUTPUT?.trim();
-  if (outputPath) {
-    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-    fs.writeFileSync(outputPath, output);
+  const normalized = normalizeCliOutput(value);
+  if (isJsonOutputRequested()) {
+    console.log(JSON.stringify(normalized, null, 2));
     return;
   }
-  console.log(output.trimEnd());
+  printHumanResult(normalized);
+}
+
+function printHumanResult(value) {
+  const action = typeof value?.action === "string" && value.action.length > 0 ? value.action : "result";
+  const entries = Object.entries(value ?? {}).filter(([key]) => key !== "action");
+  const lines = [
+    `${humanizeLabel(action)} result`,
+    ...entries.map(([key, entry]) => `${humanizeLabel(key)}: ${formatHumanValue(entry)}`),
+  ];
+  console.log(lines.join("\n"));
+}
+
+function formatHumanValue(value) {
+  if (value === null || value === undefined) {
+    return "none";
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  return JSON.stringify(value);
+}
+
+function humanizeLabel(value) {
+  return String(value)
+    .replace(/-/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./u, (letter) => letter.toUpperCase());
+}
+
+function emitProgress(action, phase) {
+  const line = `[${action}] ${phase}`;
+  if (isJsonOutputRequested()) {
+    console.error(line);
+  } else {
+    console.log(line);
+  }
 }
 
 function shortAddress(address) {

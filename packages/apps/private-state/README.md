@@ -157,9 +157,13 @@ The commands below are ordered by the normal execution flow.
 - writes Groth16 proof outputs only under the fixed runtime workspace proof directory
 - refreshes shared bridge constants derived from `tokamak-l2js`
 
-`uninstall-zk-evm`
+`uninstall`
 
-- removes the local Tokamak zk-EVM runtime workspace
+- is the CLI's only interactive command
+- requires typing `I understand that the wallet secrets deleted due to this decision cannot be recovered`
+- removes `~/tokamak-private-channels/`, including local wallet secrets, channel workspaces, installed private-state artifacts, and Groth16 proof artifacts
+- removes the Tokamak zk-EVM runtime cache
+- attempts to remove the global `@tokamak-private-dapps/private-state-cli` npm package when npm reports that it is globally installed
 - accepts no options
 
 ### 2. Create the channel

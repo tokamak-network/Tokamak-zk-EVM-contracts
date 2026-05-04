@@ -51,6 +51,17 @@ Check the installed package and runtime state with:
 private-state-cli doctor
 ```
 
+Remove all local private-state CLI data with:
+
+```bash
+private-state-cli uninstall
+```
+
+`uninstall` is intentionally interactive. It requires typing
+`I understand that the wallet secrets deleted due to this decision cannot be recovered` before deleting
+`~/tokamak-private-channels/`, the Tokamak zk-EVM runtime cache, and the global CLI npm package when npm reports that it
+is globally installed.
+
 ## Commands
 
 A common private-state flow is:

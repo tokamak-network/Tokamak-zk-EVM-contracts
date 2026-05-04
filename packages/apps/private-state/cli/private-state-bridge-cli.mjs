@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import readline from "node:readline/promises";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import {
@@ -95,6 +96,8 @@ const privateStateCliPackageRoot = path.dirname(require.resolve("./package.json"
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const secretRoot = path.resolve(os.homedir(), "tokamak-private-channels", "secrets");
 const flatDeploymentArtifactPathsByChainId = new Map();
+const PRIVATE_STATE_UNINSTALL_CONFIRMATION =
+  "I understand that the wallet secrets deleted due to this decision cannot be recovered";
 const DOCKER_CUDA_PROBE_IMAGE = "nvidia/cuda:12.2.0-base-ubuntu22.04";
 const DOCTOR_GPU_PROBE_TIMEOUT_MS = 120000;
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
@@ -300,9 +303,9 @@ async function main() {
     return;
   }
 
-  if (args.command === "uninstall-zk-evm") {
-    assertUninstallZkEvmArgs(args);
-    await handleUninstallZkEvm();
+  if (args.command === "uninstall") {
+    assertUninstallArgs(args);
+    await handleUninstall();
     return;
   }
 
@@ -1280,21 +1283,128 @@ async function handleInstallZkEvm({ args }) {
   });
 }
 
-async function handleUninstallZkEvm() {
-  let runtimeRoot = null;
-  const invocation = buildTokamakCliInvocationForPackageRoot();
-  try {
-    runtimeRoot = inspectTokamakCliRuntime({ packageRoot: invocation.packageRoot }).runtimeRoot;
-  } catch {
-    runtimeRoot = null;
-  }
-  run(invocation.command, [...invocation.args, "--uninstall"], { cwd: invocation.packageRoot });
+async function handleUninstall() {
+  await requireUninstallConfirmation();
+
+  const privateStateRoots = uniquePaths([
+    path.resolve(os.homedir(), "tokamak-private-channels"),
+    resolveArtifactCacheBaseRoot(),
+  ]);
+  const tokamakZkEvmRoot = resolveTokamakCliCacheRoot();
+  const removedPrivateStateRoots = privateStateRoots.map((rootPath) =>
+    removeManagedRoot({ label: "private-state-local-root", rootPath }),
+  );
+  const removedTokamakZkEvmRoot = removeManagedRoot({
+    label: "tokamak-zk-evm-runtime-root",
+    rootPath: tokamakZkEvmRoot,
+  });
+  const globalPackage = uninstallGlobalPrivateStateCliPackage();
 
   printJson({
-    action: "uninstall-zk-evm",
-    runtimeRoot,
-    existed: runtimeRoot !== null,
+    action: "uninstall",
+    confirmationAccepted: true,
+    removedPrivateStateRoots,
+    removedTokamakZkEvmRoot,
+    globalPackage,
   });
+}
+
+async function requireUninstallConfirmation() {
+  const prompt = [
+    "This permanently deletes local private-state CLI workspaces, wallet secrets, installed private-state artifacts,",
+    "the Groth16 workspace, and the Tokamak zk-EVM runtime workspace.",
+    `Type exactly: ${PRIVATE_STATE_UNINSTALL_CONFIRMATION}`,
+    "> ",
+  ].join("\n");
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stderr,
+    terminal: process.stdin.isTTY && process.stderr.isTTY,
+  });
+  try {
+    const answer = await rl.question(prompt);
+    if (answer !== PRIVATE_STATE_UNINSTALL_CONFIRMATION) {
+      throw new Error("Uninstall confirmation did not match. Nothing was deleted.");
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+function uniquePaths(paths) {
+  return [...new Set(paths.map((entry) => path.resolve(entry)))];
+}
+
+function removeManagedRoot({ label, rootPath }) {
+  const resolvedPath = path.resolve(rootPath);
+  try {
+    assertSafeManagedRoot(resolvedPath, label);
+  } catch (error) {
+    return {
+      label,
+      path: resolvedPath,
+      existed: fs.existsSync(resolvedPath),
+      removed: false,
+      error: error.message,
+    };
+  }
+  const existed = fs.existsSync(resolvedPath);
+  if (existed) {
+    fs.rmSync(resolvedPath, { recursive: true, force: true });
+  }
+  return {
+    label,
+    path: resolvedPath,
+    existed,
+    removed: existed && !fs.existsSync(resolvedPath),
+  };
+}
+
+function assertSafeManagedRoot(rootPath, label) {
+  const protectedPaths = new Set([
+    path.resolve(os.homedir()),
+    path.parse(rootPath).root,
+    path.resolve(defaultCommandCwd),
+    path.resolve(privateStateCliPackageRoot),
+  ]);
+  if (protectedPaths.has(rootPath)) {
+    throw new Error(`Refusing to delete protected ${label}: ${rootPath}`);
+  }
+}
+
+function uninstallGlobalPrivateStateCliPackage() {
+  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+  const list = runCaptured(npmCommand, ["ls", "-g", "@tokamak-private-dapps/private-state-cli", "--depth=0", "--json"]);
+  if (list.status !== 0) {
+    const listReport = parseJsonReport(list.stdout);
+    const missing = /empty|missing|not found|not installed/iu.test(`${list.stdout}\n${list.stderr}`);
+    return {
+      attempted: false,
+      installed: false,
+      reason: missing || listReport ? "global package is not installed" : "unable to inspect global npm package",
+      status: list.status,
+      stderr: stripAnsi(list.stderr).trim(),
+    };
+  }
+  const report = parseJsonReport(list.stdout);
+  const installed = Boolean(report?.dependencies?.["@tokamak-private-dapps/private-state-cli"]);
+  if (!installed) {
+    return {
+      attempted: false,
+      installed: false,
+      reason: "global package is not installed",
+      status: list.status,
+    };
+  }
+  const uninstall = runCaptured(npmCommand, ["uninstall", "-g", "@tokamak-private-dapps/private-state-cli"]);
+  return {
+    attempted: true,
+    installed: true,
+    removed: uninstall.status === 0,
+    status: uninstall.status,
+    stdout: stripAnsi(uninstall.stdout).trim(),
+    stderr: stripAnsi(uninstall.stderr).trim(),
+  };
 }
 
 async function handleDoctor() {
@@ -5385,8 +5495,8 @@ function assertInstallZkEvmArgs(args) {
   }
 }
 
-function assertUninstallZkEvmArgs(args) {
-  assertAllowedCommandKeys(args, "uninstall-zk-evm", new Set(["command", "positional"]), "no options");
+function assertUninstallArgs(args) {
+  assertAllowedCommandKeys(args, "uninstall", new Set(["command", "positional"]), "no options");
 }
 
 function assertDoctorArgs(args) {
@@ -5652,8 +5762,9 @@ Commands:
       Use --docker on Linux to forward Docker mode to the Tokamak zk-EVM and Groth16 runtimes
       Use --include-local-artifacts to also install local deployment/ artifacts from the current working directory
 
-  uninstall-zk-evm
-      Remove the Tokamak zk-EVM CLI runtime workspace
+  uninstall
+      Interactively remove local private-state workspaces, wallet secrets, proof artifacts, Tokamak zk-EVM runtime data,
+      and the global private-state CLI package when npm reports it is globally installed
 
   doctor
       Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts

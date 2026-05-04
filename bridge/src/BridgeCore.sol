@@ -272,7 +272,11 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
                 || channelManager.dappMetadataDigest() != dappMetadataDigest
                 || channelManager.functionRoot() != functionRoot
                 || address(channelManager.grothVerifier()) != verifierSnapshot.grothVerifier
+                || keccak256(bytes(channelManager.grothVerifierCompatibleBackendVersion()))
+                    != keccak256(bytes(verifierSnapshot.grothVerifierCompatibleBackendVersion))
                 || address(channelManager.tokamakVerifier()) != verifierSnapshot.tokamakVerifier
+                || keccak256(bytes(channelManager.tokamakVerifierCompatibleBackendVersion()))
+                    != keccak256(bytes(verifierSnapshot.tokamakVerifierCompatibleBackendVersion))
                 || channelManager.joinToll() != initialJoinToll
                 || channelManager.joinTollRefundCutoff1() != defaultJoinTollRefundCutoff1
                 || channelManager.joinTollRefundBps1() != defaultJoinTollRefundBps1

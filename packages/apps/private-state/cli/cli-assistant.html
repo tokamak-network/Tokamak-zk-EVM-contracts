@@ -416,7 +416,7 @@
               <li>
                 <span class="guide-label">Join a channel:</span> <code>join-channel</code>
                 <div class="guide-example">
-                  <code>join-channel --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --alchemy-api-key '__ALCHEMY_API_KEY__'</code>
+                  <code>join-channel --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --random-wallet-secret --alchemy-api-key '__ALCHEMY_API_KEY__'</code>
                 </div>
               </li>
               <li>
@@ -486,6 +486,16 @@
           type: "text",
           placeholder: "/path/to/private-key",
         },
+        randomWalletSecret: {
+          label: "Random Wallet Secret",
+          type: "checkbox",
+          hint: "Generate a new 0600 wallet-local secret while joining the channel.",
+        },
+        walletSecretPath: {
+          label: "Wallet Secret File",
+          type: "text",
+          placeholder: "/path/to/wallet-secret",
+        },
         wallet: {
           label: "Wallet Name",
           type: "text",
@@ -525,7 +535,6 @@
 
       const commands = [
         { id: "account-import", description: "Store a 0600 local L1 account secret for later --account use.", fields: ["account", "network", "privateKeyFile"] },
-        { id: "wallet-init-secret", description: "Create a 0600 wallet-local random password file before wallet creation.", fields: ["wallet", "network"] },
         { id: "install-zk-evm", description: "Install the local Tokamak zk-EVM toolchain. Optionally forward --docker for Linux-host Docker installs.", fields: ["docker"] },
         { id: "uninstall-zk-evm", description: "Remove the Tokamak zk-EVM CLI runtime workspace.", fields: [] },
         { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "network", "account", "alchemyApiKey"] },
@@ -533,7 +542,7 @@
         { id: "deposit-bridge", description: "Deposit canonical tokens into the shared bridge vault.", fields: ["amount", "network", "account", "alchemyApiKey"] },
         { id: "withdraw-bridge", description: "Withdraw shared bridge-vault funds back to the L1 wallet.", fields: ["amount", "network", "account", "alchemyApiKey"] },
         { id: "get-my-bridge-fund", description: "Read the current bridge-vault balance.", fields: ["network", "account", "alchemyApiKey"] },
-        { id: "join-channel", description: "Accept the channel policy and bind the caller to a channel-specific L2 identity.", fields: ["channelName", "network", "account", "alchemyApiKey"] },
+        { id: "join-channel", description: "Accept the channel policy and bind the caller to a channel-specific L2 identity.", fields: ["channelName", "network", "account", "randomWalletSecret", "walletSecretPath", "alchemyApiKey"] },
         { id: "recover-wallet", description: "Rebuild the recoverable portion of a wallet.", fields: ["channelName", "network", "account", "alchemyApiKey"] },
         { id: "get-my-wallet-meta", description: "Check whether a saved wallet matches on-chain registration.", fields: ["wallet", "network"] },
         { id: "get-my-l1-address", description: "Derive the L1 address for a local account.", fields: ["account", "network"] },
@@ -555,6 +564,8 @@
         alchemyApiKey: "",
         account: "",
         privateKeyFile: "",
+        randomWalletSecret: true,
+        walletSecretPath: "",
         wallet: "",
         amount: "",
         amounts: "",
@@ -1027,6 +1038,9 @@
             }
             return transferOutputs.recipients.length === 0 || transferOutputs.hasPartialPair;
           }
+          if (command.id === "join-channel" && (fieldKey === "randomWalletSecret" || fieldKey === "walletSecretPath")) {
+            return !state.randomWalletSecret && !String(state.walletSecretPath ?? "").trim();
+          }
           return !String(state[fieldKey] ?? "").trim();
         });
       }
@@ -1076,6 +1090,16 @@
               break;
             case "privateKeyFile":
               appendOption(parts, "--private-key-file", renderedValue);
+              break;
+            case "randomWalletSecret":
+              if (state.randomWalletSecret === true) {
+                parts.push("--random-wallet-secret");
+              }
+              break;
+            case "walletSecretPath":
+              if (state.randomWalletSecret !== true) {
+                appendOption(parts, "--wallet-secret-path", renderedValue);
+              }
               break;
             case "wallet":
               appendOption(parts, "--wallet", renderedValue);

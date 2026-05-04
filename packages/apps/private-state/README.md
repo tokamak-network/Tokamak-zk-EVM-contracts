@@ -112,6 +112,7 @@ Important rules:
 - `--amount` is always a human token amount and is converted with the canonical token decimals
 - L1 signing commands use `--account`; create the local account secret once with `account import --private-key-file`
 - wallet commands use the wallet-local default password file and do not accept explicit password arguments
+- `join-channel` must create or import the wallet-local secret with either `--random-wallet-secret` or `--wallet-secret-path <PATH>`
 - channel creation commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy are fixed for that channel
 - joining a channel means accepting that channel's current policy; later fixes to policy-level bugs require a new channel or migration rather than in-place mutation of the joined channel
 - `join-channel` binds the channel name, wallet-local password, and local account signer to derive the channel-specific L2 identity
@@ -217,6 +218,9 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - derives the channel-specific L2 identity
 - registers the caller's L2 address, channel token-vault storage key, leaf index, and note-receive public key on-chain
 - creates the encrypted wallet
+- requires exactly one wallet secret source:
+  - `--random-wallet-secret` to generate a new random `0600` wallet-local secret
+  - `--wallet-secret-path <PATH>` to import an existing `0600` secret file into the wallet-local secret path
 - stores the resolved `rpcUrl` in the wallet metadata so later wallet-backed commands do not need CLI RPC inputs
 - returns the deterministic wallet name `<channelName>-<l1Address>`
 - requires `--alchemy-api-key` on public networks

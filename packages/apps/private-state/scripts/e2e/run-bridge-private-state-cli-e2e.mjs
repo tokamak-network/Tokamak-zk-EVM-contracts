@@ -1210,6 +1210,7 @@ function deriveParticipant(index, alias) {
     l1Address: getAddress(wallet.address),
     l1PrivateKey: wallet.privateKey,
     walletName: null,
+    walletSecretPath: null,
     l2Address: null,
     registration: null,
   };
@@ -1288,18 +1289,12 @@ function walletDirForName(walletName) {
   return walletDirForNameInRoot(walletsRoot, walletName);
 }
 
-function walletPasswordSecretPath(walletName) {
-  return path.join(
-    secretRoot,
-    workspaceNetworkName,
-    "wallets",
-    slugifyPathComponent(walletName),
-    "password",
-  );
-}
-
 function privateKeyInputPath(accountName) {
   return path.join(outputRoot, "secret-inputs", `${slugifyPathComponent(accountName)}.private-key`);
+}
+
+function walletSecretInputPath(walletName) {
+  return path.join(outputRoot, "secret-inputs", `${slugifyPathComponent(walletName)}.wallet-secret`);
 }
 
 function prepareAccountSecret(accountName, privateKey) {
@@ -1315,7 +1310,8 @@ function prepareAccountSecret(accountName, privateKey) {
 
 function prepareWalletPasswordSecret(participant) {
   expect(participant.walletName, `${participant.alias} walletName is not available.`);
-  writeSecretFile(walletPasswordSecretPath(participant.walletName), participant.password);
+  participant.walletSecretPath = walletSecretInputPath(participant.walletName);
+  writeSecretFile(participant.walletSecretPath, participant.password);
 }
 
 function prepareCliSecrets(participants) {
@@ -1639,6 +1635,7 @@ function joinChannel(participant) {
   const result = runAnvilCliCommand("join-channel", [
     "--channel-name", channelName,
     ...signerCliArgs(participant),
+    "--wallet-secret-path", participant.walletSecretPath,
   ]);
   participant.walletName = result.wallet;
   participant.l2Address = result.l2Address;

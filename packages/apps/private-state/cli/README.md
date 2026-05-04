@@ -90,16 +90,16 @@ Local helper commands:
 
 ```bash
 private-state-cli account import --account <ACCOUNT_NAME> --network sepolia --private-key-file <PATH>
-private-state-cli wallet init-secret --wallet <WALLET_NAME> --network sepolia
 private-state-cli list-local-wallets --network sepolia --channel-name cuda
 private-state-cli get-my-wallet-meta --wallet <WALLET_NAME> --network sepolia
 private-state-cli get-my-l1-address --account <ACCOUNT_NAME> --network sepolia
 ```
 
 `account import` is the only supported way to bring an L1 signing key into the CLI: it reads a `0600`
-`--private-key-file` once and stores a local account secret for later `--account` use. `wallet init-secret` creates a
-`0600` wallet-local default password file before wallet creation. `list-local-wallets` reads only the local workspace
-and prints saved wallet names that can be reused with `--wallet`.
+`--private-key-file` once and stores a local account secret for later `--account` use. `join-channel` creates the
+wallet-local default secret while creating the encrypted local wallet. Use `--random-wallet-secret` for a generated
+secret or `--wallet-secret-path <PATH>` to import an existing `0600` secret file. `list-local-wallets` reads only the
+local workspace and prints saved wallet names that can be reused with `--wallet`.
 `get-my-wallet-meta` opens an encrypted local wallet and reports the stored L1/L2 identity metadata plus the current
 on-chain channel registration match state. `get-my-l1-address` is a simple offline helper that derives the L1 address
 for a local account.

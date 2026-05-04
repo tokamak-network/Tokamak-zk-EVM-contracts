@@ -322,12 +322,6 @@ async function main() {
     return;
   }
 
-  if (args.command === "wallet-init-secret") {
-    assertWalletInitSecretArgs(args);
-    handleWalletInitSecret({ args });
-    return;
-  }
-
   if (args.command === "list-local-wallets") {
     assertListLocalWalletsArgs(args);
     handleListLocalWallets({ args });
@@ -939,7 +933,6 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     args,
     networkName: network.name,
     walletName,
-    createIfMissing: args.createWalletSecret === true,
   });
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
   const initialized = await initializeChannelWorkspace({
@@ -1337,35 +1330,6 @@ function handleAccountImport({ args }) {
   });
 }
 
-function handleWalletInitSecret({ args }) {
-  const networkName = requireNetworkName(args);
-  resolveCliNetwork(networkName);
-  const walletName = requireWalletName(args);
-  expect(
-    !walletConfigExists(walletPath(walletName, networkName)),
-    [
-      `Wallet ${walletName} already exists on ${networkName}.`,
-      "wallet init-secret only creates a new password file before wallet creation.",
-      "Restore the existing wallet-local default password file if you need to unlock an existing wallet.",
-    ].join(" "),
-  );
-  const passwordPath = walletPasswordPath(networkName, walletName);
-  const created = ensureWalletPasswordSecret({
-    networkName,
-    walletName,
-    createIfMissing: true,
-    force: args.force === true,
-  });
-  printJson({
-    action: "wallet-init-secret",
-    wallet: walletName,
-    network: networkName,
-    passwordSource: "wallet-default",
-    passwordFile: passwordPath,
-    created,
-  });
-}
-
 function handleListLocalWallets({ args }) {
   const networkFilter = args.network ? requireNetworkName(args) : null;
   if (networkFilter) {
@@ -1497,11 +1461,18 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   });
   const signer = requireL1Signer(args, provider);
   const walletName = walletNameForChannelAndAddress(context.workspace.channelName, signer.address);
-  const password = resolveWalletPasswordForName({
+  const existingRegistration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
+  expect(
+    !existingRegistration.exists,
+    [
+      `L1 address ${signer.address} is already registered in channel ${context.workspace.channelName}.`,
+      "Use recover-wallet or normal wallet commands for an existing channel registration.",
+    ].join(" "),
+  );
+  const password = prepareJoinWalletPasswordForName({
     args,
     networkName: network.name,
     walletName,
-    createIfMissing: args.createWalletSecret === true,
   });
   const l2Identity = await deriveParticipantIdentityFromSigner({
     channelName: context.workspace.channelName,
@@ -1518,67 +1489,42 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
 
-  const existingRegistration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
-  let resolvedLeafIndex = leafIndex;
+  const resolvedLeafIndex = leafIndex;
   let approveReceipt = null;
   let receipt = null;
   let joinToll = 0n;
   let status = null;
 
-  if (!existingRegistration.exists) {
-    joinToll = ethers.toBigInt(await context.channelManager.joinToll());
-    const asset = new Contract(
-      context.workspace.canonicalAsset,
-      context.bridgeAbiManifest.contracts.erc20.abi,
-      signer,
+  joinToll = ethers.toBigInt(await context.channelManager.joinToll());
+  const asset = new Contract(
+    context.workspace.canonicalAsset,
+    context.bridgeAbiManifest.contracts.erc20.abi,
+    signer,
+  );
+  let nextNonce = await provider.getTransactionCount(signer.address, "pending");
+  printImmutableChannelPolicyWarning({
+    action: "join-channel",
+    channelName: context.workspace.channelName,
+    channelId: ethers.toBigInt(context.workspace.channelId),
+    channelManager: context.workspace.channelManager,
+    policySnapshot: context.workspace.policySnapshot,
+  });
+  if (joinToll !== 0n) {
+    approveReceipt = await waitForReceipt(
+      await asset.approve(context.workspace.bridgeTokenVault, joinToll, { nonce: nextNonce++ }),
     );
-    let nextNonce = await provider.getTransactionCount(signer.address, "pending");
-    printImmutableChannelPolicyWarning({
-      action: "join-channel",
-      channelName: context.workspace.channelName,
-      channelId: ethers.toBigInt(context.workspace.channelId),
-      channelManager: context.workspace.channelManager,
-      policySnapshot: context.workspace.policySnapshot,
-    });
-    if (joinToll !== 0n) {
-      approveReceipt = await waitForReceipt(
-        await asset.approve(context.workspace.bridgeTokenVault, joinToll, { nonce: nextNonce++ }),
-      );
-    }
-    receipt = await waitForReceipt(
-      await context.bridgeTokenVault.connect(signer).joinChannel(
-        ethers.toBigInt(context.workspace.channelId),
-        l2Identity.l2Address,
-        storageKey,
-        leafIndex,
-        noteReceiveKeyMaterial.noteReceivePubKey,
-        { nonce: nextNonce++ },
-      ),
-    );
-    status = "joined";
-  } else {
-    expect(
-      ethers.toBigInt(normalizeBytes32Hex(existingRegistration.channelTokenVaultKey))
-        === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
-      "The existing channel registration key does not match the derived channelTokenVault key.",
-    );
-    expect(
-      ethers.toBigInt(getAddress(existingRegistration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
-      "The existing channel registration L2 address does not match the derived L2 address.",
-    );
-    expect(
-      ethers.toBigInt(normalizeBytes32Hex(existingRegistration.noteReceivePubKey.x))
-        === ethers.toBigInt(normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x)),
-      "The existing note-receive public key X does not match the derived note-receive public key.",
-    );
-    expect(
-      Number(existingRegistration.noteReceivePubKey.yParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
-      "The existing note-receive public key parity does not match the derived note-receive public key.",
-    );
-    resolvedLeafIndex = existingRegistration.leafIndex;
-    joinToll = ethers.toBigInt(existingRegistration.joinTollPaid);
-    status = "already-registered";
   }
+  receipt = await waitForReceipt(
+    await context.bridgeTokenVault.connect(signer).joinChannel(
+      ethers.toBigInt(context.workspace.channelId),
+      l2Identity.l2Address,
+      storageKey,
+      leafIndex,
+      noteReceiveKeyMaterial.noteReceivePubKey,
+      { nonce: nextNonce++ },
+    ),
+  );
+  status = "joined";
 
   const walletContext = ensureWallet({
     channelContext: context,
@@ -5140,28 +5086,13 @@ function resolveWalletPasswordForName({
   args,
   networkName,
   walletName,
-  createIfMissing = false,
 }) {
-  if (createIfMissing && !fs.existsSync(walletPasswordPath(networkName, walletName))) {
-    expect(
-      !walletConfigExists(walletPath(walletName, networkName)),
-      [
-        `Wallet ${walletName} already exists on ${networkName}, but no default password file is configured.`,
-        "Refusing to generate a new random password for an existing encrypted wallet.",
-        "Restore the wallet-local default password file before using this wallet.",
-      ].join(" "),
-    );
-    ensureWalletPasswordSecret({
-      networkName,
-      walletName,
-      createIfMissing: true,
-      force: false,
-    });
-  }
   return resolveWalletDefaultPassword(networkName, walletName);
 }
 
 function resolvedWalletPasswordSource(args) {
+  if (args.randomWalletSecret === true) return "random-wallet-secret";
+  if (args.walletSecretPath !== undefined) return "wallet-secret-path";
   return "wallet-default";
 }
 
@@ -5175,29 +5106,55 @@ function resolveWalletDefaultPassword(networkName, walletName) {
     throw new Error(
       [
         `Missing wallet default password file: ${passwordPath}.`,
-        "Run wallet init-secret before wallet creation, or use join-channel/recover-wallet --create-wallet-secret.",
+        "Run join-channel with --random-wallet-secret or --wallet-secret-path before wallet commands.",
       ].join(" "),
     );
   }
   return readSecretFile(passwordPath, "wallet default password file");
 }
 
-function ensureWalletPasswordSecret({
+function prepareJoinWalletPasswordForName({
+  args,
   networkName,
   walletName,
-  createIfMissing,
-  force,
 }) {
   const passwordPath = walletPasswordPath(networkName, walletName);
-  if (fs.existsSync(passwordPath) && !force) {
-    return false;
+  expect(
+    !walletConfigExists(walletPath(walletName, networkName)),
+    [
+      `Wallet ${walletName} already exists on ${networkName}.`,
+      "join-channel always creates a new local wallet.",
+      "Use recover-wallet or normal wallet commands for an existing local wallet.",
+    ].join(" "),
+  );
+  const sourcePath = args.walletSecretPath === undefined
+    ? null
+    : path.resolve(String(args.walletSecretPath));
+  const canonicalPath = path.resolve(passwordPath);
+  if (sourcePath !== null) {
+    const password = readSecretFile(sourcePath, "--wallet-secret-path");
+    if (sourcePath !== canonicalPath) {
+      expect(
+        !fs.existsSync(canonicalPath),
+        [
+          `Wallet default password file already exists: ${canonicalPath}.`,
+          "Remove it before joining with a different --wallet-secret-path.",
+        ].join(" "),
+      );
+      writeSecretFile(canonicalPath, password);
+    }
+    return password;
   }
-  if (!createIfMissing && !force) {
-    return false;
-  }
+  expect(
+    !fs.existsSync(canonicalPath),
+    [
+      `Wallet default password file already exists: ${canonicalPath}.`,
+      "Remove it before joining with --random-wallet-secret.",
+    ].join(" "),
+  );
   const password = ethers.hexlify(randomBytes(32));
-  writeSecretFile(passwordPath, password);
-  return true;
+  writeSecretFile(canonicalPath, password);
+  return password;
 }
 
 function channelWorkspacePath(networkName, name) {
@@ -5390,16 +5347,9 @@ function assertL1SecretSourceArgs(args, { allowAccount }) {
   expect(args.privateKeyFile !== undefined, "Provide --private-key-file.");
 }
 
-function assertWalletPasswordSourceArgs(args, { allowCreateWalletSecret = false } = {}) {
-  if (args.createWalletSecret !== undefined) {
-    expect(allowCreateWalletSecret, "--create-wallet-secret is not supported by this command.");
-  }
-}
-
 function assertWalletPasswordArgs(args, commandName, extraOptionKeys = [], acceptedUsage = "--wallet and --network") {
   requireWalletName(args);
   requireNetworkName(args);
-  assertWalletPasswordSourceArgs(args);
   assertAllowedCommandKeys(
     args,
     commandName,
@@ -5453,17 +5403,6 @@ function assertAccountImportArgs(args) {
     "account import",
     new Set(["command", "positional", "account", "network", "privateKeyFile", "force"]),
     "--account, --network, --private-key-file, and optional --force",
-  );
-}
-
-function assertWalletInitSecretArgs(args) {
-  requireWalletName(args);
-  requireNetworkName(args);
-  assertAllowedCommandKeys(
-    args,
-    "wallet init-secret",
-    new Set(["command", "positional", "wallet", "network", "force"]),
-    "--wallet, --network, and optional --force",
   );
 }
 
@@ -5582,7 +5521,6 @@ function assertExplicitSignerPasswordCommandArgs(args, commandName) {
   requireNetworkName(args);
   requireAlchemyApiKeyForPublicNetwork(args, commandName);
   assertL1SecretSourceArgs(args, { allowAccount: true });
-  assertWalletPasswordSourceArgs(args, { allowCreateWalletSecret: true });
   assertAllowedCommandKeys(
     args,
     commandName,
@@ -5592,10 +5530,9 @@ function assertExplicitSignerPasswordCommandArgs(args, commandName) {
       "channelName",
       "network",
       "account",
-      "createWalletSecret",
       "alchemyApiKey",
     ]),
-    "--channel-name, --network, --account, optional --create-wallet-secret, and --alchemy-api-key on public networks",
+    "--channel-name, --network, --account, and --alchemy-api-key on public networks",
   );
 }
 
@@ -5604,7 +5541,31 @@ function assertRecoverWalletArgs(args) {
 }
 
 function assertJoinChannelArgs(args) {
-  assertExplicitSignerPasswordCommandArgs(args, "join-channel");
+  requireArg(args.channelName, "--channel-name");
+  requireNetworkName(args);
+  requireAlchemyApiKeyForPublicNetwork(args, "join-channel");
+  assertL1SecretSourceArgs(args, { allowAccount: true });
+  const randomWalletSecret = args.randomWalletSecret === true;
+  const hasWalletSecretPath = args.walletSecretPath !== undefined;
+  expect(
+    Number(randomWalletSecret) + Number(hasWalletSecretPath) === 1,
+    "join-channel requires exactly one wallet secret source: --random-wallet-secret or --wallet-secret-path <PATH>.",
+  );
+  assertAllowedCommandKeys(
+    args,
+    "join-channel",
+    new Set([
+      "command",
+      "positional",
+      "channelName",
+      "network",
+      "account",
+      "randomWalletSecret",
+      "walletSecretPath",
+      "alchemyApiKey",
+    ]),
+    "--channel-name, --network, --account, one wallet secret source, and --alchemy-api-key on public networks",
+  );
 }
 
 function assertGetMyWalletMetaArgs(args) {
@@ -5709,9 +5670,6 @@ Commands:
   account import --account <NAME> --network <NAME> --private-key-file <PATH>
       Store a 0600 local L1 account secret for later --account use
 
-  wallet init-secret --wallet <NAME> --network <NAME>
-      Create a 0600 wallet-local random password file before the wallet is first created
-
   create-channel --channel-name <NAME> --join-toll <TOKENS> --network <NAME> --account <NAME> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace
       Prints the immutable policy snapshot before sending the transaction
@@ -5733,11 +5691,13 @@ Commands:
   get-my-bridge-fund --network <NAME> --account <NAME> --alchemy-api-key <KEY>
       Read the current shared bridge vault balance
 
-  recover-wallet --channel-name <NAME> --network <NAME> --account <NAME> [--create-wallet-secret] --alchemy-api-key <KEY>
+  recover-wallet --channel-name <NAME> --network <NAME> --account <NAME> --alchemy-api-key <KEY>
       Rebuild a recoverable local wallet from on-chain channel state
 
-  join-channel --channel-name <NAME> --network <NAME> --account <NAME> [--create-wallet-secret] --alchemy-api-key <KEY>
+  join-channel --channel-name <NAME> --network <NAME> --account <NAME> (--random-wallet-secret | --wallet-secret-path <PATH>) --alchemy-api-key <KEY>
       Pay the channel join toll and bind a wallet to a channel-specific L2 identity
+      --random-wallet-secret creates a new 0600 wallet-local secret file
+      --wallet-secret-path imports an existing 0600 secret file into the wallet-local secret file
       Prints the immutable policy snapshot before first registration
 
   get-my-wallet-meta --wallet <NAME> --network <NAME>

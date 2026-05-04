@@ -40,6 +40,8 @@ This project follows a package-oriented changelog model:
 
 - Added a bridge deployment `.env.example`.
 - Updated bridge documentation references to point at existing documents.
+- Added `bridge/CHANGELOG.md` to track mainnet bridge deployments, deployed source commits,
+  and pending bridge changes that are not yet included in mainnet.
 
 ### Private-State DApp
 

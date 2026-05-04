@@ -2,6 +2,7 @@
 
 This folder contains a standalone bridge-contract implementation. Start with:
 
+- `bridge/CHANGELOG.md`
 - `bridge/docs/spec.md`
 - `bridge/docs/zk-l2-bridge-whitepaper.md`
 - `bridge/docs/current-implementation.md`

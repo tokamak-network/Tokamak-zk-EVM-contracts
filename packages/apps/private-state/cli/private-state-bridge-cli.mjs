@@ -93,6 +93,7 @@ const require = createRequire(import.meta.url);
 const defaultCommandCwd = process.cwd();
 const privateStateCliPackageRoot = path.dirname(require.resolve("./package.json"));
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
+const secretRoot = path.resolve(os.homedir(), "tokamak-private-channels", "secrets");
 const flatDeploymentArtifactPathsByChainId = new Map();
 const DOCKER_CUDA_PROBE_IMAGE = "nvidia/cuda:12.2.0-base-ubuntu22.04";
 const DOCTOR_GPU_PROBE_TIMEOUT_MS = 120000;
@@ -312,6 +313,18 @@ async function main() {
   if (args.command === "get-my-l1-address") {
     assertGetMyL1AddressArgs(args);
     handleGetMyL1Address({ args });
+    return;
+  }
+
+  if (args.command === "account-import") {
+    assertAccountImportArgs(args);
+    handleAccountImport({ args });
+    return;
+  }
+
+  if (args.command === "wallet-init-secret") {
+    assertWalletInitSecretArgs(args);
+    handleWalletInitSecret({ args });
     return;
   }
 
@@ -919,9 +932,15 @@ async function handleGetMyBridgeFund({ args, provider }) {
 }
 
 async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
-  const password = requireL2Password(args);
   const channelName = requireArg(args.channelName, "--channel-name");
   const signer = requireL1Signer(args, provider);
+  const walletName = walletNameForChannelAndAddress(channelName, signer.address);
+  const password = resolveWalletPasswordForName({
+    args,
+    networkName: network.name,
+    walletName,
+    createIfMissing: args.createWalletSecret === true,
+  });
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
   const initialized = await initializeChannelWorkspace({
     workspaceName: channelName,
@@ -995,7 +1014,6 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     "The existing note-receive public key parity does not match the derived note-receive public key.",
   );
 
-  const walletName = walletNameForChannelAndAddress(channelName, signer.address);
   const existingWallet = tryLoadRecoverableWallet({
     walletName,
     walletPassword: password,
@@ -1015,6 +1033,8 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       status: "already-recovered",
       wallet: walletName,
       walletDir: existingWallet.walletDir,
+      walletPasswordSource: resolvedWalletPasswordSource(args),
+      walletPasswordFile: resolvedWalletPasswordFile(args, network.name, walletName),
       workspace: context.workspaceName,
       channelName: context.workspace.channelName,
       channelId: context.workspace.channelId,
@@ -1055,6 +1075,8 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     status: "recovered",
     wallet: walletName,
     walletDir: walletContext.walletDir,
+    walletPasswordSource: resolvedWalletPasswordSource(args),
+    walletPasswordFile: resolvedWalletPasswordFile(args, network.name, walletName),
     workspace: context.workspaceName,
     channelName: context.workspace.channelName,
     channelId: context.workspace.channelId,
@@ -1277,11 +1299,70 @@ async function handleDoctor() {
 }
 
 function handleGetMyL1Address({ args }) {
-  const privateKey = normalizePrivateKey(requireArg(args.privateKey, "--private-key"));
-  const signer = new Wallet(privateKey);
+  const signer = requireL1Signer(args);
   printJson({
     action: "get-my-l1-address",
     l1Address: signer.address,
+    account: args.account ?? null,
+  });
+}
+
+function handleAccountImport({ args }) {
+  const networkName = requireNetworkName(args);
+  resolveCliNetwork(networkName);
+  const account = requireAccountName(args);
+  const privateKey = resolveStandalonePrivateKeySource(args);
+  const signer = new Wallet(privateKey);
+  const privateKeyPath = accountPrivateKeyPath(networkName, account);
+  const metadataPath = accountMetadataPath(networkName, account);
+  if (fs.existsSync(privateKeyPath) && args.force !== true) {
+    throw new Error(
+      `Account secret already exists at ${privateKeyPath}. Use --force to overwrite it.`,
+    );
+  }
+  writeSecretFile(privateKeyPath, privateKey);
+  writeJsonWithMode(metadataPath, {
+    account,
+    network: networkName,
+    l1Address: getAddress(signer.address),
+    privateKeyPath,
+  }, 0o600);
+  printJson({
+    action: "account-import",
+    account,
+    network: networkName,
+    l1Address: getAddress(signer.address),
+    privateKeySource: "account-default",
+    privateKeyPath,
+  });
+}
+
+function handleWalletInitSecret({ args }) {
+  const networkName = requireNetworkName(args);
+  resolveCliNetwork(networkName);
+  const walletName = requireWalletName(args);
+  expect(
+    !walletConfigExists(walletPath(walletName, networkName)),
+    [
+      `Wallet ${walletName} already exists on ${networkName}.`,
+      "wallet init-secret only creates a new password file before wallet creation.",
+      "Use --password-file or --password-env if you need to unlock an existing wallet.",
+    ].join(" "),
+  );
+  const passwordPath = walletPasswordPath(networkName, walletName);
+  const created = ensureWalletPasswordSecret({
+    networkName,
+    walletName,
+    createIfMissing: true,
+    force: args.force === true,
+  });
+  printJson({
+    action: "wallet-init-secret",
+    wallet: walletName,
+    network: networkName,
+    passwordSource: "wallet-default",
+    passwordFile: passwordPath,
+    created,
   });
 }
 
@@ -1409,13 +1490,19 @@ async function handleGetMyChannelFund({ args, provider }) {
 }
 
 async function handleJoinChannel({ args, network, provider, rpcUrl }) {
-  const password = requireL2Password(args);
   const context = await loadChannelContext({
     args,
     networkName: network.name,
     provider,
   });
   const signer = requireL1Signer(args, provider);
+  const walletName = walletNameForChannelAndAddress(context.workspace.channelName, signer.address);
+  const password = resolveWalletPasswordForName({
+    args,
+    networkName: network.name,
+    walletName,
+    createIfMissing: args.createWalletSecret === true,
+  });
   const l2Identity = await deriveParticipantIdentityFromSigner({
     channelName: context.workspace.channelName,
     password,
@@ -1509,6 +1596,8 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     action: "join-channel",
     workspace: context.workspaceName,
     wallet: walletContext.walletName,
+    walletPasswordSource: resolvedWalletPasswordSource(args),
+    walletPasswordFile: resolvedWalletPasswordFile(args, network.name, walletContext.walletName),
     channelName: context.workspace.channelName,
     channelId: context.workspace.channelId,
     l1Address: signer.address,
@@ -4948,6 +5037,10 @@ function parseArgs(argv) {
   }
 
   parsed.command = parsed.positional[0];
+  if ((parsed.command === "account" || parsed.command === "wallet") && parsed.positional[1]) {
+    parsed.command = `${parsed.command}-${parsed.positional[1]}`;
+    parsed.positional = [parsed.command];
+  }
   if (!parsed.command && parsed.install === true) {
     parsed.command = "--install";
     parsed.positional = ["--install"];
@@ -4976,7 +5069,23 @@ function parseTokenAmount(value, decimals) {
 }
 
 function requireL2Password(args) {
-  return requireArg(args.password, "--password");
+  if (args.wallet !== undefined && args.network !== undefined) {
+    return resolveWalletPasswordForName({
+      args,
+      networkName: requireNetworkName(args),
+      walletName: requireWalletName(args),
+    });
+  }
+  if (args.password !== undefined || args.passwordFile !== undefined || args.passwordEnv !== undefined) {
+    return resolveWalletPasswordForName({
+      args,
+      networkName: args.network ?? "unknown-network",
+      walletName: args.wallet ?? "unknown-wallet",
+    });
+  }
+  throw new Error(
+    "Missing wallet password source. Provide --password, --password-file, --password-env, or use a wallet with a default password file.",
+  );
 }
 
 function requireArg(value, label) {
@@ -5006,6 +5115,10 @@ function requireNetworkName(args) {
   return String(requireArg(args.network, "--network"));
 }
 
+function requireAccountName(args) {
+  return String(requireArg(args.account, "--account"));
+}
+
 function requireAlchemyApiKeyForPublicNetwork(args, commandName) {
   const networkName = requireNetworkName(args);
   if (networkName !== "anvil") {
@@ -5017,8 +5130,145 @@ function requireAlchemyApiKeyForPublicNetwork(args, commandName) {
 }
 
 function requireL1Signer(args, provider) {
-  const privateKey = requireArg(args.privateKey, "--private-key");
-  return new Wallet(normalizePrivateKey(privateKey), provider);
+  return new Wallet(resolvePrivateKeySource(args), provider);
+}
+
+function resolvePrivateKeySource(args) {
+  const sources = [
+    args.privateKey !== undefined ? "--private-key" : null,
+    args.privateKeyFile !== undefined ? "--private-key-file" : null,
+    args.privateKeyEnv !== undefined ? "--private-key-env" : null,
+    args.account !== undefined ? "--account" : null,
+  ].filter(Boolean);
+  if (sources.length !== 1) {
+    throw new Error(
+      `Expected exactly one L1 private key source, received ${sources.length || "none"}. `
+        + "Use --account, --private-key-file, --private-key-env, or unsafe --private-key.",
+    );
+  }
+  if (args.privateKey !== undefined) {
+    return normalizePrivateKey(requireArg(args.privateKey, "--private-key"));
+  }
+  if (args.privateKeyFile !== undefined) {
+    return normalizePrivateKey(readSecretFile(requireArg(args.privateKeyFile, "--private-key-file"), "--private-key-file"));
+  }
+  if (args.privateKeyEnv !== undefined) {
+    return normalizePrivateKey(
+      requireArg(process.env[requireArg(args.privateKeyEnv, "--private-key-env")], `environment variable ${args.privateKeyEnv}`),
+    );
+  }
+  const networkName = requireNetworkName(args);
+  const account = requireAccountName(args);
+  return normalizePrivateKey(readSecretFile(accountPrivateKeyPath(networkName, account), "--account"));
+}
+
+function resolveStandalonePrivateKeySource(args) {
+  const sources = [
+    args.privateKey !== undefined ? "--private-key" : null,
+    args.privateKeyFile !== undefined ? "--private-key-file" : null,
+    args.privateKeyEnv !== undefined ? "--private-key-env" : null,
+  ].filter(Boolean);
+  if (sources.length !== 1) {
+    throw new Error(
+      `Expected exactly one private key source, received ${sources.length || "none"}. `
+        + "Use --private-key-file, --private-key-env, or unsafe --private-key.",
+    );
+  }
+  if (args.privateKey !== undefined) {
+    return normalizePrivateKey(requireArg(args.privateKey, "--private-key"));
+  }
+  if (args.privateKeyFile !== undefined) {
+    return normalizePrivateKey(readSecretFile(requireArg(args.privateKeyFile, "--private-key-file"), "--private-key-file"));
+  }
+  return normalizePrivateKey(
+    requireArg(process.env[requireArg(args.privateKeyEnv, "--private-key-env")], `environment variable ${args.privateKeyEnv}`),
+  );
+}
+
+function resolveWalletPasswordForName({
+  args,
+  networkName,
+  walletName,
+  createIfMissing = false,
+}) {
+  const explicitPasswordSources = [
+    args.password !== undefined ? "--password" : null,
+    args.passwordFile !== undefined ? "--password-file" : null,
+    args.passwordEnv !== undefined ? "--password-env" : null,
+  ].filter(Boolean);
+  if (explicitPasswordSources.length > 1) {
+    throw new Error(`Expected one wallet password source, received ${explicitPasswordSources.join(", ")}.`);
+  }
+  if (args.password !== undefined) {
+    return requireArg(args.password, "--password");
+  }
+  if (args.passwordFile !== undefined) {
+    return readSecretFile(requireArg(args.passwordFile, "--password-file"), "--password-file");
+  }
+  if (args.passwordEnv !== undefined) {
+    return requireArg(process.env[requireArg(args.passwordEnv, "--password-env")], `environment variable ${args.passwordEnv}`);
+  }
+  if (createIfMissing && !fs.existsSync(walletPasswordPath(networkName, walletName))) {
+    expect(
+      !walletConfigExists(walletPath(walletName, networkName)),
+      [
+        `Wallet ${walletName} already exists on ${networkName}, but no default password file is configured.`,
+        "Refusing to generate a new random password for an existing encrypted wallet.",
+        "Use --password-file, --password-env, or unsafe --password with the existing password.",
+      ].join(" "),
+    );
+    ensureWalletPasswordSecret({
+      networkName,
+      walletName,
+      createIfMissing: true,
+      force: false,
+    });
+  }
+  return resolveWalletDefaultPassword(networkName, walletName);
+}
+
+function resolvedWalletPasswordSource(args) {
+  if (args.password !== undefined) return "unsafe-argv";
+  if (args.passwordFile !== undefined) return "password-file";
+  if (args.passwordEnv !== undefined) return "password-env";
+  return "wallet-default";
+}
+
+function resolvedWalletPasswordFile(args, networkName, walletName) {
+  if (args.passwordFile !== undefined) return path.resolve(String(args.passwordFile));
+  if (args.passwordEnv !== undefined || args.password !== undefined) return null;
+  return walletPasswordPath(networkName, walletName);
+}
+
+function resolveWalletDefaultPassword(networkName, walletName) {
+  const passwordPath = walletPasswordPath(networkName, walletName);
+  if (!fs.existsSync(passwordPath)) {
+    throw new Error(
+      [
+        `Missing wallet default password file: ${passwordPath}.`,
+        "Use --password-file, --password-env, unsafe --password, wallet init-secret, or join-channel --create-wallet-secret.",
+      ].join(" "),
+    );
+  }
+  return readSecretFile(passwordPath, "wallet default password file");
+}
+
+function ensureWalletPasswordSecret({
+  networkName,
+  walletName,
+  createIfMissing,
+  force,
+}) {
+  const passwordPath = walletPasswordPath(networkName, walletName);
+  if (fs.existsSync(passwordPath) && !force) {
+    return false;
+  }
+  if (!createIfMissing && !force) {
+    return false;
+  }
+  const password = ethers.hexlify(randomBytes(32));
+  writeSecretFile(passwordPath, password);
+  return true;
 }
 
 function channelWorkspacePath(networkName, name) {
@@ -5055,6 +5305,36 @@ function walletPath(name, networkName = null) {
   return walletDirForName(
     workspaceWalletsDir(channelWorkspacePath(networkDirs[0].name, channelName)),
     walletName,
+  );
+}
+
+function accountPrivateKeyPath(networkName, accountName) {
+  return path.join(
+    secretRoot,
+    requireNetworkName({ network: networkName }),
+    "accounts",
+    slugifyPathComponent(accountName),
+    "private-key",
+  );
+}
+
+function accountMetadataPath(networkName, accountName) {
+  return path.join(
+    secretRoot,
+    requireNetworkName({ network: networkName }),
+    "accounts",
+    slugifyPathComponent(accountName),
+    "account.json",
+  );
+}
+
+function walletPasswordPath(networkName, walletName) {
+  return path.join(
+    secretRoot,
+    requireNetworkName({ network: networkName }),
+    "wallets",
+    slugifyPathComponent(walletName),
+    "password",
   );
 }
 
@@ -5172,21 +5452,59 @@ function assertAllowedCommandKeys(args, commandName, allowedKeys, acceptedUsage)
   );
 }
 
-function assertWalletPasswordArgs(args, commandName, extraOptionKeys = [], acceptedUsage = "--wallet, --password, and --network") {
+function countDefinedOptionKeys(args, keys) {
+  return keys.filter((key) => args[key] !== undefined).length;
+}
+
+function assertL1SecretSourceArgs(args, { allowAccount }) {
+  const keys = ["privateKey", "privateKeyFile", "privateKeyEnv", ...(allowAccount ? ["account"] : [])];
+  const count = countDefinedOptionKeys(args, keys);
+  expect(
+    count === 1,
+    `Provide exactly one L1 private key source: ${
+      [
+        allowAccount ? "--account" : null,
+        "--private-key-file",
+        "--private-key-env",
+        "unsafe --private-key",
+      ].filter(Boolean).join(", ")
+    }.`,
+  );
+  if (args.account !== undefined) {
+    requireNetworkName(args);
+  }
+}
+
+function assertWalletPasswordSourceArgs(args, { allowCreateWalletSecret = false } = {}) {
+  const count = countDefinedOptionKeys(args, ["password", "passwordFile", "passwordEnv"]);
+  expect(
+    count <= 1,
+    "Provide at most one wallet password source: --password-file, --password-env, or unsafe --password.",
+  );
+  expect(
+    !(args.createWalletSecret === true && count !== 0),
+    "--create-wallet-secret cannot be combined with --password, --password-file, or --password-env.",
+  );
+  if (args.createWalletSecret !== undefined) {
+    expect(allowCreateWalletSecret, "--create-wallet-secret is not supported by this command.");
+  }
+}
+
+function assertWalletPasswordArgs(args, commandName, extraOptionKeys = [], acceptedUsage = "--wallet, --network, and optional wallet password source") {
   requireWalletName(args);
-  requireL2Password(args);
   requireNetworkName(args);
+  assertWalletPasswordSourceArgs(args);
   assertAllowedCommandKeys(
     args,
     commandName,
-    new Set(["command", "positional", "wallet", "password", "network", ...extraOptionKeys]),
+    new Set(["command", "positional", "wallet", "password", "passwordFile", "passwordEnv", "network", ...extraOptionKeys]),
     acceptedUsage,
   );
 }
 
 function assertWalletChannelMoveArgs(args, commandName) {
   requireArg(args.amount, "--amount");
-  assertWalletPasswordArgs(args, commandName, ["amount"], "--wallet, --password, --network, and --amount");
+  assertWalletPasswordArgs(args, commandName, ["amount"], "--wallet, --network, --amount, and optional wallet password source");
 }
 
 function assertInstallZkEvmArgs(args) {
@@ -5220,9 +5538,32 @@ function assertDoctorArgs(args) {
   assertAllowedCommandKeys(args, "--doctor", new Set(["command", "positional", "doctor"]), "no options");
 }
 
+function assertAccountImportArgs(args) {
+  requireAccountName(args);
+  requireNetworkName(args);
+  assertL1SecretSourceArgs(args, { allowAccount: false });
+  assertAllowedCommandKeys(
+    args,
+    "account import",
+    new Set(["command", "positional", "account", "network", "privateKey", "privateKeyFile", "privateKeyEnv", "force"]),
+    "--account, --network, one private key source, and optional --force",
+  );
+}
+
+function assertWalletInitSecretArgs(args) {
+  requireWalletName(args);
+  requireNetworkName(args);
+  assertAllowedCommandKeys(
+    args,
+    "wallet init-secret",
+    new Set(["command", "positional", "wallet", "network", "force"]),
+    "--wallet, --network, and optional --force",
+  );
+}
+
 function assertMintNotesArgs(args) {
   requireArg(args.amounts, "--amounts");
-  assertWalletPasswordArgs(args, "mint-notes", ["amounts"], "--wallet, --password, --network, and --amounts");
+  assertWalletPasswordArgs(args, "mint-notes", ["amounts"], "--wallet, --network, --amounts, and optional wallet password source");
   parseAmountVector(args.amounts, {
     allowZeroEntries: true,
     requireAnyPositive: true,
@@ -5231,7 +5572,7 @@ function assertMintNotesArgs(args) {
 
 function assertRedeemNotesArgs(args) {
   requireArg(args.noteIds, "--note-ids");
-  assertWalletPasswordArgs(args, "redeem-notes", ["noteIds"], "--wallet, --password, --network, and --note-ids");
+  assertWalletPasswordArgs(args, "redeem-notes", ["noteIds"], "--wallet, --network, --note-ids, and optional wallet password source");
   selectRedeemNotesMethod(parseNoteIdVector(args.noteIds).length);
 }
 
@@ -5243,7 +5584,7 @@ function assertTransferNotesArgs(args) {
     args,
     "transfer-notes",
     ["noteIds", "recipients", "amounts"],
-    "--wallet, --password, --network, --note-ids, --recipients, and --amounts",
+    "--wallet, --network, --note-ids, --recipients, --amounts, and optional wallet password source",
   );
   const noteIds = parseNoteIdVector(args.noteIds);
   const recipients = parseRecipientVector(args.recipients);
@@ -5256,7 +5597,7 @@ function assertTransferNotesArgs(args) {
 }
 
 function assertGetMyNotesArgs(args) {
-  assertWalletPasswordArgs(args, "get-my-notes", [], "--wallet, --password, and --network");
+  assertWalletPasswordArgs(args, "get-my-notes", [], "--wallet, --network, and optional wallet password source");
 }
 
 function assertCreateChannelArgs(args) {
@@ -5264,12 +5605,23 @@ function assertCreateChannelArgs(args) {
   requireArg(args.joinToll, "--join-toll");
   requireNetworkName(args);
   requireAlchemyApiKeyForPublicNetwork(args, "create-channel");
-  requireArg(args.privateKey, "--private-key");
+  assertL1SecretSourceArgs(args, { allowAccount: true });
   assertAllowedCommandKeys(
     args,
     "create-channel",
-    new Set(["command", "positional", "channelName", "joinToll", "network", "alchemyApiKey", "privateKey"]),
-    "--channel-name, --join-toll, --network, --private-key, and --alchemy-api-key on public networks",
+    new Set([
+      "command",
+      "positional",
+      "channelName",
+      "joinToll",
+      "network",
+      "alchemyApiKey",
+      "account",
+      "privateKey",
+      "privateKeyFile",
+      "privateKeyEnv",
+    ]),
+    "--channel-name, --join-toll, --network, one L1 key source, and --alchemy-api-key on public networks",
   );
 }
 
@@ -5301,38 +5653,52 @@ function assertDepositBridgeArgs(args) {
   requireArg(args.amount, "--amount");
   requireNetworkName(args);
   requireAlchemyApiKeyForPublicNetwork(args, "deposit-bridge");
-  requireArg(args.privateKey, "--private-key");
+  assertL1SecretSourceArgs(args, { allowAccount: true });
   assertAllowedCommandKeys(
     args,
     "deposit-bridge",
-    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "privateKey"]),
-    "--amount, --network, --private-key, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "account", "privateKey", "privateKeyFile", "privateKeyEnv"]),
+    "--amount, --network, one L1 key source, and --alchemy-api-key on public networks",
   );
 }
 
 function assertGetMyBridgeFundArgs(args) {
   requireNetworkName(args);
   requireAlchemyApiKeyForPublicNetwork(args, "get-my-bridge-fund");
-  requireArg(args.privateKey, "--private-key");
+  assertL1SecretSourceArgs(args, { allowAccount: true });
   assertAllowedCommandKeys(
     args,
     "get-my-bridge-fund",
-    new Set(["command", "positional", "network", "alchemyApiKey", "privateKey"]),
-    "--network, --private-key, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "network", "alchemyApiKey", "account", "privateKey", "privateKeyFile", "privateKeyEnv"]),
+    "--network, one L1 key source, and --alchemy-api-key on public networks",
   );
 }
 
 function assertExplicitSignerPasswordCommandArgs(args, commandName) {
-  requireL2Password(args);
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
   requireAlchemyApiKeyForPublicNetwork(args, commandName);
-  requireArg(args.privateKey, "--private-key");
+  assertL1SecretSourceArgs(args, { allowAccount: true });
+  assertWalletPasswordSourceArgs(args, { allowCreateWalletSecret: true });
   assertAllowedCommandKeys(
     args,
     commandName,
-    new Set(["command", "positional", "channelName", "network", "privateKey", "password", "alchemyApiKey"]),
-    "--channel-name, --password, --network, --private-key, and --alchemy-api-key on public networks",
+    new Set([
+      "command",
+      "positional",
+      "channelName",
+      "network",
+      "account",
+      "privateKey",
+      "privateKeyFile",
+      "privateKeyEnv",
+      "password",
+      "passwordFile",
+      "passwordEnv",
+      "createWalletSecret",
+      "alchemyApiKey",
+    ]),
+    "--channel-name, --network, one L1 key source, optional wallet password source, optional --create-wallet-secret, and --alchemy-api-key on public networks",
   );
 }
 
@@ -5345,16 +5711,16 @@ function assertJoinChannelArgs(args) {
 }
 
 function assertGetMyWalletMetaArgs(args) {
-  assertWalletPasswordArgs(args, "get-my-wallet-meta", [], "--wallet, --password, and --network");
+  assertWalletPasswordArgs(args, "get-my-wallet-meta", [], "--wallet, --network, and optional wallet password source");
 }
 
 function assertGetMyL1AddressArgs(args) {
-  requireArg(args.privateKey, "--private-key");
+  assertL1SecretSourceArgs(args, { allowAccount: true });
   assertAllowedCommandKeys(
     args,
     "get-my-l1-address",
-    new Set(["command", "positional", "privateKey"]),
-    "--private-key",
+    new Set(["command", "positional", "network", "account", "privateKey", "privateKeyFile", "privateKeyEnv"]),
+    "one L1 key source",
   );
 }
 
@@ -5377,21 +5743,21 @@ function assertWithdrawBridgeArgs(args) {
   requireArg(args.amount, "--amount");
   requireNetworkName(args);
   requireAlchemyApiKeyForPublicNetwork(args, "withdraw-bridge");
-  requireArg(args.privateKey, "--private-key");
+  assertL1SecretSourceArgs(args, { allowAccount: true });
   assertAllowedCommandKeys(
     args,
     "withdraw-bridge",
-    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "privateKey"]),
-    "--amount, --network, --private-key, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "account", "privateKey", "privateKeyFile", "privateKeyEnv"]),
+    "--amount, --network, one L1 key source, and --alchemy-api-key on public networks",
   );
 }
 
 function assertGetMyChannelFundArgs(args) {
-  assertWalletPasswordArgs(args, "get-my-channel-fund", [], "--wallet, --password, and --network");
+  assertWalletPasswordArgs(args, "get-my-channel-fund", [], "--wallet, --network, and optional wallet password source");
 }
 
 function assertExitChannelArgs(args) {
-  assertWalletPasswordArgs(args, "exit-channel", ["force"], "--wallet, --password, --network, and optional --force");
+  assertWalletPasswordArgs(args, "exit-channel", ["force"], "--wallet, --network, optional --force, and optional wallet password source");
 }
 
 function createWalletOperationDir(walletName, networkName, suffix) {
@@ -5443,9 +5809,17 @@ Commands:
   --doctor
       Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
 
-  create-channel --channel-name <NAME> --join-toll <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+  account import --account <NAME> --network <NAME> --private-key-file <PATH>
+      Store a 0600 local L1 account secret for later --account use
+      Also accepts --private-key-env <ENV>; unsafe --private-key is kept for development compatibility
+
+  wallet init-secret --wallet <NAME> --network <NAME>
+      Create a 0600 wallet-local random password file before the wallet is first created
+
+  create-channel --channel-name <NAME> --join-toll <TOKENS> --network <NAME> --account <NAME> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace
       Prints the immutable policy snapshot before sending the transaction
+      Also accepts --private-key-file <PATH>, --private-key-env <ENV>, or unsafe --private-key <HEX>
 
   recover-workspace --channel-name <NAME> --network <NAME> [--from-genesis] --alchemy-api-key <KEY>
       Rebuild the local channel workspace from bridge state
@@ -5455,54 +5829,59 @@ Commands:
   get-channel --channel-name <NAME> --network <NAME> --alchemy-api-key <KEY>
       Read channel existence, manager, vault, toll, refund schedule, and immutable policy snapshot
 
-  deposit-bridge --amount <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+  deposit-bridge --amount <TOKENS> --network <NAME> --account <NAME> --alchemy-api-key <KEY>
       Deposit canonical tokens into the shared bridge vault
 
-  withdraw-bridge --amount <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+  withdraw-bridge --amount <TOKENS> --network <NAME> --account <NAME> --alchemy-api-key <KEY>
       Withdraw tokens from the shared bridge vault back to the wallet
 
-  get-my-bridge-fund --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+  get-my-bridge-fund --network <NAME> --account <NAME> --alchemy-api-key <KEY>
       Read the current shared bridge vault balance
 
-  recover-wallet --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+  recover-wallet --channel-name <NAME> --network <NAME> --account <NAME> [--create-wallet-secret] --alchemy-api-key <KEY>
       Rebuild a recoverable local wallet from on-chain channel state
 
-  join-channel --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+  join-channel --channel-name <NAME> --network <NAME> --account <NAME> [--create-wallet-secret] --alchemy-api-key <KEY>
       Pay the channel join toll and bind a wallet to a channel-specific L2 identity
       Prints the immutable policy snapshot before first registration
 
-  get-my-wallet-meta --wallet <NAME> --password <PASSWORD> --network <NAME>
+  get-my-wallet-meta --wallet <NAME> --network <NAME>
       Check whether a wallet matches the on-chain channel registration
 
-  get-my-l1-address --private-key <HEX>
+  get-my-l1-address --account <NAME> --network <NAME>
       Derive the L1 address for a private key
 
   list-local-wallets [--network <NAME>] [--channel-name <NAME>]
       List saved local wallet names that can be reused with --wallet
 
-  deposit-channel --wallet <NAME> --password <PASSWORD> --network <NAME> --amount <TOKENS>
+  deposit-channel --wallet <NAME> --network <NAME> --amount <TOKENS>
       Move bridged funds into the channel L2 accounting balance
 
-  withdraw-channel --wallet <NAME> --password <PASSWORD> --network <NAME> --amount <TOKENS>
+  withdraw-channel --wallet <NAME> --network <NAME> --amount <TOKENS>
       Move channel L2 balance back into the shared bridge vault
 
-  get-my-channel-fund --wallet <NAME> --password <PASSWORD> --network <NAME>
+  get-my-channel-fund --wallet <NAME> --network <NAME>
       Read the current channel L2 accounting balance
 
-  exit-channel --wallet <NAME> --password <PASSWORD> --network <NAME> [--force]
+  exit-channel --wallet <NAME> --network <NAME> [--force]
       Exit a channel. The CLI requires a zero channel balance unless --force is provided
 
-  mint-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --amounts <A,B,...>
+  mint-notes --wallet <NAME> --network <NAME> --amounts <A,B,...>
       Mint one or two private-state notes from the wallet's channel balance
 
-  transfer-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --note-ids <ID,ID,...> --recipients <ADDR,ADDR,...> --amounts <A,B,...>
+  transfer-notes --wallet <NAME> --network <NAME> --note-ids <ID,ID,...> --recipients <ADDR,ADDR,...> --amounts <A,B,...>
       Spend input notes into the registered 1->1, 1->2, or 2->1 private transfer shapes
 
-  redeem-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --note-ids <ID,ID,...>
+  redeem-notes --wallet <NAME> --network <NAME> --note-ids <ID,ID,...>
       Redeem one tracked note back into the wallet's channel balance
 
-  get-my-notes --wallet <NAME> --password <PASSWORD> --network <NAME>
+  get-my-notes --wallet <NAME> --network <NAME>
       Show the wallet's tracked note state and refresh received notes
+
+Secret source options:
+  Prefer --account for L1 signing and wallet-local default password files for wallet commands.
+  Wallet commands also accept --password-file <PATH>, --password-env <ENV>, or unsafe --password <VALUE>.
+  L1 signing commands also accept --private-key-file <PATH>, --private-key-env <ENV>, or unsafe --private-key <HEX>.
 
 Options:
   --help
@@ -5522,6 +5901,37 @@ function writeJson(filePath, value) {
   const normalizedValue = normalizeCliOutput(value);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(normalizedValue, null, 2)}\n`);
+}
+
+function writeJsonWithMode(filePath, value, mode) {
+  writeJson(filePath, value);
+  fs.chmodSync(filePath, mode);
+}
+
+function readSecretFile(filePath, label) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Missing ${label}: ${filePath}`);
+  }
+  assertSecretFilePermissions(filePath, label);
+  return fs.readFileSync(filePath, "utf8").trim();
+}
+
+function writeSecretFile(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(filePath, `${String(value).trim()}\n`, { mode: 0o600 });
+  fs.chmodSync(filePath, 0o600);
+}
+
+function assertSecretFilePermissions(filePath, label) {
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile()) {
+    throw new Error(`${label} is not a regular file: ${filePath}`);
+  }
+  if ((stat.mode & 0o077) !== 0) {
+    throw new Error(
+      `${label} must not be group/world-readable or writable: ${filePath}. Run: chmod 600 ${filePath}`,
+    );
+  }
 }
 
 function canonicalizeJsonValue(value) {

@@ -46,6 +46,8 @@ try {
     path.join(projectRoot, "packages", "apps", "private-state", "scripts", "deploy", "deploy-private-state.mjs"),
     "--network",
     "anvil",
+    "--rpc-url",
+    rpcUrl,
   ], { env: childEnv });
 
   const deployerAddress = runCapture("cast", ["wallet", "address", "--private-key", deployerPrivateKey], {

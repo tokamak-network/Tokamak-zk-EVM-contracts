@@ -184,7 +184,9 @@ Current constraint:
 Example usage:
 
 ```bash
-node packages/apps/private-state/scripts/deploy/deploy-private-state.mjs --network sepolia
+node packages/apps/private-state/scripts/deploy/deploy-private-state.mjs \
+  --network sepolia \
+  --rpc-url "$SEPOLIA_RPC_URL"
 ```
 
 The private-state deploy script automatically materializes the DApp deployment and

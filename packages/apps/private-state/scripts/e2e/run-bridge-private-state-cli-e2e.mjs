@@ -14,13 +14,7 @@ import {
   getAddress,
 } from "ethers";
 import {
-  TokamakL2StateManager,
-  createTokamakL2Common,
-} from "tokamak-l2js";
-import {
-  addHexPrefix,
   createAddressFromString,
-  hexToBigInt,
 } from "@ethereumjs/util";
 import {
   buildTokamakCliInvocation,
@@ -30,7 +24,7 @@ import {
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
 import {
   deriveNoteReceiveKeyMaterial,
-} from "./private-state-note-delivery.mjs";
+} from "../../cli/lib/private-state-note-delivery.mjs";
 import {
   buildEncryptedMintOutput,
   buildEncryptedTransferOutput,
@@ -43,6 +37,8 @@ import {
   deriveChannelTokenVaultLeafIndex,
   deriveLiquidBalanceStorageKey,
   fetchContractCodes,
+  getFixedBlockInfo,
+  initializePrivateStateSnapshot,
   normalizeBytes32Hex,
   putStorageValue,
 } from "../lib/private-state-registration-fixtures.mjs";
@@ -108,7 +104,6 @@ const depositAmountBaseUnits = 3n * amountUnit;
 const claimAmountBaseUnits = 9n * amountUnit;
 const {
   aPubBlockLength: tokamakAPubBlockLength,
-  previousBlockHashCount: tokamakPrevBlockHashCount,
 } = resolveTokamakBlockInputConfig();
 const requiredTokamakSetupArtifacts = [
   "combined_sigma.rkyv",
@@ -401,10 +396,6 @@ function runJsonCommand(command, args, options = {}) {
   try {
     return JSON.parse(trimmedStdout);
   } catch (error) {
-    const trailingJson = extractTrailingJsonObject(trimmedStdout);
-    if (trailingJson !== null) {
-      return trailingJson;
-    }
     throw new Error(
       [
         `Expected JSON output from ${command} ${args.join(" ")}.`,
@@ -442,59 +433,11 @@ function installPrivateStateCliPackageForE2E() {
   };
 }
 
-function extractTrailingJsonObject(stdout) {
-  for (let index = stdout.lastIndexOf("{"); index >= 0; index = stdout.lastIndexOf("{", index - 1)) {
-    const candidate = stdout.slice(index).trim();
-    try {
-      return JSON.parse(candidate);
-    } catch {
-      continue;
-    }
-  }
-  return null;
-}
-
-async function rpcCall(provider, method, params) {
-  return provider.send(method, params);
-}
-
 function loadLiquidBalancesSlot() {
   const storageLayout = readJson(path.join(latestPrivateStateArtifactDir(), "storage-layout.31337.latest.json"));
   return ethers.toBigInt(
     storageLayout.contracts.L2AccountingVault.storageLayout.storage.find((entry) => entry.label === "liquidBalances").slot,
   );
-}
-
-async function getBlockInfoAt(provider, blockNumber) {
-  const blockTag = ethers.toQuantity(blockNumber);
-  const block = await rpcCall(provider, "eth_getBlockByNumber", [blockTag, false]);
-  const prevBlockHashes = [];
-  for (let offset = 1; offset <= tokamakPrevBlockHashCount; offset += 1) {
-    if (blockNumber <= offset) {
-      prevBlockHashes.push("0x0");
-      continue;
-    }
-    const previousBlock = await rpcCall(provider, "eth_getBlockByNumber", [ethers.toQuantity(blockNumber - offset), false]);
-    prevBlockHashes.push(previousBlock.hash);
-  }
-  const chainId = await rpcCall(provider, "eth_chainId", []);
-  return {
-    coinBase: block.miner,
-    timeStamp: block.timestamp,
-    blockNumber: block.number,
-    prevRanDao: block.prevRandao ?? block.mixHash ?? block.difficulty ?? "0x0",
-    gasLimit: block.gasLimit,
-    chainId,
-    selfBalance: "0x0",
-    baseFee: block.baseFeePerGas ?? "0x0",
-    prevBlockHashes,
-  };
-}
-
-async function getFixedBlockInfo(provider) {
-  const latestNumberHex = await rpcCall(provider, "eth_blockNumber", []);
-  const latestNumber = Number(hexToBigInt(addHexPrefix(String(latestNumberHex ?? "").replace(/^0x/i, ""))));
-  return getBlockInfoAt(provider, latestNumber);
 }
 
 async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex, nextValue) {
@@ -628,15 +571,7 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
     );
   }
 
-  const initialStateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
-  const initialAddresses = [controllerAddress, vaultAddress]
-    .map((address) => createAddressFromString(address));
-  await initialStateManager._initializeForAddresses(initialAddresses);
-  initialStateManager._channelId = channelId;
-  for (const address of initialAddresses) {
-    initialStateManager._commitResolvedStorageEntries(address, []);
-  }
-  const initialSnapshot = await initialStateManager.captureStateSnapshot();
+  const initialSnapshot = await initializePrivateStateSnapshot({ controllerAddress, vaultAddress, channelId });
   const depositStateManager = await buildStateManager(initialSnapshot, contractCodes);
 
   for (const participant of participants) {
@@ -1153,7 +1088,6 @@ function deployPrivateStateForCliE2E() {
       env: {
         ...process.env,
         APPS_DEPLOYER_PRIVATE_KEY: anvilDeployerPrivateKey,
-        APPS_RPC_URL_OVERRIDE: providerUrl,
       },
     },
   );

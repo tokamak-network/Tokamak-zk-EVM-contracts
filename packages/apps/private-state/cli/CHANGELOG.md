@@ -13,6 +13,12 @@
   run now reports runtime metadata without launching GPU containers.
 - Shared private-state registration fixture builders between DApp registration materialization and
   the CLI end-to-end scenario.
+- Moved note receive key derivation and note value encryption/decryption into a CLI library helper
+  reused by the CLI, DApp registration materializer, and CLI end-to-end scenario.
+- Removed the CLI end-to-end runner's trailing-JSON fallback now that CLI progress logs are kept off
+  stdout in `--json` mode.
+- Required public-network private-state DApp deployment scripts to receive an explicit `--rpc-url`
+  instead of deriving deployment RPC endpoints from environment-only Alchemy settings.
 - Replaced local wallet recovery hint string matching with typed CLI error codes for local RPC,
   wallet, artifact, registration, and stale-workspace failures.
 - Removed unused replay/synthetic snapshot helpers from the CLI end-to-end script.

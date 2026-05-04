@@ -27,10 +27,6 @@ if (process.env.APPS_DEPLOYER_PRIVATE_KEY) {
 }
 
 const requiredVars = ["APPS_DEPLOYER_PRIVATE_KEY"];
-if (!process.env.APPS_RPC_URL_OVERRIDE && options.network !== "anvil") {
-  requiredVars.push("APPS_ALCHEMY_API_KEY");
-}
-
 for (const varName of requiredVars) {
   if (!process.env[varName]) {
     console.error(`Missing required environment variable: ${varName}`);
@@ -44,16 +40,10 @@ if (options.verify && !process.env.APPS_ETHERSCAN_API_KEY) {
 }
 
 const network = resolveAppNetwork(options.network);
-const rpcUrl = deriveRpcUrl({
-  networkName: options.network,
-  alchemyApiKey: process.env.APPS_ALCHEMY_API_KEY,
-  rpcUrlOverride: process.env.APPS_RPC_URL_OVERRIDE,
-});
-const networkLabel = process.env.APPS_RPC_URL_OVERRIDE
-  ? "<override>"
-  : options.network === "anvil"
-    ? "anvil-localhost"
-    : network.alchemyNetwork;
+const rpcUrl = resolveDeployRpcUrl(options);
+const networkLabel = options.rpcUrl
+  ? "<explicit>"
+  : "anvil-localhost";
 
 const forgeArgs = [
   "script",
@@ -95,8 +85,6 @@ process.exit(artifactResult.status ?? 1);
 function pickInputEnv() {
   const names = [
     "APPS_DEPLOYER_PRIVATE_KEY",
-    "APPS_ALCHEMY_API_KEY",
-    "APPS_RPC_URL_OVERRIDE",
     "APPS_ETHERSCAN_API_KEY",
   ];
   return Object.fromEntries(
@@ -118,6 +106,7 @@ function parseCliOptions(argv) {
 function parseArgs(argv) {
   const options = {
     network: null,
+    rpcUrl: null,
     verify: false,
   };
 
@@ -132,16 +121,25 @@ function parseArgs(argv) {
         options.network = next;
         index += 1;
         break;
+      case "--rpc-url":
+        if (!next || next.startsWith("--")) {
+          throw new Error("Missing value for --rpc-url.");
+        }
+        validateRpcUrl(next, "--rpc-url");
+        options.rpcUrl = next;
+        index += 1;
+        break;
       case "--verify":
         options.verify = true;
         break;
       case "--help":
       case "-h":
         console.log(`Usage:
-  node packages/apps/private-state/scripts/deploy/deploy-private-state.mjs --network <anvil|sepolia|mainnet> [--verify]
+  node packages/apps/private-state/scripts/deploy/deploy-private-state.mjs --network <anvil|sepolia|mainnet> [--rpc-url <url>] [--verify]
 
 Options:
   --network <name>  Deployment network. Supported values: anvil, sepolia, mainnet
+  --rpc-url <url>   Explicit deployment RPC URL. Required for sepolia and mainnet
   --verify          Verify contracts on Etherscan-compatible explorer`);
         process.exit(0);
       default:
@@ -152,8 +150,33 @@ Options:
   if (!options.network) {
     throw new Error("Missing required argument: --network <anvil|sepolia|mainnet>.");
   }
+  if (options.network !== "anvil" && !options.rpcUrl) {
+    throw new Error("--rpc-url is required for sepolia and mainnet deployments.");
+  }
 
   return options;
+}
+
+function resolveDeployRpcUrl(options) {
+  if (options.rpcUrl) {
+    return options.rpcUrl;
+  }
+  return deriveRpcUrl({
+    networkName: options.network,
+    alchemyApiKey: "",
+    rpcUrlOverride: "",
+  });
+}
+
+function validateRpcUrl(value, label) {
+  try {
+    const url = new URL(value);
+    if (!["http:", "https:", "ws:", "wss:"].includes(url.protocol)) {
+      throw new Error("unsupported protocol");
+    }
+  } catch (error) {
+    throw new Error(`${label} must be a valid HTTP(S) or WS(S) URL.`);
+  }
 }
 
 function normalizePrivateKey(value) {

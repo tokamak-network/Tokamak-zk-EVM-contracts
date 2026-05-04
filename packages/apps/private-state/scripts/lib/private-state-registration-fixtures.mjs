@@ -1,12 +1,16 @@
 import { Interface, ethers, getAddress } from "ethers";
 import {
   MAX_MT_LEAVES,
+  TokamakL2StateManager,
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
   getUserStorageKey,
   poseidon,
 } from "tokamak-l2js";
+import {
+  resolveTokamakBlockInputConfig,
+} from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
 import {
   addHexPrefix,
   bytesToBigInt,
@@ -19,7 +23,9 @@ import {
   computeEncryptedNoteSalt,
   encryptMintNoteValueForOwner,
   encryptNoteValueForRecipient,
-} from "../e2e/private-state-note-delivery.mjs";
+} from "../../cli/lib/private-state-note-delivery.mjs";
+
+const { previousBlockHashCount: tokamakPrevBlockHashCount } = resolveTokamakBlockInputConfig();
 
 export function bytes32FromHex(hexValue) {
   return ethers.zeroPadValue(
@@ -119,6 +125,56 @@ export async function putStorageValue(stateManager, address, keyHex, nextValue) 
     hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
     hexToBytes(addHexPrefix(String(bigintToHex32(nextValue) ?? "").replace(/^0x/i, ""))),
   );
+}
+
+export async function putStorageAndCapture(stateManager, address, keyHex, nextValue) {
+  await currentStorageBigInt(stateManager, address, keyHex);
+  await putStorageValue(stateManager, address, keyHex, nextValue);
+  return stateManager.captureStateSnapshot();
+}
+
+export async function initializePrivateStateSnapshot({ controllerAddress, vaultAddress, channelId }) {
+  const stateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
+  const addresses = [controllerAddress, vaultAddress].map((address) => createAddressFromString(address));
+  await stateManager._initializeForAddresses(addresses);
+  stateManager._channelId = channelId;
+  for (const address of addresses) {
+    stateManager._commitResolvedStorageEntries(address, []);
+  }
+  return stateManager.captureStateSnapshot();
+}
+
+export async function getBlockInfoAt(provider, blockNumber, { send = (method, params) => provider.send(method, params) } = {}) {
+  const blockTag = ethers.toQuantity(blockNumber);
+  const block = await send("eth_getBlockByNumber", [blockTag, false]);
+  const prevBlockHashes = [];
+  for (let offset = 1; offset <= tokamakPrevBlockHashCount; offset += 1) {
+    if (blockNumber <= offset) {
+      prevBlockHashes.push("0x0");
+      continue;
+    }
+    const previousBlock = await send("eth_getBlockByNumber", [ethers.toQuantity(blockNumber - offset), false]);
+    prevBlockHashes.push(previousBlock.hash);
+  }
+  const chainId = await send("eth_chainId", []);
+  return {
+    coinBase: block.miner,
+    timeStamp: block.timestamp,
+    blockNumber: block.number,
+    prevRanDao: block.prevRandao ?? block.mixHash ?? block.difficulty ?? "0x0",
+    gasLimit: block.gasLimit,
+    chainId,
+    selfBalance: "0x0",
+    baseFee: block.baseFeePerGas ?? "0x0",
+    prevBlockHashes,
+  };
+}
+
+export async function getFixedBlockInfo(provider, options = {}) {
+  const send = options.send ?? ((method, params) => provider.send(method, params));
+  const latestNumberHex = await send("eth_blockNumber", []);
+  const latestNumber = Number(hexToBigInt(addHexPrefix(String(latestNumberHex ?? "").replace(/^0x/i, ""))));
+  return getBlockInfoAt(provider, latestNumber, { send });
 }
 
 export function deriveLiquidBalanceStorageKey(l2Address, slot) {

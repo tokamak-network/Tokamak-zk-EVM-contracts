@@ -39,12 +39,13 @@ private-state app deployment uses `packages/apps/.env`.
 Required variables:
 
 - `APPS_DEPLOYER_PRIVATE_KEY`
-- `APPS_ALCHEMY_API_KEY`
 - `APPS_ETHERSCAN_API_KEY` when block explorer verification is needed
 
 Pass the deployment network as `--network <anvil|sepolia|mainnet>` when running
-`scripts/deploy/deploy-private-state.mjs`. For `--network anvil`, scripts
-default to `http://127.0.0.1:8545`.
+`scripts/deploy/deploy-private-state.mjs`. Sepolia and mainnet deployments also
+require an explicit `--rpc-url <URL>` so the deployment endpoint is visible at
+the command boundary. For `--network anvil`, scripts default to
+`http://127.0.0.1:8545`.
 
 After a successful broadcast, `deploy-private-state.mjs` automatically
 materializes deployment artifacts into

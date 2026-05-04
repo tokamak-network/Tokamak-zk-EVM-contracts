@@ -9,15 +9,14 @@ All app deployments and local app test environments use `packages/apps/.env`.
 Shared variables:
 
 - `APPS_DEPLOYER_PRIVATE_KEY`
-- `APPS_ALCHEMY_API_KEY`
 - `APPS_ETHERSCAN_API_KEY`
 
-Public-network deployment scripts derive their RPC URLs from the required
-`--network <anvil|sepolia|mainnet>` argument and `APPS_ALCHEMY_API_KEY`. For
-`--network anvil`, local scripts default to `http://127.0.0.1:8545`.
+Public-network deployment scripts require both `--network <sepolia|mainnet>`
+and an explicit `--rpc-url <URL>` argument. For `--network anvil`, local scripts
+default to `http://127.0.0.1:8545`.
 
-`APPS_RPC_URL_OVERRIDE` remains available as an advanced option when a DApp must target a nonstandard local or custom
-RPC endpoint.
+`APPS_RPC_URL_OVERRIDE` remains available only for local anvil helper scripts
+that need to target a nonstandard local RPC endpoint.
 
 `APPS_ANVIL_DEPLOYER_PRIVATE_KEY` is an optional local override for anvil workflows. If it is unset, DApp-local
 anvil bootstrap scripts should fall back to the default funded anvil account instead of reusing a public-network

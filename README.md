@@ -147,7 +147,9 @@ node bridge/scripts/deploy-bridge.mjs --network sepolia
 For an already deployed bridge stack, deploy the private-state DApp first:
 
 ```bash
-node packages/apps/private-state/scripts/deploy/deploy-private-state.mjs --network sepolia
+node packages/apps/private-state/scripts/deploy/deploy-private-state.mjs \
+  --network sepolia \
+  --rpc-url "$SEPOLIA_RPC_URL"
 ```
 
 Then register the deployed app on the bridge:

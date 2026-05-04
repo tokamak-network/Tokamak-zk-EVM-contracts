@@ -1,10 +1,11 @@
 .PHONY: help anvil-start anvil-bootstrap anvil-stop test deploy-sepolia deploy-sepolia-verify deploy-mainnet deploy-mainnet-verify cli-bridge-help e2e-bridge-cli
 
 APP_ENV_FILE ?= $(abspath ../.env)
+APP_RPC_URL ?=
 DEPLOY_ENV_MKDIR := /tmp
 
 define DEPLOY_RULE
-	@APPS_ENV_FILE="$(APP_ENV_FILE)" node scripts/deploy/deploy-private-state.mjs --network $(1) $(2)
+	@APPS_ENV_FILE="$(APP_ENV_FILE)" node scripts/deploy/deploy-private-state.mjs --network $(1) $(if $(APP_RPC_URL),--rpc-url "$(APP_RPC_URL)") $(2)
 endef
 
 help:
@@ -15,10 +16,10 @@ help:
 		'  make anvil-stop              Stop the local anvil node' \
 		'  make test                    Run the private-state Foundry test suite' \
 		'  make e2e-bridge-cli          Run the CLI-driven bridge/private-state end-to-end flow' \
-		'  make deploy-sepolia          Deploy to Sepolia using packages/apps/.env values' \
-		'  make deploy-sepolia-verify   Deploy to Sepolia and verify on Etherscan' \
-		'  make deploy-mainnet          Deploy to Ethereum mainnet using packages/apps/.env values' \
-		'  make deploy-mainnet-verify   Deploy to Ethereum mainnet and verify on Etherscan' \
+		'  make deploy-sepolia APP_RPC_URL=<url>         Deploy to Sepolia' \
+		'  make deploy-sepolia-verify APP_RPC_URL=<url>  Deploy to Sepolia and verify on Etherscan' \
+		'  make deploy-mainnet APP_RPC_URL=<url>         Deploy to Ethereum mainnet' \
+		'  make deploy-mainnet-verify APP_RPC_URL=<url>  Deploy to Ethereum mainnet and verify on Etherscan' \
 		'  make cli-bridge-help         Show the bridge-coupled private-state CLI help'
 
 anvil-start:

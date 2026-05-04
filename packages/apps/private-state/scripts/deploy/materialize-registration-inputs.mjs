@@ -10,23 +10,15 @@ import {
   Wallet,
   ethers,
   getAddress,
-  keccak256,
 } from "ethers";
 import {
-  TokamakL2StateManager,
-  createTokamakL2Common,
-} from "tokamak-l2js";
-import {
-  addHexPrefix,
   createAddressFromString,
-  hexToBigInt,
 } from "@ethereumjs/util";
 import {
   buildTokamakCliInvocation,
-  resolveTokamakBlockInputConfig,
   resolveTokamakCliSynthOutputDir,
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
-import { deriveNoteReceiveKeyMaterial } from "../e2e/private-state-note-delivery.mjs";
+import { deriveNoteReceiveKeyMaterial } from "../../cli/lib/private-state-note-delivery.mjs";
 import {
   buildEncryptedMintOutput,
   buildEncryptedTransferOutput,
@@ -35,14 +27,16 @@ import {
   buildStateManager,
   buildTokamakTxSnapshot,
   buildTransferInterface,
-  currentStorageBigInt,
   deriveChannelTokenVaultLeafIndex,
   deriveLiquidBalanceStorageKey,
   fetchContractCodes,
+  getFixedBlockInfo,
+  initializePrivateStateSnapshot,
   normalizeBytes32Hex,
-  putStorageValue,
+  putStorageAndCapture,
 } from "../lib/private-state-registration-fixtures.mjs";
 import {
+  deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
 } from "../../cli/lib/private-state-cli-shared.mjs";
 
@@ -53,7 +47,6 @@ const amountUnit = 10n ** 18n;
 const depositAmountBaseUnits = 3n * amountUnit;
 const defaultMnemonic = "test test test test test test test test test test test junk";
 const defaultChannelName = "private-state-registration";
-const { previousBlockHashCount: tokamakPrevBlockHashCount } = resolveTokamakBlockInputConfig();
 const tokamakCliInvocation = buildTokamakCliInvocation();
 
 function usage() {
@@ -160,47 +153,6 @@ function run(command, args, { cwd = repoRoot, quiet = false, label = command } =
   return result.stdout ?? "";
 }
 
-function deriveChannelIdFromName(channelName) {
-  return ethers.toBigInt(keccak256(ethers.toUtf8Bytes(channelName)));
-}
-
-async function getBlockInfoAt(provider, blockNumber) {
-  const blockTag = ethers.toQuantity(blockNumber);
-  const block = await provider.send("eth_getBlockByNumber", [blockTag, false]);
-  const prevBlockHashes = [];
-  for (let offset = 1; offset <= tokamakPrevBlockHashCount; offset += 1) {
-    if (blockNumber <= offset) {
-      prevBlockHashes.push("0x0");
-      continue;
-    }
-    const previousBlock = await provider.send("eth_getBlockByNumber", [ethers.toQuantity(blockNumber - offset), false]);
-    prevBlockHashes.push(previousBlock.hash);
-  }
-  const chainId = await provider.send("eth_chainId", []);
-  return {
-    coinBase: block.miner,
-    timeStamp: block.timestamp,
-    blockNumber: block.number,
-    prevRanDao: block.prevRandao ?? block.mixHash ?? block.difficulty ?? "0x0",
-    gasLimit: block.gasLimit,
-    chainId,
-    selfBalance: "0x0",
-    baseFee: block.baseFeePerGas ?? "0x0",
-    prevBlockHashes,
-  };
-}
-
-async function getFixedBlockInfo(provider) {
-  const latestNumberHex = await provider.send("eth_blockNumber", []);
-  return getBlockInfoAt(provider, Number(hexToBigInt(addHexPrefix(String(latestNumberHex ?? "").replace(/^0x/i, "")))));
-}
-
-async function putStorageAndCapture(stateManager, address, keyHex, nextValue) {
-  await currentStorageBigInt(stateManager, address, keyHex);
-  await putStorageValue(stateManager, address, keyHex, nextValue);
-  return stateManager.captureStateSnapshot();
-}
-
 async function deriveParticipant({ index, alias, mnemonic, provider, channelName, channelId, chainId, liquidBalancesSlot }) {
   const wallet = HDNodeWallet.fromPhrase(mnemonic, undefined, `m/44'/60'/0'/0/${index}`);
   const signer = new Wallet(wallet.privateKey, provider);
@@ -225,17 +177,6 @@ async function deriveParticipant({ index, alias, mnemonic, provider, channelName
     storageKey,
     leafIndex: deriveChannelTokenVaultLeafIndex(storageKey),
   };
-}
-
-async function initialSnapshotFor({ controllerAddress, vaultAddress, channelId }) {
-  const stateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
-  const addresses = [controllerAddress, vaultAddress].map((address) => createAddressFromString(address));
-  await stateManager._initializeForAddresses(addresses);
-  stateManager._channelId = channelId;
-  for (const address of addresses) {
-    stateManager._commitResolvedStorageEntries(address, []);
-  }
-  return stateManager.captureStateSnapshot();
 }
 
 function writeBundle(outputRoot, groupName, exampleName, snapshot, transaction, blockInfo, contractCodes) {
@@ -336,7 +277,7 @@ async function main() {
   ];
   const [participantA, participantB, participantC] = participants;
 
-  let postDepositSnapshot = await initialSnapshotFor({ controllerAddress, vaultAddress, channelId });
+  let postDepositSnapshot = await initializePrivateStateSnapshot({ controllerAddress, vaultAddress, channelId });
   const depositStateManager = await buildStateManager(postDepositSnapshot, contractCodes);
   for (const participant of participants) {
     postDepositSnapshot = await putStorageAndCapture(

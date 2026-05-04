@@ -839,10 +839,11 @@ function runPrivateStateCli(args, options = {}) {
 }
 
 function installPrivateStateCliRuntimeForE2E() {
-  return runPrivateStateCli(["install", "--include-local-artifacts"], {
+  return run(cliBinPath, ["install", "--include-local-artifacts"], {
     // Local anvil artifacts are generated under the repository deployment/ tree during bootstrap.
     cwd: repoRoot,
     label: "private-state-cli:install",
+    quiet: true,
   });
 }
 

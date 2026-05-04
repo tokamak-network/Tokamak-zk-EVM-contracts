@@ -1304,7 +1304,6 @@ function prepareAccountSecret(accountName, privateKey) {
     "import",
     "--account", accountName,
     "--private-key-file", inputPath,
-    "--force",
   ]);
 }
 

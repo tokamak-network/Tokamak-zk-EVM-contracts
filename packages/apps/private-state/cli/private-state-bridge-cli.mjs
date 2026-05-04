@@ -1432,9 +1432,9 @@ function handleAccountImport({ args }) {
   const signer = new Wallet(privateKey);
   const privateKeyPath = accountPrivateKeyPath(networkName, account);
   const metadataPath = accountMetadataPath(networkName, account);
-  if (fs.existsSync(privateKeyPath) && args.force !== true) {
+  if (fs.existsSync(privateKeyPath)) {
     throw new Error(
-      `Account secret already exists at ${privateKeyPath}. Use --force to overwrite it.`,
+      `Account secret already exists at ${privateKeyPath}. Remove it manually before importing a different key.`,
     );
   }
   writeSecretFile(privateKeyPath, privateKey);
@@ -5498,8 +5498,8 @@ function assertAccountImportArgs(args) {
   assertAllowedCommandKeys(
     args,
     "account import",
-    new Set(["command", "positional", "account", "network", "privateKeyFile", "force"]),
-    "--account, --network, --private-key-file, and optional --force",
+    new Set(["command", "positional", "account", "network", "privateKeyFile"]),
+    "--account, --network, and --private-key-file",
   );
 }
 

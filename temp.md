@@ -52,7 +52,14 @@ Recommended improvement:
 
 ### 3. Medium: `--doctor` is machine-friendly but not human-friendly
 
-`--doctor` currently emits a large JSON object by default. This is useful for automation, but difficult for a human operator. It can also be confusing when `ok: true` appears together with verbose Docker or GPU probe failures that are irrelevant because Docker/GPU mode was not requested.
+Resolution:
+
+- Implemented `doctor` as a human-readable summary by default.
+- Added `doctor --json` for the full machine-readable report.
+- Preserved `PRIVATE_STATE_CLI_JSON_OUTPUT` as an automation path for the full JSON report.
+- Updated CLI help, the browser assistant command builder, and README guidance.
+
+`doctor` previously emitted a large JSON object by default. This was useful for automation, but difficult for a human operator. It could also be confusing when `ok: true` appeared together with verbose Docker or GPU probe failures that were irrelevant because Docker/GPU mode was not requested.
 
 Recommended improvement:
 

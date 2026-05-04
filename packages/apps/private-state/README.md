@@ -153,6 +153,12 @@ The commands below are ordered by the normal execution flow.
 - does not accept `--rpc-url`; configure network RPC through a bridge-facing command once with `--rpc-url`, or by writing `RPC_URL=<URL>` to `~/tokamak-private-channels/secrets/<network>/.env`
 - is read-only and never creates wallets, sends transactions, or changes channel state
 
+`doctor`
+
+- checks private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
+- prints a concise human-readable table by default
+- accepts `--json` to print the full machine-readable report used by automation
+
 `install`
 
 - installs the local Tokamak zk-EVM toolchain through the published `@tokamak-zk-evm/cli` package

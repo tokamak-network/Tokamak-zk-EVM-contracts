@@ -1413,12 +1413,128 @@ function uninstallGlobalPrivateStateCliPackage() {
   };
 }
 
-async function handleDoctor() {
+async function handleDoctor({ args }) {
   const report = buildDoctorReport();
-  printJson(report);
+  if (args.json === true || process.env.PRIVATE_STATE_CLI_JSON_OUTPUT?.trim()) {
+    printJson(report);
+  } else {
+    printDoctorHumanReport(report);
+  }
   if (!report.ok) {
     process.exitCode = 1;
   }
+}
+
+function printDoctorHumanReport(report) {
+  const rows = buildDoctorHumanRows(report);
+  const lines = [
+    "Private-state CLI doctor",
+    `Status: ${report.ok ? "OK" : "FAIL"}`,
+    `Generated: ${report.generatedAt}`,
+    `Package: ${report.package.name}@${report.package.version ?? "unknown"}`,
+    `Install manifest: ${report.installManifest.exists ? "found" : "missing"} (${report.installManifest.path})`,
+    "",
+    formatDoctorTable(rows),
+    "",
+    "Run `doctor --json` for the full machine-readable report.",
+  ];
+  console.log(lines.join("\n"));
+}
+
+function buildDoctorHumanRows(report) {
+  const dependencySummary = report.dependencies
+    .map((entry) => `${entry.name}@${entry.version ?? "unknown"}${entry.installVersion ? ` install=${entry.installVersion}` : ""}`)
+    .join("; ");
+  const selectedVersionDetails = report.checks
+    .find((check) => check.name === "selected proof backend runtime versions")
+    ?.details ?? [];
+  const selectedVersionSummary = selectedVersionDetails
+    .map((entry) => [
+      `${entry.name}:`,
+      `selected=${entry.selectedVersion ?? "none"}`,
+      `installed=${entry.installedVersion ?? "missing"}`,
+      `cbv=${entry.compatibleBackendVersion ?? "missing"}`,
+      entry.crsCompatibleBackendVersion ? `crs=${entry.crsCompatibleBackendVersion}` : null,
+    ].filter(Boolean).join(" "))
+    .join("; ");
+
+  return [
+    {
+      check: "dependency packages",
+      status: doctorStatus(report.checks.find((check) => check.name === "dependency package versions")?.ok),
+      detail: dependencySummary || "no dependency report",
+    },
+    {
+      check: "selected backend versions",
+      status: doctorStatus(report.checks.find((check) => check.name === "selected proof backend runtime versions")?.ok),
+      detail: selectedVersionSummary || "no selected runtime version pin",
+    },
+    {
+      check: "tokamak zk-evm runtime",
+      status: doctorStatus(report.tokamakCli.installed),
+      detail: [
+        `package=${report.tokamakCli.packageVersion ?? "missing"}`,
+        `cbv=${report.tokamakCli.compatibleBackendVersion ?? "missing"}`,
+        `runtime=${report.tokamakCli.runtimeRoot ?? "missing"}`,
+        `doctorStatus=${report.tokamakCli.doctor.status}`,
+      ].join(" "),
+    },
+    {
+      check: "docker gpu readiness",
+      status: doctorStatus(report.gpuDockerReadiness.ok),
+      detail: [
+        `expectedUseGpus=${formatDoctorBool(report.gpuDockerReadiness.expectedUseGpus)}`,
+        `liveUseGpus=${formatDoctorBool(report.gpuDockerReadiness.liveUseGpus)}`,
+        report.gpuDockerReadiness.mismatchError,
+      ].filter(Boolean).join(" "),
+    },
+    {
+      check: "groth16 runtime",
+      status: doctorStatus(report.groth16Runtime.installed),
+      detail: [
+        `package=${report.groth16Runtime.packageVersion ?? "missing"}`,
+        `cbv=${report.groth16Runtime.compatibleBackendVersion ?? "missing"}`,
+        `crs=${report.groth16Runtime.crsCompatibleBackendVersion ?? "missing"}`,
+        `workspace=${report.groth16Runtime.workspaceRoot ?? "missing"}`,
+        `doctorStatus=${report.groth16Runtime.doctor.status}`,
+      ].join(" "),
+    },
+  ];
+}
+
+function formatDoctorTable(rows) {
+  const headers = ["Check", "Status", "Detail"];
+  const checkWidth = Math.max(headers[0].length, ...rows.map((row) => row.check.length));
+  const statusWidth = Math.max(headers[1].length, ...rows.map((row) => row.status.length));
+  const header = [
+    headers[0].padEnd(checkWidth),
+    headers[1].padEnd(statusWidth),
+    headers[2],
+  ].join("  ");
+  const separator = [
+    "-".repeat(checkWidth),
+    "-".repeat(statusWidth),
+    "-".repeat(headers[2].length),
+  ].join("  ");
+  return [
+    header,
+    separator,
+    ...rows.map((row) => [
+      row.check.padEnd(checkWidth),
+      row.status.padEnd(statusWidth),
+      row.detail,
+    ].join("  ")),
+  ].join("\n");
+}
+
+function doctorStatus(ok) {
+  if (ok === true) return "OK";
+  if (ok === false) return "FAIL";
+  return "UNKNOWN";
+}
+
+function formatDoctorBool(value) {
+  return value === true ? "true" : "false";
 }
 
 function handleGetMyL1Address({ args }) {
@@ -6067,7 +6183,7 @@ function assertUninstallArgs(args) {
 }
 
 function assertDoctorArgs(args) {
-  assertAllowedCommandKeys(args, "doctor", new Set(["command", "positional"]), "no options");
+  assertAllowedCommandKeys(args, "doctor", new Set(["command", "positional", "json"]), "optional --json");
 }
 
 function assertGuideArgs(args) {
@@ -6348,8 +6464,9 @@ Commands:
       Interactively remove local private-state workspaces, wallet secrets, proof artifacts, Tokamak zk-EVM runtime data,
       and the global private-state CLI package when npm reports it is globally installed
 
-  doctor
+  doctor [--json]
       Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
+      Prints a concise human-readable table by default; use --json for the full machine-readable report
 
   guide [--network <NAME>] [--channel-name <NAME>] [--account <NAME>] [--wallet <NAME>]
       Inspect local CLI state and available on-chain state, then print the next safe command

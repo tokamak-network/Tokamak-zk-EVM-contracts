@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.1 - 2026-05-05
+
 - Added global `--version` output for scripts that need the installed private-state CLI package
   version without running `doctor`.
 - Changed the channel-bound L2 identity derivation signing domain and mode from password wording

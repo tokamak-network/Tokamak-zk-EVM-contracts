@@ -1594,6 +1594,10 @@ function readErc20Balance(assetAddress, ownerAddress) {
 }
 
 function runAnvilCliCommand(command, args = []) {
+  return runPrivateStateCli([command, "--network", "anvil", ...args]);
+}
+
+function runAnvilBridgeCliCommand(command, args = []) {
   return runPrivateStateCli([command, "--network", "anvil", "--rpc-url", providerUrl, ...args]);
 }
 
@@ -1610,7 +1614,7 @@ function signerCliArgs(participant) {
 }
 
 function createChannel() {
-  return runAnvilCliCommand("create-channel", [
+  return runAnvilBridgeCliCommand("create-channel", [
     "--channel-name", channelName,
     "--join-toll", joinTollTokens,
     "--account", "channel-creator",
@@ -1618,14 +1622,14 @@ function createChannel() {
 }
 
 function depositBridge(participant) {
-  return runAnvilCliCommand("deposit-bridge", [
+  return runAnvilBridgeCliCommand("deposit-bridge", [
     ...signerCliArgs(participant),
     "--amount", depositAmountTokens,
   ]);
 }
 
 function joinChannel(participant) {
-  const result = runAnvilCliCommand("join-channel", [
+  const result = runAnvilBridgeCliCommand("join-channel", [
     "--channel-name", channelName,
     ...signerCliArgs(participant),
     "--wallet-secret-path", participant.walletSecretPath,
@@ -1643,7 +1647,7 @@ function joinChannel(participant) {
 }
 
 function recoverWallet(participant) {
-  const result = runAnvilCliCommand("recover-wallet", [
+  const result = runAnvilBridgeCliCommand("recover-wallet", [
     "--channel-name", channelName,
     ...signerCliArgs(participant),
   ]);
@@ -1669,7 +1673,7 @@ function listLocalWallets(args = []) {
 }
 
 function getMyBridgeFund(participant) {
-  return runAnvilCliCommand("get-my-bridge-fund", signerCliArgs(participant));
+  return runAnvilBridgeCliCommand("get-my-bridge-fund", signerCliArgs(participant));
 }
 
 function depositChannel(participant) {
@@ -1684,7 +1688,7 @@ function getMyChannelFund(participant) {
 }
 
 function recoverWorkspace() {
-  return runAnvilCliCommand("recover-workspace", [
+  return runAnvilBridgeCliCommand("recover-workspace", [
     "--channel-name", channelName,
   ]);
 }
@@ -1736,7 +1740,7 @@ function withdrawChannel(participant, amount) {
 }
 
 function withdrawBridge(participant, amount) {
-  return runAnvilCliCommand("withdraw-bridge", [
+  return runAnvilBridgeCliCommand("withdraw-bridge", [
     ...signerCliArgs(participant),
     "--amount", amount,
   ]);

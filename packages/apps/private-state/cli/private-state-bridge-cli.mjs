@@ -6990,7 +6990,80 @@ function printJson(value) {
     console.log(JSON.stringify(normalized, null, 2));
     return;
   }
+  if (normalized?.action === "guide") {
+    printGuideHumanResult(normalized);
+    return;
+  }
   printHumanResult(normalized);
+}
+
+function printGuideHumanResult(guide) {
+  const selectors = guide.selectors ?? {};
+  const lines = [
+    "Guide",
+    `Generated: ${formatHumanValue(guide.generatedAt)}`,
+    "",
+    "Selectors",
+    `Network: ${formatGuideSelector(selectors.network)}`,
+    `Channel: ${formatGuideSelector(selectors.channelName)}`,
+    `Account: ${formatGuideSelector(selectors.account)}`,
+    `Wallet: ${formatGuideSelector(selectors.wallet)}`,
+    "",
+    "Checks",
+    ...formatGuideChecks(guide.checks),
+    "",
+    "Next Safe Action",
+    `Command: ${formatHumanValue(guide.nextSafeAction)}`,
+    `Why: ${formatHumanValue(guide.why)}`,
+  ];
+
+  if (Array.isArray(guide.candidateCommands) && guide.candidateCommands.length > 0) {
+    lines.push(
+      "",
+      "Candidate Commands",
+      ...guide.candidateCommands.map((command) => `- ${command}`),
+    );
+  }
+
+  lines.push("", "Run with --json to inspect the full guide state.");
+  console.log(lines.join("\n"));
+}
+
+function formatGuideSelector(value) {
+  return value === null || value === undefined || value === "" ? "not selected" : String(value);
+}
+
+function formatGuideChecks(checks) {
+  if (!Array.isArray(checks) || checks.length === 0) {
+    return ["none"];
+  }
+  return checks.map((check) => {
+    const status = String(check.status ?? "unknown").toUpperCase().padEnd(7);
+    const detail = formatGuideCheckDetail(check);
+    return `- ${status} ${check.name ?? "unnamed check"}${detail ? ` - ${detail}` : ""}`;
+  });
+}
+
+function formatGuideCheckDetail(check) {
+  const parts = [];
+  for (const key of ["network", "chainId", "channelName", "account", "wallet", "l1Address", "rpcSource"]) {
+    if (check[key] !== null && check[key] !== undefined && check[key] !== "") {
+      parts.push(`${humanizeLabel(key)}: ${formatHumanValue(check[key])}`);
+    }
+  }
+  if (typeof check.localWorkspaceExists === "boolean") {
+    parts.push(`Local workspace: ${check.localWorkspaceExists ? "yes" : "no"}`);
+  }
+  if (typeof check.onchainExists === "boolean") {
+    parts.push(`On-chain: ${check.onchainExists ? "yes" : "no"}`);
+  }
+  if (Array.isArray(check.missingFiles) && check.missingFiles.length > 0) {
+    parts.push(`Missing files: ${check.missingFiles.length}`);
+  }
+  if (check.error) {
+    parts.push(`Error: ${check.error}`);
+  }
+  return parts.join("; ");
 }
 
 function printHumanResult(value) {

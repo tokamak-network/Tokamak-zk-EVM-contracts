@@ -25,32 +25,7 @@ Most previously identified issues are resolved:
 
 ## Open Findings
 
-### 1. Medium: `guide` default output is still too close to raw JSON
-
-`guide` should be the primary state-aware UX command, but its default human-readable output
-currently prints large `Checks` and `State` objects as inline JSON before the more useful
-`Next Safe Action` section. This makes the command look like a diagnostic dump instead of a
-workflow guide.
-
-Why this matters:
-
-- Users and LLM agents run `guide` when they do not know the next safe action.
-- The most important information is the next command, the reason, and a small set of blocking
-  checks.
-- Full local state is useful for automation and debugging, but it should live behind `--json`.
-
-Recommended improvement:
-
-- Give `guide` a custom human output path.
-- Default output should show:
-  - selected network/channel/account/wallet
-  - concise check rows with `ok`, `missing`, `warning`, or `error`
-  - `Next Safe Action`
-  - `Why`
-  - candidate commands
-- Keep the full `state` object only in `guide --json`.
-
-### 2. Medium: wallet secret source file creation is underspecified
+### 1. Medium: wallet secret source file creation is underspecified
 
 `join-channel` requires `--wallet-secret-path <PATH>`, but help text does not tell a user how
 to create a source wallet-secret file. It only says the option imports an existing source file.
@@ -75,7 +50,7 @@ openssl rand -hex 32 > ./wallet-secret.txt
 - State that the import source file does not need `0600`, but the canonical wallet-local secret
   written by the CLI remains protected.
 
-### 3. Medium-Low: invalid wallet selectors make `guide` fail instead of guiding
+### 2. Medium-Low: invalid wallet selectors make `guide` fail instead of guiding
 
 Running `guide --network <NAME> --wallet <BAD_NAME>` can fail before emitting a guide result when
 the wallet name does not match the deterministic `<channelName>-<l1Address>` shape. The global
@@ -94,7 +69,7 @@ Recommended improvement:
 - Still print `list-local-wallets --network <NETWORK>` as the next safe action.
 - Reserve hard failures for unexpected internal errors, not user-state discovery failures.
 
-### 4. Medium-Low: package version and changelog do not yet reflect the UX surface change
+### 3. Medium-Low: package version and changelog do not yet reflect the UX surface change
 
 The private-state CLI package version is still `0.1.9`, while the local code now contains a
 large user-facing change set after the deployed/published baseline:
@@ -125,7 +100,30 @@ Recommended improvement:
 
 ## Resolved Historical Findings
 
-### A. Secrets as first-class CLI arguments
+### A. `guide` default output was too close to raw JSON
+
+Status: Resolved.
+
+`guide` should be the primary state-aware UX command, but its default human-readable output
+previously printed large `Checks` and `State` objects as inline JSON before the more useful
+`Next Safe Action` section. This made the command look like a diagnostic dump instead of a
+workflow guide.
+
+Why this mattered:
+
+- Users and LLM agents run `guide` when they do not know the next safe action.
+- The most important information is the next command, the reason, and a small set of blocking
+  checks.
+- Full local state is useful for automation and debugging, but it should live behind `--json`.
+
+Resolution:
+
+- Added a `guide`-specific human output formatter.
+- Default `guide` output now shows selected network/channel/account/wallet, concise check rows,
+  `Next Safe Action`, `Why`, and candidate commands.
+- The full `state` object remains available through `guide --json`.
+
+### B. Secrets as first-class CLI arguments
 
 Status: Resolved.
 
@@ -144,9 +142,9 @@ Resolution:
 - Canonical CLI secret files remain protected with POSIX `0600` or Windows ACL repair and
   inspection where possible.
 
-### B. Help output as only a command catalog
+### C. Help output as only a command catalog
 
-Status: Mostly resolved.
+Status: Resolved.
 
 Resolution:
 
@@ -154,11 +152,7 @@ Resolution:
 - Updated README command flow.
 - Added actionable recovery hints to common errors.
 
-Remaining gap:
-
-- `guide` needs a better default human output shape, as described in open finding 1.
-
-### C. `doctor` was machine-friendly but not human-friendly
+### D. `doctor` was machine-friendly but not human-friendly
 
 Status: Resolved.
 
@@ -168,7 +162,7 @@ Resolution:
 - `doctor --json` prints the full machine-readable report.
 - CLI-wide `--json` is now the structured-output switch.
 
-### D. Long proof-backed commands lacked durable progress phases
+### E. Long proof-backed commands lacked durable progress phases
 
 Status: Resolved.
 
@@ -178,7 +172,7 @@ Resolution:
   print `loading`, `proving`, `submitting`, `persisting`, and `done`.
 - In `--json` mode, progress goes to stderr and the final JSON result stays on stdout.
 
-### E. Common errors lacked recovery actions
+### F. Common errors lacked recovery actions
 
 Status: Resolved enough for current UX.
 
@@ -191,7 +185,6 @@ Resolution:
 
 ## Recommended Priority
 
-1. Improve `guide` human-readable output.
-2. Document wallet secret source-file creation in help and README.
-3. Make `guide` absorb invalid wallet selectors as check results.
-4. Bump the private-state CLI package version and finalize its changelog before publishing.
+1. Document wallet secret source-file creation in help and README.
+2. Make `guide` absorb invalid wallet selectors as check results.
+3. Bump the private-state CLI package version and finalize its changelog before publishing.

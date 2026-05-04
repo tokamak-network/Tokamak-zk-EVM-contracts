@@ -198,6 +198,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "By default, resumes RPC log scanning from the workspace recovery index when available",
       "Use --from-genesis to ignore the recovery index and replay logs from channel genesis",
+      "Prints RPC log scan progress while rebuilding the workspace",
     ],
   },
   {
@@ -232,6 +233,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Requires the protected wallet-local secret imported during join-channel to exist at the canonical secret path",
       "Does not create or recover the wallet secret itself",
+      "Prints RPC log scan progress while rebuilding channel state and received-note state",
     ],
   },
   {

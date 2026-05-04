@@ -629,6 +629,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     allowExistingWorkspaceSync: true,
     useWorkspaceRecoveryIndex: true,
     fromGenesis: args.fromGenesis === true,
+    progressAction: "recover-workspace",
   });
 
   printJson({
@@ -736,6 +737,7 @@ async function initializeChannelWorkspace({
   allowExistingWorkspaceSync = false,
   useWorkspaceRecoveryIndex = false,
   fromGenesis = false,
+  progressAction = null,
 }) {
   const workspaceDir = channelWorkspacePath(networkNameFromChainId(network.chainId), workspaceName);
   const channelDir = channelDataPath(workspaceDir);
@@ -838,6 +840,7 @@ async function initializeChannelWorkspace({
       baseSnapshot: recoveryIndex?.stateSnapshot ?? null,
       fromBlock: recoveryIndex?.nextBlock ?? genesisBlockNumber,
       toBlock: latestBlock,
+      progressAction,
     });
   const currentSnapshot = reconstruction.currentSnapshot;
   const recoveryRootVectorHash = normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots));
@@ -982,6 +985,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     bridgeResources,
     persist: true,
     allowExistingWorkspaceSync: true,
+    progressAction: "recover-wallet",
   });
   const context = {
     workspaceName: channelName,
@@ -1103,6 +1107,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     context,
     provider,
     noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
+    progressAction: "recover-wallet",
   });
 
   printJson({
@@ -3104,6 +3109,7 @@ async function recoverDeliveredNotesFromEventLogs({
   context,
   provider,
   noteReceivePrivateKey,
+  progressAction = null,
 }) {
   const scanStartBlock = Math.max(
     Number(walletContext.wallet.noteReceiveLastScannedBlock),
@@ -3135,6 +3141,9 @@ async function recoverDeliveredNotesFromEventLogs({
     topics: [NOTE_VALUE_ENCRYPTED_TOPIC],
     fromBlock: scanStartBlock,
     toBlock: latestBlock,
+    onProgress: progressAction
+      ? createRpcLogScanProgress({ action: progressAction, label: "note-delivery events" })
+      : null,
   });
 
   const importedCandidates = [];
@@ -4739,6 +4748,7 @@ async function reconstructChannelSnapshot({
   baseSnapshot = null,
   fromBlock = genesisBlockNumber,
   toBlock = null,
+  progressAction = null,
 }) {
   let startingSnapshot = baseSnapshot;
   if (!startingSnapshot) {
@@ -4770,6 +4780,9 @@ async function reconstructChannelSnapshot({
     ]],
     fromBlock: scanFromBlock,
     toBlock: latestBlock,
+    onProgress: progressAction
+      ? createRpcLogScanProgress({ action: progressAction, label: "channel-manager events" })
+      : null,
   });
   const channelManagerEvents = channelManagerLogs.map((log) => {
     const topic0 = log.topics[0] ? normalizeBytes32Hex(log.topics[0]) : null;
@@ -4788,6 +4801,9 @@ async function reconstructChannelSnapshot({
     eventName: "StorageWriteObserved",
     fromBlock: scanFromBlock,
     toBlock: latestBlock,
+    onProgress: progressAction
+      ? createRpcLogScanProgress({ action: progressAction, label: "bridge-vault events" })
+      : null,
   });
 
   const groupedEvents = new Map();
@@ -4907,14 +4923,33 @@ async function fetchLogsChunked(provider, {
   fromBlock,
   toBlock,
   initialChunkSize = DEFAULT_LOG_CHUNK_SIZE,
+  onProgress = null,
 }) {
   const normalizedFromBlock = Number(fromBlock);
   const resolvedToBlock = toBlock === "latest" ? await provider.getBlockNumber() : Number(toBlock);
   const aggregatedLogs = [];
 
   if (normalizedFromBlock > resolvedToBlock) {
+    onProgress?.({
+      status: "skipped",
+      fromBlock: normalizedFromBlock,
+      toBlock: resolvedToBlock,
+      scannedBlocks: 0,
+      totalBlocks: 0,
+      logsFound: 0,
+    });
     return aggregatedLogs;
   }
+
+  const totalBlocks = resolvedToBlock - normalizedFromBlock + 1;
+  onProgress?.({
+    status: "start",
+    fromBlock: normalizedFromBlock,
+    toBlock: resolvedToBlock,
+    scannedBlocks: 0,
+    totalBlocks,
+    logsFound: 0,
+  });
 
   let chunkSize = Math.max(1, Number(initialChunkSize));
   let cursor = normalizedFromBlock;
@@ -4929,6 +4964,17 @@ async function fetchLogsChunked(provider, {
         toBlock: chunkToBlock,
       });
       aggregatedLogs.push(...logs);
+      onProgress?.({
+        status: "progress",
+        fromBlock: normalizedFromBlock,
+        toBlock: resolvedToBlock,
+        chunkFromBlock: cursor,
+        chunkToBlock,
+        scannedBlocks: chunkToBlock - normalizedFromBlock + 1,
+        totalBlocks,
+        logsFound: aggregatedLogs.length,
+        chunkLogs: logs.length,
+      });
       cursor = chunkToBlock + 1;
     } catch (error) {
       if (isRateLimitError(error)) {
@@ -4944,6 +4990,15 @@ async function fetchLogsChunked(provider, {
       chunkSize = suggestedChunkSize;
     }
   }
+
+  onProgress?.({
+    status: "done",
+    fromBlock: normalizedFromBlock,
+    toBlock: resolvedToBlock,
+    scannedBlocks: totalBlocks,
+    totalBlocks,
+    logsFound: aggregatedLogs.length,
+  });
 
   return aggregatedLogs;
 }
@@ -5002,6 +5057,7 @@ async function queryContractEventsChunked({
   eventName,
   fromBlock,
   toBlock,
+  onProgress = null,
 }) {
   const eventFragment = contract.interface.getEvent(eventName);
   const eventTopic = contract.interface.getEvent(eventName).topicHash;
@@ -5013,6 +5069,7 @@ async function queryContractEventsChunked({
     topics: [eventTopic],
     fromBlock,
     toBlock,
+    onProgress,
   });
 
   return logs.map((log) => {
@@ -6362,6 +6419,51 @@ function emitProgress(action, phase) {
   } else {
     console.log(line);
   }
+}
+
+function createRpcLogScanProgress({ action, label }) {
+  let lastBucket = -1;
+  return (event) => {
+    const totalBlocks = Number(event.totalBlocks ?? 0);
+    const scannedBlocks = Number(event.scannedBlocks ?? 0);
+    const logsFound = Number(event.logsFound ?? 0);
+    if (event.status === "skipped") {
+      emitProgress(action, `rpc-log-scan ${label}: skipped (no blocks to scan, ${logsFound} logs)`);
+      return;
+    }
+    if (event.status === "start") {
+      lastBucket = 0;
+      emitProgress(
+        action,
+        `rpc-log-scan ${label}: 0% (0/${totalBlocks} blocks, ${logsFound} logs, blocks ${event.fromBlock}-${event.toBlock})`,
+      );
+      return;
+    }
+    if (event.status === "done") {
+      emitProgress(
+        action,
+        `rpc-log-scan ${label}: 100% (${totalBlocks}/${totalBlocks} blocks, ${logsFound} logs, done)`,
+      );
+      return;
+    }
+    if (event.status !== "progress" || totalBlocks <= 0) {
+      return;
+    }
+
+    const percent = Math.min(100, Math.floor((scannedBlocks * 100) / totalBlocks));
+    if (percent >= 100) {
+      return;
+    }
+    const bucket = Math.floor(percent / 10) * 10;
+    if (bucket <= lastBucket) {
+      return;
+    }
+    lastBucket = bucket;
+    emitProgress(
+      action,
+      `rpc-log-scan ${label}: ${percent}% (${scannedBlocks}/${totalBlocks} blocks, ${logsFound} logs)`,
+    );
+  };
 }
 
 function formatCliErrorForDisplay(error, args = {}) {

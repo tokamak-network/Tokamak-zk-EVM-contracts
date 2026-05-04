@@ -5,6 +5,8 @@
 - Expanded LLM-agent README guidance so agents explain private key files, local account aliases,
   wallet secret source files, network RPC URLs, and immutable channel policy step by step before
   guiding new users through `join-channel`.
+- Added RPC log scan progress output to `recover-workspace` and `recover-wallet`, with progress
+  routed to stderr in `--json` mode so machine-readable command results stay valid.
 
 ## 1.0.1 - 2026-05-05
 

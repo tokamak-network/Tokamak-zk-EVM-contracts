@@ -6168,7 +6168,10 @@ function ensureDir(dirPath) {
 
 function loadExplicitCommandRuntime(args) {
   const networkName = requireNetworkName(args);
-  const network = resolveCliNetwork(networkName);
+  const network = {
+    ...resolveCliNetwork(networkName),
+    name: networkName,
+  };
   const rpcUrl = resolveCommandRpcUrl(args);
   return {
     network,
@@ -6181,7 +6184,10 @@ function loadWalletCommandRuntime(args) {
   const networkName = requireNetworkName(args);
   const walletMetadata = loadWalletMetadata(requireWalletName(args), networkName);
   return {
-    network: resolveCliNetwork(networkName),
+    network: {
+      ...resolveCliNetwork(networkName),
+      name: networkName,
+    },
     provider: new JsonRpcProvider(walletMetadata.rpcUrl),
   };
 }

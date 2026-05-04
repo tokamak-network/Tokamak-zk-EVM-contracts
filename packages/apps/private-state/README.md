@@ -170,8 +170,9 @@ The commands below are ordered by the normal execution flow.
 
 `account import`
 
-- stores a `0600` local L1 account secret for later `--account` use
-- reads the key only from `--private-key-file`
+- imports `--private-key-file` into a protected local L1 account secret for later `--account` use
+- does not require the source private-key file to use `0600` permissions
+- keeps the canonical account secret protected; macOS/Linux uses `0600`, and Windows uses ACL repair and inspection when possible
 - should be run before bridge-facing user commands that need L1 signing
 
 `create-channel`
@@ -225,8 +226,9 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - registers the caller's L2 address, channel token-vault storage key, leaf index, and note-receive public key on-chain
 - creates the encrypted wallet
 - requires exactly one wallet secret source:
-  - `--random-wallet-secret` to generate a new random `0600` wallet-local secret
-  - `--wallet-secret-path <PATH>` to import an existing `0600` secret file into the wallet-local secret path
+  - `--random-wallet-secret` to generate a new protected wallet-local secret
+  - `--wallet-secret-path <PATH>` to import an existing source secret file into the protected wallet-local secret path
+- does not require the source wallet-secret file to use `0600` permissions
 - stores the resolved `rpcUrl` in the wallet metadata so later wallet-backed commands do not need CLI RPC inputs
 - returns the deterministic wallet name `<channelName>-<l1Address>`
 - accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`

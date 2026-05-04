@@ -486,16 +486,18 @@
           label: "Private Key File",
           type: "text",
           placeholder: "/path/to/private-key",
+          hint: "Source file permissions are not enforced; the imported canonical account secret is protected.",
         },
         randomWalletSecret: {
           label: "Random Wallet Secret",
           type: "checkbox",
-          hint: "Generate a new 0600 wallet-local secret while joining the channel.",
+          hint: "Generate a new protected wallet-local secret while joining the channel.",
         },
         walletSecretPath: {
           label: "Wallet Secret File",
           type: "text",
           placeholder: "/path/to/wallet-secret",
+          hint: "Source file permissions are not enforced; the imported wallet-local secret is protected.",
         },
         wallet: {
           label: "Wallet Name",
@@ -535,7 +537,7 @@
       };
 
       const commands = [
-        { id: "account-import", description: "Store a 0600 local L1 account secret for later --account use.", fields: ["account", "network", "privateKeyFile"] },
+        { id: "account-import", description: "Import a private-key source file into a protected local L1 account secret for later --account use.", fields: ["account", "network", "privateKeyFile"] },
         { id: "install", description: "Install the local Tokamak zk-EVM toolchain. Optionally forward --docker for Linux-host Docker installs.", fields: ["docker"] },
         { id: "doctor", description: "Check the CLI package, runtime install state, Docker mode, CUDA mode, and deployment artifacts.", fields: [] },
         { id: "uninstall", description: "Interactively remove local private-state workspaces, wallet secrets, proof artifacts, Tokamak zk-EVM runtime data, and the global CLI package when installed.", fields: [] },

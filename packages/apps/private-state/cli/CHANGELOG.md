@@ -4,6 +4,7 @@
 
 - Renamed private-state CLI commands `--install` and `--doctor` to `install` and `doctor` so commands consistently omit a leading `--`.
 - Replaced the old zk-EVM-only uninstall command with interactive `uninstall`, which removes local private-state data, Tokamak zk-EVM runtime data, and the global CLI package when installed.
+- Relaxed imported source secret file permission checks while keeping canonical CLI secrets protected with POSIX `0600` or Windows ACL repair and inspection.
 
 ## 0.1.9 - 2026-05-03
 

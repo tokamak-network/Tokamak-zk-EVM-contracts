@@ -5185,7 +5185,10 @@ function resolvePrivateKeySource(args) {
 }
 
 function resolveStandalonePrivateKeySource(args) {
-  return normalizePrivateKey(readSecretFile(requireArg(args.privateKeyFile, "--private-key-file"), "--private-key-file"));
+  return normalizePrivateKey(readImportSecretSourceFile(
+    requireArg(args.privateKeyFile, "--private-key-file"),
+    "--private-key-file",
+  ));
 }
 
 function resolveWalletPasswordForName({
@@ -5238,7 +5241,9 @@ function prepareJoinWalletPasswordForName({
     : path.resolve(String(args.walletSecretPath));
   const canonicalPath = path.resolve(passwordPath);
   if (sourcePath !== null) {
-    const password = readSecretFile(sourcePath, "--wallet-secret-path");
+    const password = sourcePath === canonicalPath
+      ? readSecretFile(sourcePath, "--wallet-secret-path")
+      : readImportSecretSourceFile(sourcePath, "--wallet-secret-path");
     if (sourcePath !== canonicalPath) {
       expect(
         !fs.existsSync(canonicalPath),
@@ -5770,7 +5775,7 @@ Commands:
       Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
 
   account import --account <NAME> --network <NAME> --private-key-file <PATH>
-      Store a 0600 local L1 account secret for later --account use
+      Import a private-key source file into a protected local L1 account secret for later --account use
 
   create-channel --channel-name <NAME> --join-toll <TOKENS> --network <NAME> --account <NAME> [--rpc-url <URL>]
       Create a bridge channel and initialize its workspace
@@ -5798,8 +5803,8 @@ Commands:
 
   join-channel --channel-name <NAME> --network <NAME> --account <NAME> (--random-wallet-secret | --wallet-secret-path <PATH>) [--rpc-url <URL>]
       Pay the channel join toll and bind a wallet to a channel-specific L2 identity
-      --random-wallet-secret creates a new 0600 wallet-local secret file
-      --wallet-secret-path imports an existing 0600 secret file into the wallet-local secret file
+      --random-wallet-secret creates a new protected wallet-local secret file
+      --wallet-secret-path imports an existing source secret file into the protected wallet-local secret file
       Prints the immutable policy snapshot before first registration
 
   get-my-wallet-meta --wallet <NAME> --network <NAME>
@@ -5836,11 +5841,13 @@ Commands:
       Show the wallet's tracked note state and refresh received notes
 
 Secret source options:
-  Use account import --private-key-file once to create a 0600 local account secret.
+  Use account import --private-key-file once to create a protected local account secret.
   L1 signing commands use --account only.
   Bridge-facing commands accept optional --rpc-url. When provided, it is saved to
   ~/tokamak-private-channels/secrets/<network>/.env as RPC_URL. When omitted, the CLI reads RPC_URL from that file.
   Wallet commands use wallet-local default password files only.
+  Source files passed to --private-key-file and --wallet-secret-path are not required to use 0600 permissions, but
+  canonical CLI secret files remain protected. On macOS/Linux this means 0600; on Windows the CLI repairs ACLs when possible.
 
 Options:
   --help
@@ -5864,7 +5871,11 @@ function writeJson(filePath, value) {
 
 function writeJsonWithMode(filePath, value, mode) {
   writeJson(filePath, value);
-  fs.chmodSync(filePath, mode);
+  if (mode === 0o600) {
+    protectSecretFile(filePath, "private JSON file");
+  } else {
+    fs.chmodSync(filePath, mode);
+  }
 }
 
 function readNetworkSecretEnv(networkName) {
@@ -5899,7 +5910,7 @@ function readNetworkSecretEnv(networkName) {
 function writeNetworkSecretEnv(networkName, updates) {
   const envPath = networkSecretEnvPath(networkName);
   if (fs.existsSync(envPath)) {
-    fs.chmodSync(envPath, 0o600);
+    protectSecretFile(envPath, `${networkName} network secret env file`);
   }
   const existing = readNetworkSecretEnv(networkName);
   const next = {
@@ -5950,7 +5961,7 @@ function resolveCommandRpcUrl(args) {
     [
       `Missing RPC_URL for ${networkName}.`,
       `Pass --rpc-url <URL> once to save it to ${networkSecretEnvPath(networkName)},`,
-      "or create that 0600 file with RPC_URL=<URL>.",
+      "or create that protected canonical secret file with RPC_URL=<URL>.",
     ].join(" "),
   );
 }
@@ -5974,10 +5985,30 @@ function readSecretFile(filePath, label) {
   return fs.readFileSync(filePath, "utf8").trim();
 }
 
+function readImportSecretSourceFile(filePath, label) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Missing ${label}: ${filePath}`);
+  }
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile()) {
+    throw new Error(`${label} is not a regular file: ${filePath}`);
+  }
+  return fs.readFileSync(filePath, "utf8").trim();
+}
+
 function writeSecretFile(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
   fs.writeFileSync(filePath, `${String(value).trim()}\n`, { mode: 0o600 });
-  fs.chmodSync(filePath, 0o600);
+  protectSecretFile(filePath, "canonical secret file");
+}
+
+function protectSecretFile(filePath, label) {
+  if (process.platform === "win32") {
+    repairWindowsSecretFileAcl(filePath);
+  } else {
+    fs.chmodSync(filePath, 0o600);
+  }
+  assertSecretFilePermissions(filePath, label);
 }
 
 function assertSecretFilePermissions(filePath, label) {
@@ -5985,9 +6016,55 @@ function assertSecretFilePermissions(filePath, label) {
   if (!stat.isFile()) {
     throw new Error(`${label} is not a regular file: ${filePath}`);
   }
+  if (process.platform === "win32") {
+    assertWindowsSecretFilePermissions(filePath, label);
+    return;
+  }
   if ((stat.mode & 0o077) !== 0) {
     throw new Error(
       `${label} must not be group/world-readable or writable: ${filePath}. Run: chmod 600 ${filePath}`,
+    );
+  }
+}
+
+function repairWindowsSecretFileAcl(filePath) {
+  const userName = process.env.USERNAME?.trim() || os.userInfo().username;
+  const commands = [
+    ["icacls", [filePath, "/inheritance:r"]],
+    ["icacls", [filePath, "/grant:r", `${userName}:(R,W)`]],
+    ["icacls", [
+      filePath,
+      "/remove:g",
+      "Everyone",
+      "Users",
+      "Authenticated Users",
+      "BUILTIN\\Users",
+      "NT AUTHORITY\\Authenticated Users",
+    ]],
+  ];
+  for (const [command, args] of commands) {
+    const result = runCaptured(command, args);
+    if (result.status !== 0) {
+      throw new Error(
+        `Unable to protect Windows secret file ACL: ${filePath}. ${stripAnsi(result.stderr || result.stdout).trim()}`,
+      );
+    }
+  }
+}
+
+function assertWindowsSecretFilePermissions(filePath, label) {
+  const result = runCaptured("icacls", [filePath]);
+  if (result.status !== 0) {
+    throw new Error(
+      `Unable to inspect Windows ACL for ${label}: ${filePath}. ${stripAnsi(result.stderr || result.stdout).trim()}`,
+    );
+  }
+  const output = stripAnsi(`${result.stdout}\n${result.stderr}`);
+  const broadReadPattern =
+    /(?:^|\s)(?:Everyone|BUILTIN\\Users|NT AUTHORITY\\Authenticated Users|Authenticated Users|[^:\r\n\\]+\\Users):\(([^)\r\n]*(?:F|M|W|R|RX|GR|GW)[^)\r\n]*)\)/imu;
+  if (broadReadPattern.test(output)) {
+    throw new Error(
+      `${label} must not grant broad Windows read/write access: ${filePath}. Re-import or let the CLI rewrite the canonical secret file.`,
     );
   }
 }

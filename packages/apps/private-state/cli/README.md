@@ -106,11 +106,12 @@ private-state-cli get-my-wallet-meta --wallet <WALLET_NAME> --network sepolia
 private-state-cli get-my-l1-address --account <ACCOUNT_NAME> --network sepolia
 ```
 
-`account import` is the only supported way to bring an L1 signing key into the CLI: it reads a `0600`
-`--private-key-file` once and stores a local account secret for later `--account` use. `join-channel` creates the
-wallet-local default secret while creating the encrypted local wallet. Use `--random-wallet-secret` for a generated
-secret or `--wallet-secret-path <PATH>` to import an existing `0600` secret file. `list-local-wallets` reads only the
-local workspace and prints saved wallet names that can be reused with `--wallet`.
+`account import` is the only supported way to bring an L1 signing key into the CLI: it reads `--private-key-file` once
+and stores a protected local account secret for later `--account` use. The source file does not need `0600` permissions.
+`join-channel` creates the wallet-local default secret while creating the encrypted local wallet. Use
+`--random-wallet-secret` for a generated secret or `--wallet-secret-path <PATH>` to import an existing source secret
+file. `list-local-wallets` reads only the local workspace and prints saved wallet names that can be reused with
+`--wallet`.
 `get-my-wallet-meta` opens an encrypted local wallet and reports the stored L1/L2 identity metadata plus the current
 on-chain channel registration match state. `get-my-l1-address` is a simple offline helper that derives the L1 address
 for a local account.
@@ -127,9 +128,10 @@ Wallet data is encrypted with the wallet-local default password file under
 `~/tokamak-private-channels/secrets/<network>/wallets/<wallet>/password`.
 
 Bridge-facing commands accept optional `--rpc-url <URL>`. When `--rpc-url` is provided, the CLI stores it in
-`~/tokamak-private-channels/secrets/<network>/.env` as `RPC_URL=<URL>` with `0600` permissions. When `--rpc-url` is
-omitted, the CLI reads `RPC_URL` from that file. The `anvil` network falls back to `http://127.0.0.1:8545` when no
-saved RPC URL exists.
+`~/tokamak-private-channels/secrets/<network>/.env` as `RPC_URL=<URL>` with protected canonical secret permissions.
+When `--rpc-url` is omitted, the CLI reads `RPC_URL` from that file. The `anvil` network falls back to
+`http://127.0.0.1:8545` when no saved RPC URL exists. Canonical CLI secrets are checked on read: macOS/Linux uses
+`0600`, while Windows uses ACL repair and inspection when possible.
 
 ## LLM Agent Guidance
 

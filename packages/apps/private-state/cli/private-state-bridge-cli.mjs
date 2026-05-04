@@ -131,6 +131,7 @@ const NOTE_RECEIVE_TYPED_DATA_TYPES = {
 };
 const NOTE_RECEIVE_TYPED_DATA_PROTOCOL = "PRIVATE_STATE_NOTE_RECEIVE_KEY_V2";
 const NOTE_RECEIVE_TYPED_DATA_DAPP = "private-state";
+const JOIN_TOLL_REFUND_BPS_DENOMINATOR = 10_000n;
 const TRANSFER_NOTE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_NOTE_FIELD_ENCRYPTION_V1";
 const MINT_NOTE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_SELF_MINT_NOTE_FIELD_ENCRYPTION_V1";
 const ENCRYPTED_NOTE_SCHEME_TRANSFER = 0;
@@ -381,6 +382,13 @@ async function main() {
       await handleWorkspaceInit({ args, network, provider });
       return;
     }
+    case "get-channel": {
+      assertGetChannelArgs(args);
+      const { network, provider } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
+      await handleGetChannel({ args, network, provider });
+      return;
+    }
     case "deposit-bridge": {
       assertDepositBridgeArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
@@ -590,6 +598,84 @@ async function handleWorkspaceInit({ args, network, provider }) {
     recoveryLastScannedBlock: workspace.recoveryLastScannedBlock,
     recoveryRootVectorHash: workspace.recoveryRootVectorHash,
     recoveryScanRange: workspace.recoveryScanRange,
+  });
+}
+
+async function handleGetChannel({ args, network, provider }) {
+  const channelName = requireArg(args.channelName, "--channel-name");
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const bridgeCore = new Contract(
+    bridgeResources.bridgeDeployment.bridgeCore,
+    bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
+    provider,
+  );
+  const channelId = deriveChannelIdFromName(channelName);
+
+  let channelInfo;
+  try {
+    channelInfo = await bridgeCore.getChannel(channelId);
+  } catch (error) {
+    if (isContractError(error, bridgeCore.interface, "UnknownChannel")) {
+      printJson({
+        action: "get-channel",
+        channelName,
+        channelId: channelId.toString(),
+        exists: false,
+        bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
+      });
+      return;
+    }
+    throw error;
+  }
+
+  const channelManager = new Contract(
+    channelInfo.manager,
+    bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
+  const asset = getAddress(channelInfo.asset);
+  const [
+    canonicalAssetDecimals,
+    joinToll,
+    currentRootVectorHash,
+    genesisBlockNumber,
+    managedStorageAddresses,
+    policySnapshot,
+    refundSchedule,
+  ] = await Promise.all([
+    fetchTokenDecimals(provider, asset),
+    channelManager.joinToll(),
+    channelManager.currentRootVectorHash(),
+    channelManager.genesisBlockNumber(),
+    channelManager.getManagedStorageAddresses(),
+    readChannelPolicySnapshot({
+      channelManager,
+      dappId: Number(channelInfo.dappId),
+    }),
+    readChannelRefundSchedule(channelManager),
+  ]);
+
+  printJson({
+    action: "get-channel",
+    channelName,
+    channelId: channelId.toString(),
+    exists: true,
+    dappId: Number(channelInfo.dappId),
+    leader: getAddress(channelInfo.leader),
+    asset,
+    manager: getAddress(channelInfo.manager),
+    bridgeTokenVault: getAddress(channelInfo.bridgeTokenVault),
+    aPubBlockHash: normalizeBytes32Hex(channelInfo.aPubBlockHash),
+    dappMetadataDigestSchema: normalizeBytes32Hex(channelInfo.dappMetadataDigestSchema),
+    dappMetadataDigest: normalizeBytes32Hex(channelInfo.dappMetadataDigest),
+    joinTollBaseUnits: joinToll.toString(),
+    joinTollTokens: ethers.formatUnits(joinToll, canonicalAssetDecimals),
+    currentRootVectorHash: normalizeBytes32Hex(currentRootVectorHash),
+    genesisBlockNumber: Number(genesisBlockNumber),
+    managedStorageAddresses: normalizedAddressVector(managedStorageAddresses),
+    policySnapshot,
+    refundSchedule,
+    bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
   });
 }
 
@@ -3797,6 +3883,70 @@ async function readChannelPolicySnapshot({ channelManager, dappId }) {
   }
 }
 
+async function readChannelRefundSchedule(channelManager) {
+  const [
+    cutoff1,
+    bps1,
+    cutoff2,
+    bps2,
+    cutoff3,
+    bps3,
+    bps4,
+  ] = await Promise.all([
+    channelManager.joinTollRefundCutoff1(),
+    channelManager.joinTollRefundBps1(),
+    channelManager.joinTollRefundCutoff2(),
+    channelManager.joinTollRefundBps2(),
+    channelManager.joinTollRefundCutoff3(),
+    channelManager.joinTollRefundBps3(),
+    channelManager.joinTollRefundBps4(),
+  ]);
+  return {
+    cutoff1Seconds: Number(cutoff1),
+    bps1: formatBpsRatio(bps1),
+    cutoff2Seconds: Number(cutoff2),
+    bps2: formatBpsRatio(bps2),
+    cutoff3Seconds: Number(cutoff3),
+    bps3: formatBpsRatio(bps3),
+    bps4: formatBpsRatio(bps4),
+  };
+}
+
+function formatBpsRatio(value) {
+  const normalized = ethers.toBigInt(value);
+  const whole = normalized / JOIN_TOLL_REFUND_BPS_DENOMINATOR;
+  const fraction = normalized % JOIN_TOLL_REFUND_BPS_DENOMINATOR;
+  if (fraction === 0n) {
+    return whole.toString();
+  }
+  return `${whole.toString()}.${fraction.toString().padStart(4, "0").replace(/0+$/, "")}`;
+}
+
+function isContractError(error, contractInterface, errorName) {
+  if (error?.revert?.name === errorName) {
+    return true;
+  }
+  for (const errorData of extractContractErrorDataCandidates(error)) {
+    try {
+      if (contractInterface.parseError(errorData)?.name === errorName) {
+        return true;
+      }
+    } catch {
+      // Keep scanning nested provider error payloads.
+    }
+  }
+  return false;
+}
+
+function extractContractErrorDataCandidates(error) {
+  return [
+    error?.data,
+    error?.error?.data,
+    error?.info?.error?.data,
+    error?.info?.error?.error?.data,
+  ].filter((value) => typeof value === "string" && /^0x[0-9a-fA-F]+$/.test(value));
+}
+
 function readLocalProofBackendPackageVersions() {
   const groth16Runtime = inspectGroth16Runtime();
   const tokamakPackageReport = readTokamakCliPackageReport();
@@ -5135,6 +5285,18 @@ function assertRecoverWorkspaceArgs(args) {
   );
 }
 
+function assertGetChannelArgs(args) {
+  requireArg(args.channelName, "--channel-name");
+  requireNetworkName(args);
+  requireAlchemyApiKeyForPublicNetwork(args, "get-channel");
+  assertAllowedCommandKeys(
+    args,
+    "get-channel",
+    new Set(["command", "positional", "channelName", "network", "alchemyApiKey"]),
+    "--channel-name, --network, and --alchemy-api-key on public networks",
+  );
+}
+
 function assertDepositBridgeArgs(args) {
   requireArg(args.amount, "--amount");
   requireNetworkName(args);
@@ -5289,6 +5451,9 @@ Commands:
       Rebuild the local channel workspace from bridge state
       By default, resumes RPC log scanning from the workspace recovery index when available
       Use --from-genesis to ignore the recovery index and replay logs from channel genesis
+
+  get-channel --channel-name <NAME> --network <NAME> --alchemy-api-key <KEY>
+      Read channel existence, manager, vault, toll, refund schedule, and immutable policy snapshot
 
   deposit-bridge --amount <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Deposit canonical tokens into the shared bridge vault

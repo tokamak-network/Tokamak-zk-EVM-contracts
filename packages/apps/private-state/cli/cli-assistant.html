@@ -519,11 +519,6 @@
           type: "textarea",
           placeholder: "[\"0xRecipientL2Address\"]",
         },
-        force: {
-          label: "Force Exit",
-          type: "checkbox",
-          hint: "Bypass the CLI zero-balance guard for exit-channel.",
-        },
         docker: {
           label: "Docker Install Mode",
           type: "checkbox",
@@ -549,7 +544,7 @@
         { id: "deposit-channel", description: "Move bridged funds into the channel L2 accounting balance.", fields: ["wallet", "network", "amount"] },
         { id: "withdraw-channel", description: "Move channel L2 balance back into the shared bridge vault.", fields: ["wallet", "network", "amount"] },
         { id: "get-my-channel-fund", description: "Read the current channel L2 accounting balance.", fields: ["wallet", "network"] },
-        { id: "exit-channel", description: "Exit a channel. The assistant keeps the CLI zero-balance guard unless Force Exit is enabled.", fields: ["wallet", "network", "force"] },
+        { id: "exit-channel", description: "Exit a channel. Both the CLI and bridge contract require a zero channel balance.", fields: ["wallet", "network"] },
         { id: "mint-notes", description: "Mint one or two private-state notes from the wallet channel balance.", fields: ["wallet", "network", "amounts"] },
         { id: "transfer-notes", description: "Spend tracked notes into the registered 1->1, 1->2, or 2->1 encrypted transfer shapes.", fields: ["wallet", "network", "noteIds", "recipients", "amounts"] },
         { id: "redeem-notes", description: "Redeem exactly one tracked note back into liquid accounting balance.", fields: ["wallet", "network", "noteIds"] },
@@ -1103,9 +1098,6 @@
               break;
             case "recipients":
               appendOption(parts, "--recipients", renderedValue);
-              break;
-            case "force":
-              parts.push("--force");
               break;
             case "docker":
               parts.push("--docker");

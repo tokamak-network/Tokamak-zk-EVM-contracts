@@ -89,15 +89,20 @@ runtime health. The doctor check fails when the Tokamak Docker `useGpus` metadat
 Local helper commands:
 
 ```bash
+private-state-cli account import --account <ACCOUNT_NAME> --network sepolia --private-key-file <PATH>
+private-state-cli wallet init-secret --wallet <WALLET_NAME> --network sepolia
 private-state-cli list-local-wallets --network sepolia --channel-name cuda
-private-state-cli get-my-wallet-meta --wallet <WALLET_NAME> --password <PASSWORD> --network sepolia
-private-state-cli get-my-l1-address --private-key <HEX>
+private-state-cli get-my-wallet-meta --wallet <WALLET_NAME> --network sepolia
+private-state-cli get-my-l1-address --account <ACCOUNT_NAME> --network sepolia
 ```
 
-`list-local-wallets` reads only the local workspace and prints saved wallet names that can be reused with `--wallet`.
+`account import` is the only supported way to bring an L1 signing key into the CLI: it reads a `0600`
+`--private-key-file` once and stores a local account secret for later `--account` use. `wallet init-secret` creates a
+`0600` wallet-local default password file before wallet creation. `list-local-wallets` reads only the local workspace
+and prints saved wallet names that can be reused with `--wallet`.
 `get-my-wallet-meta` opens an encrypted local wallet and reports the stored L1/L2 identity metadata plus the current
 on-chain channel registration match state. `get-my-l1-address` is a simple offline helper that derives the L1 address
-for a private key.
+for a local account.
 
 ## Workspace
 
@@ -107,7 +112,8 @@ The CLI stores user workspaces under:
 ~/tokamak-private-channels/workspace/<network>/<channel>/
 ```
 
-Wallet data is encrypted with the password supplied to `join-channel` or `recover-wallet`.
+Wallet data is encrypted with the wallet-local default password file under
+`~/tokamak-private-channels/secrets/<network>/wallets/<wallet>/password`.
 
 ## LLM Agent Guidance
 
@@ -120,16 +126,16 @@ explaining each step only as much as needed to proceed safely.
 
 Operating rules:
 
-- Do not ask the user to reveal raw private keys in chat. Use environment variable placeholders such as `$ADDR6`,
-  `$CREATOR`, or `$PRIVATE_STATE_TEST_PK`.
+- Do not ask the user to reveal raw private keys or wallet passwords in chat. Use `account import --private-key-file`
+  once, then use `--account` for L1 signing commands. Wallet commands use wallet-local default password files.
 - Prefer testnet examples unless the user explicitly asks for mainnet.
 - Before any proof-backed or bridge-facing workflow, ask the user to run `private-state-cli --doctor` and inspect
   whether the runtime, Docker mode, CUDA/GPU probes, Groth16 runtime, and deployment artifacts are healthy.
 - Use `private-state-cli list-local-wallets` to discover local wallet names instead of asking the user to inspect
   filesystem paths manually.
-- Use `private-state-cli get-my-l1-address --private-key "$KEY_ENV"` to derive the L1 address for a private-key
-  environment variable when wallet ownership needs to be identified.
-- Use `private-state-cli get-my-wallet-meta --wallet <WALLET> --password <PASSWORD> --network <NETWORK>` to inspect
+- Use `private-state-cli get-my-l1-address --account <ACCOUNT> --network <NETWORK>` to derive the L1 address for a
+  local account when wallet ownership needs to be identified.
+- Use `private-state-cli get-my-wallet-meta --wallet <WALLET> --network <NETWORK>` to inspect
   local wallet metadata and on-chain channel registration state.
 - Use `private-state-cli get-my-bridge-fund` and `private-state-cli get-my-channel-fund` to check balances before
   telling the user to move funds.
@@ -149,7 +155,7 @@ Suggested interaction flow:
 
 1. Identify the target network, usually `sepolia` for testing.
 2. Identify whether a channel already exists.
-3. Identify the sender and recipient wallets or private-key environment variables.
+3. Identify the sender and recipient wallets or local account names.
 4. Run `--doctor`.
 5. Run `list-local-wallets` and relevant metadata or balance checks.
 6. If needed, guide the user through `create-channel`, `deposit-bridge`, `join-channel`, `deposit-channel`, and

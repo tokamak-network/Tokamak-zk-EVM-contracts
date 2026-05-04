@@ -1346,7 +1346,7 @@ function handleWalletInitSecret({ args }) {
     [
       `Wallet ${walletName} already exists on ${networkName}.`,
       "wallet init-secret only creates a new password file before wallet creation.",
-      "Use --password-file or --password-env if you need to unlock an existing wallet.",
+      "Restore the existing wallet-local default password file if you need to unlock an existing wallet.",
     ].join(" "),
   );
   const passwordPath = walletPasswordPath(networkName, walletName);
@@ -5076,15 +5076,8 @@ function requireL2Password(args) {
       walletName: requireWalletName(args),
     });
   }
-  if (args.password !== undefined || args.passwordFile !== undefined || args.passwordEnv !== undefined) {
-    return resolveWalletPasswordForName({
-      args,
-      networkName: args.network ?? "unknown-network",
-      walletName: args.wallet ?? "unknown-wallet",
-    });
-  }
   throw new Error(
-    "Missing wallet password source. Provide --password, --password-file, --password-env, or use a wallet with a default password file.",
+    "Missing --wallet and --network. Wallet commands use the wallet-local default password file.",
   );
 }
 
@@ -5134,55 +5127,13 @@ function requireL1Signer(args, provider) {
 }
 
 function resolvePrivateKeySource(args) {
-  const sources = [
-    args.privateKey !== undefined ? "--private-key" : null,
-    args.privateKeyFile !== undefined ? "--private-key-file" : null,
-    args.privateKeyEnv !== undefined ? "--private-key-env" : null,
-    args.account !== undefined ? "--account" : null,
-  ].filter(Boolean);
-  if (sources.length !== 1) {
-    throw new Error(
-      `Expected exactly one L1 private key source, received ${sources.length || "none"}. `
-        + "Use --account, --private-key-file, --private-key-env, or unsafe --private-key.",
-    );
-  }
-  if (args.privateKey !== undefined) {
-    return normalizePrivateKey(requireArg(args.privateKey, "--private-key"));
-  }
-  if (args.privateKeyFile !== undefined) {
-    return normalizePrivateKey(readSecretFile(requireArg(args.privateKeyFile, "--private-key-file"), "--private-key-file"));
-  }
-  if (args.privateKeyEnv !== undefined) {
-    return normalizePrivateKey(
-      requireArg(process.env[requireArg(args.privateKeyEnv, "--private-key-env")], `environment variable ${args.privateKeyEnv}`),
-    );
-  }
   const networkName = requireNetworkName(args);
   const account = requireAccountName(args);
   return normalizePrivateKey(readSecretFile(accountPrivateKeyPath(networkName, account), "--account"));
 }
 
 function resolveStandalonePrivateKeySource(args) {
-  const sources = [
-    args.privateKey !== undefined ? "--private-key" : null,
-    args.privateKeyFile !== undefined ? "--private-key-file" : null,
-    args.privateKeyEnv !== undefined ? "--private-key-env" : null,
-  ].filter(Boolean);
-  if (sources.length !== 1) {
-    throw new Error(
-      `Expected exactly one private key source, received ${sources.length || "none"}. `
-        + "Use --private-key-file, --private-key-env, or unsafe --private-key.",
-    );
-  }
-  if (args.privateKey !== undefined) {
-    return normalizePrivateKey(requireArg(args.privateKey, "--private-key"));
-  }
-  if (args.privateKeyFile !== undefined) {
-    return normalizePrivateKey(readSecretFile(requireArg(args.privateKeyFile, "--private-key-file"), "--private-key-file"));
-  }
-  return normalizePrivateKey(
-    requireArg(process.env[requireArg(args.privateKeyEnv, "--private-key-env")], `environment variable ${args.privateKeyEnv}`),
-  );
+  return normalizePrivateKey(readSecretFile(requireArg(args.privateKeyFile, "--private-key-file"), "--private-key-file"));
 }
 
 function resolveWalletPasswordForName({
@@ -5191,30 +5142,13 @@ function resolveWalletPasswordForName({
   walletName,
   createIfMissing = false,
 }) {
-  const explicitPasswordSources = [
-    args.password !== undefined ? "--password" : null,
-    args.passwordFile !== undefined ? "--password-file" : null,
-    args.passwordEnv !== undefined ? "--password-env" : null,
-  ].filter(Boolean);
-  if (explicitPasswordSources.length > 1) {
-    throw new Error(`Expected one wallet password source, received ${explicitPasswordSources.join(", ")}.`);
-  }
-  if (args.password !== undefined) {
-    return requireArg(args.password, "--password");
-  }
-  if (args.passwordFile !== undefined) {
-    return readSecretFile(requireArg(args.passwordFile, "--password-file"), "--password-file");
-  }
-  if (args.passwordEnv !== undefined) {
-    return requireArg(process.env[requireArg(args.passwordEnv, "--password-env")], `environment variable ${args.passwordEnv}`);
-  }
   if (createIfMissing && !fs.existsSync(walletPasswordPath(networkName, walletName))) {
     expect(
       !walletConfigExists(walletPath(walletName, networkName)),
       [
         `Wallet ${walletName} already exists on ${networkName}, but no default password file is configured.`,
         "Refusing to generate a new random password for an existing encrypted wallet.",
-        "Use --password-file, --password-env, or unsafe --password with the existing password.",
+        "Restore the wallet-local default password file before using this wallet.",
       ].join(" "),
     );
     ensureWalletPasswordSecret({
@@ -5228,15 +5162,10 @@ function resolveWalletPasswordForName({
 }
 
 function resolvedWalletPasswordSource(args) {
-  if (args.password !== undefined) return "unsafe-argv";
-  if (args.passwordFile !== undefined) return "password-file";
-  if (args.passwordEnv !== undefined) return "password-env";
   return "wallet-default";
 }
 
 function resolvedWalletPasswordFile(args, networkName, walletName) {
-  if (args.passwordFile !== undefined) return path.resolve(String(args.passwordFile));
-  if (args.passwordEnv !== undefined || args.password !== undefined) return null;
   return walletPasswordPath(networkName, walletName);
 }
 
@@ -5246,7 +5175,7 @@ function resolveWalletDefaultPassword(networkName, walletName) {
     throw new Error(
       [
         `Missing wallet default password file: ${passwordPath}.`,
-        "Use --password-file, --password-env, unsafe --password, wallet init-secret, or join-channel --create-wallet-secret.",
+        "Run wallet init-secret before wallet creation, or use join-channel/recover-wallet --create-wallet-secret.",
       ].join(" "),
     );
   }
@@ -5452,59 +5381,36 @@ function assertAllowedCommandKeys(args, commandName, allowedKeys, acceptedUsage)
   );
 }
 
-function countDefinedOptionKeys(args, keys) {
-  return keys.filter((key) => args[key] !== undefined).length;
-}
-
 function assertL1SecretSourceArgs(args, { allowAccount }) {
-  const keys = ["privateKey", "privateKeyFile", "privateKeyEnv", ...(allowAccount ? ["account"] : [])];
-  const count = countDefinedOptionKeys(args, keys);
-  expect(
-    count === 1,
-    `Provide exactly one L1 private key source: ${
-      [
-        allowAccount ? "--account" : null,
-        "--private-key-file",
-        "--private-key-env",
-        "unsafe --private-key",
-      ].filter(Boolean).join(", ")
-    }.`,
-  );
-  if (args.account !== undefined) {
+  if (allowAccount) {
+    expect(args.account !== undefined, "Provide --account for L1 signing.");
     requireNetworkName(args);
+    return;
   }
+  expect(args.privateKeyFile !== undefined, "Provide --private-key-file.");
 }
 
 function assertWalletPasswordSourceArgs(args, { allowCreateWalletSecret = false } = {}) {
-  const count = countDefinedOptionKeys(args, ["password", "passwordFile", "passwordEnv"]);
-  expect(
-    count <= 1,
-    "Provide at most one wallet password source: --password-file, --password-env, or unsafe --password.",
-  );
-  expect(
-    !(args.createWalletSecret === true && count !== 0),
-    "--create-wallet-secret cannot be combined with --password, --password-file, or --password-env.",
-  );
   if (args.createWalletSecret !== undefined) {
     expect(allowCreateWalletSecret, "--create-wallet-secret is not supported by this command.");
   }
 }
 
-function assertWalletPasswordArgs(args, commandName, extraOptionKeys = [], acceptedUsage = "--wallet, --network, and optional wallet password source") {
+function assertWalletPasswordArgs(args, commandName, extraOptionKeys = [], acceptedUsage = "--wallet and --network") {
   requireWalletName(args);
   requireNetworkName(args);
   assertWalletPasswordSourceArgs(args);
   assertAllowedCommandKeys(
     args,
     commandName,
-    new Set(["command", "positional", "wallet", "password", "passwordFile", "passwordEnv", "network", ...extraOptionKeys]),
+    new Set(["command", "positional", "wallet", "network", ...extraOptionKeys]),
     acceptedUsage,
   );
 }
 
 function assertWalletChannelMoveArgs(args, commandName) {
   requireArg(args.amount, "--amount");
-  assertWalletPasswordArgs(args, commandName, ["amount"], "--wallet, --network, --amount, and optional wallet password source");
+  assertWalletPasswordArgs(args, commandName, ["amount"], "--wallet, --network, and --amount");
 }
 
 function assertInstallZkEvmArgs(args) {
@@ -5545,8 +5451,8 @@ function assertAccountImportArgs(args) {
   assertAllowedCommandKeys(
     args,
     "account import",
-    new Set(["command", "positional", "account", "network", "privateKey", "privateKeyFile", "privateKeyEnv", "force"]),
-    "--account, --network, one private key source, and optional --force",
+    new Set(["command", "positional", "account", "network", "privateKeyFile", "force"]),
+    "--account, --network, --private-key-file, and optional --force",
   );
 }
 
@@ -5563,7 +5469,7 @@ function assertWalletInitSecretArgs(args) {
 
 function assertMintNotesArgs(args) {
   requireArg(args.amounts, "--amounts");
-  assertWalletPasswordArgs(args, "mint-notes", ["amounts"], "--wallet, --network, --amounts, and optional wallet password source");
+  assertWalletPasswordArgs(args, "mint-notes", ["amounts"], "--wallet, --network, and --amounts");
   parseAmountVector(args.amounts, {
     allowZeroEntries: true,
     requireAnyPositive: true,
@@ -5572,7 +5478,7 @@ function assertMintNotesArgs(args) {
 
 function assertRedeemNotesArgs(args) {
   requireArg(args.noteIds, "--note-ids");
-  assertWalletPasswordArgs(args, "redeem-notes", ["noteIds"], "--wallet, --network, --note-ids, and optional wallet password source");
+  assertWalletPasswordArgs(args, "redeem-notes", ["noteIds"], "--wallet, --network, and --note-ids");
   selectRedeemNotesMethod(parseNoteIdVector(args.noteIds).length);
 }
 
@@ -5584,7 +5490,7 @@ function assertTransferNotesArgs(args) {
     args,
     "transfer-notes",
     ["noteIds", "recipients", "amounts"],
-    "--wallet, --network, --note-ids, --recipients, --amounts, and optional wallet password source",
+    "--wallet, --network, --note-ids, --recipients, and --amounts",
   );
   const noteIds = parseNoteIdVector(args.noteIds);
   const recipients = parseRecipientVector(args.recipients);
@@ -5597,7 +5503,7 @@ function assertTransferNotesArgs(args) {
 }
 
 function assertGetMyNotesArgs(args) {
-  assertWalletPasswordArgs(args, "get-my-notes", [], "--wallet, --network, and optional wallet password source");
+  assertWalletPasswordArgs(args, "get-my-notes");
 }
 
 function assertCreateChannelArgs(args) {
@@ -5617,11 +5523,8 @@ function assertCreateChannelArgs(args) {
       "network",
       "alchemyApiKey",
       "account",
-      "privateKey",
-      "privateKeyFile",
-      "privateKeyEnv",
     ]),
-    "--channel-name, --join-toll, --network, one L1 key source, and --alchemy-api-key on public networks",
+    "--channel-name, --join-toll, --network, --account, and --alchemy-api-key on public networks",
   );
 }
 
@@ -5657,8 +5560,8 @@ function assertDepositBridgeArgs(args) {
   assertAllowedCommandKeys(
     args,
     "deposit-bridge",
-    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "account", "privateKey", "privateKeyFile", "privateKeyEnv"]),
-    "--amount, --network, one L1 key source, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "account"]),
+    "--amount, --network, --account, and --alchemy-api-key on public networks",
   );
 }
 
@@ -5669,8 +5572,8 @@ function assertGetMyBridgeFundArgs(args) {
   assertAllowedCommandKeys(
     args,
     "get-my-bridge-fund",
-    new Set(["command", "positional", "network", "alchemyApiKey", "account", "privateKey", "privateKeyFile", "privateKeyEnv"]),
-    "--network, one L1 key source, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "network", "alchemyApiKey", "account"]),
+    "--network, --account, and --alchemy-api-key on public networks",
   );
 }
 
@@ -5689,16 +5592,10 @@ function assertExplicitSignerPasswordCommandArgs(args, commandName) {
       "channelName",
       "network",
       "account",
-      "privateKey",
-      "privateKeyFile",
-      "privateKeyEnv",
-      "password",
-      "passwordFile",
-      "passwordEnv",
       "createWalletSecret",
       "alchemyApiKey",
     ]),
-    "--channel-name, --network, one L1 key source, optional wallet password source, optional --create-wallet-secret, and --alchemy-api-key on public networks",
+    "--channel-name, --network, --account, optional --create-wallet-secret, and --alchemy-api-key on public networks",
   );
 }
 
@@ -5711,7 +5608,7 @@ function assertJoinChannelArgs(args) {
 }
 
 function assertGetMyWalletMetaArgs(args) {
-  assertWalletPasswordArgs(args, "get-my-wallet-meta", [], "--wallet, --network, and optional wallet password source");
+  assertWalletPasswordArgs(args, "get-my-wallet-meta");
 }
 
 function assertGetMyL1AddressArgs(args) {
@@ -5719,8 +5616,8 @@ function assertGetMyL1AddressArgs(args) {
   assertAllowedCommandKeys(
     args,
     "get-my-l1-address",
-    new Set(["command", "positional", "network", "account", "privateKey", "privateKeyFile", "privateKeyEnv"]),
-    "one L1 key source",
+    new Set(["command", "positional", "network", "account"]),
+    "--network and --account",
   );
 }
 
@@ -5747,17 +5644,17 @@ function assertWithdrawBridgeArgs(args) {
   assertAllowedCommandKeys(
     args,
     "withdraw-bridge",
-    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "account", "privateKey", "privateKeyFile", "privateKeyEnv"]),
-    "--amount, --network, one L1 key source, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "account"]),
+    "--amount, --network, --account, and --alchemy-api-key on public networks",
   );
 }
 
 function assertGetMyChannelFundArgs(args) {
-  assertWalletPasswordArgs(args, "get-my-channel-fund", [], "--wallet, --network, and optional wallet password source");
+  assertWalletPasswordArgs(args, "get-my-channel-fund");
 }
 
 function assertExitChannelArgs(args) {
-  assertWalletPasswordArgs(args, "exit-channel", ["force"], "--wallet, --network, optional --force, and optional wallet password source");
+  assertWalletPasswordArgs(args, "exit-channel", ["force"], "--wallet, --network, and optional --force");
 }
 
 function createWalletOperationDir(walletName, networkName, suffix) {
@@ -5811,7 +5708,6 @@ Commands:
 
   account import --account <NAME> --network <NAME> --private-key-file <PATH>
       Store a 0600 local L1 account secret for later --account use
-      Also accepts --private-key-env <ENV>; unsafe --private-key is kept for development compatibility
 
   wallet init-secret --wallet <NAME> --network <NAME>
       Create a 0600 wallet-local random password file before the wallet is first created
@@ -5819,7 +5715,6 @@ Commands:
   create-channel --channel-name <NAME> --join-toll <TOKENS> --network <NAME> --account <NAME> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace
       Prints the immutable policy snapshot before sending the transaction
-      Also accepts --private-key-file <PATH>, --private-key-env <ENV>, or unsafe --private-key <HEX>
 
   recover-workspace --channel-name <NAME> --network <NAME> [--from-genesis] --alchemy-api-key <KEY>
       Rebuild the local channel workspace from bridge state
@@ -5879,9 +5774,9 @@ Commands:
       Show the wallet's tracked note state and refresh received notes
 
 Secret source options:
-  Prefer --account for L1 signing and wallet-local default password files for wallet commands.
-  Wallet commands also accept --password-file <PATH>, --password-env <ENV>, or unsafe --password <VALUE>.
-  L1 signing commands also accept --private-key-file <PATH>, --private-key-env <ENV>, or unsafe --private-key <HEX>.
+  Use account import --private-key-file once to create a 0600 local account secret.
+  L1 signing commands use --account only.
+  Wallet commands use wallet-local default password files only.
 
 Options:
   --help
@@ -6046,7 +5941,7 @@ function readEncryptedWalletJson(filePath, walletPassword) {
   try {
     return JSON.parse(readEncryptedWalletFile(filePath, walletPassword).toString("utf8"));
   } catch (error) {
-    throw new Error(`Unable to decrypt wallet data at ${filePath}. Check --password.`, { cause: error });
+    throw new Error(`Unable to decrypt wallet data at ${filePath}. Check the wallet-local default password file.`, { cause: error });
   }
 }
 

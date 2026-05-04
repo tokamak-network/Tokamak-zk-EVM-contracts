@@ -416,29 +416,29 @@
               <li>
                 <span class="guide-label">Join a channel:</span> <code>join-channel</code>
                 <div class="guide-example">
-                  <code>join-channel --channel-name 'my-private-channel' --password '__WALLET_PASSWORD__' --network 'sepolia' --private-key '__L1_PRIVATE_KEY__' --alchemy-api-key '__ALCHEMY_API_KEY__'</code>
+                  <code>join-channel --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --alchemy-api-key '__ALCHEMY_API_KEY__'</code>
                 </div>
               </li>
               <li>
                 <span class="guide-label">Create notes:</span> <code>deposit-bridge</code> -&gt; <code>deposit-channel</code> -&gt; <code>mint-notes</code>
                 <div class="guide-example">
-                  <code>deposit-bridge --amount '100' --network 'sepolia' --private-key '__L1_PRIVATE_KEY__' --alchemy-api-key '__ALCHEMY_API_KEY__'</code><br />
-                  <code>deposit-channel --wallet 'my-private-channel-0xYourL1Address' --password '__WALLET_PASSWORD__' --network 'sepolia' --amount '100'</code><br />
-                  <code>mint-notes --wallet 'my-private-channel-0xYourL1Address' --password '__WALLET_PASSWORD__' --network 'sepolia' --amounts '[&quot;50&quot;,&quot;50&quot;,&quot;0&quot;]'</code>
+                  <code>deposit-bridge --amount '100' --network 'sepolia' --account 'my-account' --alchemy-api-key '__ALCHEMY_API_KEY__'</code><br />
+                  <code>deposit-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '100'</code><br />
+                  <code>mint-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amounts '[&quot;50&quot;,&quot;50&quot;,&quot;0&quot;]'</code>
                 </div>
               </li>
               <li>
                 <span class="guide-label">Split, merge, or transfer note ownership:</span> <code>transfer-notes</code>
                 <div class="guide-example">
-                  <code>transfer-notes --wallet 'my-private-channel-0xYourL1Address' --password '__WALLET_PASSWORD__' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]' --recipients '[&quot;0xRecipientL2AddressA&quot;,&quot;0xRecipientL2AddressB&quot;]' --amounts '[&quot;25&quot;,&quot;25&quot;]'</code>
+                  <code>transfer-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]' --recipients '[&quot;0xRecipientL2AddressA&quot;,&quot;0xRecipientL2AddressB&quot;]' --amounts '[&quot;25&quot;,&quot;25&quot;]'</code>
                 </div>
               </li>
               <li>
                 <span class="guide-label">Redeem notes back to L1:</span> <code>redeem-notes</code> -&gt; <code>withdraw-channel</code> -&gt; <code>withdraw-bridge</code>
                 <div class="guide-example">
-                  <code>redeem-notes --wallet 'my-private-channel-0xYourL1Address' --password '__WALLET_PASSWORD__' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]'</code><br />
-                  <code>withdraw-channel --wallet 'my-private-channel-0xYourL1Address' --password '__WALLET_PASSWORD__' --network 'sepolia' --amount '25'</code><br />
-                  <code>withdraw-bridge --amount '25' --network 'sepolia' --private-key '__L1_PRIVATE_KEY__' --alchemy-api-key '__ALCHEMY_API_KEY__'</code>
+                  <code>redeem-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]'</code><br />
+                  <code>withdraw-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '25'</code><br />
+                  <code>withdraw-bridge --amount '25' --network 'sepolia' --account 'my-account' --alchemy-api-key '__ALCHEMY_API_KEY__'</code>
                 </div>
               </li>
             </ol>
@@ -476,15 +476,15 @@
           type: "password",
           placeholder: "alchemy-key",
         },
-        privateKey: {
-          label: "L1 Private Key",
-          type: "password",
-          placeholder: "0x...",
+        account: {
+          label: "Account",
+          type: "text",
+          placeholder: "my-account",
         },
-        password: {
-          label: "Wallet Password",
-          type: "password",
-          placeholder: "channel-password",
+        privateKeyFile: {
+          label: "Private Key File",
+          type: "text",
+          placeholder: "/path/to/private-key",
         },
         wallet: {
           label: "Wallet Name",
@@ -524,26 +524,28 @@
       };
 
       const commands = [
+        { id: "account-import", description: "Store a 0600 local L1 account secret for later --account use.", fields: ["account", "network", "privateKeyFile"] },
+        { id: "wallet-init-secret", description: "Create a 0600 wallet-local random password file before wallet creation.", fields: ["wallet", "network"] },
         { id: "install-zk-evm", description: "Install the local Tokamak zk-EVM toolchain. Optionally forward --docker for Linux-host Docker installs.", fields: ["docker"] },
         { id: "uninstall-zk-evm", description: "Remove the Tokamak zk-EVM CLI runtime workspace.", fields: [] },
-        { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "network", "privateKey", "alchemyApiKey"] },
+        { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "network", "account", "alchemyApiKey"] },
         { id: "recover-workspace", description: "Rebuild the saved channel workspace from bridge state.", fields: ["channelName", "network", "alchemyApiKey"] },
-        { id: "deposit-bridge", description: "Deposit canonical tokens into the shared bridge vault.", fields: ["amount", "network", "privateKey", "alchemyApiKey"] },
-        { id: "withdraw-bridge", description: "Withdraw shared bridge-vault funds back to the L1 wallet.", fields: ["amount", "network", "privateKey", "alchemyApiKey"] },
-        { id: "get-my-bridge-fund", description: "Read the current bridge-vault balance.", fields: ["network", "privateKey", "alchemyApiKey"] },
-        { id: "join-channel", description: "Accept the channel policy and bind the caller to a channel-specific L2 identity.", fields: ["channelName", "password", "network", "privateKey", "alchemyApiKey"] },
-        { id: "recover-wallet", description: "Rebuild the recoverable portion of a wallet.", fields: ["channelName", "password", "network", "privateKey", "alchemyApiKey"] },
-        { id: "get-my-wallet-meta", description: "Check whether a saved wallet matches on-chain registration.", fields: ["wallet", "password", "network"] },
-        { id: "get-my-l1-address", description: "Derive the L1 address for a private key.", fields: ["privateKey"] },
+        { id: "deposit-bridge", description: "Deposit canonical tokens into the shared bridge vault.", fields: ["amount", "network", "account", "alchemyApiKey"] },
+        { id: "withdraw-bridge", description: "Withdraw shared bridge-vault funds back to the L1 wallet.", fields: ["amount", "network", "account", "alchemyApiKey"] },
+        { id: "get-my-bridge-fund", description: "Read the current bridge-vault balance.", fields: ["network", "account", "alchemyApiKey"] },
+        { id: "join-channel", description: "Accept the channel policy and bind the caller to a channel-specific L2 identity.", fields: ["channelName", "network", "account", "alchemyApiKey"] },
+        { id: "recover-wallet", description: "Rebuild the recoverable portion of a wallet.", fields: ["channelName", "network", "account", "alchemyApiKey"] },
+        { id: "get-my-wallet-meta", description: "Check whether a saved wallet matches on-chain registration.", fields: ["wallet", "network"] },
+        { id: "get-my-l1-address", description: "Derive the L1 address for a local account.", fields: ["account", "network"] },
         { id: "list-local-wallets", description: "List saved local wallet names that can be reused with --wallet.", fields: ["network", "channelName"] },
-        { id: "deposit-channel", description: "Move bridged funds into the channel L2 accounting balance.", fields: ["wallet", "password", "network", "amount"] },
-        { id: "withdraw-channel", description: "Move channel L2 balance back into the shared bridge vault.", fields: ["wallet", "password", "network", "amount"] },
-        { id: "get-my-channel-fund", description: "Read the current channel L2 accounting balance.", fields: ["wallet", "password", "network"] },
-        { id: "exit-channel", description: "Exit a channel. The assistant keeps the CLI zero-balance guard unless Force Exit is enabled.", fields: ["wallet", "password", "network", "force"] },
-        { id: "mint-notes", description: "Mint one or two private-state notes from the wallet channel balance.", fields: ["wallet", "password", "network", "amounts"] },
-        { id: "transfer-notes", description: "Spend tracked notes into the registered 1->1, 1->2, or 2->1 encrypted transfer shapes.", fields: ["wallet", "password", "network", "noteIds", "recipients", "amounts"] },
-        { id: "redeem-notes", description: "Redeem exactly one tracked note back into liquid accounting balance.", fields: ["wallet", "password", "network", "noteIds"] },
-        { id: "get-my-notes", description: "Refresh encrypted note-log recovery and show current wallet notes.", fields: ["wallet", "password", "network"] },
+        { id: "deposit-channel", description: "Move bridged funds into the channel L2 accounting balance.", fields: ["wallet", "network", "amount"] },
+        { id: "withdraw-channel", description: "Move channel L2 balance back into the shared bridge vault.", fields: ["wallet", "network", "amount"] },
+        { id: "get-my-channel-fund", description: "Read the current channel L2 accounting balance.", fields: ["wallet", "network"] },
+        { id: "exit-channel", description: "Exit a channel. The assistant keeps the CLI zero-balance guard unless Force Exit is enabled.", fields: ["wallet", "network", "force"] },
+        { id: "mint-notes", description: "Mint one or two private-state notes from the wallet channel balance.", fields: ["wallet", "network", "amounts"] },
+        { id: "transfer-notes", description: "Spend tracked notes into the registered 1->1, 1->2, or 2->1 encrypted transfer shapes.", fields: ["wallet", "network", "noteIds", "recipients", "amounts"] },
+        { id: "redeem-notes", description: "Redeem exactly one tracked note back into liquid accounting balance.", fields: ["wallet", "network", "noteIds"] },
+        { id: "get-my-notes", description: "Refresh encrypted note-log recovery and show current wallet notes.", fields: ["wallet", "network"] },
       ];
 
       const defaultState = {
@@ -551,8 +553,8 @@
         channelName: "",
         network: "sepolia",
         alchemyApiKey: "",
-        privateKey: "",
-        password: "",
+        account: "",
+        privateKeyFile: "",
         wallet: "",
         amount: "",
         amounts: "",
@@ -571,7 +573,7 @@
       const sharedFieldKeys = [
         "network",
         "alchemyApiKey",
-        "privateKey",
+        "account",
       ];
 
       const state = loadState();
@@ -589,14 +591,8 @@
         statusMessage: "",
         hasLoaded: false,
       };
-      const privateKeyAddressState = {
-        inputValue: "",
-        derivedAddress: "",
-        statusMessage: "",
-      };
       let scryptModulePromise = null;
       let ethersModulePromise = null;
-      let privateKeyLookupGeneration = 0;
       let walletNoteRefreshTimer = null;
 
       const workspacePickerEl = document.getElementById("workspace-picker");
@@ -612,8 +608,7 @@
       let workspaceStatusEl = null;
       const maskedSecretValues = {
         alchemyApiKey: "__ALCHEMY_API_KEY__",
-        privateKey: "__L1_PRIVATE_KEY__",
-        password: "__WALLET_PASSWORD__",
+        privateKeyFile: "__PRIVATE_KEY_FILE__",
       };
 
       document.getElementById("copy-command").addEventListener("click", async () => {
@@ -734,19 +729,7 @@
 
       function walletOptionsForCommand(command = currentCommand()) {
         const options = currentWorkspaceOptions();
-        if (!commandNeedsWallet(command)) {
-          return options.walletOptions;
-        }
-        const derivedAddress = privateKeyAddressState.derivedAddress.trim().toLowerCase();
-        if (!derivedAddress) {
-          return [];
-        }
-        return options.walletOptions.filter((walletName) => {
-          const walletEntry = options.walletEntriesByName?.[walletName];
-          return walletEntry?.l1Address
-            && derivedAddress
-            && ethers.toBigInt(walletEntry.l1Address) === ethers.toBigInt(derivedAddress);
-        });
+        return options.walletOptions;
       }
 
       function buildWorkspaceStatusMessage() {
@@ -968,45 +951,6 @@
         });
       }
 
-      async function deriveAddressFromPrivateKey(privateKey) {
-        const browserWalletClass = window.ethers?.Wallet ?? window.ethers?.ethers?.Wallet;
-        if (browserWalletClass) {
-          return new browserWalletClass(String(privateKey)).address;
-        }
-        if (!ethersModulePromise) {
-          ethersModulePromise = import("../../../node_modules/ethers/lib.esm/index.js");
-        }
-        const { Wallet } = await ethersModulePromise;
-        return new Wallet(String(privateKey)).address;
-      }
-
-      async function refreshPrivateKeyAddressState(privateKeyValue) {
-        const normalizedValue = String(privateKeyValue ?? "").trim();
-        privateKeyAddressState.inputValue = normalizedValue;
-
-        if (normalizedValue.length === 0) {
-          privateKeyAddressState.derivedAddress = "";
-          privateKeyAddressState.statusMessage = "";
-          return;
-        }
-
-        const currentGeneration = ++privateKeyLookupGeneration;
-        try {
-          const derivedAddress = await deriveAddressFromPrivateKey(normalizedValue);
-          if (currentGeneration !== privateKeyLookupGeneration) {
-            return;
-          }
-          privateKeyAddressState.derivedAddress = derivedAddress;
-          privateKeyAddressState.statusMessage = `L1 address: ${derivedAddress}`;
-        } catch {
-          if (currentGeneration !== privateKeyLookupGeneration) {
-            return;
-          }
-          privateKeyAddressState.derivedAddress = "";
-          privateKeyAddressState.statusMessage = "Invalid private key.";
-        }
-      }
-
       async function decryptWalletJson(envelope, walletPassword) {
         if (
           envelope?.version !== walletEncryptionVersion
@@ -1055,49 +999,7 @@
         if (!commandNeedsWalletNotes()) {
           return;
         }
-        if (!workspaceDirectoryState.loaded) {
-          clearWalletNoteState("Select a workspace directory to load wallet note IDs.");
-          return;
-        }
-        if (!state.wallet) {
-          clearWalletNoteState("Choose a wallet to load note IDs.");
-          return;
-        }
-        if (!state.password) {
-          clearWalletNoteState("Enter the wallet password to load note IDs.");
-          return;
-        }
-
-        const walletEntry = currentWalletEntry();
-        if (!walletEntry) {
-          clearWalletNoteState("Selected wallet is unavailable for the current network.");
-          return;
-        }
-
-        const cacheKey = `${state.network}::${state.wallet}::${state.password}`;
-        if (walletNoteState.cacheKey === cacheKey && walletNoteState.hasLoaded) {
-          return;
-        }
-
-        walletNoteState.cacheKey = cacheKey;
-        walletNoteState.statusMessage = "Loading wallet note IDs...";
-        walletNoteState.hasLoaded = false;
-
-        try {
-          const walletFileHandle = await walletEntry.handle.getFileHandle("wallet.json");
-          const walletEnvelope = JSON.parse(await (await walletFileHandle.getFile()).text());
-          const walletJson = await decryptWalletJson(walletEnvelope, state.password);
-          walletNoteState.options = extractUnusedNoteOptions(walletJson);
-          walletNoteState.canonicalAssetDecimals = Number(walletJson?.canonicalAssetDecimals ?? 18);
-          walletNoteState.walletL2Address = typeof walletJson?.l2Address === "string" ? walletJson.l2Address : "";
-          walletNoteState.statusMessage = walletNoteState.options.length === 0
-            ? "This wallet has no unused note IDs."
-            : `Loaded ${walletNoteState.options.length} unused note ID${walletNoteState.options.length === 1 ? "" : "s"}.`;
-          walletNoteState.hasLoaded = true;
-          syncSelectedNoteIdsToAvailableOptions();
-        } catch {
-          clearWalletNoteState("Unable to decrypt the selected wallet. Check the wallet and password.");
-        }
+        clearWalletNoteState("Enter note IDs manually. The CLI uses the wallet-local default password file and the assistant does not request wallet passwords.");
       }
 
       function needsAlchemy(command) {
@@ -1169,11 +1071,11 @@
             case "alchemyApiKey":
               appendOption(parts, "--alchemy-api-key", renderedValue);
               break;
-            case "privateKey":
-              appendOption(parts, "--private-key", renderedValue);
+            case "account":
+              appendOption(parts, "--account", renderedValue);
               break;
-            case "password":
-              appendOption(parts, "--password", renderedValue);
+            case "privateKeyFile":
+              appendOption(parts, "--private-key-file", renderedValue);
               break;
             case "wallet":
               appendOption(parts, "--wallet", renderedValue);
@@ -1380,11 +1282,9 @@
         placeholder.value = "";
         placeholder.textContent = !workspaceDirectoryState.loaded
           ? "Select a workspace directory for this network first"
-          : commandNeedsWallet(currentCommand()) && !privateKeyAddressState.derivedAddress
-            ? "Enter a valid L1 private key first"
-            : walletOptions.length === 0
-              ? "No wallet matches the current L1 private key"
-              : "Choose wallet";
+          : walletOptions.length === 0
+            ? "No wallet exists for this network"
+            : "Choose wallet";
         select.appendChild(placeholder);
         for (const option of walletOptions) {
           const optionEl = document.createElement("option");
@@ -1489,7 +1389,7 @@
 
         const hint = document.createElement("p");
         hint.className = "hint";
-        hint.textContent = walletNoteState.statusMessage || `Choose a wallet and enter its password to load up to ${noteSelectionLimit()} note IDs.`;
+        hint.textContent = walletNoteState.statusMessage || "Enter note IDs manually. Wallet passwords are not requested by this assistant.";
         wrapper.appendChild(hint);
 
         const totalHint = document.createElement("p");
@@ -1691,19 +1591,6 @@
             workspaceDirectoryState.statusMessage = buildWorkspaceStatusMessage();
             clearWalletNoteState();
           }
-          if (fieldKey === "privateKey") {
-            await refreshPrivateKeyAddressState(event.target.value);
-            if (memoryStatusEl) {
-              memoryStatusEl.textContent = privateKeyAddressState.statusMessage;
-            }
-            syncWorkspaceSelectionsForCurrentNetwork();
-          }
-          if (fieldKey === "password") {
-            clearWalletNoteState();
-            if (commandNeedsWalletNotes()) {
-              walletNoteState.statusMessage = "Loading wallet note IDs...";
-            }
-          }
           persistState();
           if (fieldKey === "network") {
             await refreshWalletNoteOptions();
@@ -1712,33 +1599,8 @@
           if (fieldKey === "network") {
             renderWorkspacePicker();
             renderCommandFields();
-          } else if (fieldKey === "privateKey" && commandNeedsWallet()) {
-            renderCommandFields();
-          } else if (fieldKey === "password" && commandNeedsWalletNotes()) {
-            rerenderCommandField("noteIds");
-            if (currentCommand().id === "transfer-notes") {
-              rerenderCommandField("recipients");
-            }
-            scheduleWalletNoteRefresh();
           }
         });
-
-        if (fieldKey === "password") {
-          input.addEventListener("blur", async () => {
-            if (walletNoteRefreshTimer) {
-              window.clearTimeout(walletNoteRefreshTimer);
-              walletNoteRefreshTimer = null;
-            }
-            await refreshWalletNoteOptions();
-            if (commandNeedsWalletNotes()) {
-              rerenderCommandField("noteIds");
-              if (currentCommand().id === "transfer-notes") {
-                rerenderCommandField("recipients");
-              }
-            }
-            renderPreview();
-          });
-        }
 
         label.appendChild(input);
         if (config.type === "checkbox" && config.hint) {
@@ -1755,19 +1617,11 @@
         [
           "network",
           "alchemyApiKey",
-          "privateKey",
+          "account",
         ].forEach((fieldKey) => {
           memoryFieldsEl.appendChild(createField(fieldKey));
         });
-        memoryStatusEl.textContent = privateKeyAddressState.statusMessage;
-        void refreshPrivateKeyAddressState(state.privateKey).then(() => {
-          memoryStatusEl.textContent = privateKeyAddressState.statusMessage;
-          syncWorkspaceSelectionsForCurrentNetwork();
-          if (currentCommand().fields.includes("wallet")) {
-            renderCommandFields();
-            renderPreview();
-          }
-        });
+        memoryStatusEl.textContent = "Use account import --private-key-file before signing commands.";
       }
 
       function renderCommandSelect() {

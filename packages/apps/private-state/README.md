@@ -110,10 +110,11 @@ The CLI:
 Important rules:
 
 - `--amount` is always a human token amount and is converted with the canonical token decimals
-- `--password` accepts any string
+- L1 signing commands use `--account`; create the local account secret once with `account import --private-key-file`
+- wallet commands use the wallet-local default password file and do not accept explicit password arguments
 - channel creation commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy are fixed for that channel
 - joining a channel means accepting that channel's current policy; later fixes to policy-level bugs require a new channel or migration rather than in-place mutation of the joined channel
-- `join-channel` binds `channelName + password` to the user's L1 private key and derives the channel-specific L2 identity
+- `join-channel` binds the channel name, wallet-local password, and local account signer to derive the channel-specific L2 identity
 - `join-channel` is the only command that sets up encrypted L1/L2 wallet keys
 - wallet folder names are fixed to `<channelName>-<l1Address>`
 - recipient note delivery is recovered from bridge-propagated Ethereum event logs through `get-my-notes`
@@ -160,6 +161,12 @@ The commands below are ordered by the normal execution flow.
 
 ### 2. Create the channel
 
+`account import`
+
+- stores a `0600` local L1 account secret for later `--account` use
+- reads the key only from `--private-key-file`
+- should be run before bridge-facing user commands that need L1 signing
+
 `create-channel`
 
 - creates the bridge channel on-chain
@@ -174,7 +181,8 @@ Example:
 ```bash
 node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
   --channel-name demo-channel \
-  --private-key <hex> \
+  --join-toll 0 \
+  --account <account-name> \
   --alchemy-api-key <key> \
   --network sepolia
 ```
@@ -200,7 +208,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 `get-my-bridge-fund`
 
 - reads the caller's balance in the shared bridge-level `bridgeTokenVault`
-- requires `--network`, `--private-key`, and `--alchemy-api-key` on public networks
+- requires `--network`, `--account`, and `--alchemy-api-key` on public networks
 
 ### 5. Join the channel-specific wallet and L2 identity
 
@@ -218,7 +226,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 `recover-wallet`
 
 - rebuilds the encrypted wallet only up to the subset that can be recovered from the current channel workspace, channel registration, and bridge-propagated encrypted note logs
-- recreates the channel-bound wallet keys from `--channel-name`, `--password`, and `--private-key`
+- recreates the channel-bound wallet keys from `--channel-name`, the wallet-local default password file, and `--account`
 - reclassifies every recovered current-version note into `unused` or `spent` by checking the on-chain commitment and nullifier state
 - resets `l2Nonce` to `0`
 - stops early if the target wallet folder already exists and decrypts to valid metadata and registration state for the requested channel
@@ -226,24 +234,24 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 
 ### 6. Inspect wallet-to-channel registration
 
-`get-my-address`
+`get-my-wallet-meta`
 
 - checks whether the wallet's stored L2 identity matches the on-chain registration
 - returns the wallet L2 address, registered L2 address, storage key, leaf index, and match status
-- accepts `--wallet`, `--password`, and `--network`
+- accepts `--wallet` and `--network`
 
 ### 7. Move value into the channel L2 accounting vault
 
 `deposit-channel`
 
 - moves value from the shared bridge-level `bridgeTokenVault` into the channel-level L2 accounting vault
-- accepts `--wallet`, `--password`, `--network`, and `--amount`
+- accepts `--wallet`, `--network`, and `--amount`
 - requires an existing wallet with plaintext network/channel metadata and encrypted L1/L2 keys
 
 `get-my-channel-fund`
 
 - reads the current channel L2 accounting balance bound to the wallet registration
-- accepts `--wallet`, `--password`, and `--network`
+- accepts `--wallet` and `--network`
 
 ### 8. Mint private notes from the wallet balance
 
@@ -251,7 +259,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 
 - mints one to six notes owned by the wallet's L2 address
 - builds self-mint ciphertext outputs and lets the controller derive note salts from the ciphertext hash
-- accepts `--wallet`, `--password`, `--network`, and `--amounts`
+- accepts `--wallet`, `--network`, and `--amounts`
 - maps the amount-vector length to the fixed-arity `mintNotes<N>` contract entrypoint
 
 ### 9. Transfer notes
@@ -259,7 +267,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 `transfer-notes`
 
 - consumes tracked input notes and creates encrypted recipient note payloads
-- accepts `--wallet`, `--password`, `--network`, `--note-ids`, `--recipients`, and `--amounts`
+- accepts `--wallet`, `--network`, `--note-ids`, `--recipients`, and `--amounts`
 - supports only `1->1`, `1->2`, and `2->1` note transfer shapes
 - updates the sender wallet immediately and relies on recipient-side event-log recovery rather than local recipient inbox files
 
@@ -272,26 +280,26 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - merges newly discovered notes into the encrypted wallet
 - reconciles the wallet's current-version notes against on-chain commitment/nullifier state to classify them into `unused` and `spent`
 - reports both unused and spent note sets plus bridge-consistency status
-- accepts `--wallet`, `--password`, and `--network`
+- accepts `--wallet` and `--network`
 
 ### 11. Redeem notes
 
 `redeem-notes`
 
 - redeems one or two tracked notes back into liquid accounting balance
-- accepts `--wallet`, `--password`, `--network`, and `--note-ids`
+- accepts `--wallet`, `--network`, and `--note-ids`
 
 ### 12. Move value back to the shared L1 bridge vault
 
 `withdraw-channel`
 
 - moves value from the channel L2 accounting vault back into the shared bridge-level `bridgeTokenVault`
-- accepts `--wallet`, `--password`, `--network`, and `--amount`
+- accepts `--wallet`, `--network`, and `--amount`
 
 ### 13. Claim the shared L1 bridge deposit
 
 `withdraw-bridge`
 
 - claims value from the shared bridge-level `bridgeTokenVault` back into the caller wallet
-- uses explicit signer input instead of local wallet state
-- requires `--amount`, `--network`, `--private-key`, and `--alchemy-api-key` on public networks
+- uses the local `--account` signer instead of channel wallet state
+- requires `--amount`, `--network`, `--account`, and `--alchemy-api-key` on public networks

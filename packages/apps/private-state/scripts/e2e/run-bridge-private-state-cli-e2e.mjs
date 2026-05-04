@@ -113,6 +113,7 @@ const tokamakStepArtifactDirectories = [
   path.join("preprocess", "output"),
 ];
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
+const secretRoot = path.resolve(os.homedir(), "tokamak-private-channels", "secrets");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const noteCommitmentDomain = keccak256(ethers.toUtf8Bytes("PRIVATE_STATE_NOTE_COMMITMENT"));
 const l2PasswordSigningDomain = "Tokamak private-state L2 password binding";
@@ -329,6 +330,12 @@ function writeJson(filePath, value) {
       typeof current === "bigint" ? current.toString() : current
     ), 2)}\n`,
   );
+}
+
+function writeSecretFile(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(filePath, `${String(value).trim()}\n`, { mode: 0o600 });
+  fs.chmodSync(filePath, 0o600);
 }
 
 function readJsonIfExists(filePath) {
@@ -1281,6 +1288,45 @@ function walletDirForName(walletName) {
   return walletDirForNameInRoot(walletsRoot, walletName);
 }
 
+function walletPasswordSecretPath(walletName) {
+  return path.join(
+    secretRoot,
+    workspaceNetworkName,
+    "wallets",
+    slugifyPathComponent(walletName),
+    "password",
+  );
+}
+
+function privateKeyInputPath(accountName) {
+  return path.join(outputRoot, "secret-inputs", `${slugifyPathComponent(accountName)}.private-key`);
+}
+
+function prepareAccountSecret(accountName, privateKey) {
+  const inputPath = privateKeyInputPath(accountName);
+  writeSecretFile(inputPath, privateKey);
+  return runAnvilCliCommand("account", [
+    "import",
+    "--account", accountName,
+    "--private-key-file", inputPath,
+    "--force",
+  ]);
+}
+
+function prepareWalletPasswordSecret(participant) {
+  expect(participant.walletName, `${participant.alias} walletName is not available.`);
+  writeSecretFile(walletPasswordSecretPath(participant.walletName), participant.password);
+}
+
+function prepareCliSecrets(participants) {
+  prepareAccountSecret("channel-creator", anvilDeployerPrivateKey);
+  for (const participant of participants) {
+    prepareAccountSecret(participant.alias, participant.l1PrivateKey);
+    participant.walletName = walletNameForChannelAndAddress(channelName, participant.l1Address);
+    prepareWalletPasswordSecret(participant);
+  }
+}
+
 function assertBigIntEq(actual, expected, label) {
   expect(
     ethers.toBigInt(actual) === ethers.toBigInt(expected),
@@ -1565,13 +1611,12 @@ function runAnvilCliCommand(command, args = []) {
 function walletCliArgs(participant) {
   return [
     "--wallet", participant.walletName,
-    "--password", participant.password,
   ];
 }
 
 function signerCliArgs(participant) {
   return [
-    "--private-key", participant.l1PrivateKey,
+    "--account", participant.alias,
   ];
 }
 
@@ -1579,7 +1624,7 @@ function createChannel() {
   return runAnvilCliCommand("create-channel", [
     "--channel-name", channelName,
     "--join-toll", joinTollTokens,
-    "--private-key", anvilDeployerPrivateKey,
+    "--account", "channel-creator",
   ]);
 }
 
@@ -1594,7 +1639,6 @@ function joinChannel(participant) {
   const result = runAnvilCliCommand("join-channel", [
     "--channel-name", channelName,
     ...signerCliArgs(participant),
-    "--password", participant.password,
   ]);
   participant.walletName = result.wallet;
   participant.l2Address = result.l2Address;
@@ -1612,7 +1656,6 @@ function recoverWallet(participant) {
   const result = runAnvilCliCommand("recover-wallet", [
     "--channel-name", channelName,
     ...signerCliArgs(participant),
-    "--password", participant.password,
   ]);
   participant.walletName = result.wallet;
   participant.l2Address = result.l2Address;
@@ -1626,6 +1669,7 @@ function getMyWalletMeta(participant) {
 function getMyL1Address(participant) {
   return runPrivateStateCli([
     "get-my-l1-address",
+    "--network", workspaceNetworkName,
     ...signerCliArgs(participant),
   ]);
 }
@@ -1788,6 +1832,7 @@ async function main() {
     console.log("E2E CLI: bootstrapping anvil and local deployments.");
     bootstrapAnvil();
     await resolveParticipantRegistrations(provider, participants);
+    prepareCliSecrets(participants);
     bridgeDeployment = deployBridgeStack();
     canonicalAsset = prepareCanonicalAsset(bridgeDeployment, participants);
     dappRegistrationResult = await registerPrivateStateDApp(provider, bridgeDeployment, participants);

@@ -7,11 +7,9 @@ import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
-  AbiCoder,
   HDNodeWallet,
   Interface,
   JsonRpcProvider,
-  keccak256,
   Wallet,
   ethers,
   getAddress,
@@ -121,8 +119,6 @@ const tokamakStepArtifactDirectories = [
 ];
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const secretRoot = path.resolve(os.homedir(), "tokamak-private-channels", "secrets");
-const abiCoder = AbiCoder.defaultAbiCoder();
-const noteCommitmentDomain = keccak256(ethers.toUtf8Bytes("PRIVATE_STATE_NOTE_COMMITMENT"));
 const registrationLaunchInputsRoot = path.resolve(outputRoot, "generated-launch-inputs");
 const localRegistrationExamples = [
   "mintNotes1",
@@ -503,49 +499,12 @@ async function getBlockInfoAt(provider, blockNumber) {
   };
 }
 
-function mappingKeyHex(address, slot) {
-  const encoded = abiCoder.encode(["address", "uint256"], [address, ethers.toBigInt(slot)]);
-  return bytesToHex(poseidon(hexToBytes(addHexPrefix(String(encoded ?? "").replace(/^0x/i, "")))));
-}
-
 function deriveLiquidBalanceStorageKey(l2Address, slot) {
   return normalizeBytes32Hex(bytesToHex(getUserStorageKey([l2Address, ethers.toBigInt(slot)], "TokamakL2")));
 }
 
-function loadCommitmentExistsSlot() {
-  const storageLayout = readJson(path.join(latestPrivateStateArtifactDir(), "storage-layout.31337.latest.json"));
-  return ethers.toBigInt(
-    storageLayout.contracts.PrivateStateController.storageLayout.storage.find(
-      (entry) => entry.label === "commitmentExists",
-    ).slot,
-  );
-}
-
 function poseidonHexFromBytes(bytesLike) {
   return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
-}
-
-function deriveReplayFieldValue(label) {
-  return normalizeBytes32Hex(poseidonHexFromBytes(ethers.toUtf8Bytes(label)));
-}
-
-function computeReplayNoteCommitment(note) {
-  return normalizeBytes32Hex(
-    poseidonHexFromBytes(
-      abiCoder.encode(
-        ["bytes32", "address", "uint256", "bytes32"],
-        [noteCommitmentDomain, getAddress(note.owner), ethers.toBigInt(note.value), normalizeBytes32Hex(note.salt)],
-      ),
-    ),
-  );
-}
-
-function computeReplayMappingKey(key, slot) {
-  return normalizeBytes32Hex(
-    poseidonHexFromBytes(
-      abiCoder.encode(["bytes32", "uint256"], [normalizeBytes32Hex(key), ethers.toBigInt(slot)]),
-    ),
-  );
 }
 
 function buildMintInterface(outputCount) {
@@ -587,30 +546,6 @@ async function fetchContractCodes(provider, addresses) {
     });
   }
   return codes;
-}
-
-async function createSyntheticSnapshot(storageAddresses, writes) {
-  const stateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
-  const initialAddresses = [...new Set(storageAddresses.map((address) => getAddress(address)))]
-    .map((address) => createAddressFromString(address));
-  await stateManager._initializeForAddresses(initialAddresses);
-  stateManager._channelId = deriveChannelIdFromName(channelName);
-  for (const address of initialAddresses) {
-    stateManager._commitResolvedStorageEntries(address, []);
-  }
-  for (const write of writes) {
-    await stateManager.putStorage(
-      createAddressFromString(write.address),
-      hexToBytes(addHexPrefix(String(write.key ?? "").replace(/^0x/i, ""))),
-      hexToBytes(addHexPrefix(String(write.value ?? "").replace(/^0x/i, ""))),
-    );
-  }
-  const snapshot = await stateManager.captureStateSnapshot();
-  if (Array.isArray(snapshot.storageAddresses)) {
-    snapshot.storageAddresses = snapshot.storageAddresses
-      .map((address) => createAddressFromString(address).toString());
-  }
-  return snapshot;
 }
 
 function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonce }) {
@@ -1163,7 +1098,7 @@ async function deriveRegistrationCandidate({ participant, provider, walletSecret
   const signer = new Wallet(participant.l1PrivateKey, provider);
   const l2Identity = await deriveParticipantIdentityFromSigner({
     channelName,
-    password: walletSecret,
+    walletSecret,
     signer,
   });
   const noteReceive = await deriveNoteReceiveKeyMaterial({

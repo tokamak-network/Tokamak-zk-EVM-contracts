@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Changed the channel-bound L2 identity derivation signing domain and mode from password wording
+  to wallet-secret wording. Existing local wallets from the pre-1.0.0 cleanup path are not
+  compatibility targets.
+- Centralized CLI command option schemas used by validation, while keeping the existing command
+  implementations in the single CLI entrypoint.
+- Replaced local wallet recovery hint string matching with typed CLI error codes for local RPC,
+  wallet, artifact, registration, and stale-workspace failures.
+- Removed unused replay/synthetic snapshot helpers from the CLI end-to-end script.
+- Reused a shared artifact selection helper for Drive and local private-state artifact installs.
 - Removed stale `--install` and `--doctor` compatibility aliases after the command syntax was
   standardized around positional command names.
 - Tightened local wallet loading to require the current wallet format instead of silently filling

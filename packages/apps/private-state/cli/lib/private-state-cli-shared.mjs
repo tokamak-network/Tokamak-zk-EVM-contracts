@@ -9,8 +9,8 @@ import {
   fromEdwardsToAddress,
 } from "tokamak-l2js";
 
-export const L2_PASSWORD_SIGNING_DOMAIN = "Tokamak private-state L2 password binding";
-export const CHANNEL_BOUND_L2_DERIVATION_MODE = "channel-name-plus-password-v1";
+export const L2_WALLET_SECRET_SIGNING_DOMAIN = "Tokamak private-state L2 wallet secret binding";
+export const CHANNEL_BOUND_L2_DERIVATION_MODE = "channel-name-plus-wallet-secret-v1";
 
 export function slugifyPathComponent(value) {
   return String(value)
@@ -23,19 +23,19 @@ export function deriveChannelIdFromName(channelName) {
   return ethers.toBigInt(keccak256(ethers.toUtf8Bytes(channelName)));
 }
 
-export function buildL2PasswordSigningMessage({ channelName, password }) {
+export function buildL2WalletSecretSigningMessage({ channelName, walletSecret }) {
   if (typeof channelName !== "string" || channelName.length === 0) {
     throw new Error("Missing channel name for L2 identity derivation.");
   }
   return [
-    L2_PASSWORD_SIGNING_DOMAIN,
+    L2_WALLET_SECRET_SIGNING_DOMAIN,
     `channel:${channelName}`,
-    `password:${String(password)}`,
+    `walletSecret:${String(walletSecret)}`,
   ].join("\n");
 }
 
-export async function deriveParticipantIdentityFromSigner({ channelName, password, signer }) {
-  const seedSignature = await signer.signMessage(buildL2PasswordSigningMessage({ channelName, password }));
+export async function deriveParticipantIdentityFromSigner({ channelName, walletSecret, signer }) {
+  const seedSignature = await signer.signMessage(buildL2WalletSecretSigningMessage({ channelName, walletSecret }));
   const keySet = deriveL2KeysFromSignature(seedSignature);
   const l2Address = getAddress(fromEdwardsToAddress(keySet.publicKey).toString());
   return {

@@ -19,8 +19,6 @@ import {
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
-  deriveL2KeysFromSignature,
-  fromEdwardsToAddress,
   getUserStorageKey,
   poseidon,
 } from "tokamak-l2js";
@@ -43,6 +41,9 @@ import {
   encryptMintNoteValueForOwner,
   encryptNoteValueForRecipient,
 } from "../e2e/private-state-note-delivery.mjs";
+import {
+  deriveParticipantIdentityFromSigner,
+} from "../../cli/lib/private-state-cli-shared.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,7 +52,6 @@ const amountUnit = 10n ** 18n;
 const depositAmountBaseUnits = 3n * amountUnit;
 const defaultMnemonic = "test test test test test test test test test test test junk";
 const defaultChannelName = "private-state-registration";
-const l2PasswordSigningDomain = "Tokamak private-state L2 password binding";
 const { previousBlockHashCount: tokamakPrevBlockHashCount } = resolveTokamakBlockInputConfig();
 const tokamakCliInvocation = buildTokamakCliInvocation();
 
@@ -180,24 +180,6 @@ function bigintToHex32(value) {
 
 function deriveChannelIdFromName(channelName) {
   return ethers.toBigInt(keccak256(ethers.toUtf8Bytes(channelName)));
-}
-
-function buildL2PasswordSigningMessage({ channelName, password }) {
-  return [
-    l2PasswordSigningDomain,
-    `channel:${channelName}`,
-    `password:${String(password)}`,
-  ].join("\n");
-}
-
-async function deriveParticipantIdentityFromSigner({ channelName, password, signer }) {
-  const seedSignature = await signer.signMessage(buildL2PasswordSigningMessage({ channelName, password }));
-  const keySet = deriveL2KeysFromSignature(seedSignature);
-  return {
-    l2PrivateKey: keySet.privateKey,
-    l2PublicKey: keySet.publicKey,
-    l2Address: getAddress(fromEdwardsToAddress(keySet.publicKey).toString()),
-  };
 }
 
 function buildMintInterface(outputCount) {
@@ -371,7 +353,7 @@ async function deriveParticipant({ index, alias, mnemonic, provider, channelName
   const signer = new Wallet(wallet.privateKey, provider);
   const l2Identity = await deriveParticipantIdentityFromSigner({
     channelName,
-    password: alias,
+    walletSecret: alias,
     signer,
   });
   const noteReceive = await deriveNoteReceiveKeyMaterial({

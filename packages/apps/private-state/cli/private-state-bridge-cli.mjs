@@ -105,6 +105,29 @@ const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 let jsonOutputRequested = false;
 let activeCliArgs = {};
 
+const CLI_ERROR_CODES = Object.freeze({
+  MISSING_RPC_URL: "MISSING_RPC_URL",
+  UNKNOWN_WALLET: "UNKNOWN_WALLET",
+  MISSING_WALLET_SECRET: "MISSING_WALLET_SECRET",
+  WALLET_DECRYPT_FAILED: "WALLET_DECRYPT_FAILED",
+  MISSING_ACCOUNT: "MISSING_ACCOUNT",
+  MISSING_DEPLOYMENT_ARTIFACTS: "MISSING_DEPLOYMENT_ARTIFACTS",
+  MISSING_CHANNEL_REGISTRATION: "MISSING_CHANNEL_REGISTRATION",
+  STALE_WORKSPACE: "STALE_WORKSPACE",
+});
+
+class PrivateStateCliError extends Error {
+  constructor(code, message, options = {}) {
+    super(message, options);
+    this.name = "PrivateStateCliError";
+    this.code = code;
+  }
+}
+
+function cliError(code, message, options = {}) {
+  return new PrivateStateCliError(code, message, options);
+}
+
 const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
   "function decimals() view returns (uint8)",
@@ -279,7 +302,8 @@ function requireInstalledDeploymentArtifacts(artifactPaths, chainId) {
       }
     }
   } catch (error) {
-    throw new Error(
+    throw cliError(
+      CLI_ERROR_CODES.MISSING_DEPLOYMENT_ARTIFACTS,
       [
         `Missing installed deployment artifacts for chain ${chainId} under ${artifactPaths.rootDir}.`,
         "Run install before running private-state CLI commands for this network.",
@@ -978,7 +1002,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
   };
   const l2Identity = await deriveParticipantIdentityFromSigner({
     channelName,
-    password: walletSecret,
+    walletSecret,
     signer,
   });
   const noteReceiveKeyMaterial = await deriveNoteReceiveKeyMaterial({
@@ -994,7 +1018,10 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
 
   expect(
     registration.exists,
-    `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
+    cliError(
+      CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
+      `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
+    ),
   );
   expect(
     ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
@@ -1979,9 +2006,9 @@ async function inspectGuideWallet({ walletName, networkName, provider, artifacts
     result.channelName = walletContext.wallet.channelName;
     result.l1Address = getAddress(walletContext.wallet.l1Address);
     result.l2Address = getAddress(walletContext.wallet.l2Address);
-    result.unusedNoteCount = Object.keys(walletContext.wallet.notes.unused ?? {}).length;
-    result.spentNoteCount = Object.keys(walletContext.wallet.notes.spent ?? {}).length;
-    const unusedNoteBalance = Object.values(walletContext.wallet.notes.unused ?? {})
+    result.unusedNoteCount = Object.keys(walletContext.wallet.notes.unused).length;
+    result.spentNoteCount = Object.keys(walletContext.wallet.notes.spent).length;
+    const unusedNoteBalance = Object.values(walletContext.wallet.notes.unused)
       .reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
     result.unusedNoteBalanceBaseUnits = unusedNoteBalance.toString();
     result.unusedNoteBalanceTokens = ethers.formatUnits(unusedNoteBalance, Number(walletContext.wallet.canonicalAssetDecimals));
@@ -2224,7 +2251,10 @@ async function loadWalletChannelFundState({ walletContext, provider }) {
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   expect(
     registration.exists,
-    `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
+    cliError(
+      CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
+      `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
+    ),
   );
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   expect(
@@ -2308,7 +2338,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   });
   const l2Identity = await deriveParticipantIdentityFromSigner({
     channelName: context.workspace.channelName,
-    password: walletSecret,
+    walletSecret,
     signer,
   });
   const noteReceiveKeyMaterial = await deriveNoteReceiveKeyMaterial({
@@ -2474,7 +2504,10 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   expect(
     registration.exists,
-    `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
+    cliError(
+      CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
+      `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
+    ),
   );
   expect(
     ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
@@ -2771,7 +2804,7 @@ async function handleGetMyNotes({ args, provider }) {
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
     .map((commitment) => wallet.wallet.notes.unused[commitment])
     .filter(Boolean);
-  const spentTrackedNotes = Object.values(wallet.wallet.notes.spent ?? {}).sort(compareNotesByValueDesc);
+  const spentTrackedNotes = Object.values(wallet.wallet.notes.spent).sort(compareNotesByValueDesc);
 
   const unusedNotes = await Promise.all(unusedTrackedNotes.map((note) => buildWalletNoteBridgeStatus({
     note,
@@ -2913,8 +2946,8 @@ async function reconcileWalletNotesWithBridgeState({
   const reconciledUnused = {};
   const reconciledSpent = {};
   const trackedNotes = [
-    ...Object.values(walletContext.wallet.notes.unused ?? {}),
-    ...Object.values(walletContext.wallet.notes.spent ?? {}),
+    ...Object.values(walletContext.wallet.notes.unused),
+    ...Object.values(walletContext.wallet.notes.spent),
   ];
 
   for (const note of trackedNotes) {
@@ -3182,7 +3215,7 @@ async function recoverDeliveredNotesFromEventLogs({
   noteReceivePrivateKey,
 }) {
   const scanStartBlock = Math.max(
-    Number(walletContext.wallet.noteReceiveLastScannedBlock ?? 0),
+    Number(walletContext.wallet.noteReceiveLastScannedBlock),
     Number(context.workspace.genesisBlockNumber),
   );
   const latestBlock = await provider.getBlockNumber();
@@ -4245,7 +4278,7 @@ async function executeWalletTemplateSend({
     templatePayload.method,
     templatePayload.args ?? [],
   );
-  const nonce = Number(wallet.wallet.l2Nonce ?? 0);
+  const nonce = Number(wallet.wallet.l2Nonce);
   const operationDir = createWalletOperationDir(
     wallet.walletName,
     wallet.wallet.network,
@@ -4430,7 +4463,7 @@ function loadWallet(walletName, walletSecret, networkName) {
   const normalizedNetworkName = requireNetworkName({ network: networkName });
   const walletDir = walletPath(normalizedWalletName, normalizedNetworkName);
   if (!walletConfigExists(walletDir)) {
-    throw new Error(`Unknown wallet: ${normalizedWalletName} on ${normalizedNetworkName}.`);
+    throw cliError(CLI_ERROR_CODES.UNKNOWN_WALLET, `Unknown wallet: ${normalizedWalletName} on ${normalizedNetworkName}.`);
   }
   const rawWallet = readEncryptedWalletJson(walletConfigPath(walletDir), walletSecret);
   assertWalletHasRequiredKeys(rawWallet, normalizedWalletName);
@@ -4541,7 +4574,7 @@ function loadWalletMetadata(walletName, networkName) {
   const normalizedNetworkName = requireNetworkName({ network: networkName });
   const walletDir = walletPath(normalizedWalletName, normalizedNetworkName);
   if (!walletConfigExists(walletDir)) {
-    throw new Error(`Unknown wallet: ${normalizedWalletName} on ${normalizedNetworkName}.`);
+    throw cliError(CLI_ERROR_CODES.UNKNOWN_WALLET, `Unknown wallet: ${normalizedWalletName} on ${normalizedNetworkName}.`);
   }
   const metadataPath = walletMetadataPath(walletDir);
   if (!fs.existsSync(metadataPath)) {
@@ -4615,10 +4648,13 @@ async function assertWorkspaceAlignedWithChain(context) {
   const snapshotRootVectorHash = normalizeBytes32Hex(hashRootVector(context.currentSnapshot.stateRoots));
   expect(
     onchainRootVectorHash === snapshotRootVectorHash,
-    [
-      "The workspace snapshot is stale relative to the bridge channel state.",
-      `Workspace: ${context.workspaceDir}`,
-    ].join(" "),
+    cliError(
+      CLI_ERROR_CODES.STALE_WORKSPACE,
+      [
+        "The workspace snapshot is stale relative to the bridge channel state.",
+        `Workspace: ${context.workspaceDir}`,
+      ].join(" "),
+    ),
   );
 }
 
@@ -5902,7 +5938,8 @@ function resolvedWalletSecretFile(networkName, walletName) {
 function resolveWalletDefaultSecret(networkName, walletName) {
   const secretPath = walletSecretPath(networkName, walletName);
   if (!fs.existsSync(secretPath)) {
-    throw new Error(
+    throw cliError(
+      CLI_ERROR_CODES.MISSING_WALLET_SECRET,
       [
         `Missing wallet default secret file: ${secretPath}.`,
         "Run join-channel with --wallet-secret-path before wallet commands.",
@@ -6089,6 +6126,109 @@ function walletConfigExists(walletDir) {
   return fs.existsSync(walletConfigPath(walletDir));
 }
 
+const COMMAND_ARG_SCHEMAS = Object.freeze({
+  install: {
+    label: "install",
+    keys: ["command", "positional", "docker", "includeLocalArtifacts", "groth16CliVersion", "tokamakZkEvmCliVersion"],
+    usage: "optional --docker, --include-local-artifacts, --groth16-cli-version, and --tokamak-zk-evm-cli-version",
+  },
+  uninstall: { label: "uninstall", keys: ["command", "positional"], usage: "no options" },
+  doctor: { label: "doctor", keys: ["command", "positional", "json"], usage: "optional --json" },
+  guide: {
+    label: "guide",
+    keys: ["command", "positional", "network", "channelName", "account", "wallet"],
+    usage: "optional --network, --channel-name, --account, and --wallet",
+  },
+  "account-import": {
+    label: "account import",
+    keys: ["command", "positional", "account", "network", "privateKeyFile"],
+    usage: "--account, --network, and --private-key-file",
+  },
+  "create-channel": {
+    label: "create-channel",
+    keys: ["command", "positional", "channelName", "joinToll", "network", "rpcUrl", "account"],
+    usage: "--channel-name, --join-toll, --network, --account, and optional --rpc-url",
+  },
+  "recover-workspace": {
+    label: "recover-workspace",
+    keys: ["command", "positional", "channelName", "network", "rpcUrl", "fromGenesis"],
+    usage: "--channel-name, --network, optional --from-genesis, and optional --rpc-url",
+  },
+  "get-channel": {
+    label: "get-channel",
+    keys: ["command", "positional", "channelName", "network", "rpcUrl"],
+    usage: "--channel-name, --network, and optional --rpc-url",
+  },
+  "deposit-bridge": {
+    label: "deposit-bridge",
+    keys: ["command", "positional", "amount", "network", "rpcUrl", "account"],
+    usage: "--amount, --network, --account, and optional --rpc-url",
+  },
+  "withdraw-bridge": {
+    label: "withdraw-bridge",
+    keys: ["command", "positional", "amount", "network", "rpcUrl", "account"],
+    usage: "--amount, --network, --account, and optional --rpc-url",
+  },
+  "get-my-bridge-fund": {
+    label: "get-my-bridge-fund",
+    keys: ["command", "positional", "network", "rpcUrl", "account"],
+    usage: "--network, --account, and optional --rpc-url",
+  },
+  "explicit-signer-channel": {
+    label: "signer channel command",
+    keys: ["command", "positional", "channelName", "network", "account", "rpcUrl"],
+    usage: "--channel-name, --network, --account, and optional --rpc-url",
+  },
+  "join-channel": {
+    label: "join-channel",
+    keys: ["command", "positional", "channelName", "network", "account", "walletSecretPath", "rpcUrl"],
+    usage: "--channel-name, --network, --account, --wallet-secret-path, and optional --rpc-url",
+  },
+  "get-my-l1-address": {
+    label: "get-my-l1-address",
+    keys: ["command", "positional", "network", "account"],
+    usage: "--network and --account",
+  },
+  "list-local-wallets": {
+    label: "list-local-wallets",
+    keys: ["command", "positional", "network", "channelName"],
+    usage: "optional --network and --channel-name",
+  },
+  "wallet-default": {
+    label: "wallet command",
+    keys: ["command", "positional", "wallet", "network"],
+    usage: "--wallet and --network",
+  },
+  "wallet-amount": {
+    label: "wallet amount command",
+    keys: ["command", "positional", "wallet", "network", "amount"],
+    usage: "--wallet, --network, and --amount",
+  },
+  "mint-notes": {
+    label: "mint-notes",
+    keys: ["command", "positional", "wallet", "network", "amounts"],
+    usage: "--wallet, --network, and --amounts",
+  },
+  "redeem-notes": {
+    label: "redeem-notes",
+    keys: ["command", "positional", "wallet", "network", "noteIds"],
+    usage: "--wallet, --network, and --note-ids",
+  },
+  "transfer-notes": {
+    label: "transfer-notes",
+    keys: ["command", "positional", "wallet", "network", "noteIds", "recipients", "amounts"],
+    usage: "--wallet, --network, --note-ids, --recipients, and --amounts",
+  },
+});
+
+function assertAllowedCommandSchema(args, schemaKey, { label } = {}) {
+  const schema = COMMAND_ARG_SCHEMAS[schemaKey];
+  if (!schema) {
+    throw new Error(`Missing CLI command schema for ${schemaKey}.`);
+  }
+  assertAllowedCommandKeys(args, label ?? schema.label, new Set(schema.keys), schema.usage);
+}
+
 function assertAllowedCommandKeys(args, commandName, allowedKeys, acceptedUsage) {
   const unsupported = Object.keys(args)
     .filter((key) => key !== "json" && !allowedKeys.has(key))
@@ -6109,7 +6249,10 @@ function assertAllowedCommandKeys(args, commandName, allowedKeys, acceptedUsage)
 
 function assertL1SecretSourceArgs(args, { allowAccount }) {
   if (allowAccount) {
-    expect(args.account !== undefined, "Provide --account for L1 signing.");
+    expect(
+      args.account !== undefined,
+      cliError(CLI_ERROR_CODES.MISSING_ACCOUNT, "Provide --account for L1 signing."),
+    );
     requireNetworkName(args);
     return;
   }
@@ -6119,12 +6262,15 @@ function assertL1SecretSourceArgs(args, { allowAccount }) {
 function assertWalletSecretArgs(args, commandName, extraOptionKeys = [], acceptedUsage = "--wallet and --network") {
   requireWalletName(args);
   requireNetworkName(args);
-  assertAllowedCommandKeys(
-    args,
-    commandName,
-    new Set(["command", "positional", "wallet", "network", ...extraOptionKeys]),
-    acceptedUsage,
-  );
+  if (extraOptionKeys.length === 0) {
+    assertAllowedCommandSchema(args, "wallet-default", { label: commandName });
+    return;
+  }
+  if (extraOptionKeys.length === 1 && extraOptionKeys[0] === "amount") {
+    assertAllowedCommandSchema(args, "wallet-amount", { label: commandName });
+    return;
+  }
+  assertAllowedCommandKeys(args, commandName, new Set(["command", "positional", "wallet", "network", ...extraOptionKeys]), acceptedUsage);
 }
 
 function assertWalletChannelMoveArgs(args, commandName) {
@@ -6133,19 +6279,7 @@ function assertWalletChannelMoveArgs(args, commandName) {
 }
 
 function assertInstallZkEvmArgs(args) {
-  assertAllowedCommandKeys(
-    args,
-    "install",
-    new Set([
-      "command",
-      "positional",
-      "docker",
-      "includeLocalArtifacts",
-      "groth16CliVersion",
-      "tokamakZkEvmCliVersion",
-    ]),
-    "optional --docker, --include-local-artifacts, --groth16-cli-version, and --tokamak-zk-evm-cli-version",
-  );
+  assertAllowedCommandSchema(args, "install");
   if (args.groth16CliVersion !== undefined) {
     requireSemverVersion(args.groth16CliVersion, "--groth16-cli-version");
   }
@@ -6155,11 +6289,11 @@ function assertInstallZkEvmArgs(args) {
 }
 
 function assertUninstallArgs(args) {
-  assertAllowedCommandKeys(args, "uninstall", new Set(["command", "positional"]), "no options");
+  assertAllowedCommandSchema(args, "uninstall");
 }
 
 function assertDoctorArgs(args) {
-  assertAllowedCommandKeys(args, "doctor", new Set(["command", "positional", "json"]), "optional --json");
+  assertAllowedCommandSchema(args, "doctor");
 }
 
 function assertGuideArgs(args) {
@@ -6175,29 +6309,21 @@ function assertGuideArgs(args) {
   if (args.wallet !== undefined) {
     requireWalletName(args);
   }
-  assertAllowedCommandKeys(
-    args,
-    "guide",
-    new Set(["command", "positional", "network", "channelName", "account", "wallet"]),
-    "optional --network, --channel-name, --account, and --wallet",
-  );
+  assertAllowedCommandSchema(args, "guide");
 }
 
 function assertAccountImportArgs(args) {
   requireAccountName(args);
   requireNetworkName(args);
   assertL1SecretSourceArgs(args, { allowAccount: false });
-  assertAllowedCommandKeys(
-    args,
-    "account import",
-    new Set(["command", "positional", "account", "network", "privateKeyFile"]),
-    "--account, --network, and --private-key-file",
-  );
+  assertAllowedCommandSchema(args, "account-import");
 }
 
 function assertMintNotesArgs(args) {
   requireArg(args.amounts, "--amounts");
-  assertWalletSecretArgs(args, "mint-notes", ["amounts"], "--wallet, --network, and --amounts");
+  requireWalletName(args);
+  requireNetworkName(args);
+  assertAllowedCommandSchema(args, "mint-notes");
   parseAmountVector(args.amounts, {
     allowZeroEntries: true,
     requireAnyPositive: true,
@@ -6206,7 +6332,9 @@ function assertMintNotesArgs(args) {
 
 function assertRedeemNotesArgs(args) {
   requireArg(args.noteIds, "--note-ids");
-  assertWalletSecretArgs(args, "redeem-notes", ["noteIds"], "--wallet, --network, and --note-ids");
+  requireWalletName(args);
+  requireNetworkName(args);
+  assertAllowedCommandSchema(args, "redeem-notes");
   selectRedeemNotesMethod(parseNoteIdVector(args.noteIds).length);
 }
 
@@ -6214,12 +6342,9 @@ function assertTransferNotesArgs(args) {
   requireArg(args.noteIds, "--note-ids");
   requireArg(args.recipients, "--recipients");
   requireArg(args.amounts, "--amounts");
-  assertWalletSecretArgs(
-    args,
-    "transfer-notes",
-    ["noteIds", "recipients", "amounts"],
-    "--wallet, --network, --note-ids, --recipients, and --amounts",
-  );
+  requireWalletName(args);
+  requireNetworkName(args);
+  assertAllowedCommandSchema(args, "transfer-notes");
   const noteIds = parseNoteIdVector(args.noteIds);
   const recipients = parseRecipientVector(args.recipients);
   const amounts = parseAmountVector(args.amounts);
@@ -6239,84 +6364,39 @@ function assertCreateChannelArgs(args) {
   requireArg(args.joinToll, "--join-toll");
   requireNetworkName(args);
   assertL1SecretSourceArgs(args, { allowAccount: true });
-  assertAllowedCommandKeys(
-    args,
-    "create-channel",
-    new Set([
-      "command",
-      "positional",
-      "channelName",
-      "joinToll",
-      "network",
-      "rpcUrl",
-      "account",
-    ]),
-    "--channel-name, --join-toll, --network, --account, and optional --rpc-url",
-  );
+  assertAllowedCommandSchema(args, "create-channel");
 }
 
 function assertRecoverWorkspaceArgs(args) {
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
-  assertAllowedCommandKeys(
-    args,
-    "recover-workspace",
-    new Set(["command", "positional", "channelName", "network", "rpcUrl", "fromGenesis"]),
-    "--channel-name, --network, optional --from-genesis, and optional --rpc-url",
-  );
+  assertAllowedCommandSchema(args, "recover-workspace");
 }
 
 function assertGetChannelArgs(args) {
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
-  assertAllowedCommandKeys(
-    args,
-    "get-channel",
-    new Set(["command", "positional", "channelName", "network", "rpcUrl"]),
-    "--channel-name, --network, and optional --rpc-url",
-  );
+  assertAllowedCommandSchema(args, "get-channel");
 }
 
 function assertDepositBridgeArgs(args) {
   requireArg(args.amount, "--amount");
   requireNetworkName(args);
   assertL1SecretSourceArgs(args, { allowAccount: true });
-  assertAllowedCommandKeys(
-    args,
-    "deposit-bridge",
-    new Set(["command", "positional", "amount", "network", "rpcUrl", "account"]),
-    "--amount, --network, --account, and optional --rpc-url",
-  );
+  assertAllowedCommandSchema(args, "deposit-bridge");
 }
 
 function assertGetMyBridgeFundArgs(args) {
   requireNetworkName(args);
   assertL1SecretSourceArgs(args, { allowAccount: true });
-  assertAllowedCommandKeys(
-    args,
-    "get-my-bridge-fund",
-    new Set(["command", "positional", "network", "rpcUrl", "account"]),
-    "--network, --account, and optional --rpc-url",
-  );
+  assertAllowedCommandSchema(args, "get-my-bridge-fund");
 }
 
 function assertExplicitSignerCommandArgs(args, commandName) {
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
   assertL1SecretSourceArgs(args, { allowAccount: true });
-  assertAllowedCommandKeys(
-    args,
-    commandName,
-    new Set([
-      "command",
-      "positional",
-      "channelName",
-      "network",
-      "account",
-      "rpcUrl",
-    ]),
-    "--channel-name, --network, --account, and optional --rpc-url",
-  );
+  assertAllowedCommandSchema(args, "explicit-signer-channel", { label: commandName });
 }
 
 function assertRecoverWalletArgs(args) {
@@ -6327,20 +6407,7 @@ function assertJoinChannelArgs(args) {
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
   assertL1SecretSourceArgs(args, { allowAccount: true });
-  assertAllowedCommandKeys(
-    args,
-    "join-channel",
-    new Set([
-      "command",
-      "positional",
-      "channelName",
-      "network",
-      "account",
-      "walletSecretPath",
-      "rpcUrl",
-    ]),
-    "--channel-name, --network, --account, --wallet-secret-path, and optional --rpc-url",
-  );
+  assertAllowedCommandSchema(args, "join-channel");
   requireArg(args.walletSecretPath, "--wallet-secret-path");
 }
 
@@ -6350,12 +6417,7 @@ function assertGetMyWalletMetaArgs(args) {
 
 function assertGetMyL1AddressArgs(args) {
   assertL1SecretSourceArgs(args, { allowAccount: true });
-  assertAllowedCommandKeys(
-    args,
-    "get-my-l1-address",
-    new Set(["command", "positional", "network", "account"]),
-    "--network and --account",
-  );
+  assertAllowedCommandSchema(args, "get-my-l1-address");
 }
 
 function assertListLocalWalletsArgs(args) {
@@ -6365,24 +6427,14 @@ function assertListLocalWalletsArgs(args) {
   if (args.channelName !== undefined) {
     requireArg(args.channelName, "--channel-name");
   }
-  assertAllowedCommandKeys(
-    args,
-    "list-local-wallets",
-    new Set(["command", "positional", "network", "channelName"]),
-    "optional --network and --channel-name",
-  );
+  assertAllowedCommandSchema(args, "list-local-wallets");
 }
 
 function assertWithdrawBridgeArgs(args) {
   requireArg(args.amount, "--amount");
   requireNetworkName(args);
   assertL1SecretSourceArgs(args, { allowAccount: true });
-  assertAllowedCommandKeys(
-    args,
-    "withdraw-bridge",
-    new Set(["command", "positional", "amount", "network", "rpcUrl", "account"]),
-    "--amount, --network, --account, and optional --rpc-url",
-  );
+  assertAllowedCommandSchema(args, "withdraw-bridge");
 }
 
 function assertGetMyChannelFundArgs(args) {
@@ -6639,7 +6691,8 @@ function resolveCommandRpcUrl(args) {
     return network.defaultRpcUrl;
   }
 
-  throw new Error(
+  throw cliError(
+    CLI_ERROR_CODES.MISSING_RPC_URL,
     [
       `Missing RPC_URL for ${networkName}.`,
       `Pass --rpc-url <URL> once to save it to ${networkSecretEnvPath(networkName)},`,
@@ -6863,7 +6916,11 @@ function readEncryptedWalletJson(filePath, walletSecret) {
   try {
     return JSON.parse(readEncryptedWalletFile(filePath, walletSecret).toString("utf8"));
   } catch (error) {
-    throw new Error(`Unable to decrypt wallet data at ${filePath}. Check the wallet-local default secret file.`, { cause: error });
+    throw cliError(
+      CLI_ERROR_CODES.WALLET_DECRYPT_FAILED,
+      `Unable to decrypt wallet data at ${filePath}. Check the wallet-local default secret file.`,
+      { cause: error },
+    );
   }
 }
 
@@ -6944,6 +7001,10 @@ function loadWalletCommandRuntime(args) {
   };
 }
 
+const HUMAN_RESULT_RENDERERS = Object.freeze({
+  guide: printGuideHumanResult,
+});
+
 function normalizePrivateKey(value) {
   return value.startsWith("0x") ? value : `0x${value}`;
 }
@@ -6954,8 +7015,9 @@ function printJson(value) {
     console.log(JSON.stringify(normalized, null, 2));
     return;
   }
-  if (normalized?.action === "guide") {
-    printGuideHumanResult(normalized);
+  const renderer = HUMAN_RESULT_RENDERERS[normalized?.action];
+  if (renderer) {
+    renderer(normalized);
     return;
   }
   printHumanResult(normalized);
@@ -7073,7 +7135,7 @@ function emitProgress(action, phase) {
 
 function formatCliErrorForDisplay(error, args = {}) {
   const message = String(error?.message ?? error);
-  const hints = buildRecoveryHints(message, args);
+  const hints = buildRecoveryHints(error, args);
   if (hints.length === 0) {
     return message;
   }
@@ -7084,7 +7146,8 @@ function formatCliErrorForDisplay(error, args = {}) {
   ].join("\n");
 }
 
-function buildRecoveryHints(message, args = {}) {
+function buildRecoveryHints(error, args = {}) {
+  const message = String(error?.message ?? error);
   const hints = [];
   const networkName = typeof args.network === "string" && args.network.length > 0
     ? args.network
@@ -7099,7 +7162,7 @@ function buildRecoveryHints(message, args = {}) {
     ? args.wallet
     : extractUnknownWalletName(message) ?? "<WALLET>";
 
-  if (message.includes("Missing RPC_URL")) {
+  if (error?.code === CLI_ERROR_CODES.MISSING_RPC_URL || message.includes("Missing RPC_URL")) {
     hints.push("rerun the same bridge-facing command once with --rpc-url <URL>.");
     if (networkName !== "<NETWORK>") {
       hints.push(`create ${networkSecretEnvPath(networkName)} with RPC_URL=<URL>.`);
@@ -7107,7 +7170,7 @@ function buildRecoveryHints(message, args = {}) {
   }
 
   if (
-    message.startsWith("Unknown wallet:")
+    error?.code === CLI_ERROR_CODES.UNKNOWN_WALLET
     || message.includes("Unable to derive the channel name from wallet")
     || message.includes("Missing --wallet")
     || message.includes("does not match the wallet channel")
@@ -7117,34 +7180,42 @@ function buildRecoveryHints(message, args = {}) {
     hints.push(`private-state-cli guide --network ${networkName} --wallet ${walletName}`);
   }
 
-  if (message.includes("Missing wallet default secret file")) {
+  if (error?.code === CLI_ERROR_CODES.MISSING_WALLET_SECRET) {
     hints.push("restore the wallet-local default secret file from backup before running wallet commands.");
     hints.push(`private-state-cli guide --network ${networkName} --wallet ${walletName}`);
   }
 
-  if (message.includes("Unable to decrypt wallet data")) {
+  if (error?.code === CLI_ERROR_CODES.WALLET_DECRYPT_FAILED) {
     hints.push("verify that the wallet-local default secret file is the same secret used when the wallet was created.");
     hints.push("if the encrypted wallet file is corrupted but the wallet secret and L1 account secret still exist, rerun recover-wallet.");
     hints.push("if the wallet secret was lost, the local L2 key cannot be recovered from the encrypted wallet file.");
   }
 
   if (
-    message.startsWith("Missing --account:")
-    || message === "Provide --account for L1 signing."
+    error?.code === CLI_ERROR_CODES.MISSING_ACCOUNT
+    || message.startsWith("Missing --account:")
     || message.includes("Missing --account.")
   ) {
     hints.push(`private-state-cli account import --account ${accountName} --network ${networkName} --private-key-file <PATH>`);
     hints.push(`private-state-cli guide --network ${networkName} --account ${accountName}`);
   }
 
-  if (message.includes("Deployment artifacts for chain") || message.includes("DApp deployment artifact")) {
+  if (
+    error?.code === CLI_ERROR_CODES.MISSING_DEPLOYMENT_ARTIFACTS
+    || message.includes("DApp deployment artifact")
+  ) {
     hints.push("private-state-cli install");
     hints.push("private-state-cli doctor --json");
   }
 
-  if (message.includes("No channelTokenVault registration exists")) {
+  if (error?.code === CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION) {
     hints.push(`private-state-cli join-channel --channel-name ${channelName} --network ${networkName} --account ${accountName} --wallet-secret-path <PATH>`);
     hints.push(`private-state-cli guide --network ${networkName} --channel-name ${channelName} --account ${accountName}`);
+  }
+
+  if (error?.code === CLI_ERROR_CODES.STALE_WORKSPACE) {
+    hints.push(`private-state-cli recover-workspace --channel-name ${channelName} --network ${networkName}`);
+    hints.push(`private-state-cli guide --network ${networkName} --channel-name ${channelName}`);
   }
 
   if (message.includes("Missing channel selector")) {
@@ -7166,6 +7237,9 @@ function shortAddress(address) {
 
 function expect(condition, message) {
   if (!condition) {
+    if (message instanceof Error) {
+      throw message;
+    }
     throw new Error(message);
   }
 }
@@ -8063,22 +8137,13 @@ async function materializePrivateStateCliDeployment({
   await materializeSelectedDriveFiles({
     targetDir: paths.rootDir,
     files: chain.bridge.files,
-    selectedFiles: [
-      [`bridge.${normalizedChainId}.json`, path.basename(paths.bridgeDeploymentPath)],
-      [`bridge-abi-manifest.${normalizedChainId}.json`, path.basename(paths.bridgeAbiManifestPath)],
-      [`groth16.${normalizedChainId}.latest.json`, path.basename(paths.grothManifestPath)],
-    ],
+    selectedFiles: privateStateBridgeArtifactSelections(normalizedChainId, paths),
   });
   await materializeFlatGroth16Zkey({ paths, groth16CrsVersion });
   await materializeSelectedDriveFiles({
     targetDir: paths.rootDir,
     files: dapp.files,
-    selectedFiles: [
-      [`deployment.${normalizedChainId}.latest.json`, path.basename(paths.dappDeploymentPath)],
-      [`storage-layout.${normalizedChainId}.latest.json`, path.basename(paths.dappStorageLayoutPath)],
-      ["PrivateStateController.callable-abi.json", path.basename(paths.privateStateControllerAbiPath)],
-      [`dapp-registration.${normalizedChainId}.json`, path.basename(paths.dappRegistrationPath)],
-    ],
+    selectedFiles: privateStateDappArtifactSelections(normalizedChainId, paths),
   });
   rewriteFlatGroth16Manifest(paths.grothManifestPath, paths.grothZkeyPath);
 
@@ -8124,13 +8189,8 @@ async function materializeLocalPrivateStateCliDeployment({
   materializeSelectedLocalFiles({
     targetDir: paths.rootDir,
     selectedFiles: [
-      [path.join(bridgeDir, `bridge.${normalizedChainId}.json`), path.basename(paths.bridgeDeploymentPath)],
-      [path.join(bridgeDir, `bridge-abi-manifest.${normalizedChainId}.json`), path.basename(paths.bridgeAbiManifestPath)],
-      [path.join(bridgeDir, `groth16.${normalizedChainId}.latest.json`), path.basename(paths.grothManifestPath)],
-      [path.join(dappDir, `deployment.${normalizedChainId}.latest.json`), path.basename(paths.dappDeploymentPath)],
-      [path.join(dappDir, `storage-layout.${normalizedChainId}.latest.json`), path.basename(paths.dappStorageLayoutPath)],
-      [path.join(dappDir, "PrivateStateController.callable-abi.json"), path.basename(paths.privateStateControllerAbiPath)],
-      [path.join(dappDir, `dapp-registration.${normalizedChainId}.json`), path.basename(paths.dappRegistrationPath)],
+      ...localizeArtifactSelections(bridgeDir, privateStateBridgeArtifactSelections(normalizedChainId, paths)),
+      ...localizeArtifactSelections(dappDir, privateStateDappArtifactSelections(normalizedChainId, paths)),
     ],
   });
   await materializeFlatGroth16Zkey({ paths, groth16CrsVersion });
@@ -8143,6 +8203,27 @@ async function materializeLocalPrivateStateCliDeployment({
     bridgeTimestamp,
     dappTimestamp,
   };
+}
+
+function privateStateBridgeArtifactSelections(chainId, paths) {
+  return [
+    [`bridge.${chainId}.json`, path.basename(paths.bridgeDeploymentPath)],
+    [`bridge-abi-manifest.${chainId}.json`, path.basename(paths.bridgeAbiManifestPath)],
+    [`groth16.${chainId}.latest.json`, path.basename(paths.grothManifestPath)],
+  ];
+}
+
+function privateStateDappArtifactSelections(chainId, paths) {
+  return [
+    [`deployment.${chainId}.latest.json`, path.basename(paths.dappDeploymentPath)],
+    [`storage-layout.${chainId}.latest.json`, path.basename(paths.dappStorageLayoutPath)],
+    ["PrivateStateController.callable-abi.json", path.basename(paths.privateStateControllerAbiPath)],
+    [`dapp-registration.${chainId}.json`, path.basename(paths.dappRegistrationPath)],
+  ];
+}
+
+function localizeArtifactSelections(sourceDir, selections) {
+  return selections.map(([sourceName, targetName]) => [path.join(sourceDir, sourceName), targetName]);
 }
 
 async function materializeFlatGroth16Zkey({ paths, groth16CrsVersion }) {

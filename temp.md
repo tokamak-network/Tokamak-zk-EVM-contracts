@@ -50,26 +50,7 @@ openssl rand -hex 32 > ./wallet-secret.txt
 - State that the import source file does not need `0600`, but the canonical wallet-local secret
   written by the CLI remains protected.
 
-### 2. Medium-Low: invalid wallet selectors make `guide` fail instead of guiding
-
-Running `guide --network <NAME> --wallet <BAD_NAME>` can fail before emitting a guide result when
-the wallet name does not match the deterministic `<channelName>-<l1Address>` shape. The global
-error formatter does append useful `Try:` lines, but this is still inconsistent with the purpose
-of `guide`.
-
-Why this matters:
-
-- `guide` should absorb incomplete or invalid local selectors and report them as checks.
-- A hard failure makes the command feel like a normal validator rather than a recovery assistant.
-
-Recommended improvement:
-
-- Inside `guide`, treat malformed wallet selectors as a `wallet selector` check with `error`
-  status.
-- Still print `list-local-wallets --network <NETWORK>` as the next safe action.
-- Reserve hard failures for unexpected internal errors, not user-state discovery failures.
-
-### 3. Medium-Low: package version and changelog do not yet reflect the UX surface change
+### 2. Medium-Low: package version and changelog do not yet reflect the UX surface change
 
 The private-state CLI package version is still `0.1.9`, while the local code now contains a
 large user-facing change set after the deployed/published baseline:
@@ -123,7 +104,29 @@ Resolution:
   `Next Safe Action`, `Why`, and candidate commands.
 - The full `state` object remains available through `guide --json`.
 
-### B. Secrets as first-class CLI arguments
+### B. Invalid wallet selectors made `guide` fail instead of guiding
+
+Status: Resolved.
+
+Running `guide --network <NAME> --wallet <BAD_NAME>` previously failed before emitting a guide
+result when the wallet name did not match the deterministic `<channelName>-<l1Address>` shape.
+The global error formatter appended useful `Try:` lines, but this was inconsistent with the
+purpose of `guide`.
+
+Why this mattered:
+
+- `guide` should absorb incomplete or invalid local selectors and report them as checks.
+- A hard failure made the command feel like a normal validator rather than a recovery assistant.
+
+Resolution:
+
+- `guide` now catches malformed wallet selector errors during local-state inspection.
+- The error is emitted as a `wallet selector` check with `error` status.
+- When a network is selected, the next safe action becomes
+  `list-local-wallets --network <NETWORK>`.
+- Unexpected internal failures can still surface as hard command failures.
+
+### C. Secrets as first-class CLI arguments
 
 Status: Resolved.
 
@@ -142,7 +145,7 @@ Resolution:
 - Canonical CLI secret files remain protected with POSIX `0600` or Windows ACL repair and
   inspection where possible.
 
-### C. Help output as only a command catalog
+### D. Help output as only a command catalog
 
 Status: Resolved.
 
@@ -152,7 +155,7 @@ Resolution:
 - Updated README command flow.
 - Added actionable recovery hints to common errors.
 
-### D. `doctor` was machine-friendly but not human-friendly
+### E. `doctor` was machine-friendly but not human-friendly
 
 Status: Resolved.
 
@@ -162,7 +165,7 @@ Resolution:
 - `doctor --json` prints the full machine-readable report.
 - CLI-wide `--json` is now the structured-output switch.
 
-### E. Long proof-backed commands lacked durable progress phases
+### F. Long proof-backed commands lacked durable progress phases
 
 Status: Resolved.
 
@@ -172,7 +175,7 @@ Resolution:
   print `loading`, `proving`, `submitting`, `persisting`, and `done`.
 - In `--json` mode, progress goes to stderr and the final JSON result stays on stdout.
 
-### F. Common errors lacked recovery actions
+### G. Common errors lacked recovery actions
 
 Status: Resolved enough for current UX.
 
@@ -186,5 +189,4 @@ Resolution:
 ## Recommended Priority
 
 1. Document wallet secret source-file creation in help and README.
-2. Make `guide` absorb invalid wallet selectors as check results.
-3. Bump the private-state CLI package version and finalize its changelog before publishing.
+2. Bump the private-state CLI package version and finalize its changelog before publishing.

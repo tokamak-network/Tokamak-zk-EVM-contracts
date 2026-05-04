@@ -1630,6 +1630,12 @@ async function handleGuide({ args }) {
       secretNetworks: guide.state.local.secretNetworks,
     },
   ));
+  if (guide.state.local.walletSelectorError) {
+    guide.checks.push(guideCheck("wallet selector", "error", {
+      wallet: args.wallet,
+      error: guide.state.local.walletSelectorError,
+    }));
+  }
 
   if (!args.network) {
     setGuideNextAction(guide, {
@@ -1715,7 +1721,7 @@ async function handleGuide({ args }) {
     ));
   }
 
-  if (args.wallet) {
+  if (args.wallet && !guide.state.local.walletSelectorError) {
     guide.state.wallet = await inspectGuideWallet({
       walletName: String(args.wallet),
       networkName,
@@ -1741,6 +1747,16 @@ async function handleGuide({ args }) {
 }
 
 function inspectGuideLocalState(args) {
+  let selectedWalletCandidates = [];
+  let walletSelectorError = null;
+  if (args.wallet) {
+    try {
+      selectedWalletCandidates = resolveWalletPathCandidates(String(args.wallet));
+    } catch (error) {
+      walletSelectorError = error.message;
+    }
+  }
+
   return {
     workspaceRoot,
     secretRoot,
@@ -1748,7 +1764,8 @@ function inspectGuideLocalState(args) {
     secretRootExists: fs.existsSync(secretRoot),
     workspaceNetworks: listDirectoryNames(workspaceRoot),
     secretNetworks: listDirectoryNames(secretRoot),
-    selectedWalletCandidates: args.wallet ? resolveWalletPathCandidates(String(args.wallet)) : [],
+    selectedWalletCandidates,
+    walletSelectorError,
   };
 }
 
@@ -2006,6 +2023,13 @@ async function inspectGuideWallet({ walletName, networkName, provider, artifacts
 }
 
 function applyGuideNextAction(guide) {
+  if (guide.state.local?.walletSelectorError && guide.selectors.network) {
+    setGuideNextAction(guide, {
+      command: `list-local-wallets --network ${guide.selectors.network}`,
+      why: "The selected wallet name is malformed. List local wallets and retry guide with an existing deterministic wallet name.",
+    });
+    return;
+  }
   if (guide.state.network && !guide.state.network.rpcConfigured) {
     setGuideNextAction(guide, {
       command: null,

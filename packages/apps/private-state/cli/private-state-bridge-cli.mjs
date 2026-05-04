@@ -572,6 +572,8 @@ async function handleWorkspaceInit({ args, network, provider }) {
     bridgeResources,
     persist: true,
     allowExistingWorkspaceSync: true,
+    useWorkspaceRecoveryIndex: true,
+    fromGenesis: args.fromGenesis === true,
   });
 
   printJson({
@@ -585,6 +587,9 @@ async function handleWorkspaceInit({ args, network, provider }) {
     controller: workspace.controller,
     l2AccountingVault: workspace.l2AccountingVault,
     currentRoots: currentSnapshot.stateRoots,
+    recoveryLastScannedBlock: workspace.recoveryLastScannedBlock,
+    recoveryRootVectorHash: workspace.recoveryRootVectorHash,
+    recoveryScanRange: workspace.recoveryScanRange,
   });
 }
 
@@ -596,6 +601,8 @@ async function initializeChannelWorkspace({
   bridgeResources,
   persist,
   allowExistingWorkspaceSync = false,
+  useWorkspaceRecoveryIndex = false,
+  fromGenesis = false,
 }) {
   const workspaceDir = channelWorkspacePath(networkNameFromChainId(network.chainId), workspaceName);
   const channelDir = channelDataPath(workspaceDir);
@@ -628,6 +635,7 @@ async function initializeChannelWorkspace({
   const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
   const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
   const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
+  const latestBlock = await provider.getBlockNumber();
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
   const policySnapshot = await readChannelPolicySnapshot({
     channelManager,
@@ -659,13 +667,28 @@ async function initializeChannelWorkspace({
     ethers.toBigInt(derivedAPubBlockHash) === ethers.toBigInt(normalizeBytes32Hex(channelInfo.aPubBlockHash)),
     `Derived channel block-info hash ${derivedAPubBlockHash} does not match onchain ${channelInfo.aPubBlockHash}.`,
   );
-  const localSnapshotReusable = canReuseLocalWorkspaceSnapshot({
+  const localSnapshotReusable = !fromGenesis && canReuseLocalWorkspaceSnapshot({
     existingArtifacts,
     currentRootVectorHash,
     managedStorageAddresses,
   });
-  const currentSnapshot = localSnapshotReusable
-    ? existingArtifacts.stateSnapshot
+  const recoveryIndex = useWorkspaceRecoveryIndex && !fromGenesis
+    ? getUsableWorkspaceRecoveryIndex({
+      existingArtifacts,
+      genesisBlockNumber,
+      latestBlock,
+      managedStorageAddresses,
+    })
+    : null;
+  const reconstruction = localSnapshotReusable
+    ? {
+      currentSnapshot: existingArtifacts.stateSnapshot,
+      scanRange: {
+        fromBlock: latestBlock + 1,
+        toBlock: latestBlock,
+        mode: "reused-current-snapshot",
+      },
+    }
     : await reconstructChannelSnapshot({
       provider,
       bridgeAbiManifest,
@@ -679,7 +702,13 @@ async function initializeChannelWorkspace({
       controllerAddress,
       l2AccountingVaultAddress,
       liquidBalancesSlot,
+      baseSnapshot: recoveryIndex?.stateSnapshot ?? null,
+      fromBlock: recoveryIndex?.nextBlock ?? genesisBlockNumber,
+      toBlock: latestBlock,
     });
+  const currentSnapshot = reconstruction.currentSnapshot;
+  const recoveryRootVectorHash = normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots));
+  const recoveryLastScannedBlock = Number(reconstruction.scanRange.toBlock) + 1;
 
   const workspace = {
     name: workspaceName,
@@ -705,6 +734,9 @@ async function initializeChannelWorkspace({
     policySnapshot,
     managedStorageAddresses,
     liquidBalancesSlot: liquidBalancesSlot.toString(),
+    recoveryLastScannedBlock,
+    recoveryRootVectorHash,
+    recoveryScanRange: reconstruction.scanRange,
   };
 
   if (persist) {
@@ -4261,22 +4293,29 @@ async function reconstructChannelSnapshot({
   controllerAddress,
   l2AccountingVaultAddress,
   liquidBalancesSlot,
+  baseSnapshot = null,
+  fromBlock = genesisBlockNumber,
+  toBlock = null,
 }) {
-  const genesisStateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
-  const managedAddressObjects = managedStorageAddresses.map((address) => createAddressFromString(address));
-  await genesisStateManager._initializeForAddresses(managedAddressObjects);
-  genesisStateManager._channelId = channelId.toString();
-  for (const address of managedAddressObjects) {
-    genesisStateManager._commitResolvedStorageEntries(address, []);
+  let startingSnapshot = baseSnapshot;
+  if (!startingSnapshot) {
+    const genesisStateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
+    const managedAddressObjects = managedStorageAddresses.map((address) => createAddressFromString(address));
+    await genesisStateManager._initializeForAddresses(managedAddressObjects);
+    genesisStateManager._channelId = channelId.toString();
+    for (const address of managedAddressObjects) {
+      genesisStateManager._commitResolvedStorageEntries(address, []);
+    }
+    startingSnapshot = await genesisStateManager.captureStateSnapshot();
   }
-  const genesisSnapshot = await genesisStateManager.captureStateSnapshot();
 
   const bridgeTokenVault = new Contract(
     channelInfo.bridgeTokenVault,
     bridgeAbiManifest.contracts.bridgeTokenVault.abi,
     provider,
   );
-  const latestBlock = await provider.getBlockNumber();
+  const latestBlock = toBlock === null ? await provider.getBlockNumber() : Number(toBlock);
+  const scanFromBlock = Math.max(Number(genesisBlockNumber), Number(fromBlock));
   const currentRootVectorObservedTopic =
     normalizeBytes32Hex(channelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
   const channelManagerLogs = await fetchLogsChunked(provider, {
@@ -4286,7 +4325,7 @@ async function reconstructChannelSnapshot({
       CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
       VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
     ]],
-    fromBlock: genesisBlockNumber,
+    fromBlock: scanFromBlock,
     toBlock: latestBlock,
   });
   const channelManagerEvents = channelManagerLogs.map((log) => {
@@ -4304,7 +4343,7 @@ async function reconstructChannelSnapshot({
   const vaultStorageWriteEvents = await queryContractEventsChunked({
     contract: bridgeTokenVault,
     eventName: "StorageWriteObserved",
-    fromBlock: genesisBlockNumber,
+    fromBlock: scanFromBlock,
     toBlock: latestBlock,
   });
 
@@ -4317,7 +4356,7 @@ async function reconstructChannelSnapshot({
   }
 
   const groupedValues = [...groupedEvents.values()].sort((left, right) => compareLogsByPosition(left[0], right[0]));
-  let currentSnapshot = genesisSnapshot;
+  let currentSnapshot = startingSnapshot;
   let stateManager = await buildStateManager(currentSnapshot, contractCodes);
 
   for (const group of groupedValues) {
@@ -4399,7 +4438,14 @@ async function reconstructChannelSnapshot({
     "Reconstructed channel snapshot does not match the current on-chain root vector hash.",
   );
 
-  return currentSnapshot;
+  return {
+    currentSnapshot,
+    scanRange: {
+      fromBlock: scanFromBlock,
+      toBlock: latestBlock,
+      mode: baseSnapshot ? "recovery-index" : "genesis",
+    },
+  };
 }
 
 function compareLogsByPosition(left, right) {
@@ -5084,8 +5130,8 @@ function assertRecoverWorkspaceArgs(args) {
   assertAllowedCommandKeys(
     args,
     "recover-workspace",
-    new Set(["command", "positional", "channelName", "network", "alchemyApiKey"]),
-    "--channel-name, --network, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "channelName", "network", "alchemyApiKey", "fromGenesis"]),
+    "--channel-name, --network, optional --from-genesis, and --alchemy-api-key on public networks",
   );
 }
 
@@ -5239,8 +5285,10 @@ Commands:
       Create a bridge channel and initialize its workspace
       Prints the immutable policy snapshot before sending the transaction
 
-  recover-workspace --channel-name <NAME> --network <NAME> --alchemy-api-key <KEY>
+  recover-workspace --channel-name <NAME> --network <NAME> [--from-genesis] --alchemy-api-key <KEY>
       Rebuild the local channel workspace from bridge state
+      By default, resumes RPC log scanning from the workspace recovery index when available
+      Use --from-genesis to ignore the recovery index and replay logs from channel genesis
 
   deposit-bridge --amount <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Deposit canonical tokens into the shared bridge vault
@@ -5370,6 +5418,48 @@ function canReuseLocalWorkspaceSnapshot({ existingArtifacts, currentRootVectorHa
     && localSnapshot.storageAddresses.every(
       (address, index) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(getAddress(managedStorageAddresses[index])),
     );
+}
+
+function getUsableWorkspaceRecoveryIndex({
+  existingArtifacts,
+  genesisBlockNumber,
+  latestBlock,
+  managedStorageAddresses,
+}) {
+  const workspace = existingArtifacts?.workspace;
+  const stateSnapshot = existingArtifacts?.stateSnapshot;
+  if (!workspace || !stateSnapshot) {
+    return null;
+  }
+  const nextBlock = Number(workspace.recoveryLastScannedBlock);
+  if (typeof workspace.recoveryRootVectorHash !== "string") {
+    return null;
+  }
+  const recoveryRootVectorHash = normalizeBytes32Hex(workspace.recoveryRootVectorHash);
+  if (!Number.isInteger(nextBlock) || nextBlock < Number(genesisBlockNumber) || nextBlock > Number(latestBlock) + 1) {
+    return null;
+  }
+  if (recoveryRootVectorHash === null) {
+    return null;
+  }
+  if (!Array.isArray(stateSnapshot.storageAddresses) || stateSnapshot.storageAddresses.length !== managedStorageAddresses.length) {
+    return null;
+  }
+  const storageAddressesMatch = stateSnapshot.storageAddresses.every(
+    (address, index) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(getAddress(managedStorageAddresses[index])),
+  );
+  if (!storageAddressesMatch) {
+    return null;
+  }
+  const snapshotRootVectorHash = normalizeBytes32Hex(hashRootVector(stateSnapshot.stateRoots));
+  if (ethers.toBigInt(snapshotRootVectorHash) !== ethers.toBigInt(recoveryRootVectorHash)) {
+    return null;
+  }
+  return {
+    nextBlock,
+    stateSnapshot,
+    recoveryRootVectorHash,
+  };
 }
 
 function writeEncryptedWalletJson(filePath, value, walletPassword) {

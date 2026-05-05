@@ -93,7 +93,9 @@ private-state-cli transaction-fees --network mainnet --rpc-url <RPC_URL>
 ```
 
 `transaction-fees` uses the measured gas data packaged in `assets/tx-fees.json`, the selected network's live fee data,
-and live ETH/USD pricing to print an ETH/USD fee table for transaction-sending commands.
+and live ETH/USD pricing to print an ETH/USD fee table for transaction-sending commands. The table separates typical
+cost, based on the RPC `gasPrice`, from worst-case cost, based on `maxFeePerGas` when the network reports EIP-1559 fee
+data.
 
 Channel policy warning:
 

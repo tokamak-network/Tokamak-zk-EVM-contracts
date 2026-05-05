@@ -1473,11 +1473,12 @@ async function handleDoctor({ args }) {
 async function handleTransactionFees({ network, provider, rpcUrl }) {
   const feeAsset = loadTransactionFeeAsset();
   const feeData = await provider.getFeeData();
-  const gasPriceWei = requireTransactionFeeGasPrice(feeData);
+  const gasPrices = requireTransactionFeeGasPrices(feeData);
   const ethUsd = await fetchEthUsdPrice();
   const rows = buildTransactionFeeRows({
     commands: feeAsset.commands,
-    gasPriceWei,
+    typicalGasPriceWei: gasPrices.typical,
+    worstCaseGasPriceWei: gasPrices.worstCase,
     ethUsd,
   });
 
@@ -1494,11 +1495,15 @@ async function handleTransactionFees({ network, provider, rpcUrl }) {
       notes: feeAsset.notes,
     },
     livePricing: {
-      gasPriceWei: gasPriceWei.toString(),
-      gasPriceGwei: formatGwei(gasPriceWei),
+      typicalGasPriceWei: gasPrices.typical.toString(),
+      typicalGasPriceGwei: formatGwei(gasPrices.typical),
+      typicalGasPriceSource: gasPrices.typicalSource,
+      worstCaseGasPriceWei: gasPrices.worstCase.toString(),
+      worstCaseGasPriceGwei: formatGwei(gasPrices.worstCase),
+      worstCaseGasPriceSource: gasPrices.worstCaseSource,
       maxFeePerGasWei: feeData.maxFeePerGas?.toString() ?? null,
       maxPriorityFeePerGasWei: feeData.maxPriorityFeePerGas?.toString() ?? null,
-      gasPriceSource: feeData.maxFeePerGas ? "maxFeePerGas" : "gasPrice",
+      gasPriceWei: feeData.gasPrice?.toString() ?? null,
       ethUsd,
       ethUsdSource: "CoinGecko simple price API",
     },
@@ -1514,12 +1519,18 @@ function loadTransactionFeeAsset() {
   return asset;
 }
 
-function requireTransactionFeeGasPrice(feeData) {
-  const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice;
-  if (gasPrice === null || gasPrice === undefined) {
+function requireTransactionFeeGasPrices(feeData) {
+  const typical = feeData.gasPrice ?? feeData.maxFeePerGas;
+  const worstCase = feeData.maxFeePerGas ?? feeData.gasPrice;
+  if (typical === null || typical === undefined || worstCase === null || worstCase === undefined) {
     throw new Error("RPC provider did not return gasPrice or maxFeePerGas.");
   }
-  return ethers.toBigInt(gasPrice);
+  return {
+    typical: ethers.toBigInt(typical),
+    typicalSource: feeData.gasPrice ? "gasPrice" : "maxFeePerGas",
+    worstCase: ethers.toBigInt(worstCase),
+    worstCaseSource: feeData.maxFeePerGas ? "maxFeePerGas" : "gasPrice",
+  };
 }
 
 async function fetchEthUsdPrice() {
@@ -1541,20 +1552,23 @@ async function fetchEthUsdPrice() {
   return value;
 }
 
-function buildTransactionFeeRows({ commands, gasPriceWei, ethUsd }) {
+function buildTransactionFeeRows({ commands, typicalGasPriceWei, worstCaseGasPriceWei, ethUsd }) {
   return commands.map((entry) => {
     const transactions = expectTransactionFeeTransactions(entry);
     const gasUsed = transactions.reduce((sum, transaction) => sum + Number(transaction.gasUsed), 0);
-    const wei = BigInt(gasUsed) * gasPriceWei;
-    const eth = ethers.formatEther(wei);
+    const typicalEth = ethers.formatEther(BigInt(gasUsed) * typicalGasPriceWei);
+    const worstCaseEth = ethers.formatEther(BigInt(gasUsed) * worstCaseGasPriceWei);
     return {
       command: entry.command,
       description: entry.description,
       transactions: transactions.map((transaction) => transaction.label).join(" + "),
       gasUsed,
-      gasPriceGwei: formatGwei(gasPriceWei),
-      estimatedEth: formatEthForDisplay(eth),
-      estimatedUsd: formatUsdForDisplay(Number(eth) * ethUsd),
+      typicalGasPriceGwei: formatGwei(typicalGasPriceWei),
+      typicalEth: formatEthForDisplay(typicalEth),
+      typicalUsd: formatUsdForDisplay(Number(typicalEth) * ethUsd),
+      worstCaseGasPriceGwei: formatGwei(worstCaseGasPriceWei),
+      worstCaseEth: formatEthForDisplay(worstCaseEth),
+      worstCaseUsd: formatUsdForDisplay(Number(worstCaseEth) * ethUsd),
       sources: [...new Set(transactions.map((transaction) => transaction.source))].join(", "),
       sourceDetails: transactions.map((transaction) => transaction.sourceDetail),
     };
@@ -6550,18 +6564,21 @@ function printTransactionFeesHumanResult(report) {
     "Transaction Fees",
     `Generated: ${formatHumanValue(report.generatedAt)}`,
     `Network: ${formatHumanValue(report.network)} (${formatHumanValue(report.chainId)})`,
-    `Gas price: ${formatHumanValue(report.livePricing?.gasPriceGwei)} gwei (${formatHumanValue(report.livePricing?.gasPriceSource)})`,
+    `Typical gas price: ${formatHumanValue(report.livePricing?.typicalGasPriceGwei)} gwei (${formatHumanValue(report.livePricing?.typicalGasPriceSource)})`,
+    `Worst-case gas price: ${formatHumanValue(report.livePricing?.worstCaseGasPriceGwei)} gwei (${formatHumanValue(report.livePricing?.worstCaseGasPriceSource)})`,
     `ETH/USD: $${formatHumanValue(report.livePricing?.ethUsd)} (${formatHumanValue(report.livePricing?.ethUsdSource)})`,
     `Measured gas asset: ${formatHumanValue(report.asset?.schema)}, measured ${formatHumanValue(report.asset?.measuredAt)}`,
     "",
     formatHumanTable(
-      ["Command", "Transactions", "Gas", "ETH", "USD", "Source"],
+      ["Command", "Transactions", "Gas", "Typical ETH", "Typical USD", "Worst ETH", "Worst USD", "Source"],
       (report.rows ?? []).map((row) => [
         row.command,
         row.transactions,
         String(row.gasUsed),
-        row.estimatedEth,
-        `$${row.estimatedUsd}`,
+        row.typicalEth,
+        `$${row.typicalUsd}`,
+        row.worstCaseEth,
+        `$${row.worstCaseUsd}`,
         row.sources,
       ]),
     ),

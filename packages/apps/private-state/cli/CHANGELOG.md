@@ -5,6 +5,8 @@
 - Added `transaction-fees`, which reads packaged measured gas data from `assets/tx-fees.json`,
   combines it with live RPC fee data and live ETH/USD pricing, and prints a per-command ETH/USD
   fee table.
+- Split `transaction-fees` estimates into typical cost from RPC `gasPrice` and worst-case cost
+  from EIP-1559 `maxFeePerGas`.
 - Expanded LLM-agent README guidance so agents explain private key files, local account aliases,
   wallet secret source files, network RPC URLs, and immutable channel policy step by step before
   guiding new users through `join-channel`.

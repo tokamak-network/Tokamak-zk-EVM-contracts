@@ -97,6 +97,17 @@ and live ETH/USD pricing to print an ETH/USD fee table for transaction-sending c
 cost, based on the RPC `gasPrice`, from worst-case cost, based on `maxFeePerGas` when the network reports EIP-1559 fee
 data.
 
+Proof-backed note commands can use a separate L1 transaction submitter:
+
+```bash
+private-state-cli mint-notes --wallet <WALLET> --network mainnet --amounts '[1]' --tx-submitter <ACCOUNT>
+```
+
+`--tx-submitter <ACCOUNT>` is available on `mint-notes`, `transfer-notes`, and `redeem-notes`. The wallet still proves
+note ownership and builds the ZK proof, but the selected local account submits `executeChannelTransaction` and pays gas.
+Use this option when you want stronger privacy by avoiding a direct on-chain link between the note owner's wallet L1
+account and the proof-submission transaction.
+
 Channel policy warning:
 
 - `create-channel` commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout,
@@ -226,6 +237,9 @@ Operating rules:
   telling the user to move funds.
 - Explain that wallet names are local CLI identifiers, while private transfers use notes owned by L2 addresses
   registered in the channel.
+- Explain `--tx-submitter <ACCOUNT>` when the user wants stronger privacy for `mint-notes`, `transfer-notes`, or
+  `redeem-notes`: the wallet owner still proves note ownership, but another imported local L1 account can submit the
+  on-chain `executeChannelTransaction` and pay gas.
 - Before guiding a user through `create-channel` or `join-channel`, explain that channel policy is immutable after
   creation and that joining a channel means accepting its current verifier, DApp metadata, function layout, managed
   storage vector, and refund policy.

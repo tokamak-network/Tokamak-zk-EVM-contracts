@@ -1684,6 +1684,7 @@ async function handleGuide({ args }) {
     nextSafeAction: null,
     why: null,
     candidateCommands: [],
+    privacyTip: "For mint-notes, transfer-notes, and redeem-notes, add --tx-submitter <ACCOUNT> to let a separate local L1 account submit executeChannelTransaction and pay gas.",
   };
 
   guide.state.local = inspectGuideLocalState(args);
@@ -2177,18 +2178,18 @@ function applyGuideNextAction(guide) {
   }
   if (guide.state.wallet?.exists && channelBalance !== null && channelBalance > 0n && unusedNotes === 0) {
     setGuideNextAction(guide, {
-      command: `mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <A,B>`,
-      why: "The wallet has channel L2 balance and no unused private notes yet.",
+      command: `mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <A,B> [--tx-submitter <ACCOUNT>]`,
+      why: "The wallet has channel L2 balance and no unused private notes yet. Use --tx-submitter for stronger transaction-submission privacy.",
     });
     return;
   }
   if (guide.state.wallet?.exists && unusedNotes !== null && unusedNotes > 0) {
     setGuideNextAction(guide, {
-      command: `transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID,ID> --recipients <ADDR,ADDR> --amounts <A,B>`,
-      why: "The wallet has unused private notes. It can transfer or redeem those notes.",
+      command: `transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID,ID> --recipients <ADDR,ADDR> --amounts <A,B> [--tx-submitter <ACCOUNT>]`,
+      why: "The wallet has unused private notes. It can transfer or redeem those notes. Use --tx-submitter for stronger transaction-submission privacy.",
       candidates: [
         `get-my-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
-        `redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID>`,
+        `redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID> [--tx-submitter <ACCOUNT>]`,
       ],
     });
     return;
@@ -2772,6 +2773,7 @@ async function handleMintNotes({ args, provider }) {
     baseUnitAmounts: baseUnitAmounts.map(({ amountBaseUnits }) => amountBaseUnits),
   });
   const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+    args,
     wallet,
     provider,
     operationName: "mint-notes",
@@ -2783,7 +2785,10 @@ async function handleMintNotes({ args, provider }) {
     wallet: wallet.walletName,
     workspace: execution.context.workspaceName,
     operationDir: execution.operationDir,
-    l1Submitter: execution.signer.address,
+    l1Submitter: execution.txSubmitter.address,
+    l1WalletOwner: execution.signer.address,
+    txSubmitterSource: execution.txSubmitterSource,
+    txSubmitterAccount: execution.txSubmitterAccount,
     l2Address: execution.l2Identity.l2Address,
     underlyingMethod: templatePayload.method,
     nonce: execution.nonce,
@@ -2812,6 +2817,7 @@ async function handleRedeemNotes({ args, provider }) {
     inputNotes,
   });
   const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+    args,
     wallet,
     provider,
     operationName: "redeem-notes",
@@ -2823,7 +2829,10 @@ async function handleRedeemNotes({ args, provider }) {
     wallet: wallet.walletName,
     workspace: execution.context.workspaceName,
     operationDir: execution.operationDir,
-    l1Submitter: execution.signer.address,
+    l1Submitter: execution.txSubmitter.address,
+    l1WalletOwner: execution.signer.address,
+    txSubmitterSource: execution.txSubmitterSource,
+    txSubmitterAccount: execution.txSubmitterAccount,
     l2Address: execution.l2Identity.l2Address,
     receiver: wallet.wallet.l2Address,
     underlyingMethod: templatePayload.method,
@@ -2943,6 +2952,7 @@ async function handleTransferNotes({ args, provider }) {
     outputAmounts,
   });
   const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+    args,
     wallet,
     provider,
     operationName: "transfer-notes",
@@ -2960,7 +2970,10 @@ async function handleTransferNotes({ args, provider }) {
     wallet: wallet.walletName,
     workspace: execution.context.workspaceName,
     operationDir: execution.operationDir,
-    l1Submitter: execution.signer.address,
+    l1Submitter: execution.txSubmitter.address,
+    l1WalletOwner: execution.signer.address,
+    txSubmitterSource: execution.txSubmitterSource,
+    txSubmitterAccount: execution.txSubmitterAccount,
     l2Address: execution.l2Identity.l2Address,
     underlyingMethod: templatePayload.method,
     nonce: execution.nonce,
@@ -3947,6 +3960,7 @@ function assertWalletMatchesChannelContext(walletContext, l2Identity, context) {
 }
 
 async function executeWalletDirectTemplateCommand({
+  args,
   wallet,
   provider,
   operationName,
@@ -3954,6 +3968,15 @@ async function executeWalletDirectTemplateCommand({
 }) {
   emitProgress(operationName, "loading");
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
+  const {
+    txSubmitter,
+    source: txSubmitterSource,
+    account: txSubmitterAccount,
+  } = resolveTxSubmitterSigner({
+    args,
+    ownerSigner: signer,
+    provider,
+  });
   let contextResult = await loadPreferredWalletChannelContext({
     walletContext: wallet,
     provider,
@@ -3965,6 +3988,9 @@ async function executeWalletDirectTemplateCommand({
     const execution = await executeWalletTemplateSend({
       wallet,
       signer,
+      txSubmitter,
+      txSubmitterSource,
+      txSubmitterAccount,
       l2Identity,
       context: contextResult.context,
       operationName,
@@ -3993,6 +4019,9 @@ async function executeWalletDirectTemplateCommand({
   const execution = await executeWalletTemplateSend({
     wallet,
     signer,
+    txSubmitter,
+    txSubmitterSource,
+    txSubmitterAccount,
     l2Identity,
     context: contextResult.context,
     operationName,
@@ -4010,6 +4039,9 @@ async function executeWalletDirectTemplateCommand({
 async function executeWalletTemplateSend({
   wallet,
   signer,
+  txSubmitter,
+  txSubmitterSource,
+  txSubmitterAccount,
   l2Identity,
   context,
   operationName,
@@ -4087,7 +4119,7 @@ async function executeWalletTemplateSend({
   emitProgress(operationName, "submitting");
   const receipt =
     await waitForReceipt(
-      await context.channelManager.connect(signer).executeChannelTransaction(payload, functionProof),
+      await context.channelManager.connect(txSubmitter).executeChannelTransaction(payload, functionProof),
     );
 
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
@@ -4111,6 +4143,9 @@ async function executeWalletTemplateSend({
   return {
     wallet,
     signer,
+    txSubmitter,
+    txSubmitterSource,
+    txSubmitterAccount,
     l2Identity,
     context,
     noteLifecycle,
@@ -5608,6 +5643,29 @@ function requireL1Signer(args, provider) {
   return new Wallet(resolvePrivateKeySource(args), provider);
 }
 
+function resolveTxSubmitterSigner({ args, ownerSigner, provider }) {
+  if (args.txSubmitter === undefined) {
+    return {
+      txSubmitter: ownerSigner,
+      source: "wallet-owner",
+      account: null,
+    };
+  }
+  if (args.txSubmitter === true || String(args.txSubmitter).trim() === "") {
+    throw new Error("--tx-submitter requires a local account name.");
+  }
+  const networkName = requireNetworkName(args);
+  const account = String(args.txSubmitter).trim();
+  return {
+    txSubmitter: new Wallet(
+      normalizePrivateKey(readSecretFile(accountPrivateKeyPath(networkName, account), "--tx-submitter")),
+      provider,
+    ),
+    source: "tx-submitter-account",
+    account,
+  };
+}
+
 function resolvePrivateKeySource(args) {
   const networkName = requireNetworkName(args);
   const account = requireAccountName(args);
@@ -5928,6 +5986,7 @@ function assertAccountImportArgs(args) {
 
 function assertMintNotesArgs(args) {
   assertAllowedCommandSchema(args, "mint-notes");
+  assertTxSubmitterArg(args);
   parseAmountVector(args.amounts, {
     allowZeroEntries: true,
     requireAnyPositive: true,
@@ -5936,11 +5995,13 @@ function assertMintNotesArgs(args) {
 
 function assertRedeemNotesArgs(args) {
   assertAllowedCommandSchema(args, "redeem-notes");
+  assertTxSubmitterArg(args);
   selectRedeemNotesMethod(parseNoteIdVector(args.noteIds).length);
 }
 
 function assertTransferNotesArgs(args) {
   assertAllowedCommandSchema(args, "transfer-notes");
+  assertTxSubmitterArg(args);
   const noteIds = parseNoteIdVector(args.noteIds);
   const recipients = parseRecipientVector(args.recipients);
   const amounts = parseAmountVector(args.amounts);
@@ -5949,6 +6010,15 @@ function assertTransferNotesArgs(args) {
     "--amounts length must match --recipients length.",
   );
   selectTransferNotesMethod(noteIds.length, recipients.length);
+}
+
+function assertTxSubmitterArg(args) {
+  if (args.txSubmitter === undefined) {
+    return;
+  }
+  if (args.txSubmitter === true || String(args.txSubmitter).trim() === "") {
+    throw new Error("--tx-submitter requires a local account name.");
+  }
 }
 
 function assertGetMyNotesArgs(args) {
@@ -6556,6 +6626,11 @@ function printGuideHumanResult(guide) {
   }
 
   lines.push("", "Run with --json to inspect the full guide state.");
+  lines.push(
+    "",
+    "Privacy Tip",
+    formatHumanValue(guide.privacyTip),
+  );
   console.log(lines.join("\n"));
 }
 

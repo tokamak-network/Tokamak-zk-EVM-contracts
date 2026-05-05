@@ -92,6 +92,8 @@ const anvilMnemonic = process.env.APPS_ANVIL_MNEMONIC?.trim() || "test test test
 const anvilDeployerPrivateKey =
   process.env.APPS_ANVIL_DEPLOYER_PRIVATE_KEY?.trim()
     || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const txSubmitterAccount = "channel-creator";
+const txSubmitterAddress = getAddress(new Wallet(anvilDeployerPrivateKey).address);
 const channelName = "private-state-cli-e2e";
 const dappId = "1";
 const dappLabel = "private-state";
@@ -979,7 +981,7 @@ function prepareWalletSecretSource(participant) {
 }
 
 function prepareCliSecrets(participants) {
-  prepareAccountSecret("channel-creator", anvilDeployerPrivateKey);
+  prepareAccountSecret(txSubmitterAccount, anvilDeployerPrivateKey);
   for (const participant of participants) {
     participant.walletName = walletNameForChannelAndAddress(channelName, participant.l1Address);
     removeAnvilWalletSecret(participant.walletName);
@@ -1288,7 +1290,7 @@ function createChannel() {
   return runAnvilBridgeCliCommand("create-channel", [
     "--channel-name", channelName,
     "--join-toll", joinTollTokens,
-    "--account", "channel-creator",
+    "--account", txSubmitterAccount,
   ]);
 }
 
@@ -1376,10 +1378,15 @@ function deleteWorkspaceDir() {
   });
 }
 
-function mintNotes(participant, amounts) {
+function txSubmitterCliArgs(account) {
+  return account ? ["--tx-submitter", account] : [];
+}
+
+function mintNotes(participant, amounts, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("mint-notes", [
     ...walletCliArgs(participant),
     "--amounts", JSON.stringify(amounts),
+    ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
 
@@ -1387,19 +1394,21 @@ function getMyNotes(participant) {
   return runAnvilCliCommand("get-my-notes", walletCliArgs(participant));
 }
 
-function transferNotes(participant, noteIds, recipients, amounts) {
+function transferNotes(participant, noteIds, recipients, amounts, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("transfer-notes", [
     ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
     "--recipients", JSON.stringify(recipients),
     "--amounts", JSON.stringify(amounts),
+    ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
 
-function redeemNotes(participant, noteIds) {
+function redeemNotes(participant, noteIds, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("redeem-notes", [
     ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
+    ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
 
@@ -1594,9 +1603,17 @@ async function main() {
 
     recoverWorkspaceResult = recoverWorkspace();
 
-    const mintA = mintNotes(participants[0], [3]);
+    const mintA = mintNotes(participants[0], [3], { txSubmitter: txSubmitterAccount });
     const mintB = mintNotes(participants[1], [3]);
     const mintC = mintNotes(participants[2], [3]);
+    expect(
+      getAddress(mintA.l1Submitter) === txSubmitterAddress,
+      "mint-notes --tx-submitter must submit with the requested local account.",
+    );
+    expect(
+      getAddress(mintA.l1WalletOwner) === getAddress(participants[0].l1Address),
+      "mint-notes --tx-submitter must not change the wallet owner.",
+    );
 
     const aMintNote = mintA.outputNotes[0];
     const bMintNote = mintB.outputNotes[0];
@@ -1619,6 +1636,15 @@ async function main() {
       [aMintNote.commitment],
       [participants[1].l2Address, participants[2].l2Address],
       [1, 2],
+      { txSubmitter: txSubmitterAccount },
+    );
+    expect(
+      getAddress(transferA.l1Submitter) === txSubmitterAddress,
+      "transfer-notes --tx-submitter must submit with the requested local account.",
+    );
+    expect(
+      getAddress(transferA.l1WalletOwner) === getAddress(participants[0].l1Address),
+      "transfer-notes --tx-submitter must not change the wallet owner.",
     );
     const noteAToB = pickOutputNoteByOwner(transferA.outputNotes, participants[1].l2Address, 1n * amountUnit);
     const noteAToC = pickOutputNoteByOwner(transferA.outputNotes, participants[2].l2Address, 2n * amountUnit);
@@ -1650,9 +1676,17 @@ async function main() {
     assertWalletNoteSnapshot(notesAfterTransferB, { unusedCount: 0, spentCount: 2, unusedTotal: 0n, spentTotal: 4n * amountUnit });
     assertWalletNoteSnapshot(notesAfterTransferC, { unusedCount: 3, spentCount: 0, unusedTotal: claimAmountBaseUnits, spentTotal: 0n });
 
-    const redeemAToC = redeemNotes(participants[2], [noteAToC.commitment]);
+    const redeemAToC = redeemNotes(participants[2], [noteAToC.commitment], { txSubmitter: txSubmitterAccount });
     const redeemBToC = redeemNotes(participants[2], [noteBToC.commitment]);
     const redeemCMint = redeemNotes(participants[2], [cMintNote.commitment]);
+    expect(
+      getAddress(redeemAToC.l1Submitter) === txSubmitterAddress,
+      "redeem-notes --tx-submitter must submit with the requested local account.",
+    );
+    expect(
+      getAddress(redeemAToC.l1WalletOwner) === getAddress(participants[2].l1Address),
+      "redeem-notes --tx-submitter must not change the wallet owner.",
+    );
     const notesAfterRedeemC = getMyNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
 

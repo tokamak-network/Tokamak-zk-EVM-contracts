@@ -7,6 +7,9 @@
   fee table.
 - Split `transaction-fees` estimates into typical cost from RPC `gasPrice` and worst-case cost
   from EIP-1559 `maxFeePerGas`.
+- Added optional `--tx-submitter <ACCOUNT>` support to `mint-notes`, `transfer-notes`, and
+  `redeem-notes` so proof-backed note owners can separate note ownership from the L1 account
+  that submits `executeChannelTransaction` and pays gas.
 - Expanded LLM-agent README guidance so agents explain private key files, local account aliases,
   wallet secret source files, network RPC URLs, and immutable channel policy step by step before
   guiding new users through `join-channel`.

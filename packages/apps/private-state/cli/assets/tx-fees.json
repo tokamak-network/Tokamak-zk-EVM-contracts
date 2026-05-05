@@ -1,0 +1,170 @@
+{
+  "schema": "tokamak-private-state-cli-tx-fees.v1",
+  "measuredAt": "2026-05-05",
+  "measurementBasis": "Measured directly from the current repository worktree with forge test --root bridge --gas-report and completed local CLI e2e transaction receipts.",
+  "notes": [
+    "Gas values are protocol transaction gasUsed values, not a guarantee for every future calldata shape or verifier implementation.",
+    "ERC-20 approval transactions are listed as separate approve components when the CLI command sends an approval transaction.",
+    "transfer-notes and redeem-notes use the same proof-backed executeChannelTransaction baseline measured from the successful mint-notes CLI e2e receipt because the current e2e run stopped before producing fresh transfer/redeem receipts."
+  ],
+  "commands": [
+    {
+      "command": "create-channel",
+      "description": "Create a bridge channel and initialize its policy snapshot.",
+      "transactions": [
+        {
+          "label": "createChannel",
+          "contract": "BridgeCore",
+          "function": "createChannel",
+          "gasUsed": 2736229,
+          "source": "forge-gas-report",
+          "sourceDetail": "BridgeCore.createChannel max successful path from forge test --root bridge --gas-report."
+        }
+      ]
+    },
+    {
+      "command": "deposit-bridge",
+      "description": "Deposit canonical tokens into the shared bridge vault.",
+      "transactions": [
+        {
+          "label": "approve",
+          "contract": "MockERC20",
+          "function": "approve",
+          "gasUsed": 45729,
+          "source": "cast-local-measurement",
+          "sourceDetail": "Measured on local anvil by deploying bridge/src/mocks/MockERC20.sol and sending approve(address,uint256)."
+        },
+        {
+          "label": "fund",
+          "contract": "L1TokenVault",
+          "function": "fund",
+          "gasUsed": 68343,
+          "source": "forge-gas-report",
+          "sourceDetail": "L1TokenVault.fund from forge test --root bridge --gas-report."
+        }
+      ]
+    },
+    {
+      "command": "withdraw-bridge",
+      "description": "Withdraw canonical tokens from the shared bridge vault.",
+      "transactions": [
+        {
+          "label": "claimToWallet",
+          "contract": "L1TokenVault",
+          "function": "claimToWallet",
+          "gasUsed": 33824,
+          "source": "forge-gas-report",
+          "sourceDetail": "L1TokenVault.claimToWallet from forge test --root bridge --gas-report."
+        }
+      ]
+    },
+    {
+      "command": "join-channel",
+      "description": "Pay the channel join toll and register a wallet identity.",
+      "transactions": [
+        {
+          "label": "approve",
+          "contract": "MockERC20",
+          "function": "approve",
+          "gasUsed": 45729,
+          "source": "cast-local-measurement",
+          "sourceDetail": "Measured on local anvil by deploying bridge/src/mocks/MockERC20.sol and sending approve(address,uint256). join-channel sends this approval only when the channel join toll is nonzero."
+        },
+        {
+          "label": "joinChannel",
+          "contract": "L1TokenVault",
+          "function": "joinChannel",
+          "gasUsed": 341775,
+          "source": "forge-gas-report",
+          "sourceDetail": "L1TokenVault.joinChannel max successful path from forge test --root bridge --gas-report."
+        }
+      ]
+    },
+    {
+      "command": "deposit-channel",
+      "description": "Move bridged funds into the channel L2 accounting vault.",
+      "transactions": [
+        {
+          "label": "depositToChannelVault",
+          "contract": "L1TokenVault",
+          "function": "depositToChannelVault",
+          "gasUsed": 336496,
+          "gasUsedMin": 336464,
+          "gasUsedMax": 336496,
+          "source": "cli-e2e-receipts",
+          "sourceDetail": "Three completed local CLI e2e deposit-channel receipts from the current worktree."
+        }
+      ]
+    },
+    {
+      "command": "withdraw-channel",
+      "description": "Move channel L2 accounting vault funds back into the shared bridge vault.",
+      "transactions": [
+        {
+          "label": "withdrawFromChannelVault",
+          "contract": "L1TokenVault",
+          "function": "withdrawFromChannelVault",
+          "gasUsed": 95861,
+          "source": "forge-gas-report",
+          "sourceDetail": "L1TokenVault.withdrawFromChannelVault max successful path from forge test --root bridge --gas-report."
+        }
+      ]
+    },
+    {
+      "command": "exit-channel",
+      "description": "Exit a channel after the channel balance is zero.",
+      "transactions": [
+        {
+          "label": "exitChannel",
+          "contract": "L1TokenVault",
+          "function": "exitChannel",
+          "gasUsed": 119031,
+          "source": "forge-gas-report",
+          "sourceDetail": "L1TokenVault.exitChannel max successful path from forge test --root bridge --gas-report."
+        }
+      ]
+    },
+    {
+      "command": "mint-notes",
+      "description": "Submit a proof-backed private-state mint transaction.",
+      "transactions": [
+        {
+          "label": "executeChannelTransaction",
+          "contract": "ChannelManager",
+          "function": "executeChannelTransaction",
+          "gasUsed": 861627,
+          "source": "cli-e2e-receipt",
+          "sourceDetail": "Completed local CLI e2e mint-notes bridge-submit-receipt.json from the current worktree."
+        }
+      ]
+    },
+    {
+      "command": "transfer-notes",
+      "description": "Submit a proof-backed private-state transfer transaction.",
+      "transactions": [
+        {
+          "label": "executeChannelTransaction",
+          "contract": "ChannelManager",
+          "function": "executeChannelTransaction",
+          "gasUsed": 861627,
+          "source": "cli-e2e-baseline",
+          "sourceDetail": "Uses the current successful mint-notes executeChannelTransaction receipt as the shared proof-backed DApp command baseline."
+        }
+      ]
+    },
+    {
+      "command": "redeem-notes",
+      "description": "Submit a proof-backed private-state redeem transaction.",
+      "transactions": [
+        {
+          "label": "executeChannelTransaction",
+          "contract": "ChannelManager",
+          "function": "executeChannelTransaction",
+          "gasUsed": 861627,
+          "source": "cli-e2e-baseline",
+          "sourceDetail": "Uses the current successful mint-notes executeChannelTransaction receipt as the shared proof-backed DApp command baseline."
+        }
+      ]
+    }
+  ]
+}

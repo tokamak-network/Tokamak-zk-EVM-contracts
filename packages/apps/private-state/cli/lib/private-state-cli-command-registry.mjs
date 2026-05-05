@@ -177,6 +177,16 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: ["Does not accept --rpc-url and never writes RPC configuration"],
   },
   {
+    id: "transaction-fees",
+    description: "Estimate ETH and USD fees for transaction-sending commands from packaged measured gas data and live network fee data.",
+    fields: ["network", "rpcUrl", "json"],
+    usage: "--network, optional --rpc-url, and optional --json",
+    help: [
+      "Uses packages/apps/private-state/cli/assets/tx-fees.json as the measured gas source packaged with the CLI",
+      "Reads live fee data from the selected network RPC and live ETH/USD from CoinGecko",
+    ],
+  },
+  {
     id: "account-import",
     display: "account import",
     description: "Import a private-key source file into a protected local L1 account secret for later --account use.",

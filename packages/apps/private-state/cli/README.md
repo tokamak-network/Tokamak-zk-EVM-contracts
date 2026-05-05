@@ -86,6 +86,15 @@ A common private-state flow is:
 
 Use `private-state-cli --help` for the full command list and required options.
 
+Estimate live transaction costs before sending commands with:
+
+```bash
+private-state-cli transaction-fees --network mainnet --rpc-url <RPC_URL>
+```
+
+`transaction-fees` uses the measured gas data packaged in `assets/tx-fees.json`, the selected network's live fee data,
+and live ETH/USD pricing to print an ETH/USD fee table for transaction-sending commands.
+
 Channel policy warning:
 
 - `create-channel` commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout,

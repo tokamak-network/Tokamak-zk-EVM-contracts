@@ -30,6 +30,7 @@
     "LICENSE",
     "private-state-bridge-cli.mjs",
     "cli-assistant.html",
+    "assets",
     "lib"
   ],
   "scripts": {

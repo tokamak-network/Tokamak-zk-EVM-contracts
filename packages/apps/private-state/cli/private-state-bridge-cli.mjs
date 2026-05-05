@@ -350,6 +350,13 @@ async function main() {
     return;
   }
 
+  if (args.command === "transaction-fees") {
+    assertTransactionFeesArgs(args);
+    const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args);
+    await handleTransactionFees({ network, provider, rpcUrl });
+    return;
+  }
+
   if (args.command === "get-my-l1-address") {
     assertGetMyL1AddressArgs(args);
     handleGetMyL1Address({ args });
@@ -1461,6 +1468,130 @@ async function handleDoctor({ args }) {
   if (!report.ok) {
     process.exitCode = 1;
   }
+}
+
+async function handleTransactionFees({ network, provider, rpcUrl }) {
+  const feeAsset = loadTransactionFeeAsset();
+  const feeData = await provider.getFeeData();
+  const gasPriceWei = requireTransactionFeeGasPrice(feeData);
+  const ethUsd = await fetchEthUsdPrice();
+  const rows = buildTransactionFeeRows({
+    commands: feeAsset.commands,
+    gasPriceWei,
+    ethUsd,
+  });
+
+  printJson({
+    action: "transaction-fees",
+    generatedAt: new Date().toISOString(),
+    network: network.name,
+    chainId: Number(network.chainId),
+    rpcUrl,
+    asset: {
+      schema: feeAsset.schema,
+      measuredAt: feeAsset.measuredAt,
+      measurementBasis: feeAsset.measurementBasis,
+      notes: feeAsset.notes,
+    },
+    livePricing: {
+      gasPriceWei: gasPriceWei.toString(),
+      gasPriceGwei: formatGwei(gasPriceWei),
+      maxFeePerGasWei: feeData.maxFeePerGas?.toString() ?? null,
+      maxPriorityFeePerGasWei: feeData.maxPriorityFeePerGas?.toString() ?? null,
+      gasPriceSource: feeData.maxFeePerGas ? "maxFeePerGas" : "gasPrice",
+      ethUsd,
+      ethUsdSource: "CoinGecko simple price API",
+    },
+    rows,
+  });
+}
+
+function loadTransactionFeeAsset() {
+  const assetPath = path.join(privateStateCliPackageRoot, "assets", "tx-fees.json");
+  const asset = readJson(assetPath);
+  expect(asset.schema === "tokamak-private-state-cli-tx-fees.v1", `Unsupported transaction fee asset schema: ${assetPath}`);
+  expect(Array.isArray(asset.commands), `Transaction fee asset is missing commands: ${assetPath}`);
+  return asset;
+}
+
+function requireTransactionFeeGasPrice(feeData) {
+  const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice;
+  if (gasPrice === null || gasPrice === undefined) {
+    throw new Error("RPC provider did not return gasPrice or maxFeePerGas.");
+  }
+  return ethers.toBigInt(gasPrice);
+}
+
+async function fetchEthUsdPrice() {
+  const url = "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd";
+  const response = await fetch(url, {
+    headers: {
+      accept: "application/json",
+      "user-agent": `${privateStateCliPackageJson.name}/${privateStateCliPackageJson.version}`,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Unable to fetch live ETH/USD price from CoinGecko: HTTP ${response.status}.`);
+  }
+  const payload = await response.json();
+  const value = Number(payload?.ethereum?.usd);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error("CoinGecko response did not include a valid ethereum.usd price.");
+  }
+  return value;
+}
+
+function buildTransactionFeeRows({ commands, gasPriceWei, ethUsd }) {
+  return commands.map((entry) => {
+    const transactions = expectTransactionFeeTransactions(entry);
+    const gasUsed = transactions.reduce((sum, transaction) => sum + Number(transaction.gasUsed), 0);
+    const wei = BigInt(gasUsed) * gasPriceWei;
+    const eth = ethers.formatEther(wei);
+    return {
+      command: entry.command,
+      description: entry.description,
+      transactions: transactions.map((transaction) => transaction.label).join(" + "),
+      gasUsed,
+      gasPriceGwei: formatGwei(gasPriceWei),
+      estimatedEth: formatEthForDisplay(eth),
+      estimatedUsd: formatUsdForDisplay(Number(eth) * ethUsd),
+      sources: [...new Set(transactions.map((transaction) => transaction.source))].join(", "),
+      sourceDetails: transactions.map((transaction) => transaction.sourceDetail),
+    };
+  });
+}
+
+function expectTransactionFeeTransactions(entry) {
+  expect(typeof entry?.command === "string" && entry.command.length > 0, "Transaction fee asset contains a command without command name.");
+  expect(Array.isArray(entry.transactions) && entry.transactions.length > 0, `Transaction fee asset command ${entry.command} has no transactions.`);
+  for (const transaction of entry.transactions) {
+    expect(Number.isInteger(transaction.gasUsed) && transaction.gasUsed > 0, `Transaction fee asset command ${entry.command} has invalid gasUsed.`);
+  }
+  return entry.transactions;
+}
+
+function formatGwei(wei) {
+  return trimFixedNumber(ethers.formatUnits(wei, "gwei"), 6);
+}
+
+function formatEthForDisplay(value) {
+  return trimFixedNumber(value, 8);
+}
+
+function formatUsdForDisplay(value) {
+  if (value > 0 && value < 0.01) {
+    return "<0.01";
+  }
+  return value.toFixed(2);
+}
+
+function trimFixedNumber(value, maxDecimals) {
+  const [integer, decimals = ""] = String(value).split(".");
+  if (!decimals || maxDecimals <= 0) {
+    return integer;
+  }
+  const trimmed = decimals.slice(0, maxDecimals).replace(/0+$/u, "");
+  return trimmed ? `${integer}.${trimmed}` : integer;
 }
 
 function handleGetMyL1Address({ args }) {
@@ -5773,6 +5904,10 @@ function assertGuideArgs(args) {
   assertAllowedCommandSchema(args, "guide");
 }
 
+function assertTransactionFeesArgs(args) {
+  assertAllowedCommandSchema(args, "transaction-fees");
+}
+
 function assertAccountImportArgs(args) {
   assertAllowedCommandSchema(args, "account-import");
 }
@@ -6357,6 +6492,7 @@ function loadWalletCommandRuntime(args) {
 
 const HUMAN_RESULT_RENDERERS = Object.freeze({
   guide: printGuideHumanResult,
+  "transaction-fees": printTransactionFeesHumanResult,
 });
 
 function normalizePrivateKey(value) {
@@ -6407,6 +6543,50 @@ function printGuideHumanResult(guide) {
 
   lines.push("", "Run with --json to inspect the full guide state.");
   console.log(lines.join("\n"));
+}
+
+function printTransactionFeesHumanResult(report) {
+  const lines = [
+    "Transaction Fees",
+    `Generated: ${formatHumanValue(report.generatedAt)}`,
+    `Network: ${formatHumanValue(report.network)} (${formatHumanValue(report.chainId)})`,
+    `Gas price: ${formatHumanValue(report.livePricing?.gasPriceGwei)} gwei (${formatHumanValue(report.livePricing?.gasPriceSource)})`,
+    `ETH/USD: $${formatHumanValue(report.livePricing?.ethUsd)} (${formatHumanValue(report.livePricing?.ethUsdSource)})`,
+    `Measured gas asset: ${formatHumanValue(report.asset?.schema)}, measured ${formatHumanValue(report.asset?.measuredAt)}`,
+    "",
+    formatHumanTable(
+      ["Command", "Transactions", "Gas", "ETH", "USD", "Source"],
+      (report.rows ?? []).map((row) => [
+        row.command,
+        row.transactions,
+        String(row.gasUsed),
+        row.estimatedEth,
+        `$${row.estimatedUsd}`,
+        row.sources,
+      ]),
+    ),
+  ];
+  if (Array.isArray(report.asset?.notes) && report.asset.notes.length > 0) {
+    lines.push(
+      "",
+      "Notes",
+      ...report.asset.notes.map((note) => `- ${note}`),
+    );
+  }
+  console.log(lines.join("\n"));
+}
+
+function formatHumanTable(headers, rows) {
+  const values = [headers, ...rows].map((row) => row.map((value) => String(value ?? "")));
+  const widths = headers.map((_header, columnIndex) =>
+    Math.max(...values.map((row) => row[columnIndex].length)),
+  );
+  const formatRow = (row) => `| ${row.map((value, index) => value.padEnd(widths[index])).join(" | ")} |`;
+  return [
+    formatRow(values[0]),
+    formatRow(widths.map((width) => "-".repeat(width))),
+    ...values.slice(1).map(formatRow),
+  ].join("\n");
 }
 
 function formatGuideSelector(value) {

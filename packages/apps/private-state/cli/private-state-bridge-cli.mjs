@@ -2279,20 +2279,23 @@ function redactRpcUrl(rpcUrl) {
 
 async function handleGetMyWalletMeta({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
-  const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
   const contextResult = await loadPreferredWalletChannelContext({
     walletContext: wallet,
     provider,
     progressAction: "get-my-wallet-meta",
   });
   const context = contextResult.context;
-
-  const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
-  const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
-  const matchesWallet = registration.exists
-    && ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address))
-    && ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
-      === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey));
+  const {
+    signer,
+    l2Identity,
+    registration,
+    expectedStorageKey,
+    matchesWallet,
+  } = await loadWalletChannelRegistrationState({
+    walletContext: wallet,
+    context,
+    provider,
+  });
 
   printJson({
     action: "get-my-wallet-meta",
@@ -2311,31 +2314,23 @@ async function handleGetMyWalletMeta({ args, provider }) {
 }
 
 async function loadWalletChannelFundState({ walletContext, provider, progressAction = null }) {
-  const { signer, l2Identity } = restoreWalletParticipant(walletContext, provider);
   const contextResult = await loadPreferredWalletChannelContext({
     walletContext,
     provider,
     progressAction,
   });
   const context = contextResult.context;
-  const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
-  expect(
-    registration.exists,
-    cliError(
-      CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
-      `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
-    ),
-  );
-  const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
-  expect(
-    ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
-    "The local wallet L2 address does not match the registered channel L2 address.",
-  );
-  expect(
-    ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
-      === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey)),
-    "The local wallet L2 storage key does not match the registered channelTokenVault key.",
-  );
+  const {
+    signer,
+    l2Identity,
+    registration,
+    expectedStorageKey,
+  } = await loadWalletChannelRegistrationState({
+    walletContext,
+    context,
+    provider,
+    requireRegistration: true,
+  });
 
   const stateManager = await buildStateManager(context.currentSnapshot, context.contractCodes);
   const channelDeposit = await currentStorageBigInt(
@@ -2351,6 +2346,43 @@ async function loadWalletChannelFundState({ walletContext, provider, progressAct
     registration,
     expectedStorageKey,
     channelFund: channelDeposit,
+  };
+}
+
+async function loadWalletChannelRegistrationState({
+  walletContext,
+  context,
+  provider,
+  requireRegistration = false,
+}) {
+  const { signer, l2Identity } = restoreWalletParticipant(walletContext, provider);
+  const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
+  const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
+  const matchesWallet = registration.exists
+    && ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address))
+    && ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+      === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey));
+
+  if (requireRegistration) {
+    expect(
+      registration.exists,
+      cliError(
+        CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
+        `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
+      ),
+    );
+    expect(
+      matchesWallet,
+      "The local wallet L2 address or storage key does not match the registered channelTokenVault state.",
+    );
+  }
+
+  return {
+    signer,
+    l2Identity,
+    registration,
+    expectedStorageKey,
+    matchesWallet,
   };
 }
 
@@ -2390,9 +2422,9 @@ async function handleGetMyChannelFund({ args, provider }) {
 }
 
 async function handleJoinChannel({ args, network, provider, rpcUrl }) {
-  const context = await loadChannelContext({
+  const context = await loadJoinChannelContext({
     args,
-    networkName: network.name,
+    network,
     provider,
   });
   const signer = requireL1Signer(args, provider);
@@ -4223,24 +4255,10 @@ async function loadWorkspaceContext(workspaceName, networkName, provider) {
   };
 }
 
-async function loadChannelContext({ args, networkName, provider, walletContext = null }) {
+async function loadJoinChannelContext({ args, network, provider }) {
   const chainId = Number((await provider.getNetwork()).chainId);
-  const resolvedNetworkName = networkName ?? networkNameFromChainId(chainId);
-  const channelName = args.channelName ?? walletContext?.wallet.channelName;
-  if (args.channelName && walletContext) {
-    expect(
-      args.channelName === walletContext.wallet.channelName,
-      [
-        `The provided --channel-name (${args.channelName}) does not match the wallet channel`,
-        `(${walletContext.wallet.channelName}).`,
-      ].join(" "),
-    );
-  }
-  if (!channelName) {
-    throw new Error(
-      "Missing channel selector. Provide either --channel-name or --wallet bound to a channel.",
-    );
-  }
+  const resolvedNetworkName = network?.name ?? networkNameFromChainId(chainId);
+  const channelName = requireArg(args.channelName, "--channel-name");
 
   const bridgeResources = loadBridgeResources({ chainId });
   const initialized = await initializeChannelWorkspace({

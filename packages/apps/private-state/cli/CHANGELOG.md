@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 - 2026-05-06
 
 - Refreshed channel workspaces through the existing recovery-indexed replay path after successful
   wallet transactions instead of manually patching local snapshots, preventing stale
@@ -24,9 +24,6 @@
 - Kept account secrets out of wallet exports. Wallet commands restore their signer from the
   encrypted `wallet.json`, while account secrets remain scoped to account-level bridge-vault
   commands and optional `--tx-submitter` use.
-
-## 1.1.0 - 2026-05-06
-
 - Reclassified user-facing commands into `account`, `channel`, `wallet`, and `help` namespaces.
   `install`, `uninstall`, and `--version` remain top-level commands.
 - Renamed `get-my-l1-address` to `account get-l1-address` so account helpers live under the

@@ -226,7 +226,9 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - reuses existing local artifacts when their hashes still match the current on-chain channel state
 - is optional in the happy path because wallet-backed snapshot commands now materialize and refresh the saved workspace automatically
 - accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
-- resumes RPC log scanning from the saved recovery index by default; pass `--from-genesis` only when the local index should be ignored and the channel should be replayed from its creation block
+- resumes RPC log scanning from the saved recovery index by default
+- fails instead of silently replaying from channel genesis when no usable recovery index exists
+- accepts `--from-genesis` when the user intentionally wants to ignore the local index and replay the channel from its creation block
 
 `get-channel`
 
@@ -270,6 +272,9 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - resets `l2Nonce` to `0`
 - stops early if the target wallet folder already exists and decrypts to valid metadata and registration state for the requested channel
 - accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
+- resumes channel workspace scanning from the saved recovery index by default
+- fails instead of silently replaying from channel genesis when no usable recovery index exists
+- accepts `--from-genesis` when the user intentionally wants to rebuild channel state from the channel creation block before recovering the wallet
 
 ### 6. Inspect wallet-to-channel registration
 

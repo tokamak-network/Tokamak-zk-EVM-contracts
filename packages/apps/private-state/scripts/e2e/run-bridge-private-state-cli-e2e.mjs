@@ -1319,9 +1319,10 @@ function joinChannel(participant) {
   return result;
 }
 
-function recoverWallet(participant) {
+function recoverWallet(participant, { fromGenesis = false } = {}) {
   const result = runAnvilBridgeCliCommand("recover-wallet", [
     "--channel-name", channelName,
+    ...(fromGenesis ? ["--from-genesis"] : []),
     ...signerCliArgs(participant),
   ]);
   participant.walletName = result.wallet;
@@ -1360,9 +1361,10 @@ function getMyChannelFund(participant) {
   return runAnvilCliCommand("get-my-channel-fund", walletCliArgs(participant));
 }
 
-function recoverWorkspace() {
+function recoverWorkspace({ fromGenesis = false } = {}) {
   return runAnvilBridgeCliCommand("recover-workspace", [
     "--channel-name", channelName,
+    ...(fromGenesis ? ["--from-genesis"] : []),
   ]);
 }
 
@@ -1691,15 +1693,21 @@ async function main() {
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
 
     deleteWorkspaceDir();
-    const recoverWorkspaceAfterNotesResult = recoverWorkspace();
+    const recoverWorkspaceAfterNotesResult = recoverWorkspace({ fromGenesis: true });
     expect(
       recoverWorkspaceAfterNotesResult.channelName === channelName,
       "recover-workspace must rebuild the deleted workspace after note activity.",
     );
+    deleteWorkspaceDir();
+    const recoverWalletFromGenesisAfterWorkspaceReset = recoverWallet(participants[2], { fromGenesis: true });
+    expect(
+      recoverWalletFromGenesisAfterWorkspaceReset.wallet === participants[2].walletName,
+      "recover-wallet --from-genesis must restore participant-c after workspace deletion.",
+    );
     const recoverWalletAfterWorkspaceReset = recoverWallet(participants[2]);
     expect(
       recoverWalletAfterWorkspaceReset.wallet === participants[2].walletName,
-      "recover-wallet must restore participant-c after workspace recovery.",
+      "recover-wallet must restore participant-c from the refreshed recovery index.",
     );
 
     const channelDepositBeforeWithdraw = getMyChannelFund(participants[2]);

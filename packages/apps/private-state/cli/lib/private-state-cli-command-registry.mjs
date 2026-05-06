@@ -207,7 +207,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Create a bridge channel and initialize its workspace.",
     fields: ["channelName", "joinToll", "network", "account", "rpcUrl"],
     usage: "--channel-name, --join-toll, --network, --account, and optional --rpc-url",
-    help: ["Prints the immutable policy snapshot before sending the transaction"],
+    help: [
+      "Prints the immutable policy snapshot before sending the transaction",
+      "Initializes the local channel workspace by replaying channel logs from channel genesis",
+    ],
   },
   {
     id: "recover-workspace",
@@ -216,6 +219,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     usage: "--channel-name, --network, optional --from-genesis, and optional --rpc-url",
     help: [
       "By default, resumes RPC log scanning from the workspace recovery index when available",
+      "Fails instead of falling back to genesis when no usable recovery index exists",
       "Use --from-genesis to ignore the recovery index and replay logs from channel genesis",
       "Prints RPC log scan progress while rebuilding the workspace",
     ],
@@ -247,11 +251,14 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
   {
     id: "recover-wallet",
     description: "Rebuild a recoverable local wallet from on-chain channel state.",
-    fields: ["channelName", "network", "account", "rpcUrl"],
-    usage: "--channel-name, --network, --account, and optional --rpc-url",
+    fields: ["channelName", "network", "account", "fromGenesis", "rpcUrl"],
+    usage: "--channel-name, --network, --account, optional --from-genesis, and optional --rpc-url",
     help: [
       "Requires the protected wallet-local secret imported during join-channel to exist at the canonical secret path",
       "Does not create or recover the wallet secret itself",
+      "By default, resumes RPC log scanning from the workspace recovery index when available",
+      "Fails instead of falling back to genesis when no usable recovery index exists",
+      "Use --from-genesis to ignore the recovery index and replay channel logs from channel genesis",
       "Prints RPC log scan progress while rebuilding channel state and received-note state",
     ],
   },

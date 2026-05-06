@@ -525,6 +525,8 @@ async function handleChannelCreate({ args, network, provider }) {
     provider,
     bridgeResources,
     persist: true,
+    fromGenesis: true,
+    progressAction: "create-channel",
   });
 
   printJson({
@@ -822,6 +824,13 @@ async function initializeChannelWorkspace({
       managedStorageAddresses,
     })
     : null;
+  if (useWorkspaceRecoveryIndex && !fromGenesis && !localSnapshotReusable && !recoveryIndex) {
+    throw new Error([
+      `Workspace recovery index is missing or unusable for channel ${channelName} on ${networkNameFromChainId(network.chainId)}.`,
+      "The CLI will not fall back to replaying channel logs from genesis unless explicitly requested.",
+      "Run recover-workspace --from-genesis or recover-wallet --from-genesis to rebuild from channel genesis.",
+    ].join(" "));
+  }
   const reconstruction = localSnapshotReusable
     ? {
       currentSnapshot: existingArtifacts.stateSnapshot,
@@ -993,6 +1002,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     persist: true,
     allowExistingWorkspaceSync: true,
     useWorkspaceRecoveryIndex: true,
+    fromGenesis: args.fromGenesis === true,
     progressAction: "recover-wallet",
   });
   const context = {
@@ -2129,8 +2139,8 @@ function applyGuideNextAction(guide) {
   }
   if (guide.selectors.channelName && guide.state.channel?.onchain?.exists && !guide.state.channel?.local?.workspaceExists) {
     setGuideNextAction(guide, {
-      command: `recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network}`,
-      why: "The channel exists on-chain, but the local channel workspace has not been recovered yet.",
+      command: `recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network} --from-genesis`,
+      why: "The channel exists on-chain, but the local channel workspace has not been recovered yet, so there is no local recovery index to resume from.",
     });
     return;
   }
@@ -6051,6 +6061,9 @@ function assertExplicitSignerCommandArgs(args, commandName) {
 
 function assertRecoverWalletArgs(args) {
   assertExplicitSignerCommandArgs(args, "recover-wallet");
+  if (args.fromGenesis !== undefined && args.fromGenesis !== true) {
+    throw new Error("recover-wallet option --from-genesis does not accept a value.");
+  }
 }
 
 function assertJoinChannelArgs(args) {
@@ -6886,6 +6899,11 @@ function buildRecoveryHints(error, args = {}) {
   if (error?.code === CLI_ERROR_CODES.STALE_WORKSPACE) {
     hints.push(`private-state-cli recover-workspace --channel-name ${channelName} --network ${networkName}`);
     hints.push(`private-state-cli guide --network ${networkName} --channel-name ${channelName}`);
+  }
+
+  if (message.includes("Workspace recovery index is missing or unusable")) {
+    hints.push(`private-state-cli recover-workspace --channel-name ${channelName} --network ${networkName} --from-genesis`);
+    hints.push(`private-state-cli recover-wallet --channel-name ${channelName} --network ${networkName} --account ${accountName} --from-genesis`);
   }
 
   if (message.includes("Missing channel selector")) {

@@ -86,6 +86,19 @@ A common private-state flow is:
 
 Use `private-state-cli --help` for the full command list and required options.
 
+Workspace recovery commands use the saved recovery index by default. If the local workspace is missing, corrupted, or
+does not contain a usable index, `recover-workspace` and `recover-wallet` stop with an explicit error instead of
+silently replaying logs from channel genesis. Use `--from-genesis` only when you intentionally want to rebuild from the
+channel creation block:
+
+```bash
+private-state-cli recover-workspace --channel-name <CHANNEL> --network mainnet --from-genesis
+private-state-cli recover-wallet --channel-name <CHANNEL> --network mainnet --account <ACCOUNT> --from-genesis
+```
+
+`create-channel` is the exception: after the channel is created on-chain, the CLI initializes that new local workspace
+by replaying from the channel's genesis block because no prior recovery index can exist for a new channel.
+
 Estimate live transaction costs before sending commands with:
 
 ```bash
@@ -205,6 +218,9 @@ Operating rules:
     `<channelName>-<l1Address>`.
   - The network RPC URL is the endpoint used to read and write chain state. It can be supplied once with `--rpc-url`
     on a bridge-facing command, after which the CLI saves it under the selected network.
+  - A workspace recovery index is the saved block pointer and state-root hash that lets the CLI resume log scanning
+    without replaying the channel from its creation block. If it is missing, explain `--from-genesis` before using it
+    because genesis replay can take much longer.
 - When the user does not have a network RPC URL yet, explain that they need an Ethereum JSON-RPC endpoint for the
   selected network. They can obtain one from an infrastructure provider such as Alchemy, Infura, QuickNode, or from
   their own node. Ask the user to create or select the endpoint in that provider's UI, then paste only the endpoint URL

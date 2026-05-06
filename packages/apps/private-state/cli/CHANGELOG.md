@@ -15,6 +15,9 @@
   guiding new users through `join-channel`.
 - Added RPC log scan progress output to `recover-workspace` and `recover-wallet`, with progress
   routed to stderr in `--json` mode so machine-readable command results stay valid.
+- Added `recover-wallet --from-genesis` and removed implicit genesis replay fallback from
+  `recover-workspace` and `recover-wallet`; both commands now require a usable recovery index
+  unless the user explicitly requests `--from-genesis`.
 - Unified wallet command workspace refresh through the same recovery-indexed path used by
   `recover-workspace`, and shared received-note recovery through the wallet's
   `noteReceiveLastScannedBlock` index.

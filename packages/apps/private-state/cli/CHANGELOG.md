@@ -23,6 +23,8 @@
   an imported wallet can be used after `channel recover-workspace`. Tracked notes remain preserved
   because they live inside encrypted `wallet.json`; `--include-notes` also includes the channel
   workspace cache needed to use wallet commands immediately when that cache is still chain-aligned.
+- Hardened `wallet import` error handling for invalid ZIP or manifest data and staged imported
+  files in a temporary directory before committing them into the CLI data root.
 - Kept account secrets out of wallet exports. Wallet commands restore their signer from the
   encrypted `wallet.json`, while account secrets remain scoped to account-level bridge-vault
   commands and optional `--tx-submitter` use.

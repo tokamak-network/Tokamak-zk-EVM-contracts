@@ -1957,11 +1957,7 @@ function handleWalletImport({ args }) {
   const inputPath = path.resolve(String(requireArg(args.input, "--input")));
   expect(fs.existsSync(inputPath), `Import ZIP does not exist: ${inputPath}.`);
 
-  const archive = new AdmZip(inputPath);
-  const manifestEntry = archive.getEntry("manifest.json");
-  expect(manifestEntry, "Wallet import ZIP is missing manifest.json.");
-  const manifest = JSON.parse(manifestEntry.getData().toString("utf8"));
-  validateWalletExportManifest(manifest);
+  const { archive, manifest } = readWalletImportArchive(inputPath);
 
   const archiveFiles = new Set(manifest.files);
   for (const entry of archive.getEntries()) {
@@ -1975,6 +1971,7 @@ function handleWalletImport({ args }) {
   }
 
   const targetRoot = privateStateCliDataRoot();
+  ensureDir(targetRoot);
   const plannedWrites = manifest.files.map((archivePath) => {
     validateWalletArchivePath(archivePath);
     const entry = archive.getEntry(archivePath);
@@ -1989,11 +1986,7 @@ function handleWalletImport({ args }) {
     };
   });
 
-  for (const write of plannedWrites) {
-    ensureDir(path.dirname(write.targetPath));
-    fs.writeFileSync(write.targetPath, write.data);
-    applyImportedWalletFileMode(write.archivePath, write.targetPath);
-  }
+  commitWalletImportFiles({ targetRoot, plannedWrites });
 
   printJson({
     action: "wallet import",
@@ -2007,6 +2000,50 @@ function handleWalletImport({ args }) {
       ? "Wallet commands can run immediately if the imported channel workspace cache is still chain-aligned."
       : "Run channel recover-workspace before wallet commands need channel state.",
   });
+}
+
+function readWalletImportArchive(inputPath) {
+  try {
+    const archive = new AdmZip(inputPath);
+    const manifestEntry = archive.getEntry("manifest.json");
+    expect(manifestEntry, "Wallet import ZIP is missing manifest.json.");
+    const manifest = JSON.parse(manifestEntry.getData().toString("utf8"));
+    validateWalletExportManifest(manifest);
+    return { archive, manifest };
+  } catch (error) {
+    throw new Error(`Failed to read wallet import ZIP ${inputPath}: ${error.message}`);
+  }
+}
+
+function commitWalletImportFiles({ targetRoot, plannedWrites }) {
+  const stagingRoot = fs.mkdtempSync(path.join(targetRoot, ".wallet-import-"));
+  const committedPaths = [];
+  try {
+    for (const write of plannedWrites) {
+      write.stagingPath = path.resolve(stagingRoot, write.archivePath);
+      expectPathWithinRoot(write.stagingPath, stagingRoot, `Unsafe staging target for ${write.archivePath}.`);
+      ensureDir(path.dirname(write.stagingPath));
+      fs.writeFileSync(write.stagingPath, write.data);
+      applyImportedWalletFileMode(write.archivePath, write.stagingPath);
+    }
+
+    for (const write of plannedWrites) {
+      expect(!fs.existsSync(write.targetPath), `Refusing to overwrite existing file: ${write.targetPath}.`);
+    }
+
+    for (const write of plannedWrites) {
+      ensureDir(path.dirname(write.targetPath));
+      fs.renameSync(write.stagingPath, write.targetPath);
+      committedPaths.push(write.targetPath);
+    }
+  } catch (error) {
+    for (const committedPath of committedPaths.reverse()) {
+      fs.rmSync(committedPath, { force: true });
+    }
+    throw error;
+  } finally {
+    fs.rmSync(stagingRoot, { recursive: true, force: true });
+  }
 }
 
 async function handleGuide({ args }) {

@@ -2955,7 +2955,11 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   sealWalletOperationDir(operationDir, walletContext.walletSecret);
 
   context.currentSnapshot = transition.nextSnapshot;
-  persistCurrentState(context);
+  await refreshPersistedWorkspaceAfterLocalTransaction({
+    context,
+    provider,
+    progressAction: operationName,
+  });
 
   emitProgress(operationName, "done");
   printJson({
@@ -4281,6 +4285,47 @@ async function recoverWalletChannelWorkspace({ walletContext, provider, progress
   });
 }
 
+async function refreshPersistedWorkspaceAfterLocalTransaction({
+  context,
+  provider,
+  progressAction = null,
+}) {
+  if (!context.persistChannelWorkspace || !context.workspaceDir) {
+    return context;
+  }
+  const network = resolveCliNetwork(context.workspace.network);
+  const bridgeResources = loadBridgeResources({ chainId: Number(context.workspace.chainId) });
+  const refreshed = await initializeChannelWorkspace({
+    workspaceName: context.workspaceName,
+    channelName: context.workspace.channelName,
+    network,
+    provider,
+    bridgeResources,
+    persist: true,
+    allowExistingWorkspaceSync: true,
+    useWorkspaceRecoveryIndex: true,
+    progressAction,
+  });
+
+  context.workspaceDir = refreshed.workspaceDir;
+  context.workspace = refreshed.workspace;
+  context.currentSnapshot = refreshed.currentSnapshot;
+  context.blockInfo = refreshed.blockInfo;
+  context.contractCodes = refreshed.contractCodes;
+  context.bridgeAbiManifest = bridgeResources.bridgeAbiManifest;
+  context.channelManager = new Contract(
+    refreshed.workspace.channelManager,
+    bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
+  context.bridgeTokenVault = new Contract(
+    refreshed.workspace.bridgeTokenVault,
+    bridgeResources.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+    provider,
+  );
+  return context;
+}
+
 function isRecoverableWalletWorkspaceFailure(error) {
   const message = String(error?.message ?? error);
   return (message.includes("--verify") && message.includes("failed with exit code"))
@@ -4332,6 +4377,7 @@ async function executeWalletDirectTemplateCommand({
       txSubmitterAccount,
       l2Identity,
       context: contextResult.context,
+      provider,
       operationName,
       functionName: templatePayload.method,
       templatePayload,
@@ -4363,6 +4409,7 @@ async function executeWalletDirectTemplateCommand({
     txSubmitterAccount,
     l2Identity,
     context: contextResult.context,
+    provider,
     operationName,
     functionName: templatePayload.method,
     templatePayload,
@@ -4383,6 +4430,7 @@ async function executeWalletTemplateSend({
   txSubmitterAccount,
   l2Identity,
   context,
+  provider,
   operationName,
   functionName,
   templatePayload,
@@ -4476,7 +4524,11 @@ async function executeWalletTemplateSend({
   applyNoteLifecycleToWallet(wallet, noteLifecycle, functionName, receipt.hash);
   context.currentSnapshot = nextSnapshot;
   persistWallet(wallet);
-  persistCurrentState(context);
+  await refreshPersistedWorkspaceAfterLocalTransaction({
+    context,
+    provider,
+    progressAction: operationName,
+  });
   sealWalletOperationDir(operationDir, wallet.walletSecret);
 
   return {
@@ -6618,17 +6670,6 @@ function persistWalletMetadata(context) {
     rpcUrl: context.wallet.rpcUrl,
     channelName: context.wallet.channelName,
   });
-}
-
-function persistCurrentState(context) {
-  if (!context.persistChannelWorkspace || !context.workspaceDir) {
-    return;
-  }
-  writeJson(path.join(channelWorkspaceCurrentPath(context.workspaceDir), "state_snapshot.json"), context.currentSnapshot);
-  writeJson(
-    path.join(channelWorkspaceCurrentPath(context.workspaceDir), "state_snapshot.normalized.json"),
-    context.currentSnapshot,
-  );
 }
 
 function printHelp() {

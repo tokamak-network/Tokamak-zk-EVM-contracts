@@ -1524,6 +1524,7 @@ async function main() {
 
   let createChannelResult = null;
   let recoverWorkspaceResult = null;
+  let recoverWorkspaceAfterLocalTransactions = null;
   let bridgeDeployment = null;
   let canonicalAsset = null;
   let dappRegistrationResult = null;
@@ -1720,6 +1721,11 @@ async function main() {
     );
     const notesAfterRedeemC = getMyNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
+    recoverWorkspaceAfterLocalTransactions = recoverWorkspace();
+    expect(
+      recoverWorkspaceAfterLocalTransactions.recoveryScanRange?.mode !== "genesis",
+      "recover-workspace must not fall back to genesis after wallet transactions refresh the recovery index.",
+    );
 
     const walletExportIncludeNotes = exportWallet(participants[2], {
       includeNotes: true,
@@ -1860,6 +1866,7 @@ async function main() {
       dappRegistration: dappRegistrationResult,
       createChannel: createChannelResult,
       recoverWorkspace: recoverWorkspaceResult,
+      recoverWorkspaceAfterLocalTransactions,
       recoverWorkspaceAfterNotes: recoverWorkspaceAfterNotesResult,
       walletExportImport: {
         includeNotesExport: walletExportIncludeNotes,

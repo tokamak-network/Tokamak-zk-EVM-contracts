@@ -556,6 +556,7 @@ async function handleChannelCreate({ args, network, provider }) {
     bridgeResources,
     persist: true,
     fromGenesis: true,
+    minimumToBlock: receipt.blockNumber,
     progressAction: "channel create",
   });
 
@@ -776,6 +777,7 @@ async function initializeChannelWorkspace({
   allowExistingWorkspaceSync = false,
   useWorkspaceRecoveryIndex = false,
   fromGenesis = false,
+  minimumToBlock = null,
   progressAction = null,
 }) {
   const workspaceDir = channelWorkspacePath(networkNameFromChainId(network.chainId), workspaceName);
@@ -809,7 +811,10 @@ async function initializeChannelWorkspace({
   const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
   const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
   const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
-  const latestBlock = await provider.getBlockNumber();
+  const observedLatestBlock = await provider.getBlockNumber();
+  const latestBlock = minimumToBlock === null
+    ? observedLatestBlock
+    : Math.max(observedLatestBlock, Number(minimumToBlock));
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
   const policySnapshot = await readChannelPolicySnapshot({
     channelManager,
@@ -3011,6 +3016,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   await refreshPersistedWorkspaceAfterLocalTransaction({
     context,
     provider,
+    receipt,
     progressAction: operationName,
   });
 
@@ -4343,6 +4349,7 @@ async function recoverWalletChannelWorkspace({ walletContext, provider, progress
 async function refreshPersistedWorkspaceAfterLocalTransaction({
   context,
   provider,
+  receipt,
   progressAction = null,
 }) {
   if (!context.persistChannelWorkspace || !context.workspaceDir) {
@@ -4359,6 +4366,7 @@ async function refreshPersistedWorkspaceAfterLocalTransaction({
     persist: true,
     allowExistingWorkspaceSync: true,
     useWorkspaceRecoveryIndex: true,
+    minimumToBlock: receipt?.blockNumber ?? null,
     progressAction,
   });
 
@@ -4582,6 +4590,7 @@ async function executeWalletTemplateSend({
   await refreshPersistedWorkspaceAfterLocalTransaction({
     context,
     provider,
+    receipt,
     progressAction: operationName,
   });
   sealWalletOperationDir(operationDir, wallet.walletSecret);

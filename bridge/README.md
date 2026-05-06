@@ -31,7 +31,7 @@ The documents do not specify enough operational detail to implement every produc
 
 - final proposal-pool and token-economics behavior
 
-Tokamak proof verification is no longer mocked. The bridge now calls the real verifier under `bridge/src/verifiers/`, binds the user-supplied transaction instance to fields extracted from `aPubUser`, and checks the channel-scoped `aPubBlockHash` together with the DApp-managed preprocess-input hash and per-function storage-write metadata. The channel manager no longer stores the full current root vector on-chain; it stores only `currentRootVectorHash`. The full updated root vector is emitted as `CurrentRootVectorObserved` after every proof-backed state transition so off-chain indexers can reconstruct the post-state that produced the new hash. After a successful verification, `executeChannelTransaction` emits `StorageWriteObserved` for every decoded `aPubUser` storage write, and the Groth-backed `deposit` and `withdraw` paths emit the same event format for their `channelTokenVault` writes. Under the latest synthesizer format, those events now expose the storage key rather than the derived tree index. The bridge still derives the `channelTokenVault` leaf index internally from that storage key when it updates the local leaf cache. A Tokamak proof that changes the `channelTokenVault` root without a matching `channelTokenVault` storage write is rejected.
+Tokamak proof verification is no longer mocked. The bridge now calls the real verifier under `bridge/src/verifiers/`, binds the user-supplied transaction instance to fields extracted from `aPubUser`, and checks the channel-scoped `aPubBlockHash` together with the DApp-managed preprocess-input hash and per-function storage-write metadata. The channel manager no longer stores the full current root vector on-chain; it stores only `currentRootVectorHash`. The full updated root vector is emitted as `CurrentRootVectorObserved` after every proof-backed state transition so off-chain indexers can reconstruct the post-state that produced the new hash. After a successful verification, `executeChannelTransaction` emits `StorageWriteObserved` for every decoded `aPubUser` storage write, and the Groth-backed `depositToChannelVault(...)` and `withdrawFromChannelVault(...)` paths emit the same event format for their `channelTokenVault` writes. Under the latest synthesizer format, those events now expose the storage key rather than the derived tree index. The bridge still derives the `channelTokenVault` leaf index internally from that storage key when it updates the local leaf cache. A Tokamak proof that changes the `channelTokenVault` root without a matching `channelTokenVault` storage write is rejected.
 
 Groth proof verification is also no longer mocked. The bridge expects raw Groth16 proof coordinates and forwards them into the generated `updateTree` verifier under `bridge/src/generated/`. Under the current circuit model, each `channelTokenVault` leaf is the raw stored balance value rather than a key-value hash.
 
@@ -223,7 +223,7 @@ node bridge/scripts/admin-add-dapp.mjs \
 
 ## User safety note
 
-For bridge-coupled private-state channels, users should treat `join-channel` as the activation step for all later channel activity.
+For bridge-coupled private-state channels, users should treat `private-state-cli channel join` as the activation step for all later channel activity.
 
 Operators and user-facing documentation should instruct users not to:
 
@@ -232,11 +232,11 @@ Operators and user-facing documentation should instruct users not to:
 - expect incoming note delivery
 - attempt wallet recovery from channel activity
 
-until the `join-channel` transaction has been confirmed on-chain and the registration receipt has been checked successfully.
+until the `channel join` transaction has been confirmed on-chain and the registration receipt has been checked successfully.
 
 Until that confirmation exists, the user's channel registration is not final and later channel actions can be mis-targeted or fail against incomplete channel identity state.
 
-Users should also treat `join-channel` as acceptance of the channel's immutable operating policy. Before joining, users should be shown the channel's verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy at a level appropriate for the interface. If a later policy-level issue is found, the expected mitigation is a new channel or migration flow, not in-place mutation of the joined channel.
+Users should also treat `channel join` as acceptance of the channel's immutable operating policy. Before joining, users should be shown the channel's verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy at a level appropriate for the interface. If a later policy-level issue is found, the expected mitigation is a new channel or migration flow, not in-place mutation of the joined channel.
 
 After a successful bridge deployment, the bridge-owned Groth16 deployment mirror is refreshed under:
 

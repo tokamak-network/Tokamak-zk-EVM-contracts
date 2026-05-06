@@ -121,7 +121,9 @@ Important rules:
 - channel creation commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy are fixed for that channel
 - joining a channel means accepting that channel's current policy; later fixes to policy-level bugs require a new channel or migration rather than in-place mutation of the joined channel
 - `channel join` binds the channel name, wallet-local secret, and local account signer to derive the channel-specific L2 identity
-- `channel join` is the only command that sets up encrypted L1/L2 wallet keys
+- `channel join` is the first-time wallet setup command for a channel; `wallet recover-workspace`
+  can later rebuild recoverable wallet state from the canonical wallet-local secret and on-chain
+  channel data
 - wallet folder names are fixed to `<channelName>-<l1Address>`
 - recipient note delivery is recovered from bridge-propagated Ethereum event logs through `wallet get-notes`
 - `anvil` support exists only for command-driven local end-to-end testing

@@ -3,8 +3,10 @@
 ## 1.1.0 - 2026-05-06
 
 - Refreshed channel workspaces through the existing recovery-indexed replay path after successful
-  wallet transactions instead of manually patching local snapshots, preventing stale
-  `recoveryRootVectorHash` / `recoveryLastScannedBlock` metadata after local state changes.
+  wallet transactions instead of manually patching local snapshots, and bounded post-transaction
+  replay by the transaction receipt block so provider latest-block lag cannot skip the confirmed
+  transaction logs. This prevents stale `recoveryRootVectorHash` / `recoveryLastScannedBlock`
+  metadata after local state changes.
 - Reported `usedWorkspaceCache` and `recoveredWorkspace` from channel vault move commands so
   automated tests can verify that follow-up wallet transactions do not replay workspace recovery
   when the local workspace is already current.

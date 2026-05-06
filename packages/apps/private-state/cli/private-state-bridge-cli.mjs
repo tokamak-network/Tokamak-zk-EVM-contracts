@@ -68,6 +68,7 @@ import {
   installPrivateStateCliArtifacts,
   installTokamakCliRuntimeForPrivateState,
   inspectGroth16Runtime,
+  parseJsonReport,
   printDoctorHumanReport,
   privateStateCliArtifactPaths,
   readTokamakCliPackageReport,
@@ -77,6 +78,7 @@ import {
   resolveArtifactCacheBaseRoot,
   resolvePrivateStateInstallRuntimeVersions,
   resolveTokamakCliResourceDirForRuntimeRoot,
+  stripAnsi,
   writePrivateStateCliInstallManifest,
 } from "./lib/private-state-runtime-management.mjs";
 import {
@@ -1586,18 +1588,6 @@ function isRepositoryCliPackageRoot(packageRoot) {
   const segments = path.resolve(packageRoot).split(path.sep);
   const suffix = ["packages", "apps", "private-state", "cli"];
   return suffix.every((segment, index) => segments[segments.length - suffix.length + index] === segment);
-}
-
-function parseJsonReport(value) {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
-
-function stripAnsi(value) {
-  return String(value ?? "").replace(/\u001b\[[0-9;]*m/g, "");
 }
 
 async function handleDoctor({ args }) {

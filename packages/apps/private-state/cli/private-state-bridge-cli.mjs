@@ -2975,6 +2975,8 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     updatedRoot: transition.update.updatedRoot,
     gasUsed: receiptGasUsed(receipt),
     txUrl: explorerTxUrl(network, receipt.hash),
+    usedWorkspaceCache: contextResult.usingWorkspaceCache,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
   });
 }
 

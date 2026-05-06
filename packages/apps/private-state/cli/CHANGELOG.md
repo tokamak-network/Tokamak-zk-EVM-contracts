@@ -5,6 +5,9 @@
 - Refreshed channel workspaces through the existing recovery-indexed replay path after successful
   wallet transactions instead of manually patching local snapshots, preventing stale
   `recoveryRootVectorHash` / `recoveryLastScannedBlock` metadata after local state changes.
+- Reported `usedWorkspaceCache` and `recoveredWorkspace` from channel vault move commands so
+  automated tests can verify that follow-up wallet transactions do not replay workspace recovery
+  when the local workspace is already current.
 - Added `wallet export` and `wallet import` for ZIP-based local wallet backup and restore.
   The default export includes the encrypted wallet, wallet metadata, and wallet-local secret so
   an imported wallet can be used after `channel recover-workspace`. Tracked notes remain preserved

@@ -1520,6 +1520,17 @@ function assertPostTransactionWorkspaceRecoveryIndex(result, label) {
   );
 }
 
+function assertWalletCommandUsedCurrentWorkspace(result, label) {
+  expect(
+    result?.usedWorkspaceCache === true,
+    `${label} must use the current local workspace cache.`,
+  );
+  expect(
+    result?.recoveredWorkspace === false,
+    `${label} must not run workspace recovery before the transaction.`,
+  );
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   currentCliE2EOptions = options;
@@ -1655,6 +1666,8 @@ async function main() {
     const mintA = mintNotes(participants[0], [3], { txSubmitter: txSubmitterAccount });
     const mintB = mintNotes(participants[1], [3]);
     const mintC = mintNotes(participants[2], [3]);
+    assertWalletCommandUsedCurrentWorkspace(mintB, "second mint transaction after a successful first mint");
+    assertWalletCommandUsedCurrentWorkspace(mintC, "third mint transaction after multiple successful mints");
     expect(
       getAddress(mintA.l1Submitter) === txSubmitterAddress,
       "mint-notes --tx-submitter must submit with the requested local account.",
@@ -1712,6 +1725,7 @@ async function main() {
       [participants[2].l2Address],
       [4],
     );
+    assertWalletCommandUsedCurrentWorkspace(transferB, "transfer transaction after a successful previous transfer");
     const noteBToC = pickOutputNoteByOwner(transferB.outputNotes, participants[2].l2Address, 4n * amountUnit);
     expect(
       Array.isArray(transferB.deliveredRecipients) && transferB.deliveredRecipients.length === 0,
@@ -1728,6 +1742,8 @@ async function main() {
     const redeemAToC = redeemNotes(participants[2], [noteAToC.commitment], { txSubmitter: txSubmitterAccount });
     const redeemBToC = redeemNotes(participants[2], [noteBToC.commitment]);
     const redeemCMint = redeemNotes(participants[2], [cMintNote.commitment]);
+    assertWalletCommandUsedCurrentWorkspace(redeemBToC, "redeem transaction after a successful previous redeem");
+    assertWalletCommandUsedCurrentWorkspace(redeemCMint, "redeem transaction after multiple successful redeems");
     expect(
       getAddress(redeemAToC.l1Submitter) === txSubmitterAddress,
       "redeem-notes --tx-submitter must submit with the requested local account.",
@@ -1823,6 +1839,7 @@ async function main() {
 
     const l1BalanceBeforeClaim = readErc20Balance(canonicalAsset, participants[2].l1Address);
     const withdrawChannelResult = withdrawChannel(participants[2], claimAmountTokens);
+    assertWalletCommandUsedCurrentWorkspace(withdrawChannelResult, "withdraw-channel after recovered workspace is current");
     const bridgeDepositAfterWithdraw = getMyBridgeFund(participants[2]);
     const channelDepositAfterWithdraw = getMyChannelFund(participants[2]);
     assertBigIntEq(

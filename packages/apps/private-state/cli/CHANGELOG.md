@@ -8,6 +8,8 @@
   global npm installs when a newer version exists.
 - Kept repository checkouts and non-global installs read-only during `update`; those modes print
   the exact `npm install -g @tokamak-private-dapps/private-state-cli@latest` command instead.
+- Reused runtime-management output parsing helpers for `update` and `uninstall` instead of
+  duplicating npm JSON and ANSI-output handling in the CLI entrypoint.
 - Added `transaction-fees`, which reads packaged measured gas data from `assets/tx-fees.json`,
   combines it with live RPC fee data and live ETH/USD pricing, and prints a per-command ETH/USD
   fee table.
@@ -24,9 +26,9 @@
 - Added `recover-wallet --from-genesis` and removed implicit genesis replay fallback from
   `recover-workspace` and `recover-wallet`; both commands now require a usable recovery index
   unless the user explicitly requests `--from-genesis`.
-- Changed `get-my-wallet-meta`, `get-my-channel-fund`, and `get-my-notes` to use indexed recovery only before reading
-  channel state, with `get-my-notes` also validating the wallet note-receive recovery index before scanning delivery
-  logs.
+- Changed `get-my-wallet-meta`, `get-my-channel-fund`, and `get-my-notes` to use indexed
+  recovery only before reading channel state, with `get-my-notes` also validating the wallet
+  note-receive recovery index before scanning delivery logs.
 - Unified wallet command workspace refresh through the same recovery-indexed path used by
   `recover-workspace`, and shared received-note recovery through the wallet's
   `noteReceiveLastScannedBlock` index.

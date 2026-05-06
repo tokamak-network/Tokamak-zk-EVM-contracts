@@ -276,6 +276,11 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - fails instead of silently replaying from channel genesis when no usable recovery index exists
 - accepts `--from-genesis` when the user intentionally wants to rebuild channel state from the channel creation block before recovering the wallet
 
+Wallet getter commands that need channel state, including `get-my-wallet-meta`, `get-my-channel-fund`, and
+`get-my-notes`, use only indexed recovery before reading state. `get-my-notes` also resumes encrypted note delivery
+logs from the wallet's saved note-receive scan index. If the required index is missing or unusable, the command stops
+and asks the user to run `recover-workspace --from-genesis` or `recover-wallet --from-genesis` as appropriate.
+
 ### 6. Inspect wallet-to-channel registration
 
 `get-my-wallet-meta`

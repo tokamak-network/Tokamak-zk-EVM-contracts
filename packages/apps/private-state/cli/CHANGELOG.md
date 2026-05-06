@@ -18,6 +18,9 @@
 - Added `recover-wallet --from-genesis` and removed implicit genesis replay fallback from
   `recover-workspace` and `recover-wallet`; both commands now require a usable recovery index
   unless the user explicitly requests `--from-genesis`.
+- Changed `get-my-wallet-meta`, `get-my-channel-fund`, and `get-my-notes` to use indexed recovery only before reading
+  channel state, with `get-my-notes` also validating the wallet note-receive recovery index before scanning delivery
+  logs.
 - Unified wallet command workspace refresh through the same recovery-indexed path used by
   `recover-workspace`, and shared received-note recovery through the wallet's
   `noteReceiveLastScannedBlock` index.

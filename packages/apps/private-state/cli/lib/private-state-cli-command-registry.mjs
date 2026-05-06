@@ -277,6 +277,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Check whether a wallet matches the on-chain channel registration.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
+    help: ["Refreshes channel state through the workspace recovery index before reading registration metadata"],
   },
   {
     id: "get-my-l1-address",
@@ -308,6 +309,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Read the current channel L2 accounting balance.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
+    help: ["Refreshes channel state through the workspace recovery index before reading the L2 accounting balance"],
   },
   {
     id: "exit-channel",
@@ -341,6 +343,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Show the wallet's tracked note state and refresh received notes.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
+    help: [
+      "Refreshes channel state through the workspace recovery index before reading notes",
+      "Refreshes received-note logs through the wallet note recovery index",
+    ],
   },
 ]);
 

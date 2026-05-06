@@ -2280,12 +2280,12 @@ function redactRpcUrl(rpcUrl) {
 async function handleGetMyWalletMeta({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
-  const context = await loadChannelContext({
-    args,
-    networkName: walletMetadata.network,
-    provider,
+  const contextResult = await loadPreferredWalletChannelContext({
     walletContext: wallet,
+    provider,
+    progressAction: "get-my-wallet-meta",
   });
+  const context = contextResult.context;
 
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
@@ -2363,7 +2363,11 @@ async function handleGetMyChannelFund({ args, provider }) {
     registration,
     expectedStorageKey,
     channelFund,
-  } = await loadWalletChannelFundState({ walletContext: wallet, provider });
+  } = await loadWalletChannelFundState({
+    walletContext: wallet,
+    provider,
+    progressAction: "get-my-channel-fund",
+  });
 
   printJson({
     action: "get-my-channel-fund",
@@ -3333,11 +3337,12 @@ async function recoverDeliveredNotesFromEventLogs({
   noteReceivePrivateKey,
   progressAction = null,
 }) {
-  const scanStartBlock = Math.max(
-    Number(walletContext.wallet.noteReceiveLastScannedBlock),
-    Number(context.workspace.genesisBlockNumber),
-  );
   const latestBlock = await provider.getBlockNumber();
+  const scanStartBlock = requireUsableWalletNoteReceiveRecoveryIndex({
+    walletContext,
+    context,
+    latestBlock,
+  });
   const scanRange = {
     fromBlock: scanStartBlock,
     toBlock: latestBlock,
@@ -3439,6 +3444,23 @@ async function recoverDeliveredNotesFromEventLogs({
     scannedLogs: observedLogs.length,
     scanRange,
   };
+}
+
+function requireUsableWalletNoteReceiveRecoveryIndex({ walletContext, context, latestBlock }) {
+  const nextBlock = Number(walletContext.wallet.noteReceiveLastScannedBlock);
+  const genesisBlockNumber = Number(context.workspace.genesisBlockNumber);
+  if (
+    !Number.isInteger(nextBlock)
+    || nextBlock < genesisBlockNumber
+    || nextBlock > Number(latestBlock) + 1
+  ) {
+    throw new Error([
+      `Wallet note recovery index is missing or unusable for wallet ${walletContext.walletName}.`,
+      `Expected noteReceiveLastScannedBlock to be an integer between ${genesisBlockNumber} and ${Number(latestBlock) + 1}.`,
+      "Run recover-wallet --from-genesis to rebuild wallet note state from channel genesis.",
+    ].join(" "));
+  }
+  return nextBlock;
 }
 
 function extractEncryptedNoteValueFromBridgeLog(log) {
@@ -6903,6 +6925,10 @@ function buildRecoveryHints(error, args = {}) {
 
   if (message.includes("Workspace recovery index is missing or unusable")) {
     hints.push(`private-state-cli recover-workspace --channel-name ${channelName} --network ${networkName} --from-genesis`);
+    hints.push(`private-state-cli recover-wallet --channel-name ${channelName} --network ${networkName} --account ${accountName} --from-genesis`);
+  }
+
+  if (message.includes("Wallet note recovery index is missing or unusable")) {
     hints.push(`private-state-cli recover-wallet --channel-name ${channelName} --network ${networkName} --account ${accountName} --from-genesis`);
   }
 

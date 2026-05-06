@@ -244,7 +244,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - does not register the user in the channel
 - accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
 
-`get-my-bridge-fund`
+`account get-bridge-fund`
 
 - reads the caller's balance in the shared bridge-level `bridgeTokenVault`
 - requires `--network` and `--account`; accepts optional `--rpc-url`, otherwise reads the saved network `RPC_URL`

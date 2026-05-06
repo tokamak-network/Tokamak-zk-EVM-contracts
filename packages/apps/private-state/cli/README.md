@@ -264,7 +264,7 @@ Operating rules:
   for a local account when wallet ownership needs to be identified.
 - Use `private-state-cli get-my-wallet-meta --wallet <WALLET> --network <NETWORK>` to inspect
   local wallet metadata and on-chain channel registration state.
-- Use `private-state-cli get-my-bridge-fund` and `private-state-cli get-my-channel-fund` to check balances before
+- Use `private-state-cli account get-bridge-fund` and `private-state-cli get-my-channel-fund` to check balances before
   telling the user to move funds.
 - Explain that wallet names are local CLI identifiers, while private transfers use notes owned by L2 addresses
   registered in the channel.

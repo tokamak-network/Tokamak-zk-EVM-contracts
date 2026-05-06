@@ -220,6 +220,13 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     usage: "--network and --account",
   },
   {
+    id: "account-get-bridge-fund",
+    display: "account get-bridge-fund",
+    description: "Read the local account's current shared bridge vault balance.",
+    fields: ["network", "account", "rpcUrl"],
+    usage: "--network, --account, and optional --rpc-url",
+  },
+  {
     id: "create-channel",
     description: "Create a bridge channel and initialize its workspace.",
     fields: ["channelName", "joinToll", "network", "account", "rpcUrl"],
@@ -258,12 +265,6 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Withdraw tokens from the shared bridge vault back to the wallet.",
     fields: ["amount", "network", "account", "rpcUrl"],
     usage: "--amount, --network, --account, and optional --rpc-url",
-  },
-  {
-    id: "get-my-bridge-fund",
-    description: "Read the current shared bridge vault balance.",
-    fields: ["network", "account", "rpcUrl"],
-    usage: "--network, --account, and optional --rpc-url",
   },
   {
     id: "recover-wallet",

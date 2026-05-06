@@ -4,6 +4,8 @@
 
 - Renamed `get-my-l1-address` to `account get-l1-address` so account helpers live under the
   same `account` command namespace as `account import`.
+- Renamed `get-my-bridge-fund` to `account get-bridge-fund` so bridge-vault balance lookup is
+  grouped with account-level helpers.
 
 ## 1.0.2 - 2026-05-06
 

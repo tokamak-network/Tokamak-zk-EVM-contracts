@@ -466,7 +466,7 @@ async function main() {
       await handleWithdrawBridge({ args, network, provider });
       return;
     }
-    case "get-my-bridge-fund": {
+    case "account-get-bridge-fund": {
       assertGetMyBridgeFundArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
       await prepareDeploymentArtifacts(network.chainId);
@@ -980,7 +980,7 @@ async function handleGetMyBridgeFund({ args, provider }) {
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
 
   printJson({
-    action: "get-my-bridge-fund",
+    action: "account-get-bridge-fund",
     l1Address: signer.address,
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
     canonicalAsset: bridgeVaultContext.canonicalAsset,
@@ -6218,7 +6218,7 @@ function assertDepositBridgeArgs(args) {
 }
 
 function assertGetMyBridgeFundArgs(args) {
-  assertAllowedCommandSchema(args, "get-my-bridge-fund");
+  assertAllowedCommandSchema(args, "account-get-bridge-fund");
 }
 
 function assertExplicitSignerCommandArgs(args, commandName) {

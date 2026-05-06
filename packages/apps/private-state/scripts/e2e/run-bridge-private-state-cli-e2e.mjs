@@ -1347,7 +1347,7 @@ function listLocalWallets(args = []) {
 }
 
 function getMyBridgeFund(participant) {
-  return runAnvilBridgeCliCommand("get-my-bridge-fund", signerCliArgs(participant));
+  return runAnvilBridgeCliCommand("account get-bridge-fund", signerCliArgs(participant));
 }
 
 function depositChannel(participant) {

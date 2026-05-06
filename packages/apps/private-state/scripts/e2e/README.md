@@ -28,8 +28,8 @@ The harness uses three participants:
 3. `A` calls `transferNotes1To2` and splits its `3`-token note into:
    - `1` token to `B`
    - `2` tokens to `C`
-   The CLI harness verifies that `transfer-notes` does not write recipient wallet inbox sidecars and that recipients
-   recover those notes later through `get-my-notes`.
+   The CLI harness verifies that `wallet transfer-notes` does not write recipient wallet inbox sidecars and that recipients
+   recover those notes later through `wallet get-notes`.
 4. `B` calls `transferNotes2To1` and transfers:
    - its own `3`-token note
    - the `1`-token note received from `A`

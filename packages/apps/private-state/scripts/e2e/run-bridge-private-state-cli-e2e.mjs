@@ -1267,11 +1267,15 @@ function readErc20Balance(assetAddress, ownerAddress) {
 }
 
 function runAnvilCliCommand(command, args = []) {
-  return runPrivateStateCli([command, "--network", "anvil", ...args]);
+  return runPrivateStateCli([...commandTokens(command), "--network", "anvil", ...args]);
 }
 
 function runAnvilBridgeCliCommand(command, args = []) {
-  return runPrivateStateCli([command, "--network", "anvil", "--rpc-url", providerUrl, ...args]);
+  return runPrivateStateCli([...commandTokens(command), "--network", "anvil", "--rpc-url", providerUrl, ...args]);
+}
+
+function commandTokens(command) {
+  return Array.isArray(command) ? command : String(command).trim().split(/\s+/u);
 }
 
 function walletCliArgs(participant) {
@@ -1287,7 +1291,7 @@ function signerCliArgs(participant) {
 }
 
 function createChannel() {
-  return runAnvilBridgeCliCommand("create-channel", [
+  return runAnvilBridgeCliCommand("channel create", [
     "--channel-name", channelName,
     "--join-toll", joinTollTokens,
     "--account", txSubmitterAccount,
@@ -1295,14 +1299,14 @@ function createChannel() {
 }
 
 function depositBridge(participant) {
-  return runAnvilBridgeCliCommand("deposit-bridge", [
+  return runAnvilBridgeCliCommand("account deposit-bridge", [
     ...signerCliArgs(participant),
     "--amount", depositAmountTokens,
   ]);
 }
 
 function joinChannel(participant) {
-  const result = runAnvilBridgeCliCommand("join-channel", [
+  const result = runAnvilBridgeCliCommand("channel join", [
     "--channel-name", channelName,
     ...signerCliArgs(participant),
     "--wallet-secret-path", participant.walletSecretPath,
@@ -1320,7 +1324,7 @@ function joinChannel(participant) {
 }
 
 function recoverWallet(participant, { fromGenesis = false } = {}) {
-  const result = runAnvilBridgeCliCommand("recover-wallet", [
+  const result = runAnvilBridgeCliCommand("wallet recover-workspace", [
     "--channel-name", channelName,
     ...(fromGenesis ? ["--from-genesis"] : []),
     ...signerCliArgs(participant),
@@ -1330,11 +1334,11 @@ function recoverWallet(participant, { fromGenesis = false } = {}) {
   return result;
 }
 
-function getMyWalletMeta(participant) {
-  return runAnvilCliCommand("get-my-wallet-meta", walletCliArgs(participant));
+function getWalletMeta(participant) {
+  return runAnvilCliCommand("wallet get-meta", walletCliArgs(participant));
 }
 
-function getMyL1Address(participant) {
+function getAccountL1Address(participant) {
   return runPrivateStateCli([
     "account", "get-l1-address",
     "--network", workspaceNetworkName,
@@ -1342,27 +1346,52 @@ function getMyL1Address(participant) {
   ]);
 }
 
-function listLocalWallets(args = []) {
-  return runPrivateStateCli(["list-local-wallets", ...args]);
+function listWallets(args = []) {
+  return runPrivateStateCli(["wallet", "list", ...args]);
 }
 
-function getMyBridgeFund(participant) {
+function getBridgeFund(participant) {
   return runAnvilBridgeCliCommand("account get-bridge-fund", signerCliArgs(participant));
 }
 
 function depositChannel(participant) {
-  return runAnvilCliCommand("deposit-channel", [
+  return runAnvilCliCommand("wallet deposit-channel", [
     ...walletCliArgs(participant),
     "--amount", depositAmountTokens,
   ]);
 }
 
-function getMyChannelFund(participant) {
-  return runAnvilCliCommand("get-my-channel-fund", walletCliArgs(participant));
+function getChannelFund(participant) {
+  return runAnvilCliCommand("wallet get-channel-fund", walletCliArgs(participant));
+}
+
+function walletExportPath(participant, suffix) {
+  return path.join(
+    outputRoot,
+    "wallet-exports",
+    `${slugifyPathComponent(participant.walletName)}-${slugifyPathComponent(suffix)}.zip`,
+  );
+}
+
+function exportWallet(participant, { includeNotes = false, suffix = "default" } = {}) {
+  const outputPath = walletExportPath(participant, suffix);
+  fs.rmSync(outputPath, { force: true });
+  return runAnvilCliCommand("wallet export", [
+    ...walletCliArgs(participant),
+    "--output", outputPath,
+    ...(includeNotes ? ["--include-notes"] : []),
+  ]);
+}
+
+function importWallet(inputPath) {
+  return runPrivateStateCli([
+    "wallet", "import",
+    "--input", inputPath,
+  ]);
 }
 
 function recoverWorkspace({ fromGenesis = false } = {}) {
-  return runAnvilBridgeCliCommand("recover-workspace", [
+  return runAnvilBridgeCliCommand("channel recover-workspace", [
     "--channel-name", channelName,
     ...(fromGenesis ? ["--from-genesis"] : []),
   ]);
@@ -1385,19 +1414,19 @@ function txSubmitterCliArgs(account) {
 }
 
 function mintNotes(participant, amounts, { txSubmitter = null } = {}) {
-  return runAnvilCliCommand("mint-notes", [
+  return runAnvilCliCommand("wallet mint-notes", [
     ...walletCliArgs(participant),
     "--amounts", JSON.stringify(amounts),
     ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
 
-function getMyNotes(participant) {
-  return runAnvilCliCommand("get-my-notes", walletCliArgs(participant));
+function getWalletNotes(participant) {
+  return runAnvilCliCommand("wallet get-notes", walletCliArgs(participant));
 }
 
 function transferNotes(participant, noteIds, recipients, amounts, { txSubmitter = null } = {}) {
-  return runAnvilCliCommand("transfer-notes", [
+  return runAnvilCliCommand("wallet transfer-notes", [
     ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
     "--recipients", JSON.stringify(recipients),
@@ -1407,7 +1436,7 @@ function transferNotes(participant, noteIds, recipients, amounts, { txSubmitter 
 }
 
 function redeemNotes(participant, noteIds, { txSubmitter = null } = {}) {
-  return runAnvilCliCommand("redeem-notes", [
+  return runAnvilCliCommand("wallet redeem-notes", [
     ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
     ...txSubmitterCliArgs(txSubmitter),
@@ -1415,21 +1444,21 @@ function redeemNotes(participant, noteIds, { txSubmitter = null } = {}) {
 }
 
 function withdrawChannel(participant, amount) {
-  return runAnvilCliCommand("withdraw-channel", [
+  return runAnvilCliCommand("wallet withdraw-channel", [
     ...walletCliArgs(participant),
     "--amount", amount,
   ]);
 }
 
 function withdrawBridge(participant, amount) {
-  return runAnvilBridgeCliCommand("withdraw-bridge", [
+  return runAnvilBridgeCliCommand("account withdraw-bridge", [
     ...signerCliArgs(participant),
     "--amount", amount,
   ]);
 }
 
 function exitChannel(participant) {
-  return runAnvilCliCommand("exit-channel", walletCliArgs(participant));
+  return runAnvilCliCommand("channel exit", walletCliArgs(participant));
 }
 
 function assertResolvedWalletIdentity(result, participant, label) {
@@ -1474,6 +1503,34 @@ function assertWalletNoteSnapshot(noteSnapshot, { unusedCount, spentCount, unuse
   );
 }
 
+function assertPostTransactionWorkspaceRecoveryIndex(result, label) {
+  expect(
+    result?.channelName === channelName,
+    `${label} returned an unexpected channel name.`,
+  );
+  const mode = result?.recoveryScanRange?.mode;
+  expect(
+    mode === "recovery-index" || mode === "reused-current-snapshot",
+    `${label} must reuse the post-transaction recovery index, got ${mode ?? "missing"}.`,
+  );
+  expect(
+    Number.isInteger(Number(result.recoveryLastScannedBlock))
+      && Number(result.recoveryLastScannedBlock) === Number(result.recoveryScanRange.toBlock) + 1,
+    `${label} returned inconsistent recoveryLastScannedBlock metadata.`,
+  );
+}
+
+function assertWalletCommandUsedCurrentWorkspace(result, label) {
+  expect(
+    result?.usedWorkspaceCache === true,
+    `${label} must use the current local workspace cache.`,
+  );
+  expect(
+    result?.recoveredWorkspace === false,
+    `${label} must not run workspace recovery before the transaction.`,
+  );
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   currentCliE2EOptions = options;
@@ -1495,6 +1552,7 @@ async function main() {
 
   let createChannelResult = null;
   let recoverWorkspaceResult = null;
+  let recoverWorkspaceAfterLocalTransactions = null;
   let bridgeDeployment = null;
   let canonicalAsset = null;
   let dappRegistrationResult = null;
@@ -1545,45 +1603,45 @@ async function main() {
           "recover-wallet must stop when the existing wallet is already valid.",
         );
       }
-      participantResults.getMyWalletMeta = getMyWalletMeta(participant);
-      participantResults.getMyL1Address = getMyL1Address(participant);
+      participantResults.getWalletMeta = getWalletMeta(participant);
+      participantResults.getAccountL1Address = getAccountL1Address(participant);
       participantResults.depositChannel = depositChannel(participant);
-      participantResults.getMyChannelFund = getMyChannelFund(participant);
-      participantResults.getMyBridgeFund = getMyBridgeFund(participant);
+      participantResults.getChannelFund = getChannelFund(participant);
+      participantResults.getBridgeFund = getBridgeFund(participant);
 
       expect(
-        String(participantResults.getMyWalletMeta.registeredL2Address).toLowerCase()
+        String(participantResults.getWalletMeta.registeredL2Address).toLowerCase()
           === String(participantResults.joinChannel.l2Address).toLowerCase(),
         `${participant.alias} registered L2 address mismatch.`,
       );
       expect(
-        participantResults.getMyWalletMeta.registrationExists === true
-          && participantResults.getMyWalletMeta.matchesWallet === true,
+        participantResults.getWalletMeta.registrationExists === true
+          && participantResults.getWalletMeta.matchesWallet === true,
         `${participant.alias} channel registration does not match the local wallet.`,
       );
       expect(
-        participantResults.getMyWalletMeta.wallet === participant.walletName,
+        participantResults.getWalletMeta.wallet === participant.walletName,
         `${participant.alias} wallet metadata returned an unexpected wallet name.`,
       );
       expect(
-        getAddress(participantResults.getMyWalletMeta.l1Address) === getAddress(participant.l1Address),
+        getAddress(participantResults.getWalletMeta.l1Address) === getAddress(participant.l1Address),
         `${participant.alias} wallet metadata returned an unexpected L1 address.`,
       );
       expect(
-        getAddress(participantResults.getMyWalletMeta.walletL2Address) === getAddress(participant.l2Address),
+        getAddress(participantResults.getWalletMeta.walletL2Address) === getAddress(participant.l2Address),
         `${participant.alias} wallet metadata returned an unexpected wallet L2 address.`,
       );
       expect(
-        getAddress(participantResults.getMyL1Address.l1Address) === getAddress(participant.l1Address),
+        getAddress(participantResults.getAccountL1Address.l1Address) === getAddress(participant.l1Address),
         `${participant.alias} account get-l1-address returned an unexpected L1 address.`,
       );
       assertBigIntEq(
-        participantResults.getMyChannelFund.channelDepositBaseUnits,
+        participantResults.getChannelFund.channelDepositBaseUnits,
         depositAmountBaseUnits,
         `${participant.alias} channel deposit`,
       );
       assertBigIntEq(
-        participantResults.getMyBridgeFund.availableBalanceBaseUnits,
+        participantResults.getBridgeFund.availableBalanceBaseUnits,
         0n,
         `${participant.alias} bridge deposit after deposit-channel`,
       );
@@ -1591,7 +1649,7 @@ async function main() {
       commandResults.participants[participant.alias] = participantResults;
     }
 
-    const localWalletList = listLocalWallets([
+    const localWalletList = listWallets([
       "--network", workspaceNetworkName,
       "--channel-name", channelName,
     ]);
@@ -1599,7 +1657,7 @@ async function main() {
     for (const participant of participants) {
       expect(
         listedWallets.has(participant.walletName.toLowerCase()),
-        `list-local-wallets did not include ${participant.walletName}.`,
+        `wallet list did not include ${participant.walletName}.`,
       );
     }
 
@@ -1608,6 +1666,8 @@ async function main() {
     const mintA = mintNotes(participants[0], [3], { txSubmitter: txSubmitterAccount });
     const mintB = mintNotes(participants[1], [3]);
     const mintC = mintNotes(participants[2], [3]);
+    assertWalletCommandUsedCurrentWorkspace(mintB, "second mint transaction after a successful first mint");
+    assertWalletCommandUsedCurrentWorkspace(mintC, "third mint transaction after multiple successful mints");
     expect(
       getAddress(mintA.l1Submitter) === txSubmitterAddress,
       "mint-notes --tx-submitter must submit with the requested local account.",
@@ -1621,9 +1681,9 @@ async function main() {
     const bMintNote = mintB.outputNotes[0];
     const cMintNote = mintC.outputNotes[0];
 
-    const notesAfterMintA = getMyNotes(participants[0]);
-    const notesAfterMintB = getMyNotes(participants[1]);
-    const notesAfterMintC = getMyNotes(participants[2]);
+    const notesAfterMintA = getWalletNotes(participants[0]);
+    const notesAfterMintB = getWalletNotes(participants[1]);
+    const notesAfterMintC = getWalletNotes(participants[2]);
     for (const noteSnapshot of [notesAfterMintA, notesAfterMintB, notesAfterMintC]) {
       assertWalletNoteSnapshot(noteSnapshot, {
         unusedCount: 1,
@@ -1654,8 +1714,8 @@ async function main() {
       Array.isArray(transferA.deliveredRecipients) && transferA.deliveredRecipients.length === 0,
       "transfer-notes must not write recipient inbox sidecars anymore.",
     );
-    const notesAfterTransferALogScanB = getMyNotes(participants[1]);
-    const notesAfterTransferALogScanC = getMyNotes(participants[2]);
+    const notesAfterTransferALogScanB = getWalletNotes(participants[1]);
+    const notesAfterTransferALogScanC = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterTransferALogScanB, { unusedCount: 2, spentCount: 0, unusedTotal: 4n * amountUnit, spentTotal: 0n });
     assertWalletNoteSnapshot(notesAfterTransferALogScanC, { unusedCount: 2, spentCount: 0, unusedTotal: 5n * amountUnit, spentTotal: 0n });
 
@@ -1665,15 +1725,16 @@ async function main() {
       [participants[2].l2Address],
       [4],
     );
+    assertWalletCommandUsedCurrentWorkspace(transferB, "transfer transaction after a successful previous transfer");
     const noteBToC = pickOutputNoteByOwner(transferB.outputNotes, participants[2].l2Address, 4n * amountUnit);
     expect(
       Array.isArray(transferB.deliveredRecipients) && transferB.deliveredRecipients.length === 0,
       "transfer-notes must not write recipient inbox sidecars anymore.",
     );
 
-    const notesAfterTransferA = getMyNotes(participants[0]);
-    const notesAfterTransferB = getMyNotes(participants[1]);
-    const notesAfterTransferC = getMyNotes(participants[2]);
+    const notesAfterTransferA = getWalletNotes(participants[0]);
+    const notesAfterTransferB = getWalletNotes(participants[1]);
+    const notesAfterTransferC = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterTransferA, { unusedCount: 0, spentCount: 1, unusedTotal: 0n, spentTotal: depositAmountBaseUnits });
     assertWalletNoteSnapshot(notesAfterTransferB, { unusedCount: 0, spentCount: 2, unusedTotal: 0n, spentTotal: 4n * amountUnit });
     assertWalletNoteSnapshot(notesAfterTransferC, { unusedCount: 3, spentCount: 0, unusedTotal: claimAmountBaseUnits, spentTotal: 0n });
@@ -1681,6 +1742,8 @@ async function main() {
     const redeemAToC = redeemNotes(participants[2], [noteAToC.commitment], { txSubmitter: txSubmitterAccount });
     const redeemBToC = redeemNotes(participants[2], [noteBToC.commitment]);
     const redeemCMint = redeemNotes(participants[2], [cMintNote.commitment]);
+    assertWalletCommandUsedCurrentWorkspace(redeemBToC, "redeem transaction after a successful previous redeem");
+    assertWalletCommandUsedCurrentWorkspace(redeemCMint, "redeem transaction after multiple successful redeems");
     expect(
       getAddress(redeemAToC.l1Submitter) === txSubmitterAddress,
       "redeem-notes --tx-submitter must submit with the requested local account.",
@@ -1689,8 +1752,65 @@ async function main() {
       getAddress(redeemAToC.l1WalletOwner) === getAddress(participants[2].l1Address),
       "redeem-notes --tx-submitter must not change the wallet owner.",
     );
-    const notesAfterRedeemC = getMyNotes(participants[2]);
+    const notesAfterRedeemC = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
+    recoverWorkspaceAfterLocalTransactions = recoverWorkspace();
+    assertPostTransactionWorkspaceRecoveryIndex(
+      recoverWorkspaceAfterLocalTransactions,
+      "recover-workspace after local wallet transactions",
+    );
+
+    const walletExportIncludeNotes = exportWallet(participants[2], {
+      includeNotes: true,
+      suffix: "include-notes",
+    });
+    expect(
+      walletExportIncludeNotes.includeNotes === true && walletExportIncludeNotes.fileCount >= 8,
+      "wallet export --include-notes must include the wallet files and channel workspace cache.",
+    );
+    deleteWorkspaceDir();
+    removeAnvilWalletSecret(participants[2].walletName);
+    const walletImportIncludeNotes = importWallet(walletExportIncludeNotes.output);
+    expect(
+      walletImportIncludeNotes.includeNotes === true,
+      "wallet import must report includeNotes=true for an include-notes export.",
+    );
+    const notesAfterIncludeNotesImport = getWalletNotes(participants[2]);
+    assertWalletNoteSnapshot(notesAfterIncludeNotesImport, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
+    const channelDepositAfterIncludeNotesImport = getChannelFund(participants[2]);
+    assertBigIntEq(
+      channelDepositAfterIncludeNotesImport.channelDepositBaseUnits,
+      claimAmountBaseUnits,
+      "participant-c channel deposit after include-notes wallet import",
+    );
+
+    const walletExportDefault = exportWallet(participants[2], {
+      suffix: "default",
+    });
+    expect(
+      walletExportDefault.includeNotes === false && walletExportDefault.fileCount === 3,
+      "default wallet export must include only wallet secret, encrypted wallet, and wallet metadata.",
+    );
+    deleteWorkspaceDir();
+    removeAnvilWalletSecret(participants[2].walletName);
+    const walletImportDefault = importWallet(walletExportDefault.output);
+    expect(
+      walletImportDefault.includeNotes === false,
+      "wallet import must report includeNotes=false for a default export.",
+    );
+    const recoverWorkspaceAfterDefaultWalletImport = recoverWorkspace({ fromGenesis: true });
+    expect(
+      recoverWorkspaceAfterDefaultWalletImport.channelName === channelName,
+      "recover-workspace must rebuild channel state after default wallet import.",
+    );
+    const notesAfterDefaultImportRecovery = getWalletNotes(participants[2]);
+    assertWalletNoteSnapshot(notesAfterDefaultImportRecovery, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
+    const channelDepositAfterDefaultImportRecovery = getChannelFund(participants[2]);
+    assertBigIntEq(
+      channelDepositAfterDefaultImportRecovery.channelDepositBaseUnits,
+      claimAmountBaseUnits,
+      "participant-c channel deposit after default wallet import and workspace recovery",
+    );
 
     deleteWorkspaceDir();
     const recoverWorkspaceAfterNotesResult = recoverWorkspace({ fromGenesis: true });
@@ -1710,7 +1830,7 @@ async function main() {
       "recover-wallet must restore participant-c from the refreshed recovery index.",
     );
 
-    const channelDepositBeforeWithdraw = getMyChannelFund(participants[2]);
+    const channelDepositBeforeWithdraw = getChannelFund(participants[2]);
     assertBigIntEq(
       channelDepositBeforeWithdraw.channelDepositBaseUnits,
       claimAmountBaseUnits,
@@ -1719,8 +1839,9 @@ async function main() {
 
     const l1BalanceBeforeClaim = readErc20Balance(canonicalAsset, participants[2].l1Address);
     const withdrawChannelResult = withdrawChannel(participants[2], claimAmountTokens);
-    const bridgeDepositAfterWithdraw = getMyBridgeFund(participants[2]);
-    const channelDepositAfterWithdraw = getMyChannelFund(participants[2]);
+    assertWalletCommandUsedCurrentWorkspace(withdrawChannelResult, "withdraw-channel after recovered workspace is current");
+    const bridgeDepositAfterWithdraw = getBridgeFund(participants[2]);
+    const channelDepositAfterWithdraw = getChannelFund(participants[2]);
     assertBigIntEq(
       bridgeDepositAfterWithdraw.availableBalanceBaseUnits,
       claimAmountBaseUnits,
@@ -1749,7 +1870,7 @@ async function main() {
     );
 
     const withdrawBridgeResult = withdrawBridge(participants[2], claimAmountTokens);
-    const bridgeDepositAfterClaim = getMyBridgeFund(participants[2]);
+    const bridgeDepositAfterClaim = getBridgeFund(participants[2]);
     const l1BalanceAfterClaim = readErc20Balance(canonicalAsset, participants[2].l1Address);
     assertBigIntEq(
       bridgeDepositAfterClaim.availableBalanceBaseUnits,
@@ -1763,7 +1884,7 @@ async function main() {
     );
     for (const participant of participants.slice(0, 2)) {
       assertBigIntEq(
-        getMyBridgeFund(participant).availableBalanceBaseUnits,
+        getBridgeFund(participant).availableBalanceBaseUnits,
         0n,
         `${participant.alias} final bridge deposit`,
       );
@@ -1779,7 +1900,15 @@ async function main() {
       dappRegistration: dappRegistrationResult,
       createChannel: createChannelResult,
       recoverWorkspace: recoverWorkspaceResult,
+      recoverWorkspaceAfterLocalTransactions,
       recoverWorkspaceAfterNotes: recoverWorkspaceAfterNotesResult,
+      walletExportImport: {
+        includeNotesExport: walletExportIncludeNotes,
+        includeNotesImport: walletImportIncludeNotes,
+        defaultExport: walletExportDefault,
+        defaultImport: walletImportDefault,
+        recoverWorkspaceAfterDefaultWalletImport,
+      },
       localWallets: localWalletList,
       participants: participants.map((participant) => ({
         alias: participant.alias,

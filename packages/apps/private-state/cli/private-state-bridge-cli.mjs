@@ -7,6 +7,7 @@ import process from "node:process";
 import readline from "node:readline/promises";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import AdmZip from "adm-zip";
 import {
   createCipheriv,
   createDecipheriv,
@@ -132,6 +133,8 @@ const PRIVATE_STATE_UNINSTALL_CONFIRMATION =
 const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
+const WALLET_EXPORT_FORMAT = "tokamak-private-state-wallet-export";
+const WALLET_EXPORT_FORMAT_VERSION = 1;
 let jsonOutputRequested = false;
 let activeCliArgs = {};
 
@@ -329,6 +332,12 @@ async function main() {
     return;
   }
 
+  if (args.command === "help-commands") {
+    assertHelpCommandsArgs(args);
+    printHelp();
+    return;
+  }
+
   if (args.command === "install") {
     assertInstallZkEvmArgs(args);
     await handleInstallZkEvm({ args });
@@ -341,25 +350,25 @@ async function main() {
     return;
   }
 
-  if (args.command === "update") {
+  if (args.command === "help-update") {
     assertUpdateArgs(args);
     await handleUpdate();
     return;
   }
 
-  if (args.command === "doctor") {
+  if (args.command === "help-doctor") {
     assertDoctorArgs(args);
     await handleDoctor({ args });
     return;
   }
 
-  if (args.command === "guide") {
+  if (args.command === "help-guide") {
     assertGuideArgs(args);
     await handleGuide({ args });
     return;
   }
 
-  if (args.command === "transaction-fees") {
+  if (args.command === "help-transaction-fees") {
     assertTransactionFeesArgs(args);
     const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args);
     await handleTransactionFees({ network, provider, rpcUrl });
@@ -367,8 +376,8 @@ async function main() {
   }
 
   if (args.command === "account-get-l1-address") {
-    assertGetMyL1AddressArgs(args);
-    handleGetMyL1Address({ args });
+    assertAccountGetL1AddressArgs(args);
+    handleAccountGetL1Address({ args });
     return;
   }
 
@@ -378,46 +387,58 @@ async function main() {
     return;
   }
 
-  if (args.command === "list-local-wallets") {
+  if (args.command === "wallet-list") {
     assertListLocalWalletsArgs(args);
     handleListLocalWallets({ args });
     return;
   }
 
+  if (args.command === "wallet-export") {
+    assertWalletExportArgs(args);
+    handleWalletExport({ args });
+    return;
+  }
+
+  if (args.command === "wallet-import") {
+    assertWalletImportArgs(args);
+    handleWalletImport({ args });
+    return;
+  }
+
   const walletCommandHandlers = {
-    "mint-notes": {
+    "wallet-mint-notes": {
       assert: assertMintNotesArgs,
       run: ({ provider }) => handleMintNotes({ args, provider }),
     },
-    "redeem-notes": {
+    "wallet-redeem-notes": {
       assert: assertRedeemNotesArgs,
       run: ({ provider }) => handleRedeemNotes({ args, provider }),
     },
-    "get-my-notes": {
-      assert: assertGetMyNotesArgs,
-      run: ({ provider }) => handleGetMyNotes({ args, provider }),
+    "wallet-get-notes": {
+      assert: assertWalletGetNotesArgs,
+      run: ({ provider }) => handleWalletGetNotes({ args, provider }),
     },
-    "transfer-notes": {
+    "wallet-transfer-notes": {
       assert: assertTransferNotesArgs,
       run: ({ provider }) => handleTransferNotes({ args, provider }),
     },
-    "deposit-channel": {
-      assert: (parsedArgs) => assertWalletChannelMoveArgs(parsedArgs, "deposit-channel"),
+    "wallet-deposit-channel": {
+      assert: (parsedArgs) => assertWalletChannelMoveArgs(parsedArgs, "wallet-deposit-channel"),
       run: ({ provider }) => handleGrothVaultMove({ args, provider, direction: "deposit" }),
     },
-    "withdraw-channel": {
-      assert: (parsedArgs) => assertWalletChannelMoveArgs(parsedArgs, "withdraw-channel"),
+    "wallet-withdraw-channel": {
+      assert: (parsedArgs) => assertWalletChannelMoveArgs(parsedArgs, "wallet-withdraw-channel"),
       run: ({ provider }) => handleGrothVaultMove({ args, provider, direction: "withdraw" }),
     },
-    "get-my-wallet-meta": {
-      assert: assertGetMyWalletMetaArgs,
-      run: ({ provider }) => handleGetMyWalletMeta({ args, provider }),
+    "wallet-get-meta": {
+      assert: assertWalletGetMetaArgs,
+      run: ({ provider }) => handleWalletGetMeta({ args, provider }),
     },
-    "get-my-channel-fund": {
-      assert: assertGetMyChannelFundArgs,
-      run: ({ provider }) => handleGetMyChannelFund({ args, provider }),
+    "wallet-get-channel-fund": {
+      assert: assertWalletGetChannelFundArgs,
+      run: ({ provider }) => handleWalletGetChannelFund({ args, provider }),
     },
-    "exit-channel": {
+    "channel-exit": {
       assert: assertExitChannelArgs,
       run: ({ provider }) => handleExitChannel({ args, provider }),
     },
@@ -431,35 +452,35 @@ async function main() {
   }
 
   switch (args.command) {
-    case "create-channel": {
+    case "channel-create": {
       assertCreateChannelArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
       await prepareDeploymentArtifacts(network.chainId);
       await handleChannelCreate({ args, network, provider });
       return;
     }
-    case "recover-workspace": {
+    case "channel-recover-workspace": {
       assertRecoverWorkspaceArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
       await prepareDeploymentArtifacts(network.chainId);
       await handleWorkspaceInit({ args, network, provider });
       return;
     }
-    case "get-channel": {
+    case "channel-get-meta": {
       assertGetChannelArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
       await prepareDeploymentArtifacts(network.chainId);
       await handleGetChannel({ args, network, provider });
       return;
     }
-    case "deposit-bridge": {
+    case "account-deposit-bridge": {
       assertDepositBridgeArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
       await prepareDeploymentArtifacts(network.chainId);
       await handleDepositBridge({ args, network, provider });
       return;
     }
-    case "withdraw-bridge": {
+    case "account-withdraw-bridge": {
       assertWithdrawBridgeArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
       await prepareDeploymentArtifacts(network.chainId);
@@ -467,20 +488,20 @@ async function main() {
       return;
     }
     case "account-get-bridge-fund": {
-      assertGetMyBridgeFundArgs(args);
+      assertAccountGetBridgeFundArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
       await prepareDeploymentArtifacts(network.chainId);
-      await handleGetMyBridgeFund({ args, provider });
+      await handleAccountGetBridgeFund({ args, provider });
       return;
     }
-    case "recover-wallet": {
+    case "wallet-recover-workspace": {
       assertRecoverWalletArgs(args);
       const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args);
       await prepareDeploymentArtifacts(network.chainId);
       await handleRecoverWallet({ args, network, provider, rpcUrl });
       return;
     }
-    case "join-channel": {
+    case "channel-join": {
       assertJoinChannelArgs(args);
       const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args);
       await prepareDeploymentArtifacts(network.chainId);
@@ -518,7 +539,7 @@ async function handleChannelCreate({ args, network, provider }) {
   const policySnapshot = dapp.policySnapshot;
 
   printImmutableChannelPolicyWarning({
-    action: "create-channel",
+    action: "channel create",
     channelName,
     channelId,
     policySnapshot,
@@ -527,7 +548,7 @@ async function handleChannelCreate({ args, network, provider }) {
     await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, joinToll, dapp.metadataDigest));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
-  const workspaceResult = await initializeChannelWorkspace({
+  const workspaceResult = await syncChannelWorkspace({
     workspaceName,
     channelName,
     network,
@@ -535,11 +556,12 @@ async function handleChannelCreate({ args, network, provider }) {
     bridgeResources,
     persist: true,
     fromGenesis: true,
-    progressAction: "create-channel",
+    minimumToBlock: receipt.blockNumber,
+    progressAction: "channel create",
   });
 
   printJson({
-    action: "create-channel",
+    action: "channel create",
     channelName,
     channelId: channelId.toString(),
     dappId,
@@ -637,7 +659,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
   const workspaceName = channelName;
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
 
-  const { workspaceDir, workspace, currentSnapshot } = await initializeChannelWorkspace({
+  const { workspaceDir, workspace, currentSnapshot } = await syncChannelWorkspace({
     workspaceName,
     channelName,
     network,
@@ -647,11 +669,11 @@ async function handleWorkspaceInit({ args, network, provider }) {
     allowExistingWorkspaceSync: true,
     useWorkspaceRecoveryIndex: true,
     fromGenesis: args.fromGenesis === true,
-    progressAction: "recover-workspace",
+    progressAction: "channel recover-workspace",
   });
 
   printJson({
-    action: "recover-workspace",
+    action: "channel recover-workspace",
     workspace: workspaceName,
     workspaceDir,
     channelName,
@@ -683,7 +705,7 @@ async function handleGetChannel({ args, network, provider }) {
   } catch (error) {
     if (isContractError(error, bridgeCore.interface, "UnknownChannel")) {
       printJson({
-        action: "get-channel",
+        action: "channel get-meta",
         channelName,
         channelId: channelId.toString(),
         exists: false,
@@ -722,7 +744,7 @@ async function handleGetChannel({ args, network, provider }) {
   ]);
 
   printJson({
-    action: "get-channel",
+    action: "channel get-meta",
     channelName,
     channelId: channelId.toString(),
     exists: true,
@@ -745,7 +767,7 @@ async function handleGetChannel({ args, network, provider }) {
   });
 }
 
-async function initializeChannelWorkspace({
+async function syncChannelWorkspace({
   workspaceName,
   channelName,
   network,
@@ -755,6 +777,7 @@ async function initializeChannelWorkspace({
   allowExistingWorkspaceSync = false,
   useWorkspaceRecoveryIndex = false,
   fromGenesis = false,
+  minimumToBlock = null,
   progressAction = null,
 }) {
   const workspaceDir = channelWorkspacePath(networkNameFromChainId(network.chainId), workspaceName);
@@ -788,7 +811,10 @@ async function initializeChannelWorkspace({
   const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
   const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
   const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
-  const latestBlock = await provider.getBlockNumber();
+  const observedLatestBlock = await provider.getBlockNumber();
+  const latestBlock = minimumToBlock === null
+    ? observedLatestBlock
+    : Math.max(observedLatestBlock, Number(minimumToBlock));
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
   const policySnapshot = await readChannelPolicySnapshot({
     channelManager,
@@ -837,7 +863,7 @@ async function initializeChannelWorkspace({
     throw new Error([
       `Workspace recovery index is missing or unusable for channel ${channelName} on ${networkNameFromChainId(network.chainId)}.`,
       "The CLI will not fall back to replaying channel logs from genesis unless explicitly requested.",
-      "Run recover-workspace --from-genesis or recover-wallet --from-genesis to rebuild from channel genesis.",
+    "Run channel recover-workspace --from-genesis or wallet recover-workspace --from-genesis to rebuild from channel genesis.",
     ].join(" "));
   }
   const reconstruction = localSnapshotReusable
@@ -928,7 +954,7 @@ async function initializeChannelWorkspace({
 async function handleDepositBridge({ args, network, provider }) {
   if (args.wallet !== undefined) {
     throw new Error(
-      "--wallet is not supported by deposit-bridge. Channel wallet keys are set up only by join-channel.",
+      "--wallet is not supported by account deposit-bridge. Channel wallet keys are set up only by channel join.",
     );
   }
   const signer = requireL1Signer(args, provider);
@@ -952,7 +978,7 @@ async function handleDepositBridge({ args, network, provider }) {
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
 
   printJson({
-    action: "deposit-bridge",
+    action: "account deposit-bridge",
     amountInput,
     amountBaseUnits: amount.toString(),
     l1Address: signer.address,
@@ -968,7 +994,7 @@ async function handleDepositBridge({ args, network, provider }) {
   });
 }
 
-async function handleGetMyBridgeFund({ args, provider }) {
+async function handleAccountGetBridgeFund({ args, provider }) {
   const signer = requireL1Signer(args, provider);
   const chainId = Number((await provider.getNetwork()).chainId);
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
@@ -980,7 +1006,7 @@ async function handleGetMyBridgeFund({ args, provider }) {
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
 
   printJson({
-    action: "account-get-bridge-fund",
+    action: "account get-bridge-fund",
     l1Address: signer.address,
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
     canonicalAsset: bridgeVaultContext.canonicalAsset,
@@ -1002,7 +1028,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     walletName,
   });
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
-  const initialized = await initializeChannelWorkspace({
+  const initialized = await syncChannelWorkspace({
     workspaceName: channelName,
     channelName,
     network,
@@ -1012,7 +1038,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     allowExistingWorkspaceSync: true,
     useWorkspaceRecoveryIndex: true,
     fromGenesis: args.fromGenesis === true,
-    progressAction: "recover-wallet",
+    progressAction: "wallet recover-workspace",
   });
   const context = {
     workspaceName: channelName,
@@ -1050,13 +1076,41 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
   const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
 
-  expect(
-    registration.exists,
-    cliError(
-      CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
-      `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
-    ),
-  );
+  if (!registration.exists) {
+    const cleanup = removeLocalWalletArtifacts(walletName, context.workspace.network);
+    if (cleanup.removed) {
+      printJson({
+        action: "wallet recover-workspace",
+        status: "stale-wallet-removed",
+        wallet: walletName,
+        removedWalletDir: cleanup.removedWalletDir ? cleanup.walletDir : null,
+        removedWalletSecretFile: cleanup.removedWalletSecret ? cleanup.walletSecretFile : null,
+        walletSecretSource: resolvedWalletSecretSource(args),
+        walletSecretFile: resolvedWalletSecretFile(network.name, walletName),
+        workspace: context.workspaceName,
+        channelName: context.workspace.channelName,
+        channelId: context.workspace.channelId,
+        l1Address: signer.address,
+        l2Address: l2Identity.l2Address,
+        l2StorageKey: storageKey,
+        leafIndex: leafIndex.toString(),
+        reason: "The local wallet existed, but the L1 address is no longer registered in the channel.",
+        nextAction: buildRecoverWalletRemovedNextAction({
+          channelName,
+          networkName: network.name,
+          accountName: args.account,
+        }),
+      });
+      return;
+    }
+    expect(
+      false,
+      cliError(
+        CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
+        `No channelTokenVault registration exists for ${signer.address}. Run channel join first.`,
+      ),
+    );
+  }
   expect(
     ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
     "The existing channel registration L2 address does not match the derived L2 address.",
@@ -1100,10 +1154,10 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       provider,
       signer,
       noteReceiveKeyMaterial,
-      progressAction: "recover-wallet",
+      progressAction: "wallet recover-workspace",
     });
     printJson({
-      action: "recover-wallet",
+      action: "wallet recover-workspace",
       status: "already-recovered",
       wallet: walletName,
       walletDir: existingWallet.walletDir,
@@ -1125,7 +1179,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     return;
   }
 
-  clearWalletRecoveryArtifacts(walletPath(walletName, context.workspace.network));
+  fs.rmSync(walletPath(walletName, context.workspace.network), { recursive: true, force: true });
 
   const walletContext = ensureWallet({
     channelContext: context,
@@ -1147,11 +1201,11 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     provider,
     signer,
     noteReceiveKeyMaterial,
-    progressAction: "recover-wallet",
+    progressAction: "wallet recover-workspace",
   });
 
   printJson({
-    action: "recover-wallet",
+    action: "wallet recover-workspace",
     status: "recovered",
     wallet: walletName,
     walletDir: walletContext.walletDir,
@@ -1301,8 +1355,30 @@ function assertExistingRecoverableWallet({
   );
 }
 
-function clearWalletRecoveryArtifacts(walletDir) {
-  fs.rmSync(walletDir, { recursive: true, force: true });
+function removeLocalWalletArtifacts(walletName, networkName) {
+  const walletDir = walletPath(walletName, networkName);
+  const walletSecretFile = walletSecretPath(networkName, walletName);
+  const walletSecretDir = path.dirname(walletSecretFile);
+  const removedWalletDir = fs.existsSync(walletDir);
+  const removedWalletSecret = fs.existsSync(walletSecretFile) || fs.existsSync(walletSecretDir);
+  if (removedWalletDir) {
+    fs.rmSync(walletDir, { recursive: true, force: true });
+  }
+  if (removedWalletSecret) {
+    fs.rmSync(walletSecretDir, { recursive: true, force: true });
+  }
+  return {
+    walletDir,
+    walletSecretFile,
+    removed: removedWalletDir || removedWalletSecret,
+    removedWalletDir,
+    removedWalletSecret,
+  };
+}
+
+function buildRecoverWalletRemovedNextAction({ channelName, networkName, accountName }) {
+  const account = accountName ? String(accountName) : "<ACCOUNT>";
+  return `channel join --channel-name ${channelName} --network ${networkName} --account ${account} --wallet-secret-path <PATH>`;
 }
 
 async function handleInstallZkEvm({ args }) {
@@ -1740,10 +1816,10 @@ function trimFixedNumber(value, maxDecimals) {
   return trimmed ? `${integer}.${trimmed}` : integer;
 }
 
-function handleGetMyL1Address({ args }) {
+function handleAccountGetL1Address({ args }) {
   const signer = requireL1Signer(args);
   printJson({
-    action: "account-get-l1-address",
+    action: "account get-l1-address",
     l1Address: signer.address,
     account: args.account ?? null,
   });
@@ -1770,7 +1846,7 @@ function handleAccountImport({ args }) {
     privateKeyPath,
   }, 0o600);
   printJson({
-    action: "account-import",
+    action: "account import",
     account,
     network: networkName,
     l1Address: getAddress(signer.address),
@@ -1791,7 +1867,7 @@ function handleListLocalWallets({ args }) {
   });
 
   printJson({
-    action: "list-local-wallets",
+    action: "wallet list",
     workspaceRoot,
     filters: {
       network: networkFilter,
@@ -1799,6 +1875,175 @@ function handleListLocalWallets({ args }) {
     },
     wallets,
   });
+}
+
+function handleWalletExport({ args }) {
+  const outputPath = path.resolve(String(requireArg(args.output, "--output")));
+  expect(!fs.existsSync(outputPath), `Export output already exists: ${outputPath}.`);
+  ensureDir(path.dirname(outputPath));
+
+  const includeNotes = args.includeNotes === true;
+  const wallets = args.all === true
+    ? listLocalWallets({ networkFilter: "mainnet" }).filter((wallet) => wallet.hasEncryptedWallet)
+    : [resolveExportWalletInfo({
+      networkName: requireNetworkName(args),
+      walletName: requireWalletName(args),
+    })];
+
+  expect(
+    wallets.length > 0,
+    args.all === true
+      ? "No local mainnet wallets are available to export."
+      : "No local wallet is available to export.",
+  );
+
+  const archive = new AdmZip();
+  const files = new Map();
+  const exportedWallets = [];
+  for (const wallet of wallets) {
+    const normalized = normalizeExportWalletInfo(wallet);
+    exportedWallets.push({
+      network: normalized.network,
+      channelName: normalized.channelName,
+      wallet: normalized.wallet,
+    });
+    for (const filePath of walletExportFilePaths(normalized, { includeNotes })) {
+      const archivePath = archivePathForLocalCliFile(filePath);
+      if (!files.has(archivePath)) {
+        files.set(archivePath, filePath);
+      }
+    }
+  }
+
+  const manifest = {
+    format: WALLET_EXPORT_FORMAT,
+    formatVersion: WALLET_EXPORT_FORMAT_VERSION,
+    createdAt: new Date().toISOString(),
+    cliPackage: PRIVATE_STATE_CLI_PACKAGE_NAME,
+    cliVersion: privateStateCliPackageJson.version,
+    exportMode: args.all === true ? "all-mainnet" : "single-wallet",
+    includeNotes,
+    notes: includeNotes
+      ? [
+        "Includes the channel workspace cache required for immediate wallet command use when the cache is still chain-aligned.",
+      ]
+      : [
+        "Includes wallet identity, encrypted wallet state, metadata, and wallet-local secret only.",
+        "Run channel recover-workspace after import before wallet commands need channel state.",
+      ],
+    wallets: exportedWallets,
+    files: [...files.keys()].sort(),
+  };
+
+  archive.addFile("manifest.json", Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, "utf8"));
+  for (const archivePath of manifest.files) {
+    archive.addFile(archivePath, fs.readFileSync(files.get(archivePath)));
+  }
+  archive.writeZip(outputPath);
+  protectSecretFile(outputPath, "wallet export ZIP");
+
+  printJson({
+    action: "wallet export",
+    output: outputPath,
+    exportMode: manifest.exportMode,
+    includeNotes,
+    walletCount: exportedWallets.length,
+    fileCount: manifest.files.length,
+    wallets: exportedWallets.map(({ network, channelName, wallet }) => ({ network, channelName, wallet })),
+  });
+}
+
+function handleWalletImport({ args }) {
+  const inputPath = path.resolve(String(requireArg(args.input, "--input")));
+  expect(fs.existsSync(inputPath), `Import ZIP does not exist: ${inputPath}.`);
+
+  const { archive, manifest } = readWalletImportArchive(inputPath);
+
+  const archiveFiles = new Set(manifest.files);
+  for (const entry of archive.getEntries()) {
+    if (entry.isDirectory) {
+      continue;
+    }
+    expect(
+      entry.entryName === "manifest.json" || archiveFiles.has(entry.entryName),
+      `Unexpected file in wallet import ZIP: ${entry.entryName}.`,
+    );
+  }
+
+  const targetRoot = privateStateCliDataRoot();
+  ensureDir(targetRoot);
+  const plannedWrites = manifest.files.map((archivePath) => {
+    validateWalletArchivePath(archivePath);
+    const entry = archive.getEntry(archivePath);
+    expect(entry && !entry.isDirectory, `Wallet import ZIP is missing ${archivePath}.`);
+    const targetPath = path.resolve(targetRoot, archivePath);
+    expectPathWithinRoot(targetPath, targetRoot, `Unsafe import target for ${archivePath}.`);
+    expect(!fs.existsSync(targetPath), `Refusing to overwrite existing file: ${targetPath}.`);
+    return {
+      archivePath,
+      targetPath,
+      data: entry.getData(),
+    };
+  });
+
+  commitWalletImportFiles({ targetRoot, plannedWrites });
+
+  printJson({
+    action: "wallet import",
+    input: inputPath,
+    exportMode: manifest.exportMode,
+    includeNotes: Boolean(manifest.includeNotes),
+    walletCount: manifest.wallets.length,
+    fileCount: plannedWrites.length,
+    wallets: manifest.wallets.map(({ network, channelName, wallet }) => ({ network, channelName, wallet })),
+    nextStep: manifest.includeNotes
+      ? "Wallet commands can run immediately if the imported channel workspace cache is still chain-aligned."
+      : "Run channel recover-workspace before wallet commands need channel state.",
+  });
+}
+
+function readWalletImportArchive(inputPath) {
+  try {
+    const archive = new AdmZip(inputPath);
+    const manifestEntry = archive.getEntry("manifest.json");
+    expect(manifestEntry, "Wallet import ZIP is missing manifest.json.");
+    const manifest = JSON.parse(manifestEntry.getData().toString("utf8"));
+    validateWalletExportManifest(manifest);
+    return { archive, manifest };
+  } catch (error) {
+    throw new Error(`Failed to read wallet import ZIP ${inputPath}: ${error.message}`);
+  }
+}
+
+function commitWalletImportFiles({ targetRoot, plannedWrites }) {
+  const stagingRoot = fs.mkdtempSync(path.join(targetRoot, ".wallet-import-"));
+  const committedPaths = [];
+  try {
+    for (const write of plannedWrites) {
+      write.stagingPath = path.resolve(stagingRoot, write.archivePath);
+      expectPathWithinRoot(write.stagingPath, stagingRoot, `Unsafe staging target for ${write.archivePath}.`);
+      ensureDir(path.dirname(write.stagingPath));
+      fs.writeFileSync(write.stagingPath, write.data);
+      applyImportedWalletFileMode(write.archivePath, write.stagingPath);
+    }
+
+    for (const write of plannedWrites) {
+      expect(!fs.existsSync(write.targetPath), `Refusing to overwrite existing file: ${write.targetPath}.`);
+    }
+
+    for (const write of plannedWrites) {
+      ensureDir(path.dirname(write.targetPath));
+      fs.renameSync(write.stagingPath, write.targetPath);
+      committedPaths.push(write.targetPath);
+    }
+  } catch (error) {
+    for (const committedPath of committedPaths.reverse()) {
+      fs.rmSync(committedPath, { force: true });
+    }
+    throw error;
+  } finally {
+    fs.rmSync(stagingRoot, { recursive: true, force: true });
+  }
 }
 
 async function handleGuide({ args }) {
@@ -1816,7 +2061,7 @@ async function handleGuide({ args }) {
     nextSafeAction: null,
     why: null,
     candidateCommands: [],
-    privacyTip: "For mint-notes, transfer-notes, and redeem-notes, add --tx-submitter <ACCOUNT> to let a separate local L1 account submit executeChannelTransaction and pay gas.",
+    privacyTip: "For wallet mint-notes, wallet transfer-notes, and wallet redeem-notes, add --tx-submitter <ACCOUNT> to let a separate local L1 account submit executeChannelTransaction and pay gas.",
   };
 
   guide.state.local = inspectGuideLocalState(args);
@@ -1839,12 +2084,12 @@ async function handleGuide({ args }) {
 
   if (!args.network) {
     setGuideNextAction(guide, {
-      command: "guide --network <NAME>",
+      command: "help guide --network <NAME>",
       why: "Select a network before the guide can inspect RPC, deployment artifacts, channels, accounts, or wallets.",
       candidates: [
-        "guide --network mainnet",
-        "guide --network sepolia",
-        "guide --network anvil",
+        "help guide --network mainnet",
+        "help guide --network sepolia",
+        "help guide --network anvil",
       ],
     });
     printJson(guide);
@@ -1857,7 +2102,7 @@ async function handleGuide({ args }) {
   guide.checks.push(networkRuntime.check);
   if (!networkRuntime.network) {
     setGuideNextAction(guide, {
-      command: "guide --network <NAME>",
+      command: "help guide --network <NAME>",
       why: `The requested network ${networkName} is not supported by the CLI network config.`,
     });
     printJson(guide);
@@ -2225,8 +2470,8 @@ async function inspectGuideWallet({ walletName, networkName, provider, artifacts
 function applyGuideNextAction(guide) {
   if (guide.state.local?.walletSelectorError && guide.selectors.network) {
     setGuideNextAction(guide, {
-      command: `list-local-wallets --network ${guide.selectors.network}`,
-      why: "The selected wallet name is malformed. List local wallets and retry guide with an existing deterministic wallet name.",
+      command: `wallet list --network ${guide.selectors.network}`,
+      why: "The selected wallet name is malformed. List local wallets and retry help guide with an existing deterministic wallet name.",
     });
     return;
   }
@@ -2254,14 +2499,14 @@ function applyGuideNextAction(guide) {
   if (guide.selectors.channelName && guide.state.channel?.onchain?.exists === false) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
-      command: `create-channel --channel-name ${guide.selectors.channelName} --join-toll <TOKENS> --network ${guide.selectors.network} --account ${account}`,
+      command: `channel create --channel-name ${guide.selectors.channelName} --join-toll <TOKENS> --network ${guide.selectors.network} --account ${account}`,
       why: "The selected channel name is not registered on-chain yet.",
     });
     return;
   }
   if (guide.selectors.channelName && guide.state.channel?.onchain?.exists && !guide.state.channel?.local?.workspaceExists) {
     setGuideNextAction(guide, {
-      command: `recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network} --from-genesis`,
+      command: `channel recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network} --from-genesis`,
       why: "The channel exists on-chain, but the local channel workspace has not been recovered yet, so there is no local recovery index to resume from.",
     });
     return;
@@ -2270,7 +2515,7 @@ function applyGuideNextAction(guide) {
     const channelName = guide.selectors.channelName ?? guide.state.channel?.channelName ?? "<CHANNEL>";
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
-      command: `join-channel --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH>`,
+      command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH>`,
       why: "The selected local wallet does not exist. Join the channel to create the wallet and register the channel L2 identity.",
     });
     return;
@@ -2279,7 +2524,7 @@ function applyGuideNextAction(guide) {
     const channelName = guide.state.wallet.channelName ?? guide.selectors.channelName ?? "<CHANNEL>";
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
-      command: `join-channel --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH>`,
+      command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH>`,
       why: "The local wallet exists, but the corresponding L1 address is not registered in the channel.",
     });
     return;
@@ -2296,46 +2541,46 @@ function applyGuideNextAction(guide) {
   if (guide.state.wallet?.exists && bridgeBalance === 0n && (channelBalance === null || channelBalance === 0n) && unusedNotes === 0) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
-      command: `deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account}`,
+      command: `account deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account}`,
       why: "The wallet is joined, but there is no bridge balance, channel balance, or local unused note to spend.",
     });
     return;
   }
   if (guide.state.wallet?.exists && bridgeBalance !== null && bridgeBalance > 0n && channelBalance === 0n) {
     setGuideNextAction(guide, {
-      command: `deposit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amount <TOKENS>`,
+      command: `wallet deposit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amount <TOKENS>`,
       why: "The account has funds in the shared bridge vault, but the wallet has no channel L2 accounting balance.",
     });
     return;
   }
   if (guide.state.wallet?.exists && channelBalance !== null && channelBalance > 0n && unusedNotes === 0) {
     setGuideNextAction(guide, {
-      command: `mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <A,B> [--tx-submitter <ACCOUNT>]`,
+      command: `wallet mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <A,B> [--tx-submitter <ACCOUNT>]`,
       why: "The wallet has channel L2 balance and no unused private notes yet. Use --tx-submitter for stronger transaction-submission privacy.",
     });
     return;
   }
   if (guide.state.wallet?.exists && unusedNotes !== null && unusedNotes > 0) {
     setGuideNextAction(guide, {
-      command: `transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID,ID> --recipients <ADDR,ADDR> --amounts <A,B> [--tx-submitter <ACCOUNT>]`,
+      command: `wallet transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID,ID> --recipients <ADDR,ADDR> --amounts <A,B> [--tx-submitter <ACCOUNT>]`,
       why: "The wallet has unused private notes. It can transfer or redeem those notes. Use --tx-submitter for stronger transaction-submission privacy.",
       candidates: [
-        `get-my-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
-        `redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID> [--tx-submitter <ACCOUNT>]`,
+        `wallet get-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
+        `wallet redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID> [--tx-submitter <ACCOUNT>]`,
       ],
     });
     return;
   }
   if (guide.state.wallet?.exists && channelBalance === 0n) {
     setGuideNextAction(guide, {
-      command: `exit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
+      command: `channel exit --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
       why: "The wallet has zero channel balance, so channel exit is allowed by both the CLI and bridge contract.",
     });
     return;
   }
 
   setGuideNextAction(guide, {
-    command: "guide --network <NAME> --channel-name <CHANNEL> --account <ACCOUNT> --wallet <WALLET>",
+    command: "help guide --network <NAME> --channel-name <CHANNEL> --account <ACCOUNT> --wallet <WALLET>",
     why: "Provide more selectors so the guide can choose a single next safe action.",
   });
 }
@@ -2399,12 +2644,12 @@ function redactRpcUrl(rpcUrl) {
   }
 }
 
-async function handleGetMyWalletMeta({ args, provider }) {
+async function handleWalletGetMeta({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   const contextResult = await loadPreferredWalletChannelContext({
     walletContext: wallet,
     provider,
-    progressAction: "get-my-wallet-meta",
+    progressAction: "wallet get-meta",
   });
   const context = contextResult.context;
   const {
@@ -2420,7 +2665,7 @@ async function handleGetMyWalletMeta({ args, provider }) {
   });
 
   printJson({
-    action: "get-my-wallet-meta",
+    action: "wallet get-meta",
     wallet: wallet.walletName,
     network: walletMetadata.network,
     channelName: walletMetadata.channelName,
@@ -2490,7 +2735,7 @@ async function loadWalletChannelRegistrationState({
       registration.exists,
       cliError(
         CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
-        `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
+        `No channelTokenVault registration exists for ${signer.address}. Run channel join first.`,
       ),
     );
     expect(
@@ -2508,7 +2753,7 @@ async function loadWalletChannelRegistrationState({
   };
 }
 
-async function handleGetMyChannelFund({ args, provider }) {
+async function handleWalletGetChannelFund({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   const {
     signer,
@@ -2520,11 +2765,11 @@ async function handleGetMyChannelFund({ args, provider }) {
   } = await loadWalletChannelFundState({
     walletContext: wallet,
     provider,
-    progressAction: "get-my-channel-fund",
+    progressAction: "wallet get-channel-fund",
   });
 
   printJson({
-    action: "get-my-channel-fund",
+    action: "wallet get-channel-fund",
     wallet: wallet.walletName,
     network: walletMetadata.network,
     channelName: walletMetadata.channelName,
@@ -2556,7 +2801,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     !existingRegistration.exists,
     [
       `L1 address ${signer.address} is already registered in channel ${context.workspace.channelName}.`,
-      "Use recover-wallet or normal wallet commands for an existing channel registration.",
+      "Use wallet recover-workspace or normal wallet commands for an existing channel registration.",
     ].join(" "),
   );
   const walletSecret = prepareJoinWalletSecretForName({
@@ -2593,7 +2838,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   );
   let nextNonce = await provider.getTransactionCount(signer.address, "pending");
   printImmutableChannelPolicyWarning({
-    action: "join-channel",
+    action: "channel join",
     channelName: context.workspace.channelName,
     channelId: ethers.toBigInt(context.workspace.channelId),
     channelManager: context.workspace.channelManager,
@@ -2629,7 +2874,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   });
 
   printJson({
-    action: "join-channel",
+    action: "channel join",
     workspace: context.workspaceName,
     wallet: walletContext.walletName,
     walletSecretSource: resolvedWalletSecretSource(args),
@@ -2665,17 +2910,18 @@ async function handleExitChannel({ args, provider }) {
     channelFund === 0n,
     [
       `The current channel fund for ${signer.address} is ${channelFund.toString()}.`,
-      "exit-channel requires a zero channel balance.",
-      "Run withdraw-channel first, then retry exit-channel.",
+      "channel exit requires a zero channel balance.",
+      "Run wallet withdraw-channel first, then retry channel exit.",
     ].join(" "),
   );
   const [refundAmount, refundBps] = await context.channelManager.getExitTollRefundQuote(signer.address);
   const receipt = await waitForReceipt(
     await context.bridgeTokenVault.connect(signer).exitChannel(ethers.toBigInt(context.workspace.channelId)),
   );
+  const cleanup = removeLocalWalletArtifacts(walletContext.walletName, walletMetadata.network);
 
   printJson({
-    action: "exit-channel",
+    action: "channel exit",
     wallet: walletContext.walletName,
     network: walletMetadata.network,
     channelName: walletMetadata.channelName,
@@ -2690,15 +2936,17 @@ async function handleExitChannel({ args, provider }) {
     gasUsed: receiptGasUsed(receipt),
     txUrl: explorerTxUrl(network, receipt.hash),
     receipt: sanitizeReceipt(receipt),
+    removedWalletDir: cleanup.removedWalletDir ? cleanup.walletDir : null,
+    removedWalletSecretFile: cleanup.removedWalletSecret ? cleanup.walletSecretFile : null,
   });
 }
 
 async function handleGrothVaultMove({ args, provider, direction }) {
-  const operationName = args.command === "withdraw-channel"
-    ? "withdraw-channel"
+  const operationName = args.command === "wallet-withdraw-channel"
+    ? "wallet withdraw-channel"
     : direction === "deposit"
-      ? "deposit-channel"
-      : "withdraw";
+      ? "wallet deposit-channel"
+      : "wallet withdraw-channel";
   emitProgress(operationName, "loading");
   const { wallet: walletContext } = loadUnlockedWalletWithMetadata(args);
   const contextResult = await loadPreferredWalletChannelContext({
@@ -2729,7 +2977,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
       availableBalance >= amount,
       [
         `Deposit amount ${amount.toString()} exceeds the shared bridge-vault balance`,
-        `${availableBalance.toString()} for ${signer.address}. Run deposit-bridge first.`,
+        `${availableBalance.toString()} for ${signer.address}. Run account deposit-bridge first.`,
       ].join(" "),
     );
   }
@@ -2738,7 +2986,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     registration.exists,
     cliError(
       CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
-      `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
+      `No channelTokenVault registration exists for ${signer.address}. Run channel join first.`,
     ),
   );
   expect(
@@ -2802,7 +3050,12 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   sealWalletOperationDir(operationDir, walletContext.walletSecret);
 
   context.currentSnapshot = transition.nextSnapshot;
-  persistCurrentState(context);
+  await refreshPersistedWorkspaceAfterLocalTransaction({
+    context,
+    provider,
+    receipt,
+    progressAction: operationName,
+  });
 
   emitProgress(operationName, "done");
   printJson({
@@ -2818,6 +3071,8 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     updatedRoot: transition.update.updatedRoot,
     gasUsed: receiptGasUsed(receipt),
     txUrl: explorerTxUrl(network, receipt.hash),
+    usedWorkspaceCache: contextResult.usingWorkspaceCache,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
   });
 }
 
@@ -2835,7 +3090,7 @@ async function handleWithdrawBridge({ args, network, provider }) {
   const receipt = await waitForReceipt(await bridgeTokenVault.claimToWallet(amount));
 
   printJson({
-    action: "withdraw-bridge",
+    action: "account withdraw-bridge",
     l1Address: signer.address,
     amountInput,
     amountBaseUnits: amount.toString(),
@@ -2927,13 +3182,13 @@ async function handleMintNotes({ args, provider }) {
   const { channelFund } = await loadWalletChannelFundState({
     walletContext: wallet,
     provider,
-    progressAction: "mint-notes",
+    progressAction: "wallet mint-notes",
   });
   expect(
     totalMintAmount <= channelFund,
     [
       `Mint amount total ${totalMintAmount.toString()} exceeds the current channel fund`,
-      `${channelFund.toString()}. Run get-my-channel-fund to inspect the available balance.`,
+      `${channelFund.toString()}. Run wallet get-channel-fund to inspect the available balance.`,
     ].join(" "),
   );
   const templatePayload = buildMintNotesTemplatePayload({
@@ -2944,12 +3199,12 @@ async function handleMintNotes({ args, provider }) {
     args,
     wallet,
     provider,
-    operationName: "mint-notes",
+    operationName: "wallet mint-notes",
     templatePayload,
   });
 
   printJson({
-    action: "mint-notes",
+    action: "wallet mint-notes",
     wallet: wallet.walletName,
     workspace: execution.context.workspaceName,
     operationDir: execution.operationDir,
@@ -2988,12 +3243,12 @@ async function handleRedeemNotes({ args, provider }) {
     args,
     wallet,
     provider,
-    operationName: "redeem-notes",
+    operationName: "wallet redeem-notes",
     templatePayload,
   });
 
   printJson({
-    action: "redeem-notes",
+    action: "wallet redeem-notes",
     wallet: wallet.walletName,
     workspace: execution.context.workspaceName,
     operationDir: execution.operationDir,
@@ -3020,7 +3275,7 @@ async function handleRedeemNotes({ args, provider }) {
   });
 }
 
-async function handleGetMyNotes({ args, provider }) {
+async function handleWalletGetNotes({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   expect(
     typeof wallet.wallet.controller === "string" && wallet.wallet.controller.length > 0,
@@ -3030,7 +3285,7 @@ async function handleGetMyNotes({ args, provider }) {
   const { context } = await loadPreferredWalletChannelContext({
     walletContext: wallet,
     provider,
-    progressAction: "get-my-notes",
+    progressAction: "wallet get-notes",
   });
   const signer = restoreWalletSigner(wallet, provider);
   const { recoveredDeliveryState } = await recoverWalletReceivedNotes({
@@ -3038,7 +3293,7 @@ async function handleGetMyNotes({ args, provider }) {
     context,
     provider,
     signer,
-    progressAction: "get-my-notes",
+    progressAction: "wallet get-notes",
   });
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
@@ -3063,7 +3318,7 @@ async function handleGetMyNotes({ args, provider }) {
   const spentTotal = spentTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
 
   printJson({
-    action: "get-my-notes",
+    action: "wallet get-notes",
     wallet: wallet.walletName,
     network: walletMetadata.network,
     channelName: walletMetadata.channelName,
@@ -3087,7 +3342,7 @@ async function handleTransferNotes({ args, provider }) {
   const preparedContextResult = await loadPreferredWalletChannelContext({
     walletContext: wallet,
     provider,
-    progressAction: "transfer-notes",
+    progressAction: "wallet transfer-notes",
   });
   const context = preparedContextResult.context;
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
@@ -3123,7 +3378,7 @@ async function handleTransferNotes({ args, provider }) {
     args,
     wallet,
     provider,
-    operationName: "transfer-notes",
+    operationName: "wallet transfer-notes",
     templatePayload,
   });
   const outputNotes = buildLifecycleTrackedOutputs({
@@ -3134,7 +3389,7 @@ async function handleTransferNotes({ args, provider }) {
   });
 
   printJson({
-    action: "transfer-notes",
+    action: "wallet transfer-notes",
     wallet: wallet.walletName,
     workspace: execution.context.workspaceName,
     operationDir: execution.operationDir,
@@ -3611,7 +3866,7 @@ function requireUsableWalletNoteReceiveRecoveryIndex({ walletContext, context, l
     throw new Error([
       `Wallet note recovery index is missing or unusable for wallet ${walletContext.walletName}.`,
       `Expected noteReceiveLastScannedBlock to be an integer between ${genesisBlockNumber} and ${Number(latestBlock) + 1}.`,
-      "Run recover-wallet --from-genesis to rebuild wallet note state from channel genesis.",
+      "Run wallet recover-workspace --from-genesis to rebuild wallet note state from channel genesis.",
     ].join(" "));
   }
   return nextBlock;
@@ -3851,16 +4106,16 @@ function buildRedeemNotesTemplatePayload({ wallet, inputNotes }) {
 }
 
 function selectMintNotesMethod(noteCount) {
-  expect(noteCount >= 1, "mint-notes requires at least one output amount.");
+  expect(noteCount >= 1, "wallet mint-notes requires at least one output amount.");
   expect(
     noteCount <= 2,
-    "mint-notes supports only one or two output amounts with the currently registered DApp.",
+    "wallet mint-notes supports only one or two output amounts with the currently registered DApp.",
   );
   return `mintNotes${noteCount}`;
 }
 
 function selectRedeemNotesMethod(noteCount) {
-  expect(noteCount === 1, "redeem-notes supports exactly one input note with the currently registered DApp.");
+  expect(noteCount === 1, "wallet redeem-notes supports exactly one input note with the currently registered DApp.");
   return `redeemNotes${noteCount}`;
 }
 
@@ -3979,7 +4234,7 @@ function selectTransferNotesMethod(inputCount, outputCount) {
   if (inputCount === 2 && outputCount === 1) {
     return "transferNotes2To1";
   }
-  throw new Error("transfer-notes supports only 1->1, 1->2, and 2->1 note transfers.");
+  throw new Error("wallet transfer-notes supports only 1->1, 1->2, and 2->1 note transfers.");
 }
 
 function loadWalletUnusedInputNotes(walletContext, noteIds) {
@@ -4115,7 +4370,7 @@ async function recoverWalletChannelWorkspace({ walletContext, provider, progress
   const networkName = walletContext.wallet.network ?? networkNameFromChainId(Number(walletContext.wallet.chainId));
   const network = resolveCliNetwork(networkName);
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
-  await initializeChannelWorkspace({
+  await syncChannelWorkspace({
     workspaceName: walletContext.wallet.channelName,
     channelName: walletContext.wallet.channelName,
     network,
@@ -4126,6 +4381,49 @@ async function recoverWalletChannelWorkspace({ walletContext, provider, progress
     useWorkspaceRecoveryIndex: true,
     progressAction,
   });
+}
+
+async function refreshPersistedWorkspaceAfterLocalTransaction({
+  context,
+  provider,
+  receipt,
+  progressAction = null,
+}) {
+  if (!context.persistChannelWorkspace || !context.workspaceDir) {
+    return context;
+  }
+  const network = resolveCliNetwork(context.workspace.network);
+  const bridgeResources = loadBridgeResources({ chainId: Number(context.workspace.chainId) });
+  const refreshed = await syncChannelWorkspace({
+    workspaceName: context.workspaceName,
+    channelName: context.workspace.channelName,
+    network,
+    provider,
+    bridgeResources,
+    persist: true,
+    allowExistingWorkspaceSync: true,
+    useWorkspaceRecoveryIndex: true,
+    minimumToBlock: receipt?.blockNumber ?? null,
+    progressAction,
+  });
+
+  context.workspaceDir = refreshed.workspaceDir;
+  context.workspace = refreshed.workspace;
+  context.currentSnapshot = refreshed.currentSnapshot;
+  context.blockInfo = refreshed.blockInfo;
+  context.contractCodes = refreshed.contractCodes;
+  context.bridgeAbiManifest = bridgeResources.bridgeAbiManifest;
+  context.channelManager = new Contract(
+    refreshed.workspace.channelManager,
+    bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
+  context.bridgeTokenVault = new Contract(
+    refreshed.workspace.bridgeTokenVault,
+    bridgeResources.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+    provider,
+  );
+  return context;
 }
 
 function isRecoverableWalletWorkspaceFailure(error) {
@@ -4179,6 +4477,7 @@ async function executeWalletDirectTemplateCommand({
       txSubmitterAccount,
       l2Identity,
       context: contextResult.context,
+      provider,
       operationName,
       functionName: templatePayload.method,
       templatePayload,
@@ -4210,6 +4509,7 @@ async function executeWalletDirectTemplateCommand({
     txSubmitterAccount,
     l2Identity,
     context: contextResult.context,
+    provider,
     operationName,
     functionName: templatePayload.method,
     templatePayload,
@@ -4230,6 +4530,7 @@ async function executeWalletTemplateSend({
   txSubmitterAccount,
   l2Identity,
   context,
+  provider,
   operationName,
   functionName,
   templatePayload,
@@ -4323,7 +4624,12 @@ async function executeWalletTemplateSend({
   applyNoteLifecycleToWallet(wallet, noteLifecycle, functionName, receipt.hash);
   context.currentSnapshot = nextSnapshot;
   persistWallet(wallet);
-  persistCurrentState(context);
+  await refreshPersistedWorkspaceAfterLocalTransaction({
+    context,
+    provider,
+    receipt,
+    progressAction: operationName,
+  });
   sealWalletOperationDir(operationDir, wallet.walletSecret);
 
   return {
@@ -4383,7 +4689,7 @@ async function loadJoinChannelContext({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
 
   const bridgeResources = loadBridgeResources({ chainId });
-  const initialized = await initializeChannelWorkspace({
+  const initialized = await syncChannelWorkspace({
     workspaceName: channelName,
     channelName,
     network: { chainId, name: resolvedNetworkName },
@@ -4477,7 +4783,7 @@ function assertWalletUsesChannelBoundDerivation(wallet, walletName) {
     wallet.l2DerivationMode === CHANNEL_BOUND_L2_DERIVATION_MODE,
     [
       `Wallet ${walletName} was not created with the current channel-bound L2 derivation rule.`,
-      "Create a fresh wallet with join-channel.",
+      "Create a fresh wallet with channel join.",
     ].join(" "),
   );
   expect(
@@ -5710,7 +6016,13 @@ function parseArgs(argv) {
   }
 
   parsed.command = parsed.positional[0];
-  if ((parsed.command === "account" || parsed.command === "wallet") && parsed.positional[1]) {
+  if (
+    (parsed.command === "account"
+      || parsed.command === "channel"
+      || parsed.command === "wallet"
+      || parsed.command === "help")
+    && parsed.positional[1]
+  ) {
     parsed.command = `${parsed.command}-${parsed.positional[1]}`;
     parsed.positional = [parsed.command];
   }
@@ -5871,7 +6183,7 @@ function resolveWalletDefaultSecret(networkName, walletName) {
       CLI_ERROR_CODES.MISSING_WALLET_SECRET,
       [
         `Missing wallet default secret file: ${secretPath}.`,
-        "Run join-channel with --wallet-secret-path before wallet commands.",
+        "Run channel join with --wallet-secret-path before wallet commands.",
       ].join(" "),
     );
   }
@@ -5884,12 +6196,17 @@ function prepareJoinWalletSecretForName({
   walletName,
 }) {
   const secretPath = walletSecretPath(networkName, walletName);
+  const { channelName } = parseWalletName(walletName);
+  const walletDir = walletPath(walletName, networkName);
   expect(
-    !walletConfigExists(walletPath(walletName, networkName)),
+    !walletConfigExists(walletDir),
     [
       `Wallet ${walletName} already exists on ${networkName}.`,
-      "join-channel always creates a new local wallet.",
-      "Use recover-wallet or normal wallet commands for an existing local wallet.",
+      "channel join always creates a new local wallet.",
+      "If this wallet was previously exited on-chain, run",
+      `wallet recover-workspace --channel-name ${channelName} --network ${networkName} --account ${args.account ?? "<ACCOUNT>"}`,
+      "once to remove the stale local wallet, then retry channel join.",
+      "Use normal wallet commands for an existing active local wallet.",
     ].join(" "),
   );
   const sourcePath = path.resolve(String(requireArg(args.walletSecretPath, "--wallet-secret-path")));
@@ -5898,13 +6215,6 @@ function prepareJoinWalletSecretForName({
     ? readSecretFile(sourcePath, "--wallet-secret-path")
     : readImportSecretSourceFile(sourcePath, "--wallet-secret-path");
   if (sourcePath !== canonicalPath) {
-    expect(
-      !fs.existsSync(canonicalPath),
-      [
-        `Wallet default secret file already exists: ${canonicalPath}.`,
-        "Remove it before joining with a different --wallet-secret-path.",
-      ].join(" "),
-    );
     writeSecretFile(canonicalPath, walletSecret);
   }
   return walletSecret;
@@ -6027,6 +6337,148 @@ function listLocalWallets({ networkFilter = null, channelFilter = null } = {}) {
   );
 }
 
+function privateStateCliDataRoot() {
+  const root = path.dirname(workspaceRoot);
+  expect(
+    path.dirname(secretRoot) === root,
+    `Unexpected CLI data root layout: ${workspaceRoot} and ${secretRoot} are not siblings.`,
+  );
+  return root;
+}
+
+function resolveExportWalletInfo({ networkName, walletName }) {
+  resolveCliNetwork(networkName);
+  const walletDir = walletPath(walletName, networkName);
+  return {
+    wallet: walletName,
+    network: networkName,
+    channelName: parseWalletName(walletName).channelName,
+    walletDir,
+    metadataPath: walletMetadataPath(walletDir),
+    hasMetadata: fs.existsSync(walletMetadataPath(walletDir)),
+    hasEncryptedWallet: walletConfigExists(walletDir),
+  };
+}
+
+function normalizeExportWalletInfo(walletInfo) {
+  const wallet = requireWalletName({ wallet: walletInfo.wallet });
+  const network = requireNetworkName({ network: walletInfo.network });
+  const walletDir = walletInfo.walletDir ?? walletPath(wallet, network);
+  const metadataPath = walletMetadataPath(walletDir);
+  const encryptedWalletPath = walletConfigPath(walletDir);
+  const metadata = readJsonIfExists(metadataPath);
+  const channelName = metadata?.channelName ?? walletInfo.channelName ?? parseWalletName(wallet).channelName;
+  const walletSecret = walletSecretPath(network, wallet);
+
+  expect(fs.existsSync(encryptedWalletPath), `Wallet export cannot find encrypted wallet file: ${encryptedWalletPath}.`);
+  expect(fs.existsSync(metadataPath), `Wallet export cannot find wallet metadata file: ${metadataPath}.`);
+  expect(fs.existsSync(walletSecret), `Wallet export cannot find wallet-local secret file: ${walletSecret}.`);
+  expect(
+    metadata.network === network,
+    `Wallet export metadata network ${metadata.network} does not match ${network}.`,
+  );
+  expect(
+    metadata.channelName === channelName,
+    `Wallet export metadata channel ${metadata.channelName} does not match ${channelName}.`,
+  );
+
+  return {
+    network,
+    channelName,
+    wallet,
+    walletDir,
+    walletSecretPath: walletSecret,
+  };
+}
+
+function walletExportFilePaths(walletInfo, { includeNotes }) {
+  const walletFiles = [
+    walletInfo.walletSecretPath,
+    walletConfigPath(walletInfo.walletDir),
+    walletMetadataPath(walletInfo.walletDir),
+  ];
+  if (!includeNotes) {
+    return walletFiles;
+  }
+
+  const workspaceDir = channelWorkspacePath(walletInfo.network, walletInfo.channelName);
+  const currentDir = channelWorkspaceCurrentPath(workspaceDir);
+  const workspaceFiles = [
+    channelWorkspaceConfigPath(workspaceDir),
+    path.join(currentDir, "state_snapshot.json"),
+    path.join(currentDir, "state_snapshot.normalized.json"),
+    path.join(currentDir, "block_info.json"),
+    path.join(currentDir, "contract_codes.json"),
+  ];
+  for (const filePath of workspaceFiles) {
+    expect(
+      fs.existsSync(filePath),
+      [
+        `wallet export --include-notes requires channel workspace cache file: ${filePath}.`,
+        "Run channel recover-workspace first, or export without --include-notes.",
+      ].join(" "),
+    );
+  }
+  return [...walletFiles, ...workspaceFiles];
+}
+
+function archivePathForLocalCliFile(filePath) {
+  const root = privateStateCliDataRoot();
+  const absolutePath = path.resolve(filePath);
+  expectPathWithinRoot(absolutePath, root, `Cannot export file outside CLI data root: ${absolutePath}.`);
+  return path.relative(root, absolutePath).split(path.sep).join("/");
+}
+
+function validateWalletExportManifest(manifest) {
+  expect(manifest?.format === WALLET_EXPORT_FORMAT, "Wallet import ZIP has an unsupported format.");
+  expect(
+    Number(manifest.formatVersion) === WALLET_EXPORT_FORMAT_VERSION,
+    `Wallet import ZIP format version ${manifest?.formatVersion} is not supported.`,
+  );
+  expect(Array.isArray(manifest.files), "Wallet import ZIP manifest is missing files[].");
+  expect(Array.isArray(manifest.wallets), "Wallet import ZIP manifest is missing wallets[].");
+  expect(typeof manifest.includeNotes === "boolean", "Wallet import ZIP manifest is missing includeNotes.");
+  expect(manifest.wallets.length > 0, "Wallet import ZIP manifest does not list any wallets.");
+  const uniqueFiles = new Set(manifest.files);
+  expect(uniqueFiles.size === manifest.files.length, "Wallet import ZIP manifest contains duplicate file paths.");
+  expect(manifest.files.length > 0, "Wallet import ZIP manifest does not list any files.");
+  for (const filePath of manifest.files) {
+    validateWalletArchivePath(filePath);
+  }
+  for (const wallet of manifest.wallets) {
+    requireNetworkName({ network: wallet.network });
+    requireWalletName({ wallet: wallet.wallet });
+    requireArg(wallet.channelName, "wallets[].channelName");
+  }
+}
+
+function validateWalletArchivePath(archivePath) {
+  expect(typeof archivePath === "string" && archivePath.length > 0, "Wallet import ZIP contains an empty path.");
+  expect(!archivePath.includes("\0"), `Wallet import ZIP contains an invalid path: ${archivePath}.`);
+  expect(!archivePath.includes("\\"), `Wallet import ZIP path must use forward slashes: ${archivePath}.`);
+  expect(!path.posix.isAbsolute(archivePath), `Wallet import ZIP path must be relative: ${archivePath}.`);
+  expect(path.posix.normalize(archivePath) === archivePath, `Wallet import ZIP path is not normalized: ${archivePath}.`);
+  expect(
+    archivePath.startsWith("secrets/") || archivePath.startsWith("workspace/"),
+    `Wallet import ZIP path must start with secrets/ or workspace/: ${archivePath}.`,
+  );
+}
+
+function expectPathWithinRoot(targetPath, rootPath, message) {
+  const relative = path.relative(path.resolve(rootPath), path.resolve(targetPath));
+  expect(relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative), message);
+}
+
+function applyImportedWalletFileMode(archivePath, targetPath) {
+  if (
+    archivePath.startsWith("secrets/")
+    || archivePath.endsWith("/wallet.json")
+    || archivePath.endsWith("/wallet.metadata.json")
+  ) {
+    protectSecretFile(targetPath, `imported wallet file ${archivePath}`);
+  }
+}
+
 function channelDataPath(workspaceDir) {
   return workspaceChannelDir(workspaceDir);
 }
@@ -6125,14 +6577,18 @@ function assertUninstallArgs(args) {
   assertAllowedCommandSchema(args, "uninstall");
 }
 
+function assertHelpCommandsArgs(args) {
+  assertAllowedCommandSchema(args, "help-commands");
+}
+
 function assertUpdateArgs(args) {
-  assertAllowedCommandSchema(args, "update");
+  assertAllowedCommandSchema(args, "help-update");
 }
 
 function assertDoctorArgs(args) {
-  assertAllowedCommandSchema(args, "doctor");
+  assertAllowedCommandSchema(args, "help-doctor");
   if (args.gpu !== undefined && args.gpu !== true) {
-    throw new Error("doctor option --gpu does not accept a value.");
+    throw new Error("help doctor option --gpu does not accept a value.");
   }
 }
 
@@ -6149,11 +6605,11 @@ function assertGuideArgs(args) {
   if (args.wallet !== undefined) {
     requireWalletName(args);
   }
-  assertAllowedCommandSchema(args, "guide");
+  assertAllowedCommandSchema(args, "help-guide");
 }
 
 function assertTransactionFeesArgs(args) {
-  assertAllowedCommandSchema(args, "transaction-fees");
+  assertAllowedCommandSchema(args, "help-transaction-fees");
 }
 
 function assertAccountImportArgs(args) {
@@ -6161,7 +6617,7 @@ function assertAccountImportArgs(args) {
 }
 
 function assertMintNotesArgs(args) {
-  assertAllowedCommandSchema(args, "mint-notes");
+  assertAllowedCommandSchema(args, "wallet-mint-notes");
   assertTxSubmitterArg(args);
   parseAmountVector(args.amounts, {
     allowZeroEntries: true,
@@ -6170,13 +6626,13 @@ function assertMintNotesArgs(args) {
 }
 
 function assertRedeemNotesArgs(args) {
-  assertAllowedCommandSchema(args, "redeem-notes");
+  assertAllowedCommandSchema(args, "wallet-redeem-notes");
   assertTxSubmitterArg(args);
   selectRedeemNotesMethod(parseNoteIdVector(args.noteIds).length);
 }
 
 function assertTransferNotesArgs(args) {
-  assertAllowedCommandSchema(args, "transfer-notes");
+  assertAllowedCommandSchema(args, "wallet-transfer-notes");
   assertTxSubmitterArg(args);
   const noteIds = parseNoteIdVector(args.noteIds);
   const recipients = parseRecipientVector(args.recipients);
@@ -6197,27 +6653,27 @@ function assertTxSubmitterArg(args) {
   }
 }
 
-function assertGetMyNotesArgs(args) {
-  assertWalletSecretArgs(args, "get-my-notes");
+function assertWalletGetNotesArgs(args) {
+  assertWalletSecretArgs(args, "wallet-get-notes");
 }
 
 function assertCreateChannelArgs(args) {
-  assertAllowedCommandSchema(args, "create-channel");
+  assertAllowedCommandSchema(args, "channel-create");
 }
 
 function assertRecoverWorkspaceArgs(args) {
-  assertAllowedCommandSchema(args, "recover-workspace");
+  assertAllowedCommandSchema(args, "channel-recover-workspace");
 }
 
 function assertGetChannelArgs(args) {
-  assertAllowedCommandSchema(args, "get-channel");
+  assertAllowedCommandSchema(args, "channel-get-meta");
 }
 
 function assertDepositBridgeArgs(args) {
-  assertAllowedCommandSchema(args, "deposit-bridge");
+  assertAllowedCommandSchema(args, "account-deposit-bridge");
 }
 
-function assertGetMyBridgeFundArgs(args) {
+function assertAccountGetBridgeFundArgs(args) {
   assertAllowedCommandSchema(args, "account-get-bridge-fund");
 }
 
@@ -6226,21 +6682,21 @@ function assertExplicitSignerCommandArgs(args, commandName) {
 }
 
 function assertRecoverWalletArgs(args) {
-  assertExplicitSignerCommandArgs(args, "recover-wallet");
+  assertExplicitSignerCommandArgs(args, "wallet-recover-workspace");
   if (args.fromGenesis !== undefined && args.fromGenesis !== true) {
-    throw new Error("recover-wallet option --from-genesis does not accept a value.");
+    throw new Error("wallet recover-workspace option --from-genesis does not accept a value.");
   }
 }
 
 function assertJoinChannelArgs(args) {
-  assertAllowedCommandSchema(args, "join-channel");
+  assertAllowedCommandSchema(args, "channel-join");
 }
 
-function assertGetMyWalletMetaArgs(args) {
-  assertWalletSecretArgs(args, "get-my-wallet-meta");
+function assertWalletGetMetaArgs(args) {
+  assertWalletSecretArgs(args, "wallet-get-meta");
 }
 
-function assertGetMyL1AddressArgs(args) {
+function assertAccountGetL1AddressArgs(args) {
   assertAllowedCommandSchema(args, "account-get-l1-address");
 }
 
@@ -6251,19 +6707,45 @@ function assertListLocalWalletsArgs(args) {
   if (args.channelName !== undefined) {
     requireArg(args.channelName, "--channel-name");
   }
-  assertAllowedCommandSchema(args, "list-local-wallets");
+  assertAllowedCommandSchema(args, "wallet-list");
+}
+
+function assertWalletExportArgs(args) {
+  assertAllowedCommandSchema(args, "wallet-export");
+  assertFlagOption(args, "all", "wallet export");
+  assertFlagOption(args, "includeNotes", "wallet export");
+  requireArg(args.output, "--output");
+  if (args.all === true) {
+    expect(
+      args.network === undefined && args.wallet === undefined,
+      "wallet export --all exports every local mainnet wallet and does not accept --network or --wallet.",
+    );
+    return;
+  }
+  requireNetworkName(args);
+  requireWalletName(args);
+}
+
+function assertWalletImportArgs(args) {
+  assertAllowedCommandSchema(args, "wallet-import");
+}
+
+function assertFlagOption(args, key, commandName) {
+  if (args[key] !== undefined && args[key] !== true) {
+    throw new Error(`${commandName} option --${toKebabCase(key)} does not accept a value.`);
+  }
 }
 
 function assertWithdrawBridgeArgs(args) {
-  assertAllowedCommandSchema(args, "withdraw-bridge");
+  assertAllowedCommandSchema(args, "account-withdraw-bridge");
 }
 
-function assertGetMyChannelFundArgs(args) {
-  assertWalletSecretArgs(args, "get-my-channel-fund");
+function assertWalletGetChannelFundArgs(args) {
+  assertWalletSecretArgs(args, "wallet-get-channel-fund");
 }
 
 function assertExitChannelArgs(args) {
-  assertWalletSecretArgs(args, "exit-channel");
+  assertWalletSecretArgs(args, "channel-exit");
 }
 
 function createWalletOperationDir(walletName, networkName, suffix) {
@@ -6289,17 +6771,6 @@ function persistWalletMetadata(context) {
   });
 }
 
-function persistCurrentState(context) {
-  if (!context.persistChannelWorkspace || !context.workspaceDir) {
-    return;
-  }
-  writeJson(path.join(channelWorkspaceCurrentPath(context.workspaceDir), "state_snapshot.json"), context.currentSnapshot);
-  writeJson(
-    path.join(channelWorkspaceCurrentPath(context.workspaceDir), "state_snapshot.normalized.json"),
-    context.currentSnapshot,
-  );
-}
-
 function printHelp() {
   const commandHelp = PRIVATE_STATE_CLI_COMMANDS.map((command) => [
     `  ${privateStateCliCommandSynopsis(command)}`,
@@ -6313,10 +6784,10 @@ ${commandHelp}
 Secret source options:
   Use account import --private-key-file once to create a protected local account secret.
   L1 signing commands use --account only.
-  A wallet secret source file is arbitrary high-entropy secret text read once by join-channel.
+  A wallet secret source file is arbitrary high-entropy secret text read once by channel join.
   Create one before joining a channel, for example:
       openssl rand -hex 32 > ./wallet-secret.txt
-      private-state-cli join-channel --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path ./wallet-secret.txt
+      private-state-cli channel join --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path ./wallet-secret.txt
   Bridge-facing commands accept optional --rpc-url. When provided, it is saved to
   ~/tokamak-private-channels/secrets/<network>/.env as RPC_URL. When omitted, the CLI reads RPC_URL from that file.
   Wallet commands use wallet-local default secret files only.
@@ -6331,7 +6802,7 @@ Options:
       Print the command result as JSON. Without --json, commands print human-readable output.
 
   --help
-      Show this help
+      Show this help. Equivalent to help commands.
 `);
 }
 
@@ -7056,18 +7527,18 @@ function buildRecoveryHints(error, args = {}) {
     || message.includes("does not match the wallet channel")
     || message.includes("The provided wallet does not belong to the selected channel")
   ) {
-    hints.push(`private-state-cli list-local-wallets --network ${networkName}`);
-    hints.push(`private-state-cli guide --network ${networkName} --wallet ${walletName}`);
+    hints.push(`private-state-cli wallet list --network ${networkName}`);
+    hints.push(`private-state-cli help guide --network ${networkName} --wallet ${walletName}`);
   }
 
   if (error?.code === CLI_ERROR_CODES.MISSING_WALLET_SECRET) {
     hints.push("restore the wallet-local default secret file from backup before running wallet commands.");
-    hints.push(`private-state-cli guide --network ${networkName} --wallet ${walletName}`);
+    hints.push(`private-state-cli help guide --network ${networkName} --wallet ${walletName}`);
   }
 
   if (error?.code === CLI_ERROR_CODES.WALLET_DECRYPT_FAILED) {
     hints.push("verify that the wallet-local default secret file is the same secret used when the wallet was created.");
-    hints.push("if the encrypted wallet file is corrupted but the wallet secret and L1 account secret still exist, rerun recover-wallet.");
+    hints.push("if the encrypted wallet file is corrupted but the wallet secret and L1 account secret still exist, rerun wallet recover-workspace.");
     hints.push("if the wallet secret was lost, the local L2 key cannot be recovered from the encrypted wallet file.");
   }
 
@@ -7076,7 +7547,7 @@ function buildRecoveryHints(error, args = {}) {
     || message.includes("Missing --account.")
   ) {
     hints.push(`private-state-cli account import --account ${accountName} --network ${networkName} --private-key-file <PATH>`);
-    hints.push(`private-state-cli guide --network ${networkName} --account ${accountName}`);
+    hints.push(`private-state-cli help guide --network ${networkName} --account ${accountName}`);
   }
 
   if (
@@ -7084,31 +7555,31 @@ function buildRecoveryHints(error, args = {}) {
     || message.includes("DApp deployment artifact")
   ) {
     hints.push("private-state-cli install");
-    hints.push("private-state-cli doctor --json");
+    hints.push("private-state-cli help doctor --json");
   }
 
   if (error?.code === CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION) {
-    hints.push(`private-state-cli join-channel --channel-name ${channelName} --network ${networkName} --account ${accountName} --wallet-secret-path <PATH>`);
-    hints.push(`private-state-cli guide --network ${networkName} --channel-name ${channelName} --account ${accountName}`);
+    hints.push(`private-state-cli channel join --channel-name ${channelName} --network ${networkName} --account ${accountName} --wallet-secret-path <PATH>`);
+    hints.push(`private-state-cli help guide --network ${networkName} --channel-name ${channelName} --account ${accountName}`);
   }
 
   if (error?.code === CLI_ERROR_CODES.STALE_WORKSPACE) {
-    hints.push(`private-state-cli recover-workspace --channel-name ${channelName} --network ${networkName}`);
-    hints.push(`private-state-cli guide --network ${networkName} --channel-name ${channelName}`);
+    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName}`);
+    hints.push(`private-state-cli help guide --network ${networkName} --channel-name ${channelName}`);
   }
 
   if (message.includes("Workspace recovery index is missing or unusable")) {
-    hints.push(`private-state-cli recover-workspace --channel-name ${channelName} --network ${networkName} --from-genesis`);
-    hints.push(`private-state-cli recover-wallet --channel-name ${channelName} --network ${networkName} --account ${accountName} --from-genesis`);
+    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName} --from-genesis`);
+    hints.push(`private-state-cli wallet recover-workspace --channel-name ${channelName} --network ${networkName} --account ${accountName} --from-genesis`);
   }
 
   if (message.includes("Wallet note recovery index is missing or unusable")) {
-    hints.push(`private-state-cli recover-wallet --channel-name ${channelName} --network ${networkName} --account ${accountName} --from-genesis`);
+    hints.push(`private-state-cli wallet recover-workspace --channel-name ${channelName} --network ${networkName} --account ${accountName} --from-genesis`);
   }
 
   if (message.includes("Missing channel selector")) {
-    hints.push(`private-state-cli list-local-wallets --network ${networkName}`);
-    hints.push(`private-state-cli guide --network ${networkName} --channel-name <CHANNEL> --wallet <WALLET>`);
+    hints.push(`private-state-cli wallet list --network ${networkName}`);
+    hints.push(`private-state-cli help guide --network ${networkName} --channel-name <CHANNEL> --wallet <WALLET>`);
   }
 
   return [...new Set(hints)];

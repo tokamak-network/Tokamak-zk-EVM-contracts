@@ -414,31 +414,31 @@
           <div class="box">
             <ol class="guide-list">
               <li>
-                <span class="guide-label">Join a channel:</span> <code>join-channel</code>
+                <span class="guide-label">Join a channel:</span> <code>channel join</code>
                 <div class="guide-example">
-                  <code>join-channel --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --wallet-secret-path '/path/to/wallet-secret' --rpc-url '__RPC_URL__'</code>
+                  <code>channel join --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --wallet-secret-path '/path/to/wallet-secret' --rpc-url '__RPC_URL__'</code>
                 </div>
               </li>
               <li>
-                <span class="guide-label">Create notes:</span> <code>deposit-bridge</code> -&gt; <code>deposit-channel</code> -&gt; <code>mint-notes</code>
+                <span class="guide-label">Create notes:</span> <code>account deposit-bridge</code> -&gt; <code>wallet deposit-channel</code> -&gt; <code>wallet mint-notes</code>
                 <div class="guide-example">
-                  <code>deposit-bridge --amount '100' --network 'sepolia' --account 'my-account' --rpc-url '__RPC_URL__'</code><br />
-                  <code>deposit-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '100'</code><br />
-                  <code>mint-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amounts '[&quot;50&quot;,&quot;50&quot;,&quot;0&quot;]'</code>
+                  <code>account deposit-bridge --amount '100' --network 'sepolia' --account 'my-account' --rpc-url '__RPC_URL__'</code><br />
+                  <code>wallet deposit-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '100'</code><br />
+                  <code>wallet mint-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amounts '[&quot;50&quot;,&quot;50&quot;,&quot;0&quot;]'</code>
                 </div>
               </li>
               <li>
-                <span class="guide-label">Split, merge, or transfer note ownership:</span> <code>transfer-notes</code>
+                <span class="guide-label">Split, merge, or transfer note ownership:</span> <code>wallet transfer-notes</code>
                 <div class="guide-example">
-                  <code>transfer-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]' --recipients '[&quot;0xRecipientL2AddressA&quot;,&quot;0xRecipientL2AddressB&quot;]' --amounts '[&quot;25&quot;,&quot;25&quot;]'</code>
+                  <code>wallet transfer-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]' --recipients '[&quot;0xRecipientL2AddressA&quot;,&quot;0xRecipientL2AddressB&quot;]' --amounts '[&quot;25&quot;,&quot;25&quot;]'</code>
                 </div>
               </li>
               <li>
-                <span class="guide-label">Redeem notes back to L1:</span> <code>redeem-notes</code> -&gt; <code>withdraw-channel</code> -&gt; <code>withdraw-bridge</code>
+                <span class="guide-label">Redeem notes back to L1:</span> <code>wallet redeem-notes</code> -&gt; <code>wallet withdraw-channel</code> -&gt; <code>account withdraw-bridge</code>
                 <div class="guide-example">
-                  <code>redeem-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]'</code><br />
-                  <code>withdraw-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '25'</code><br />
-                  <code>withdraw-bridge --amount '25' --network 'sepolia' --account 'my-account' --rpc-url '__RPC_URL__'</code>
+                  <code>wallet redeem-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]'</code><br />
+                  <code>wallet withdraw-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '25'</code><br />
+                  <code>account withdraw-bridge --amount '25' --network 'sepolia' --account 'my-account' --rpc-url '__RPC_URL__'</code>
                 </div>
               </li>
             </ol>
@@ -466,7 +466,7 @@
       }));
 
       const defaultState = {
-        commandId: "join-channel",
+        commandId: "channel-join",
         channelName: "",
         joinToll: "1",
         network: "sepolia",
@@ -612,13 +612,13 @@
       }
 
       function commandNeedsWalletNotes(command = currentCommand()) {
-        return command.id === "transfer-notes" || command.id === "redeem-notes";
+        return command.id === "wallet-transfer-notes" || command.id === "wallet-redeem-notes";
       }
 
       function commandNeedsExistingChannel(command = currentCommand()) {
         return command.fields.includes("channelName")
-          && command.id !== "create-channel"
-          && command.id !== "recover-workspace";
+          && command.id !== "channel-create"
+          && command.id !== "channel-recover-workspace";
       }
 
       function currentWorkspaceOptions() {
@@ -695,7 +695,7 @@
       }
 
       function noteSelectionLimit() {
-        return currentCommand().id === "redeem-notes" ? 1 : 2;
+        return currentCommand().id === "wallet-redeem-notes" ? 1 : 2;
       }
 
       function mintAmountsTotalLabel() {
@@ -814,7 +814,7 @@
           await refreshWalletNoteOptions();
           if (commandNeedsWalletNotes()) {
             rerenderCommandField("noteIds");
-            if (currentCommand().id === "transfer-notes") {
+            if (currentCommand().id === "wallet-transfer-notes") {
               rerenderCommandField("recipients");
             }
           }
@@ -838,7 +838,7 @@
       }
 
       function missingFields(command) {
-        const transferOutputs = command.id === "transfer-notes"
+        const transferOutputs = command.id === "wallet-transfer-notes"
           ? currentTransferOutputs()
           : null;
         const optionalFields = new Set(command.optionalFields ?? []);
@@ -846,10 +846,10 @@
           if (fieldCatalog[fieldKey]?.optional || optionalFields.has(fieldKey)) {
             return false;
           }
-          if (fieldKey === "amounts" && command.id === "mint-notes") {
+          if (fieldKey === "amounts" && command.id === "wallet-mint-notes") {
             return currentMintAmounts().length === 0;
           }
-          if ((fieldKey === "recipients" || fieldKey === "amounts") && command.id === "transfer-notes") {
+          if ((fieldKey === "recipients" || fieldKey === "amounts") && command.id === "wallet-transfer-notes") {
             if (fieldKey === "amounts") {
               return false;
             }
@@ -861,8 +861,8 @@
 
       function buildCommand({ maskSecrets }) {
         const command = currentCommand();
-        const parts = [cliEntry, command.id];
-        const transferOutputs = command.id === "transfer-notes"
+        const parts = [cliEntry, ...(command.display ?? command.id).split(" ")];
+        const transferOutputs = command.id === "wallet-transfer-notes"
           ? currentTransferOutputs()
           : null;
 
@@ -871,13 +871,13 @@
             continue;
           }
 
-          const value = fieldKey === "amounts" && command.id === "mint-notes"
+          const value = fieldKey === "amounts" && command.id === "wallet-mint-notes"
             ? JSON.stringify(currentMintAmounts())
-            : fieldKey === "amounts" && command.id === "transfer-notes"
+            : fieldKey === "amounts" && command.id === "wallet-transfer-notes"
               ? (!transferOutputs.hasPartialPair && transferOutputs.amounts.length > 0
                 ? JSON.stringify(transferOutputs.amounts)
                 : "")
-              : fieldKey === "recipients" && command.id === "transfer-notes"
+              : fieldKey === "recipients" && command.id === "wallet-transfer-notes"
                 ? (!transferOutputs.hasPartialPair && transferOutputs.recipients.length > 0
                   ? JSON.stringify(transferOutputs.recipients)
                   : "")
@@ -990,8 +990,8 @@
         const currentOptions = currentWorkspaceOptions();
         if (
           !currentOptions.channelOptions.includes(state.channelName)
-          && currentCommand().id !== "create-channel"
-          && currentCommand().id !== "recover-workspace"
+          && currentCommand().id !== "channel-create"
+          && currentCommand().id !== "channel-recover-workspace"
         ) {
           state.channelName = currentOptions.channelOptions[0] ?? "";
         }
@@ -1167,7 +1167,7 @@
               state.noteIds = nextSelection.length === 0 ? "" : JSON.stringify(nextSelection);
               persistState();
               rerenderCommandField("noteIds");
-              if (currentCommand().id === "transfer-notes") {
+              if (currentCommand().id === "wallet-transfer-notes") {
                 rerenderCommandField("recipients");
               }
               renderPreview();
@@ -1334,10 +1334,10 @@
         if (fieldKey === "wallet") {
           return createWalletField();
         }
-        if (fieldKey === "amounts" && currentCommand().id === "mint-notes") {
+        if (fieldKey === "amounts" && currentCommand().id === "wallet-mint-notes") {
           return createMintAmountsField();
         }
-        if (fieldKey === "recipients" && currentCommand().id === "transfer-notes") {
+        if (fieldKey === "recipients" && currentCommand().id === "wallet-transfer-notes") {
           return createTransferPairsField();
         }
         if (fieldKey === "noteIds" && commandNeedsWalletNotes()) {
@@ -1345,8 +1345,8 @@
         }
         if (
           fieldKey === "channelName"
-          && currentCommand().id !== "create-channel"
-          && currentCommand().id !== "recover-workspace"
+          && currentCommand().id !== "channel-create"
+          && currentCommand().id !== "channel-recover-workspace"
         ) {
           return createExistingChannelField();
         }
@@ -1423,7 +1423,7 @@
         for (const command of commands) {
           const option = document.createElement("option");
           option.value = command.id;
-          option.textContent = command.id;
+          option.textContent = command.display ?? command.id;
           commandSelectEl.appendChild(option);
         }
         commandSelectEl.value = state.commandId;
@@ -1450,7 +1450,7 @@
           if (fieldKey === "rpcUrl" && !acceptsRpcUrl(command)) {
             continue;
           }
-          if (fieldKey === "amounts" && command.id === "transfer-notes") {
+          if (fieldKey === "amounts" && command.id === "wallet-transfer-notes") {
             continue;
           }
           const fieldElement = createField(fieldKey);

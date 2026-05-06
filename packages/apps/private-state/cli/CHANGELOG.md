@@ -1,11 +1,51 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 - 2026-05-06
 
+- Refreshed channel workspaces through the existing recovery-indexed replay path after successful
+  wallet transactions instead of manually patching local snapshots, and bounded post-transaction
+  replay by the transaction receipt block so provider latest-block lag cannot skip the confirmed
+  transaction logs. This prevents stale `recoveryRootVectorHash` / `recoveryLastScannedBlock`
+  metadata after local state changes.
+- Reported `usedWorkspaceCache` and `recoveredWorkspace` from channel vault move commands so
+  automated tests can verify that follow-up wallet transactions do not replay workspace recovery
+  when the local workspace is already current.
+- Removed the local wallet folder and canonical wallet secret after successful `channel exit`, and
+  made `wallet recover-workspace` delete stale local wallet folders and canonical wallet secrets
+  when the corresponding L1 account is no longer registered on-chain.
+- Improved `channel join` stale-wallet guidance. The command still does not delete stale wallets
+  itself; it tells users to run `wallet recover-workspace` first, and it overwrites the canonical
+  wallet secret from the provided `--wallet-secret-path` whenever a new local wallet is allowed.
+- Normalized account command JSON `action` labels and CLI e2e helper names to the current
+  `account`, `channel`, and `wallet` command taxonomy.
+- Added `wallet export` and `wallet import` for ZIP-based local wallet backup and restore.
+  The default export includes the encrypted wallet, wallet metadata, and wallet-local secret so
+  an imported wallet can be used after `channel recover-workspace`. Tracked notes remain preserved
+  because they live inside encrypted `wallet.json`; `--include-notes` also includes the channel
+  workspace cache needed to use wallet commands immediately when that cache is still chain-aligned.
+- Hardened `wallet import` error handling for invalid ZIP or manifest data and staged imported
+  files in a temporary directory before committing them into the CLI data root.
+- Kept account secrets out of wallet exports. Wallet commands restore their signer from the
+  encrypted `wallet.json`, while account secrets remain scoped to account-level bridge-vault
+  commands and optional `--tx-submitter` use.
+- Reclassified user-facing commands into `account`, `channel`, `wallet`, and `help` namespaces.
+  `install`, `uninstall`, and `--version` remain top-level commands.
 - Renamed `get-my-l1-address` to `account get-l1-address` so account helpers live under the
   same `account` command namespace as `account import`.
 - Renamed `get-my-bridge-fund` to `account get-bridge-fund` so bridge-vault balance lookup is
   grouped with account-level helpers.
+- Moved bridge-vault movement commands to `account deposit-bridge` and `account withdraw-bridge`.
+- Moved channel lifecycle commands to `channel create`, `channel recover-workspace`,
+  `channel get-meta`, `channel join`, and `channel exit`.
+- Moved wallet-local state, channel balance, and note commands to `wallet recover-workspace`,
+  `wallet get-meta`, `wallet list`, `wallet deposit-channel`, `wallet withdraw-channel`,
+  `wallet get-channel-fund`, `wallet mint-notes`, `wallet transfer-notes`,
+  `wallet redeem-notes`, and `wallet get-notes`.
+- Moved helper commands to `help commands`, `help update`, `help doctor`, `help guide`, and
+  `help transaction-fees`; `--help` still prints the same command reference for shell
+  compatibility.
+- Updated README files, private-state workflow docs, the browser CLI assistant, transaction-fee
+  command labels, and the CLI e2e harness to use the new command taxonomy.
 
 ## 1.0.2 - 2026-05-06
 

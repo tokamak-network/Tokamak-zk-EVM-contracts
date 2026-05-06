@@ -168,6 +168,16 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     usage: "no options",
   },
   {
+    id: "update",
+    description: "Check npm registry for the latest private-state CLI package and update global installs when possible.",
+    fields: ["json"],
+    usage: "optional --json",
+    help: [
+      "Global npm installs are updated with npm install -g when a newer registry version exists",
+      "Repository checkouts and non-global installs print the required update command instead of modifying source files",
+    ],
+  },
+  {
     id: "doctor",
     description: "Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts.",
     fields: ["gpu", "json"],

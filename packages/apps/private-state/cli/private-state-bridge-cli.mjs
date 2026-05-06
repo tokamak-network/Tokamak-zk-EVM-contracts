@@ -127,6 +127,7 @@ const secretRoot = path.resolve(os.homedir(), "tokamak-private-channels", "secre
 const flatDeploymentArtifactPathsByChainId = new Map();
 const PRIVATE_STATE_UNINSTALL_CONFIRMATION =
   "I understand that the wallet secrets deleted due to this decision cannot be recovered";
+const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 let jsonOutputRequested = false;
@@ -335,6 +336,12 @@ async function main() {
   if (args.command === "uninstall") {
     assertUninstallArgs(args);
     await handleUninstall();
+    return;
+  }
+
+  if (args.command === "update") {
+    assertUpdateArgs(args);
+    await handleUpdate();
     return;
   }
 
@@ -1433,31 +1440,44 @@ function assertSafeManagedRoot(rootPath, label) {
   }
 }
 
-function uninstallGlobalPrivateStateCliPackage() {
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const list = runCaptured(npmCommand, ["ls", "-g", "@tokamak-private-dapps/private-state-cli", "--depth=0", "--json"]);
-  if (list.status !== 0) {
-    const listReport = parseJsonReport(list.stdout);
+function npmCommandName() {
+  return process.platform === "win32" ? "npm.cmd" : "npm";
+}
+
+function inspectGlobalPrivateStateCliPackage() {
+  const list = runCaptured(npmCommandName(), ["ls", "-g", PRIVATE_STATE_CLI_PACKAGE_NAME, "--depth=0", "--json"]);
+  const report = parseJsonReport(list.stdout);
+  const packageReport = report?.dependencies?.[PRIVATE_STATE_CLI_PACKAGE_NAME] ?? null;
+  const installed = Boolean(packageReport);
+  if (!installed) {
     const missing = /empty|missing|not found|not installed/iu.test(`${list.stdout}\n${list.stderr}`);
     return {
-      attempted: false,
       installed: false,
-      reason: missing || listReport ? "global package is not installed" : "unable to inspect global npm package",
+      version: null,
       status: list.status,
+      reason: missing || report ? "global package is not installed" : "unable to inspect global npm package",
       stderr: stripAnsi(list.stderr).trim(),
     };
   }
-  const report = parseJsonReport(list.stdout);
-  const installed = Boolean(report?.dependencies?.["@tokamak-private-dapps/private-state-cli"]);
-  if (!installed) {
+  return {
+    installed: true,
+    version: packageReport.version ?? null,
+    status: list.status,
+  };
+}
+
+function uninstallGlobalPrivateStateCliPackage() {
+  const inspection = inspectGlobalPrivateStateCliPackage();
+  if (!inspection.installed) {
     return {
       attempted: false,
       installed: false,
-      reason: "global package is not installed",
-      status: list.status,
+      reason: inspection.reason,
+      status: inspection.status,
+      stderr: inspection.stderr,
     };
   }
-  const uninstall = runCaptured(npmCommand, ["uninstall", "-g", "@tokamak-private-dapps/private-state-cli"]);
+  const uninstall = runCaptured(npmCommandName(), ["uninstall", "-g", PRIVATE_STATE_CLI_PACKAGE_NAME]);
   return {
     attempted: true,
     installed: true,
@@ -1466,6 +1486,118 @@ function uninstallGlobalPrivateStateCliPackage() {
     stdout: stripAnsi(uninstall.stdout).trim(),
     stderr: stripAnsi(uninstall.stderr).trim(),
   };
+}
+
+async function handleUpdate() {
+  const currentVersion = privateStateCliPackageJson.version;
+  const latestVersion = await fetchLatestPrivateStateCliVersion();
+  const registryComparison = compareSemver(currentVersion, latestVersion);
+  const globalPackage = inspectGlobalPrivateStateCliPackage();
+  const runningFromRepositoryCheckout = isRepositoryCliPackageRoot(privateStateCliPackageRoot);
+  const updateAvailable = registryComparison < 0;
+
+  const result = {
+    action: "update",
+    packageName: PRIVATE_STATE_CLI_PACKAGE_NAME,
+    currentVersion,
+    latestVersion,
+    updateAvailable,
+    registryState: registryComparison > 0 ? "local-version-ahead-of-registry" : "normal",
+    runningFromRepositoryCheckout,
+    globalPackage,
+    attempted: false,
+    updated: false,
+    command: `npm install -g ${PRIVATE_STATE_CLI_PACKAGE_NAME}@latest`,
+  };
+
+  if (!updateAvailable) {
+    printJson(result);
+    return;
+  }
+
+  if (runningFromRepositoryCheckout) {
+    printJson({
+      ...result,
+      reason: "running from a repository checkout; update the checkout with git/npm instead of mutating source files",
+    });
+    return;
+  }
+
+  if (!globalPackage.installed) {
+    printJson({
+      ...result,
+      reason: "global npm package is not installed; install or update the CLI with the printed command",
+    });
+    return;
+  }
+
+  const install = runCaptured(npmCommandName(), ["install", "-g", `${PRIVATE_STATE_CLI_PACKAGE_NAME}@latest`]);
+  if (install.status !== 0) {
+    throw new Error([
+      `Unable to update ${PRIVATE_STATE_CLI_PACKAGE_NAME} to ${latestVersion}.`,
+      stripAnsi(install.stderr || install.stdout).trim(),
+    ].filter(Boolean).join(" "));
+  }
+  printJson({
+    ...result,
+    attempted: true,
+    updated: true,
+    installedVersion: latestVersion,
+    stdout: stripAnsi(install.stdout).trim(),
+    stderr: stripAnsi(install.stderr).trim(),
+  });
+}
+
+async function fetchLatestPrivateStateCliVersion() {
+  const url = `https://registry.npmjs.org/${encodeURIComponent(PRIVATE_STATE_CLI_PACKAGE_NAME)}/latest`;
+  const response = await fetch(url, {
+    redirect: "follow",
+    signal: typeof globalThis.AbortSignal?.timeout === "function" ? globalThis.AbortSignal.timeout(10_000) : undefined,
+  });
+  if (!response.ok) {
+    throw new Error(`Unable to fetch ${PRIVATE_STATE_CLI_PACKAGE_NAME} latest version from npm registry: HTTP ${response.status}.`);
+  }
+  const metadata = await response.json();
+  const version = metadata?.version;
+  if (typeof version !== "string" || version.trim() === "") {
+    throw new Error(`npm registry response for ${PRIVATE_STATE_CLI_PACKAGE_NAME} did not include a version.`);
+  }
+  return version;
+}
+
+function compareSemver(left, right) {
+  const parse = (value) => String(value).split("-", 1)[0].split(".").map((part) => {
+    const parsed = Number.parseInt(part, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  });
+  const leftParts = parse(left);
+  const rightParts = parse(right);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const delta = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (delta !== 0) {
+      return delta < 0 ? -1 : 1;
+    }
+  }
+  return 0;
+}
+
+function isRepositoryCliPackageRoot(packageRoot) {
+  const segments = path.resolve(packageRoot).split(path.sep);
+  const suffix = ["packages", "apps", "private-state", "cli"];
+  return suffix.every((segment, index) => segments[segments.length - suffix.length + index] === segment);
+}
+
+function parseJsonReport(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function stripAnsi(value) {
+  return String(value ?? "").replace(/\u001b\[[0-9;]*m/g, "");
 }
 
 async function handleDoctor({ args }) {
@@ -6003,6 +6135,10 @@ function assertUninstallArgs(args) {
   assertAllowedCommandSchema(args, "uninstall");
 }
 
+function assertUpdateArgs(args) {
+  assertAllowedCommandSchema(args, "update");
+}
+
 function assertDoctorArgs(args) {
   assertAllowedCommandSchema(args, "doctor");
   if (args.gpu !== undefined && args.gpu !== true) {
@@ -6630,6 +6766,7 @@ function loadWalletCommandRuntime(args) {
 const HUMAN_RESULT_RENDERERS = Object.freeze({
   guide: printGuideHumanResult,
   "transaction-fees": printTransactionFeesHumanResult,
+  update: printUpdateHumanResult,
 });
 
 function normalizePrivateKey(value) {
@@ -6718,6 +6855,35 @@ function printTransactionFeesHumanResult(report) {
       ...report.asset.notes.map((note) => `- ${note}`),
     );
   }
+  console.log(lines.join("\n"));
+}
+
+function printUpdateHumanResult(report) {
+  const lines = [
+    "Private-State CLI Update",
+    `Package: ${formatHumanValue(report.packageName)}`,
+    `Current version: ${formatHumanValue(report.currentVersion)}`,
+    `Latest registry version: ${formatHumanValue(report.latestVersion)}`,
+  ];
+  if (report.registryState === "local-version-ahead-of-registry") {
+    lines.push("Status: local version is newer than the npm registry latest tag.");
+  } else if (!report.updateAvailable) {
+    lines.push("Status: up to date.");
+  } else if (report.updated) {
+    lines.push("Status: updated global npm install.");
+  } else {
+    lines.push(
+      "Status: update available.",
+      `Reason: ${formatHumanValue(report.reason)}`,
+      `Command: ${formatHumanValue(report.command)}`,
+    );
+  }
+  lines.push(
+    `Global install: ${report.globalPackage?.installed ? `yes (${formatHumanValue(report.globalPackage.version)})` : "no"}`,
+    `Repository checkout: ${report.runningFromRepositoryCheckout ? "yes" : "no"}`,
+    "",
+    "Run with --json to inspect the full update report.",
+  );
   console.log(lines.join("\n"));
 }
 

@@ -57,6 +57,16 @@ Print only the installed CLI package version with:
 private-state-cli --version
 ```
 
+Check npm registry for a newer CLI package and update a global npm install when possible:
+
+```bash
+private-state-cli update
+```
+
+`update` keeps `--version` suitable for scripts by using a separate command for registry checks. If the CLI is running
+from a repository checkout or npm does not report a global install, it does not edit local source files; it prints the
+recommended `npm install -g @tokamak-private-dapps/private-state-cli@latest` command instead.
+
 Remove all local private-state CLI data with:
 
 ```bash

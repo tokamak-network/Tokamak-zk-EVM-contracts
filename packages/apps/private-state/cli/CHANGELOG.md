@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.0.2 - 2026-05-06
+
+- Added `update`, which checks npm registry for the latest private-state CLI package and updates
+  global npm installs when a newer version exists.
+- Kept repository checkouts and non-global installs read-only during `update`; those modes print
+  the exact `npm install -g @tokamak-private-dapps/private-state-cli@latest` command instead.
 - Added `transaction-fees`, which reads packaged measured gas data from `assets/tx-fees.json`,
   combines it with live RPC fee data and live ETH/USD pricing, and prints a per-command ETH/USD
   fee table.

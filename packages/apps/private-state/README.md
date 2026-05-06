@@ -117,6 +117,7 @@ Important rules:
 - L1 signing commands use `--account`; create the local account secret once with `account import --private-key-file`
 - wallet commands use the wallet-local default secret file and do not accept explicit secret arguments
 - `channel join` requires `--wallet-secret-path <PATH>` and imports that source file into the protected wallet-local secret
+- `wallet export` backs up encrypted wallet state and wallet-local secrets; it does not export account secrets
 - channel creation commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy are fixed for that channel
 - joining a channel means accepting that channel's current policy; later fixes to policy-level bugs require a new channel or migration rather than in-place mutation of the joined channel
 - `channel join` binds the channel name, wallet-local secret, and local account signer to derive the channel-specific L2 identity
@@ -280,6 +281,23 @@ Wallet getter commands that need channel state, including `wallet get-meta`, `wa
 `wallet get-notes`, use only indexed recovery before reading state. `wallet get-notes` also resumes encrypted note delivery
 logs from the wallet's saved note-receive scan index. If the required index is missing or unusable, the command stops
 and asks the user to run `channel recover-workspace --from-genesis` or `wallet recover-workspace --from-genesis` as appropriate.
+
+`wallet export`
+
+- writes a ZIP backup for one selected wallet with `--network`, `--wallet`, and `--output`
+- writes a ZIP backup for every local mainnet wallet with `--all` and `--output`
+- includes the protected wallet-local secret, encrypted `wallet.json`, and wallet metadata by default
+- preserves tracked note state because tracked notes live inside encrypted `wallet.json`
+- intentionally excludes account secrets because wallet commands restore their L1 signer from encrypted `wallet.json`
+- requires `channel recover-workspace` after import before wallet commands need channel state
+- accepts `--include-notes` to also export the channel workspace cache needed to run wallet commands immediately when the imported cache is still chain-aligned
+
+`wallet import`
+
+- reads a ZIP produced by `wallet export`
+- restores files only under the canonical `~/tokamak-private-channels/secrets/` and `~/tokamak-private-channels/workspace/` roots
+- refuses to overwrite existing wallet secret or wallet files
+- validates the archive manifest and rejects unsafe paths before writing files
 
 ### 6. Inspect wallet-to-channel registration
 

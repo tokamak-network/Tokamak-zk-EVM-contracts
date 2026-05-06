@@ -115,6 +115,36 @@ Wallet getter commands that need channel state, including `wallet get-meta`, `wa
 the wallet's saved note-receive scan index for encrypted note delivery logs. If either index is unusable, the command
 stops and asks the user to run the appropriate recovery command with `--from-genesis`.
 
+Back up a local wallet with:
+
+```bash
+private-state-cli wallet export --network mainnet --wallet <WALLET> --output ./wallet-backup.zip
+```
+
+The default export stores the encrypted wallet, wallet metadata, and wallet-local secret. The encrypted `wallet.json`
+contains the wallet's current key material and tracked note state. The export intentionally excludes account secrets
+because wallet commands restore the L1 signer from the encrypted `wallet.json`; account secrets are only needed for
+account-level bridge-vault commands and optional `--tx-submitter` use. After importing a default export on a new machine,
+run `channel recover-workspace` before using wallet commands that need channel state:
+
+```bash
+private-state-cli wallet import --input ./wallet-backup.zip
+private-state-cli channel recover-workspace --channel-name <CHANNEL> --network mainnet --from-genesis
+```
+
+For a wider backup that can run wallet commands immediately when the imported channel workspace cache is still
+chain-aligned, add `--include-notes`:
+
+```bash
+private-state-cli wallet export --network mainnet --wallet <WALLET> --output ./wallet-backup.zip --include-notes
+```
+
+Use `--all` to export every local mainnet wallet into one ZIP:
+
+```bash
+private-state-cli wallet export --all --output ./mainnet-wallets.zip
+```
+
 Estimate live transaction costs before sending commands with:
 
 ```bash
@@ -162,6 +192,8 @@ private-state-cli account import --account <ACCOUNT_NAME> --network sepolia --pr
 private-state-cli account get-l1-address --account <ACCOUNT_NAME> --network sepolia
 private-state-cli wallet list --network sepolia --channel-name cuda
 private-state-cli wallet get-meta --wallet <WALLET_NAME> --network sepolia
+private-state-cli wallet export --network sepolia --wallet <WALLET_NAME> --output ./wallet-backup.zip
+private-state-cli wallet import --input ./wallet-backup.zip
 ```
 
 `account import` is the only supported way to bring an L1 signing key into the CLI: it reads `--private-key-file` once

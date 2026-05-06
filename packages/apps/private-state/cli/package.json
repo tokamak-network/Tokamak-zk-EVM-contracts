@@ -46,6 +46,7 @@
     "@tokamak-private-dapps/common-library": "^0.1.1",
     "@tokamak-private-dapps/groth16": "^0.2.0",
     "@tokamak-zk-evm/cli": "^2.1.0",
+    "adm-zip": "^0.5.17",
     "ethers": "^6.14.1",
     "tokamak-l2js": "^0.1.4"
   },

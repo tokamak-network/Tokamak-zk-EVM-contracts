@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Added `wallet export` and `wallet import` for ZIP-based local wallet backup and restore.
+  The default export includes the encrypted wallet, wallet metadata, and wallet-local secret so
+  an imported wallet can be used after `channel recover-workspace`. Tracked notes remain preserved
+  because they live inside encrypted `wallet.json`; `--include-notes` also includes the channel
+  workspace cache needed to use wallet commands immediately when that cache is still chain-aligned.
+- Kept account secrets out of wallet exports. Wallet commands restore their signer from the
+  encrypted `wallet.json`, while account secrets remain scoped to account-level bridge-vault
+  commands and optional `--tx-submitter` use.
+
 ## 1.1.0 - 2026-05-06
 
 - Reclassified user-facing commands into `account`, `channel`, `wallet`, and `help` namespaces.

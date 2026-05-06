@@ -7,6 +7,7 @@ import process from "node:process";
 import readline from "node:readline/promises";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import AdmZip from "adm-zip";
 import {
   createCipheriv,
   createDecipheriv,
@@ -132,6 +133,8 @@ const PRIVATE_STATE_UNINSTALL_CONFIRMATION =
 const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
+const WALLET_EXPORT_FORMAT = "tokamak-private-state-wallet-export";
+const WALLET_EXPORT_FORMAT_VERSION = 1;
 let jsonOutputRequested = false;
 let activeCliArgs = {};
 
@@ -387,6 +390,18 @@ async function main() {
   if (args.command === "wallet-list") {
     assertListLocalWalletsArgs(args);
     handleListLocalWallets({ args });
+    return;
+  }
+
+  if (args.command === "wallet-export") {
+    assertWalletExportArgs(args);
+    handleWalletExport({ args });
+    return;
+  }
+
+  if (args.command === "wallet-import") {
+    assertWalletImportArgs(args);
+    handleWalletImport({ args });
     return;
   }
 
@@ -1804,6 +1819,138 @@ function handleListLocalWallets({ args }) {
       channelName: args.channelName ?? null,
     },
     wallets,
+  });
+}
+
+function handleWalletExport({ args }) {
+  const outputPath = path.resolve(String(requireArg(args.output, "--output")));
+  expect(!fs.existsSync(outputPath), `Export output already exists: ${outputPath}.`);
+  ensureDir(path.dirname(outputPath));
+
+  const includeNotes = args.includeNotes === true;
+  const wallets = args.all === true
+    ? listLocalWallets({ networkFilter: "mainnet" }).filter((wallet) => wallet.hasEncryptedWallet)
+    : [resolveExportWalletInfo({
+      networkName: requireNetworkName(args),
+      walletName: requireWalletName(args),
+    })];
+
+  expect(
+    wallets.length > 0,
+    args.all === true
+      ? "No local mainnet wallets are available to export."
+      : "No local wallet is available to export.",
+  );
+
+  const archive = new AdmZip();
+  const files = new Map();
+  const exportedWallets = [];
+  for (const wallet of wallets) {
+    const normalized = normalizeExportWalletInfo(wallet);
+    exportedWallets.push({
+      network: normalized.network,
+      channelName: normalized.channelName,
+      wallet: normalized.wallet,
+    });
+    for (const filePath of walletExportFilePaths(normalized, { includeNotes })) {
+      const archivePath = archivePathForLocalCliFile(filePath);
+      if (!files.has(archivePath)) {
+        files.set(archivePath, filePath);
+      }
+    }
+  }
+
+  const manifest = {
+    format: WALLET_EXPORT_FORMAT,
+    formatVersion: WALLET_EXPORT_FORMAT_VERSION,
+    createdAt: new Date().toISOString(),
+    cliPackage: PRIVATE_STATE_CLI_PACKAGE_NAME,
+    cliVersion: privateStateCliPackageJson.version,
+    exportMode: args.all === true ? "all-mainnet" : "single-wallet",
+    includeNotes,
+    notes: includeNotes
+      ? [
+        "Includes the channel workspace cache required for immediate wallet command use when the cache is still chain-aligned.",
+      ]
+      : [
+        "Includes wallet identity, encrypted wallet state, metadata, and wallet-local secret only.",
+        "Run channel recover-workspace after import before wallet commands need channel state.",
+      ],
+    wallets: exportedWallets,
+    files: [...files.keys()].sort(),
+  };
+
+  archive.addFile("manifest.json", Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, "utf8"));
+  for (const archivePath of manifest.files) {
+    archive.addFile(archivePath, fs.readFileSync(files.get(archivePath)));
+  }
+  archive.writeZip(outputPath);
+  protectSecretFile(outputPath, "wallet export ZIP");
+
+  printJson({
+    action: "wallet export",
+    output: outputPath,
+    exportMode: manifest.exportMode,
+    includeNotes,
+    walletCount: exportedWallets.length,
+    fileCount: manifest.files.length,
+    wallets: exportedWallets.map(({ network, channelName, wallet }) => ({ network, channelName, wallet })),
+  });
+}
+
+function handleWalletImport({ args }) {
+  const inputPath = path.resolve(String(requireArg(args.input, "--input")));
+  expect(fs.existsSync(inputPath), `Import ZIP does not exist: ${inputPath}.`);
+
+  const archive = new AdmZip(inputPath);
+  const manifestEntry = archive.getEntry("manifest.json");
+  expect(manifestEntry, "Wallet import ZIP is missing manifest.json.");
+  const manifest = JSON.parse(manifestEntry.getData().toString("utf8"));
+  validateWalletExportManifest(manifest);
+
+  const archiveFiles = new Set(manifest.files);
+  for (const entry of archive.getEntries()) {
+    if (entry.isDirectory) {
+      continue;
+    }
+    expect(
+      entry.entryName === "manifest.json" || archiveFiles.has(entry.entryName),
+      `Unexpected file in wallet import ZIP: ${entry.entryName}.`,
+    );
+  }
+
+  const targetRoot = privateStateCliDataRoot();
+  const plannedWrites = manifest.files.map((archivePath) => {
+    validateWalletArchivePath(archivePath);
+    const entry = archive.getEntry(archivePath);
+    expect(entry && !entry.isDirectory, `Wallet import ZIP is missing ${archivePath}.`);
+    const targetPath = path.resolve(targetRoot, archivePath);
+    expectPathWithinRoot(targetPath, targetRoot, `Unsafe import target for ${archivePath}.`);
+    expect(!fs.existsSync(targetPath), `Refusing to overwrite existing file: ${targetPath}.`);
+    return {
+      archivePath,
+      targetPath,
+      data: entry.getData(),
+    };
+  });
+
+  for (const write of plannedWrites) {
+    ensureDir(path.dirname(write.targetPath));
+    fs.writeFileSync(write.targetPath, write.data);
+    applyImportedWalletFileMode(write.archivePath, write.targetPath);
+  }
+
+  printJson({
+    action: "wallet import",
+    input: inputPath,
+    exportMode: manifest.exportMode,
+    includeNotes: Boolean(manifest.includeNotes),
+    walletCount: manifest.wallets.length,
+    fileCount: plannedWrites.length,
+    wallets: manifest.wallets.map(({ network, channelName, wallet }) => ({ network, channelName, wallet })),
+    nextStep: manifest.includeNotes
+      ? "Wallet commands can run immediately if the imported channel workspace cache is still chain-aligned."
+      : "Run channel recover-workspace before wallet commands need channel state.",
   });
 }
 
@@ -6039,6 +6186,148 @@ function listLocalWallets({ networkFilter = null, channelFilter = null } = {}) {
   );
 }
 
+function privateStateCliDataRoot() {
+  const root = path.dirname(workspaceRoot);
+  expect(
+    path.dirname(secretRoot) === root,
+    `Unexpected CLI data root layout: ${workspaceRoot} and ${secretRoot} are not siblings.`,
+  );
+  return root;
+}
+
+function resolveExportWalletInfo({ networkName, walletName }) {
+  resolveCliNetwork(networkName);
+  const walletDir = walletPath(walletName, networkName);
+  return {
+    wallet: walletName,
+    network: networkName,
+    channelName: parseWalletName(walletName).channelName,
+    walletDir,
+    metadataPath: walletMetadataPath(walletDir),
+    hasMetadata: fs.existsSync(walletMetadataPath(walletDir)),
+    hasEncryptedWallet: walletConfigExists(walletDir),
+  };
+}
+
+function normalizeExportWalletInfo(walletInfo) {
+  const wallet = requireWalletName({ wallet: walletInfo.wallet });
+  const network = requireNetworkName({ network: walletInfo.network });
+  const walletDir = walletInfo.walletDir ?? walletPath(wallet, network);
+  const metadataPath = walletMetadataPath(walletDir);
+  const encryptedWalletPath = walletConfigPath(walletDir);
+  const metadata = readJsonIfExists(metadataPath);
+  const channelName = metadata?.channelName ?? walletInfo.channelName ?? parseWalletName(wallet).channelName;
+  const walletSecret = walletSecretPath(network, wallet);
+
+  expect(fs.existsSync(encryptedWalletPath), `Wallet export cannot find encrypted wallet file: ${encryptedWalletPath}.`);
+  expect(fs.existsSync(metadataPath), `Wallet export cannot find wallet metadata file: ${metadataPath}.`);
+  expect(fs.existsSync(walletSecret), `Wallet export cannot find wallet-local secret file: ${walletSecret}.`);
+  expect(
+    metadata.network === network,
+    `Wallet export metadata network ${metadata.network} does not match ${network}.`,
+  );
+  expect(
+    metadata.channelName === channelName,
+    `Wallet export metadata channel ${metadata.channelName} does not match ${channelName}.`,
+  );
+
+  return {
+    network,
+    channelName,
+    wallet,
+    walletDir,
+    walletSecretPath: walletSecret,
+  };
+}
+
+function walletExportFilePaths(walletInfo, { includeNotes }) {
+  const walletFiles = [
+    walletInfo.walletSecretPath,
+    walletConfigPath(walletInfo.walletDir),
+    walletMetadataPath(walletInfo.walletDir),
+  ];
+  if (!includeNotes) {
+    return walletFiles;
+  }
+
+  const workspaceDir = channelWorkspacePath(walletInfo.network, walletInfo.channelName);
+  const currentDir = channelWorkspaceCurrentPath(workspaceDir);
+  const workspaceFiles = [
+    channelWorkspaceConfigPath(workspaceDir),
+    path.join(currentDir, "state_snapshot.json"),
+    path.join(currentDir, "state_snapshot.normalized.json"),
+    path.join(currentDir, "block_info.json"),
+    path.join(currentDir, "contract_codes.json"),
+  ];
+  for (const filePath of workspaceFiles) {
+    expect(
+      fs.existsSync(filePath),
+      [
+        `wallet export --include-notes requires channel workspace cache file: ${filePath}.`,
+        "Run channel recover-workspace first, or export without --include-notes.",
+      ].join(" "),
+    );
+  }
+  return [...walletFiles, ...workspaceFiles];
+}
+
+function archivePathForLocalCliFile(filePath) {
+  const root = privateStateCliDataRoot();
+  const absolutePath = path.resolve(filePath);
+  expectPathWithinRoot(absolutePath, root, `Cannot export file outside CLI data root: ${absolutePath}.`);
+  return path.relative(root, absolutePath).split(path.sep).join("/");
+}
+
+function validateWalletExportManifest(manifest) {
+  expect(manifest?.format === WALLET_EXPORT_FORMAT, "Wallet import ZIP has an unsupported format.");
+  expect(
+    Number(manifest.formatVersion) === WALLET_EXPORT_FORMAT_VERSION,
+    `Wallet import ZIP format version ${manifest?.formatVersion} is not supported.`,
+  );
+  expect(Array.isArray(manifest.files), "Wallet import ZIP manifest is missing files[].");
+  expect(Array.isArray(manifest.wallets), "Wallet import ZIP manifest is missing wallets[].");
+  expect(typeof manifest.includeNotes === "boolean", "Wallet import ZIP manifest is missing includeNotes.");
+  expect(manifest.wallets.length > 0, "Wallet import ZIP manifest does not list any wallets.");
+  const uniqueFiles = new Set(manifest.files);
+  expect(uniqueFiles.size === manifest.files.length, "Wallet import ZIP manifest contains duplicate file paths.");
+  expect(manifest.files.length > 0, "Wallet import ZIP manifest does not list any files.");
+  for (const filePath of manifest.files) {
+    validateWalletArchivePath(filePath);
+  }
+  for (const wallet of manifest.wallets) {
+    requireNetworkName({ network: wallet.network });
+    requireWalletName({ wallet: wallet.wallet });
+    requireArg(wallet.channelName, "wallets[].channelName");
+  }
+}
+
+function validateWalletArchivePath(archivePath) {
+  expect(typeof archivePath === "string" && archivePath.length > 0, "Wallet import ZIP contains an empty path.");
+  expect(!archivePath.includes("\0"), `Wallet import ZIP contains an invalid path: ${archivePath}.`);
+  expect(!archivePath.includes("\\"), `Wallet import ZIP path must use forward slashes: ${archivePath}.`);
+  expect(!path.posix.isAbsolute(archivePath), `Wallet import ZIP path must be relative: ${archivePath}.`);
+  expect(path.posix.normalize(archivePath) === archivePath, `Wallet import ZIP path is not normalized: ${archivePath}.`);
+  expect(
+    archivePath.startsWith("secrets/") || archivePath.startsWith("workspace/"),
+    `Wallet import ZIP path must start with secrets/ or workspace/: ${archivePath}.`,
+  );
+}
+
+function expectPathWithinRoot(targetPath, rootPath, message) {
+  const relative = path.relative(path.resolve(rootPath), path.resolve(targetPath));
+  expect(relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative), message);
+}
+
+function applyImportedWalletFileMode(archivePath, targetPath) {
+  if (
+    archivePath.startsWith("secrets/")
+    || archivePath.endsWith("/wallet.json")
+    || archivePath.endsWith("/wallet.metadata.json")
+  ) {
+    protectSecretFile(targetPath, `imported wallet file ${archivePath}`);
+  }
+}
+
 function channelDataPath(workspaceDir) {
   return workspaceChannelDir(workspaceDir);
 }
@@ -6268,6 +6557,32 @@ function assertListLocalWalletsArgs(args) {
     requireArg(args.channelName, "--channel-name");
   }
   assertAllowedCommandSchema(args, "wallet-list");
+}
+
+function assertWalletExportArgs(args) {
+  assertAllowedCommandSchema(args, "wallet-export");
+  assertFlagOption(args, "all", "wallet export");
+  assertFlagOption(args, "includeNotes", "wallet export");
+  requireArg(args.output, "--output");
+  if (args.all === true) {
+    expect(
+      args.network === undefined && args.wallet === undefined,
+      "wallet export --all exports every local mainnet wallet and does not accept --network or --wallet.",
+    );
+    return;
+  }
+  requireNetworkName(args);
+  requireWalletName(args);
+}
+
+function assertWalletImportArgs(args) {
+  assertAllowedCommandSchema(args, "wallet-import");
+}
+
+function assertFlagOption(args, key, commandName) {
+  if (args[key] !== undefined && args[key] !== true) {
+    throw new Error(`${commandName} option --${toKebabCase(key)} does not accept a value.`);
+  }
 }
 
 function assertWithdrawBridgeArgs(args) {

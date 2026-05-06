@@ -116,6 +116,21 @@ context. Losing the workspace is recoverable if the wallet and chain data can re
 the encrypted wallet or its wallet secret has stronger consequences because it can remove the secrets
 needed to use notes.
 
+`wallet export` and `wallet import` are the backup boundary for this local state. A default wallet
+export contains the wallet-local secret, encrypted `wallet.json`, and wallet metadata. Because
+tracked notes are stored inside encrypted `wallet.json`, the default export preserves the wallet's
+note state while still excluding the shared channel workspace cache. That is the minimum local
+material needed to restore the wallet identity on another machine; after importing it, the user
+should run `channel recover-workspace` so the shared channel snapshot is rebuilt from bridge logs.
+The export intentionally does not include account secrets because wallet commands restore their L1
+signer from encrypted `wallet.json`.
+
+`wallet export --include-notes` adds the channel workspace cache: `workspace.json`, the current state
+snapshot, block info, and managed contract codes. With those files imported, wallet commands can run
+without an immediate recovery step as long as the cached channel state is still aligned with the
+bridge. If the bridge has advanced, the normal indexed workspace refresh path resumes from the
+imported recovery index.
+
 ## 5. Bridge Registration Model
 
 The bridge does not discover DApp behavior at runtime. It executes against pre-registered metadata.

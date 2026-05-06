@@ -8,12 +8,12 @@
 - Reported `usedWorkspaceCache` and `recoveredWorkspace` from channel vault move commands so
   automated tests can verify that follow-up wallet transactions do not replay workspace recovery
   when the local workspace is already current.
-- Removed the local wallet folder after successful `channel exit`, and made `wallet recover-workspace`
-  delete stale local wallet folders when the corresponding L1 account is no longer registered
-  on-chain.
+- Removed the local wallet folder and canonical wallet secret after successful `channel exit`, and
+  made `wallet recover-workspace` delete stale local wallet folders and canonical wallet secrets
+  when the corresponding L1 account is no longer registered on-chain.
 - Improved `channel join` stale-wallet guidance. The command still does not delete stale wallets
-  itself; it tells users to run `wallet recover-workspace` first, and it reuses an existing
-  canonical wallet secret only when it matches the provided `--wallet-secret-path`.
+  itself; it tells users to run `wallet recover-workspace` first, and it overwrites the canonical
+  wallet secret from the provided `--wallet-secret-path` whenever a new local wallet is allowed.
 - Added `wallet export` and `wallet import` for ZIP-based local wallet backup and restore.
   The default export includes the encrypted wallet, wallet metadata, and wallet-local secret so
   an imported wallet can be used after `channel recover-workspace`. Tracked notes remain preserved

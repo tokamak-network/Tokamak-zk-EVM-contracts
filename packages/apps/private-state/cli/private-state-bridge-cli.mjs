@@ -1072,13 +1072,14 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
 
   if (!registration.exists) {
-    const cleanup = removeLocalWalletDirectory(walletName, context.workspace.network);
+    const cleanup = removeLocalWalletArtifacts(walletName, context.workspace.network);
     if (cleanup.removed) {
       printJson({
         action: "wallet recover-workspace",
         status: "stale-wallet-removed",
         wallet: walletName,
-        removedWalletDir: cleanup.walletDir,
+        removedWalletDir: cleanup.removedWalletDir ? cleanup.walletDir : null,
+        removedWalletSecretFile: cleanup.removedWalletSecret ? cleanup.walletSecretFile : null,
         walletSecretSource: resolvedWalletSecretSource(args),
         walletSecretFile: resolvedWalletSecretFile(network.name, walletName),
         workspace: context.workspaceName,
@@ -1353,15 +1354,24 @@ function clearWalletRecoveryArtifacts(walletDir) {
   fs.rmSync(walletDir, { recursive: true, force: true });
 }
 
-function removeLocalWalletDirectory(walletName, networkName) {
+function removeLocalWalletArtifacts(walletName, networkName) {
   const walletDir = walletPath(walletName, networkName);
-  const removed = fs.existsSync(walletDir);
-  if (removed) {
+  const walletSecretFile = walletSecretPath(networkName, walletName);
+  const walletSecretDir = path.dirname(walletSecretFile);
+  const removedWalletDir = fs.existsSync(walletDir);
+  const removedWalletSecret = fs.existsSync(walletSecretFile) || fs.existsSync(walletSecretDir);
+  if (removedWalletDir) {
     clearWalletRecoveryArtifacts(walletDir);
+  }
+  if (removedWalletSecret) {
+    fs.rmSync(walletSecretDir, { recursive: true, force: true });
   }
   return {
     walletDir,
-    removed,
+    walletSecretFile,
+    removed: removedWalletDir || removedWalletSecret,
+    removedWalletDir,
+    removedWalletSecret,
   };
 }
 
@@ -2870,7 +2880,7 @@ async function handleExitChannel({ args, provider }) {
   const receipt = await waitForReceipt(
     await context.bridgeTokenVault.connect(signer).exitChannel(ethers.toBigInt(context.workspace.channelId)),
   );
-  const cleanup = removeLocalWalletDirectory(walletContext.walletName, walletMetadata.network);
+  const cleanup = removeLocalWalletArtifacts(walletContext.walletName, walletMetadata.network);
 
   printJson({
     action: "channel exit",
@@ -2888,7 +2898,8 @@ async function handleExitChannel({ args, provider }) {
     gasUsed: receiptGasUsed(receipt),
     txUrl: explorerTxUrl(network, receipt.hash),
     receipt: sanitizeReceipt(receipt),
-    removedWalletDir: cleanup.removed ? cleanup.walletDir : null,
+    removedWalletDir: cleanup.removedWalletDir ? cleanup.walletDir : null,
+    removedWalletSecretFile: cleanup.removedWalletSecret ? cleanup.walletSecretFile : null,
   });
 }
 
@@ -6162,19 +6173,7 @@ function prepareJoinWalletSecretForName({
     ? readSecretFile(sourcePath, "--wallet-secret-path")
     : readImportSecretSourceFile(sourcePath, "--wallet-secret-path");
   if (sourcePath !== canonicalPath) {
-    if (fs.existsSync(canonicalPath)) {
-      const existingWalletSecret = readSecretFile(canonicalPath, "wallet default secret file");
-      expect(
-        existingWalletSecret === walletSecret,
-        [
-          `Wallet default secret file already exists: ${canonicalPath}.`,
-          "It does not match the provided --wallet-secret-path.",
-          "Use the existing default secret file or remove it before joining with a different wallet secret.",
-        ].join(" "),
-      );
-    } else {
-      writeSecretFile(canonicalPath, walletSecret);
-    }
+    writeSecretFile(canonicalPath, walletSecret);
   }
   return walletSecret;
 }

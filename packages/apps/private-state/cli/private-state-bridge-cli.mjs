@@ -1071,13 +1071,40 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
   const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
 
-  expect(
-    registration.exists,
-    cliError(
-      CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
-      `No channelTokenVault registration exists for ${signer.address}. Run channel join first.`,
-    ),
-  );
+  if (!registration.exists) {
+    const cleanup = removeLocalWalletDirectory(walletName, context.workspace.network);
+    if (cleanup.removed) {
+      printJson({
+        action: "wallet recover-workspace",
+        status: "stale-wallet-removed",
+        wallet: walletName,
+        removedWalletDir: cleanup.walletDir,
+        walletSecretSource: resolvedWalletSecretSource(args),
+        walletSecretFile: resolvedWalletSecretFile(network.name, walletName),
+        workspace: context.workspaceName,
+        channelName: context.workspace.channelName,
+        channelId: context.workspace.channelId,
+        l1Address: signer.address,
+        l2Address: l2Identity.l2Address,
+        l2StorageKey: storageKey,
+        leafIndex: leafIndex.toString(),
+        reason: "The local wallet existed, but the L1 address is no longer registered in the channel.",
+        nextAction: buildRecoverWalletRemovedNextAction({
+          channelName,
+          networkName: network.name,
+          accountName: args.account,
+        }),
+      });
+      return;
+    }
+    expect(
+      false,
+      cliError(
+        CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
+        `No channelTokenVault registration exists for ${signer.address}. Run channel join first.`,
+      ),
+    );
+  }
   expect(
     ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
     "The existing channel registration L2 address does not match the derived L2 address.",
@@ -1324,6 +1351,23 @@ function assertExistingRecoverableWallet({
 
 function clearWalletRecoveryArtifacts(walletDir) {
   fs.rmSync(walletDir, { recursive: true, force: true });
+}
+
+function removeLocalWalletDirectory(walletName, networkName) {
+  const walletDir = walletPath(walletName, networkName);
+  const removed = fs.existsSync(walletDir);
+  if (removed) {
+    clearWalletRecoveryArtifacts(walletDir);
+  }
+  return {
+    walletDir,
+    removed,
+  };
+}
+
+function buildRecoverWalletRemovedNextAction({ channelName, networkName, accountName }) {
+  const account = accountName ? String(accountName) : "<ACCOUNT>";
+  return `channel join --channel-name ${channelName} --network ${networkName} --account ${account} --wallet-secret-path <PATH>`;
 }
 
 async function handleInstallZkEvm({ args }) {
@@ -2826,6 +2870,7 @@ async function handleExitChannel({ args, provider }) {
   const receipt = await waitForReceipt(
     await context.bridgeTokenVault.connect(signer).exitChannel(ethers.toBigInt(context.workspace.channelId)),
   );
+  const cleanup = removeLocalWalletDirectory(walletContext.walletName, walletMetadata.network);
 
   printJson({
     action: "channel exit",
@@ -2843,6 +2888,7 @@ async function handleExitChannel({ args, provider }) {
     gasUsed: receiptGasUsed(receipt),
     txUrl: explorerTxUrl(network, receipt.hash),
     receipt: sanitizeReceipt(receipt),
+    removedWalletDir: cleanup.removed ? cleanup.walletDir : null,
   });
 }
 
@@ -6097,12 +6143,17 @@ function prepareJoinWalletSecretForName({
   walletName,
 }) {
   const secretPath = walletSecretPath(networkName, walletName);
+  const { channelName } = parseWalletName(walletName);
+  const walletDir = walletPath(walletName, networkName);
   expect(
-    !walletConfigExists(walletPath(walletName, networkName)),
+    !walletConfigExists(walletDir),
     [
       `Wallet ${walletName} already exists on ${networkName}.`,
       "channel join always creates a new local wallet.",
-      "Use wallet recover-workspace or normal wallet commands for an existing local wallet.",
+      "If this wallet was previously exited on-chain, run",
+      `wallet recover-workspace --channel-name ${channelName} --network ${networkName} --account ${args.account ?? "<ACCOUNT>"}`,
+      "once to remove the stale local wallet, then retry channel join.",
+      "Use normal wallet commands for an existing active local wallet.",
     ].join(" "),
   );
   const sourcePath = path.resolve(String(requireArg(args.walletSecretPath, "--wallet-secret-path")));
@@ -6111,14 +6162,19 @@ function prepareJoinWalletSecretForName({
     ? readSecretFile(sourcePath, "--wallet-secret-path")
     : readImportSecretSourceFile(sourcePath, "--wallet-secret-path");
   if (sourcePath !== canonicalPath) {
-    expect(
-      !fs.existsSync(canonicalPath),
-      [
-        `Wallet default secret file already exists: ${canonicalPath}.`,
-        "Remove it before joining with a different --wallet-secret-path.",
-      ].join(" "),
-    );
-    writeSecretFile(canonicalPath, walletSecret);
+    if (fs.existsSync(canonicalPath)) {
+      const existingWalletSecret = readSecretFile(canonicalPath, "wallet default secret file");
+      expect(
+        existingWalletSecret === walletSecret,
+        [
+          `Wallet default secret file already exists: ${canonicalPath}.`,
+          "It does not match the provided --wallet-secret-path.",
+          "Use the existing default secret file or remove it before joining with a different wallet secret.",
+        ].join(" "),
+      );
+    } else {
+      writeSecretFile(canonicalPath, walletSecret);
+    }
   }
   return walletSecret;
 }

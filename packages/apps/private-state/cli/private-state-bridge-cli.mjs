@@ -548,7 +548,7 @@ async function handleChannelCreate({ args, network, provider }) {
     await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, joinToll, dapp.metadataDigest));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
-  const workspaceResult = await initializeChannelWorkspace({
+  const workspaceResult = await syncChannelWorkspace({
     workspaceName,
     channelName,
     network,
@@ -659,7 +659,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
   const workspaceName = channelName;
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
 
-  const { workspaceDir, workspace, currentSnapshot } = await initializeChannelWorkspace({
+  const { workspaceDir, workspace, currentSnapshot } = await syncChannelWorkspace({
     workspaceName,
     channelName,
     network,
@@ -767,7 +767,7 @@ async function handleGetChannel({ args, network, provider }) {
   });
 }
 
-async function initializeChannelWorkspace({
+async function syncChannelWorkspace({
   workspaceName,
   channelName,
   network,
@@ -1028,7 +1028,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     walletName,
   });
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
-  const initialized = await initializeChannelWorkspace({
+  const initialized = await syncChannelWorkspace({
     workspaceName: channelName,
     channelName,
     network,
@@ -4333,7 +4333,7 @@ async function recoverWalletChannelWorkspace({ walletContext, provider, progress
   const networkName = walletContext.wallet.network ?? networkNameFromChainId(Number(walletContext.wallet.chainId));
   const network = resolveCliNetwork(networkName);
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
-  await initializeChannelWorkspace({
+  await syncChannelWorkspace({
     workspaceName: walletContext.wallet.channelName,
     channelName: walletContext.wallet.channelName,
     network,
@@ -4357,7 +4357,7 @@ async function refreshPersistedWorkspaceAfterLocalTransaction({
   }
   const network = resolveCliNetwork(context.workspace.network);
   const bridgeResources = loadBridgeResources({ chainId: Number(context.workspace.chainId) });
-  const refreshed = await initializeChannelWorkspace({
+  const refreshed = await syncChannelWorkspace({
     workspaceName: context.workspaceName,
     channelName: context.workspace.channelName,
     network,
@@ -4652,7 +4652,7 @@ async function loadJoinChannelContext({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
 
   const bridgeResources = loadBridgeResources({ chainId });
-  const initialized = await initializeChannelWorkspace({
+  const initialized = await syncChannelWorkspace({
     workspaceName: channelName,
     channelName,
     network: { chainId, name: resolvedNetworkName },

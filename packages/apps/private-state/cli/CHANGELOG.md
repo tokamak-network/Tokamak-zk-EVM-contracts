@@ -14,6 +14,8 @@
 - Improved `channel join` stale-wallet guidance. The command still does not delete stale wallets
   itself; it tells users to run `wallet recover-workspace` first, and it overwrites the canonical
   wallet secret from the provided `--wallet-secret-path` whenever a new local wallet is allowed.
+- Normalized account command JSON `action` labels and CLI e2e helper names to the current
+  `account`, `channel`, and `wallet` command taxonomy.
 - Added `wallet export` and `wallet import` for ZIP-based local wallet backup and restore.
   The default export includes the encrypted wallet, wallet metadata, and wallet-local secret so
   an imported wallet can be used after `channel recover-workspace`. Tracked notes remain preserved

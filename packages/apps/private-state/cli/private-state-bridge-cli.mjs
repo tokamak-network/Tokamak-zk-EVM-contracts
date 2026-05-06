@@ -376,8 +376,8 @@ async function main() {
   }
 
   if (args.command === "account-get-l1-address") {
-    assertGetMyL1AddressArgs(args);
-    handleGetMyL1Address({ args });
+    assertAccountGetL1AddressArgs(args);
+    handleAccountGetL1Address({ args });
     return;
   }
 
@@ -415,8 +415,8 @@ async function main() {
       run: ({ provider }) => handleRedeemNotes({ args, provider }),
     },
     "wallet-get-notes": {
-      assert: assertGetMyNotesArgs,
-      run: ({ provider }) => handleGetMyNotes({ args, provider }),
+      assert: assertWalletGetNotesArgs,
+      run: ({ provider }) => handleWalletGetNotes({ args, provider }),
     },
     "wallet-transfer-notes": {
       assert: assertTransferNotesArgs,
@@ -431,12 +431,12 @@ async function main() {
       run: ({ provider }) => handleGrothVaultMove({ args, provider, direction: "withdraw" }),
     },
     "wallet-get-meta": {
-      assert: assertGetMyWalletMetaArgs,
-      run: ({ provider }) => handleGetMyWalletMeta({ args, provider }),
+      assert: assertWalletGetMetaArgs,
+      run: ({ provider }) => handleWalletGetMeta({ args, provider }),
     },
     "wallet-get-channel-fund": {
-      assert: assertGetMyChannelFundArgs,
-      run: ({ provider }) => handleGetMyChannelFund({ args, provider }),
+      assert: assertWalletGetChannelFundArgs,
+      run: ({ provider }) => handleWalletGetChannelFund({ args, provider }),
     },
     "channel-exit": {
       assert: assertExitChannelArgs,
@@ -488,10 +488,10 @@ async function main() {
       return;
     }
     case "account-get-bridge-fund": {
-      assertGetMyBridgeFundArgs(args);
+      assertAccountGetBridgeFundArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
       await prepareDeploymentArtifacts(network.chainId);
-      await handleGetMyBridgeFund({ args, provider });
+      await handleAccountGetBridgeFund({ args, provider });
       return;
     }
     case "wallet-recover-workspace": {
@@ -989,7 +989,7 @@ async function handleDepositBridge({ args, network, provider }) {
   });
 }
 
-async function handleGetMyBridgeFund({ args, provider }) {
+async function handleAccountGetBridgeFund({ args, provider }) {
   const signer = requireL1Signer(args, provider);
   const chainId = Number((await provider.getNetwork()).chainId);
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
@@ -1001,7 +1001,7 @@ async function handleGetMyBridgeFund({ args, provider }) {
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
 
   printJson({
-    action: "account-get-bridge-fund",
+    action: "account get-bridge-fund",
     l1Address: signer.address,
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
     canonicalAsset: bridgeVaultContext.canonicalAsset,
@@ -1174,7 +1174,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     return;
   }
 
-  clearWalletRecoveryArtifacts(walletPath(walletName, context.workspace.network));
+  fs.rmSync(walletPath(walletName, context.workspace.network), { recursive: true, force: true });
 
   const walletContext = ensureWallet({
     channelContext: context,
@@ -1350,10 +1350,6 @@ function assertExistingRecoverableWallet({
   );
 }
 
-function clearWalletRecoveryArtifacts(walletDir) {
-  fs.rmSync(walletDir, { recursive: true, force: true });
-}
-
 function removeLocalWalletArtifacts(walletName, networkName) {
   const walletDir = walletPath(walletName, networkName);
   const walletSecretFile = walletSecretPath(networkName, walletName);
@@ -1361,7 +1357,7 @@ function removeLocalWalletArtifacts(walletName, networkName) {
   const removedWalletDir = fs.existsSync(walletDir);
   const removedWalletSecret = fs.existsSync(walletSecretFile) || fs.existsSync(walletSecretDir);
   if (removedWalletDir) {
-    clearWalletRecoveryArtifacts(walletDir);
+    fs.rmSync(walletDir, { recursive: true, force: true });
   }
   if (removedWalletSecret) {
     fs.rmSync(walletSecretDir, { recursive: true, force: true });
@@ -1815,10 +1811,10 @@ function trimFixedNumber(value, maxDecimals) {
   return trimmed ? `${integer}.${trimmed}` : integer;
 }
 
-function handleGetMyL1Address({ args }) {
+function handleAccountGetL1Address({ args }) {
   const signer = requireL1Signer(args);
   printJson({
-    action: "account-get-l1-address",
+    action: "account get-l1-address",
     l1Address: signer.address,
     account: args.account ?? null,
   });
@@ -1845,7 +1841,7 @@ function handleAccountImport({ args }) {
     privateKeyPath,
   }, 0o600);
   printJson({
-    action: "account-import",
+    action: "account import",
     account,
     network: networkName,
     l1Address: getAddress(signer.address),
@@ -2606,7 +2602,7 @@ function redactRpcUrl(rpcUrl) {
   }
 }
 
-async function handleGetMyWalletMeta({ args, provider }) {
+async function handleWalletGetMeta({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   const contextResult = await loadPreferredWalletChannelContext({
     walletContext: wallet,
@@ -2715,7 +2711,7 @@ async function loadWalletChannelRegistrationState({
   };
 }
 
-async function handleGetMyChannelFund({ args, provider }) {
+async function handleWalletGetChannelFund({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   const {
     signer,
@@ -3236,7 +3232,7 @@ async function handleRedeemNotes({ args, provider }) {
   });
 }
 
-async function handleGetMyNotes({ args, provider }) {
+async function handleWalletGetNotes({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   expect(
     typeof wallet.wallet.controller === "string" && wallet.wallet.controller.length > 0,
@@ -6611,7 +6607,7 @@ function assertTxSubmitterArg(args) {
   }
 }
 
-function assertGetMyNotesArgs(args) {
+function assertWalletGetNotesArgs(args) {
   assertWalletSecretArgs(args, "wallet-get-notes");
 }
 
@@ -6631,7 +6627,7 @@ function assertDepositBridgeArgs(args) {
   assertAllowedCommandSchema(args, "account-deposit-bridge");
 }
 
-function assertGetMyBridgeFundArgs(args) {
+function assertAccountGetBridgeFundArgs(args) {
   assertAllowedCommandSchema(args, "account-get-bridge-fund");
 }
 
@@ -6650,11 +6646,11 @@ function assertJoinChannelArgs(args) {
   assertAllowedCommandSchema(args, "channel-join");
 }
 
-function assertGetMyWalletMetaArgs(args) {
+function assertWalletGetMetaArgs(args) {
   assertWalletSecretArgs(args, "wallet-get-meta");
 }
 
-function assertGetMyL1AddressArgs(args) {
+function assertAccountGetL1AddressArgs(args) {
   assertAllowedCommandSchema(args, "account-get-l1-address");
 }
 
@@ -6698,7 +6694,7 @@ function assertWithdrawBridgeArgs(args) {
   assertAllowedCommandSchema(args, "account-withdraw-bridge");
 }
 
-function assertGetMyChannelFundArgs(args) {
+function assertWalletGetChannelFundArgs(args) {
   assertWalletSecretArgs(args, "wallet-get-channel-fund");
 }
 

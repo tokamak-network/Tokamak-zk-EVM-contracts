@@ -213,6 +213,13 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     usage: "--account, --network, and --private-key-file",
   },
   {
+    id: "account-get-l1-address",
+    display: "account get-l1-address",
+    description: "Derive the L1 address for a local account.",
+    fields: ["account", "network"],
+    usage: "--network and --account",
+  },
+  {
     id: "create-channel",
     description: "Create a bridge channel and initialize its workspace.",
     fields: ["channelName", "joinToll", "network", "account", "rpcUrl"],
@@ -288,12 +295,6 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
     help: ["Refreshes channel state through the workspace recovery index before reading registration metadata"],
-  },
-  {
-    id: "get-my-l1-address",
-    description: "Derive the L1 address for a private key.",
-    fields: ["account", "network"],
-    usage: "--network and --account",
   },
   {
     id: "list-local-wallets",

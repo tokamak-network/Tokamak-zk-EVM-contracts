@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Renamed `get-my-l1-address` to `account get-l1-address` so account helpers live under the
+  same `account` command namespace as `account import`.
+
 ## 1.0.2 - 2026-05-06
 
 - Added `update`, which checks npm registry for the latest private-state CLI package and updates

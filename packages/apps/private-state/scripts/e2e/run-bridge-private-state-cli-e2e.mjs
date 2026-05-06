@@ -1336,7 +1336,7 @@ function getMyWalletMeta(participant) {
 
 function getMyL1Address(participant) {
   return runPrivateStateCli([
-    "get-my-l1-address",
+    "account", "get-l1-address",
     "--network", workspaceNetworkName,
     ...signerCliArgs(participant),
   ]);
@@ -1575,7 +1575,7 @@ async function main() {
       );
       expect(
         getAddress(participantResults.getMyL1Address.l1Address) === getAddress(participant.l1Address),
-        `${participant.alias} get-my-l1-address returned an unexpected L1 address.`,
+        `${participant.alias} account get-l1-address returned an unexpected L1 address.`,
       );
       assertBigIntEq(
         participantResults.getMyChannelFund.channelDepositBaseUnits,

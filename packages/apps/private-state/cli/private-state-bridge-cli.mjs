@@ -366,7 +366,7 @@ async function main() {
     return;
   }
 
-  if (args.command === "get-my-l1-address") {
+  if (args.command === "account-get-l1-address") {
     assertGetMyL1AddressArgs(args);
     handleGetMyL1Address({ args });
     return;
@@ -1743,7 +1743,7 @@ function trimFixedNumber(value, maxDecimals) {
 function handleGetMyL1Address({ args }) {
   const signer = requireL1Signer(args);
   printJson({
-    action: "get-my-l1-address",
+    action: "account-get-l1-address",
     l1Address: signer.address,
     account: args.account ?? null,
   });
@@ -6241,7 +6241,7 @@ function assertGetMyWalletMetaArgs(args) {
 }
 
 function assertGetMyL1AddressArgs(args) {
-  assertAllowedCommandSchema(args, "get-my-l1-address");
+  assertAllowedCommandSchema(args, "account-get-l1-address");
 }
 
 function assertListLocalWalletsArgs(args) {

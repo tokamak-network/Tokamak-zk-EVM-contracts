@@ -1503,6 +1503,23 @@ function assertWalletNoteSnapshot(noteSnapshot, { unusedCount, spentCount, unuse
   );
 }
 
+function assertPostTransactionWorkspaceRecoveryIndex(result, label) {
+  expect(
+    result?.channelName === channelName,
+    `${label} returned an unexpected channel name.`,
+  );
+  const mode = result?.recoveryScanRange?.mode;
+  expect(
+    mode === "recovery-index" || mode === "reused-current-snapshot",
+    `${label} must reuse the post-transaction recovery index, got ${mode ?? "missing"}.`,
+  );
+  expect(
+    Number.isInteger(Number(result.recoveryLastScannedBlock))
+      && Number(result.recoveryLastScannedBlock) === Number(result.recoveryScanRange.toBlock) + 1,
+    `${label} returned inconsistent recoveryLastScannedBlock metadata.`,
+  );
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   currentCliE2EOptions = options;
@@ -1722,9 +1739,9 @@ async function main() {
     const notesAfterRedeemC = getMyNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
     recoverWorkspaceAfterLocalTransactions = recoverWorkspace();
-    expect(
-      recoverWorkspaceAfterLocalTransactions.recoveryScanRange?.mode !== "genesis",
-      "recover-workspace must not fall back to genesis after wallet transactions refresh the recovery index.",
+    assertPostTransactionWorkspaceRecoveryIndex(
+      recoverWorkspaceAfterLocalTransactions,
+      "recover-workspace after local wallet transactions",
     );
 
     const walletExportIncludeNotes = exportWallet(participants[2], {

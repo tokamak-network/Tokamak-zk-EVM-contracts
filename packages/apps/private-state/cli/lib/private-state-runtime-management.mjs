@@ -143,7 +143,7 @@ function printDoctorHumanReport(report) {
     "",
     formatDoctorTable(rows),
     "",
-    "Run `doctor --json` for the full machine-readable report.",
+    "Run `help doctor --json` for the full machine-readable report.",
   ];
   console.log(lines.join("\n"));
 }
@@ -190,7 +190,7 @@ function buildDoctorHumanRows(report) {
       check: "docker gpu readiness",
       status: report.gpuDockerReadiness.skipped ? "SKIP" : doctorStatus(report.gpuDockerReadiness.ok),
       detail: report.gpuDockerReadiness.skipped
-        ? "live GPU probe skipped; run `doctor --gpu` to check host NVIDIA and Docker GPU access"
+        ? "live GPU probe skipped; run `help doctor --gpu` to check host NVIDIA and Docker GPU access"
         : [
           `expectedUseGpus=${formatDoctorBool(report.gpuDockerReadiness.expectedUseGpus)}`,
           `liveUseGpus=${formatDoctorBool(report.gpuDockerReadiness.liveUseGpus)}`,

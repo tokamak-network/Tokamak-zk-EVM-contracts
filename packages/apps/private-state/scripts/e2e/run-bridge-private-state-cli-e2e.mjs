@@ -1267,11 +1267,15 @@ function readErc20Balance(assetAddress, ownerAddress) {
 }
 
 function runAnvilCliCommand(command, args = []) {
-  return runPrivateStateCli([command, "--network", "anvil", ...args]);
+  return runPrivateStateCli([...commandTokens(command), "--network", "anvil", ...args]);
 }
 
 function runAnvilBridgeCliCommand(command, args = []) {
-  return runPrivateStateCli([command, "--network", "anvil", "--rpc-url", providerUrl, ...args]);
+  return runPrivateStateCli([...commandTokens(command), "--network", "anvil", "--rpc-url", providerUrl, ...args]);
+}
+
+function commandTokens(command) {
+  return Array.isArray(command) ? command : String(command).trim().split(/\s+/u);
 }
 
 function walletCliArgs(participant) {
@@ -1287,7 +1291,7 @@ function signerCliArgs(participant) {
 }
 
 function createChannel() {
-  return runAnvilBridgeCliCommand("create-channel", [
+  return runAnvilBridgeCliCommand("channel create", [
     "--channel-name", channelName,
     "--join-toll", joinTollTokens,
     "--account", txSubmitterAccount,
@@ -1295,14 +1299,14 @@ function createChannel() {
 }
 
 function depositBridge(participant) {
-  return runAnvilBridgeCliCommand("deposit-bridge", [
+  return runAnvilBridgeCliCommand("account deposit-bridge", [
     ...signerCliArgs(participant),
     "--amount", depositAmountTokens,
   ]);
 }
 
 function joinChannel(participant) {
-  const result = runAnvilBridgeCliCommand("join-channel", [
+  const result = runAnvilBridgeCliCommand("channel join", [
     "--channel-name", channelName,
     ...signerCliArgs(participant),
     "--wallet-secret-path", participant.walletSecretPath,
@@ -1320,7 +1324,7 @@ function joinChannel(participant) {
 }
 
 function recoverWallet(participant, { fromGenesis = false } = {}) {
-  const result = runAnvilBridgeCliCommand("recover-wallet", [
+  const result = runAnvilBridgeCliCommand("wallet recover-workspace", [
     "--channel-name", channelName,
     ...(fromGenesis ? ["--from-genesis"] : []),
     ...signerCliArgs(participant),
@@ -1331,7 +1335,7 @@ function recoverWallet(participant, { fromGenesis = false } = {}) {
 }
 
 function getMyWalletMeta(participant) {
-  return runAnvilCliCommand("get-my-wallet-meta", walletCliArgs(participant));
+  return runAnvilCliCommand("wallet get-meta", walletCliArgs(participant));
 }
 
 function getMyL1Address(participant) {
@@ -1343,7 +1347,7 @@ function getMyL1Address(participant) {
 }
 
 function listLocalWallets(args = []) {
-  return runPrivateStateCli(["list-local-wallets", ...args]);
+  return runPrivateStateCli(["wallet", "list", ...args]);
 }
 
 function getMyBridgeFund(participant) {
@@ -1351,18 +1355,18 @@ function getMyBridgeFund(participant) {
 }
 
 function depositChannel(participant) {
-  return runAnvilCliCommand("deposit-channel", [
+  return runAnvilCliCommand("wallet deposit-channel", [
     ...walletCliArgs(participant),
     "--amount", depositAmountTokens,
   ]);
 }
 
 function getMyChannelFund(participant) {
-  return runAnvilCliCommand("get-my-channel-fund", walletCliArgs(participant));
+  return runAnvilCliCommand("wallet get-channel-fund", walletCliArgs(participant));
 }
 
 function recoverWorkspace({ fromGenesis = false } = {}) {
-  return runAnvilBridgeCliCommand("recover-workspace", [
+  return runAnvilBridgeCliCommand("channel recover-workspace", [
     "--channel-name", channelName,
     ...(fromGenesis ? ["--from-genesis"] : []),
   ]);
@@ -1385,7 +1389,7 @@ function txSubmitterCliArgs(account) {
 }
 
 function mintNotes(participant, amounts, { txSubmitter = null } = {}) {
-  return runAnvilCliCommand("mint-notes", [
+  return runAnvilCliCommand("wallet mint-notes", [
     ...walletCliArgs(participant),
     "--amounts", JSON.stringify(amounts),
     ...txSubmitterCliArgs(txSubmitter),
@@ -1393,11 +1397,11 @@ function mintNotes(participant, amounts, { txSubmitter = null } = {}) {
 }
 
 function getMyNotes(participant) {
-  return runAnvilCliCommand("get-my-notes", walletCliArgs(participant));
+  return runAnvilCliCommand("wallet get-notes", walletCliArgs(participant));
 }
 
 function transferNotes(participant, noteIds, recipients, amounts, { txSubmitter = null } = {}) {
-  return runAnvilCliCommand("transfer-notes", [
+  return runAnvilCliCommand("wallet transfer-notes", [
     ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
     "--recipients", JSON.stringify(recipients),
@@ -1407,7 +1411,7 @@ function transferNotes(participant, noteIds, recipients, amounts, { txSubmitter 
 }
 
 function redeemNotes(participant, noteIds, { txSubmitter = null } = {}) {
-  return runAnvilCliCommand("redeem-notes", [
+  return runAnvilCliCommand("wallet redeem-notes", [
     ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
     ...txSubmitterCliArgs(txSubmitter),
@@ -1415,21 +1419,21 @@ function redeemNotes(participant, noteIds, { txSubmitter = null } = {}) {
 }
 
 function withdrawChannel(participant, amount) {
-  return runAnvilCliCommand("withdraw-channel", [
+  return runAnvilCliCommand("wallet withdraw-channel", [
     ...walletCliArgs(participant),
     "--amount", amount,
   ]);
 }
 
 function withdrawBridge(participant, amount) {
-  return runAnvilBridgeCliCommand("withdraw-bridge", [
+  return runAnvilBridgeCliCommand("account withdraw-bridge", [
     ...signerCliArgs(participant),
     "--amount", amount,
   ]);
 }
 
 function exitChannel(participant) {
-  return runAnvilCliCommand("exit-channel", walletCliArgs(participant));
+  return runAnvilCliCommand("channel exit", walletCliArgs(participant));
 }
 
 function assertResolvedWalletIdentity(result, participant, label) {

@@ -35,20 +35,20 @@ state, and user-held secrets.
 
 The normal flow is:
 
-1. `create-channel`
-2. `deposit-bridge`
-3. `join-channel`
-4. `deposit-channel`
-5. `mint-notes`
-6. `transfer-notes`
-7. `get-my-notes`
-8. `redeem-notes`
-9. `withdraw-channel`
-10. `exit-channel`
-11. `withdraw-bridge`
+1. `channel create`
+2. `account deposit-bridge`
+3. `channel join`
+4. `wallet deposit-channel`
+5. `wallet mint-notes`
+6. `wallet transfer-notes`
+7. `wallet get-notes`
+8. `wallet redeem-notes`
+9. `wallet withdraw-channel`
+10. `channel exit`
+11. `account withdraw-bridge`
 
-`create-channel` is permissionless at the bridge level. The caller becomes the channel leader and
-chooses the initial join toll. `join-channel` binds the user's L1 identity to a channel-specific L2
+`channel create` is permissionless at the bridge level. The caller becomes the channel leader and
+chooses the initial join toll. `channel join` binds the user's L1 identity to a channel-specific L2
 identity and registers the note-receive public key for encrypted note delivery.
 
 The flow moves value through three representations:
@@ -60,7 +60,7 @@ The flow moves value through three representations:
 Deposits and withdrawals move between the first two representations. Mint and redeem move between
 the second and third. Transfer moves value between notes without touching L1 custody.
 
-`exit-channel` is the registration cleanup step. It is separate from `withdraw-channel` because
+`channel exit` is the registration cleanup step. It is separate from `wallet withdraw-channel` because
 withdrawing liquid channel balance only moves value back to the shared bridge vault. Exiting removes
 the user's channel registration, frees the reserved token-vault leaf binding, and applies the
 channel's toll-refund schedule. Both the CLI and the bridge require the channel balance to be zero
@@ -192,7 +192,7 @@ These inputs must match the registered function metadata for the active DApp and
 The bundle is the bridge-checkable explanation of the private transaction. The raw private intent is
 not what L1 verifies. L1 verifies a proof and the public inputs derived from this bundle.
 
-`deposit-channel` and `withdraw-channel` are channel-token-vault accounting exceptions. They
+`wallet deposit-channel` and `wallet withdraw-channel` are channel-token-vault accounting exceptions. They
 generate the Groth16 `updateTree` proof from the current wallet snapshot and always consume the
 installed Groth16 runtime workspace. The prover writes `proof.json` and `public.json` to the fixed
 workspace proof directory rather than to per-operation output paths.
@@ -214,7 +214,7 @@ would have been valid under the old local files.
 
 ## 10. Mint Flow
 
-For `mint-notes`, the CLI:
+For `wallet mint-notes`, the CLI:
 
 1. parses the amount vector
 2. chooses the currently registered `mintNotes1` or `mintNotes2` entrypoint from the vector length
@@ -229,7 +229,7 @@ recovers self-minted notes and received transfer notes through the same event sc
 
 ## 11. Transfer Flow
 
-For `transfer-notes`, the CLI:
+For `wallet transfer-notes`, the CLI:
 
 1. resolves recipient note-receive public keys from channel registration by recipient L2 address
 2. encrypts each output value to the recipient's registered note-receive key
@@ -243,7 +243,7 @@ private key to decide whether a candidate encrypted payload belongs to them.
 
 ## 12. Redeem Flow
 
-For `redeem-notes`, the CLI:
+For `wallet redeem-notes`, the CLI:
 
 1. chooses the fixed redeem arity from the selected note count
 2. reconstructs plaintext notes from wallet state

@@ -48,7 +48,7 @@ private-state-cli <command> ...
 Check the installed package and runtime state with:
 
 ```bash
-private-state-cli doctor
+private-state-cli help doctor
 ```
 
 Print only the installed CLI package version with:
@@ -60,7 +60,7 @@ private-state-cli --version
 Check npm registry for a newer CLI package and update a global npm install when possible:
 
 ```bash
-private-state-cli update
+private-state-cli help update
 ```
 
 `update` keeps `--version` suitable for scripts by using a separate command for registry checks. If the CLI is running
@@ -82,45 +82,46 @@ is globally installed.
 
 A common private-state flow is:
 
-1. `create-channel`
-2. `deposit-bridge`
-3. `join-channel`
-4. `deposit-channel`
-5. `mint-notes`
-6. `transfer-notes`
-7. `get-my-notes`
-8. `redeem-notes`
-9. `withdraw-channel`
-10. `exit-channel`
-11. `withdraw-bridge`
+1. `channel create`
+2. `account deposit-bridge`
+3. `channel join`
+4. `wallet deposit-channel`
+5. `wallet mint-notes`
+6. `wallet transfer-notes`
+7. `wallet get-notes`
+8. `wallet redeem-notes`
+9. `wallet withdraw-channel`
+10. `channel exit`
+11. `account withdraw-bridge`
 
-Use `private-state-cli --help` for the full command list and required options.
+Use `private-state-cli help commands` for the full command list and required options. `private-state-cli --help`
+continues to print the same command list for shell compatibility.
 
 Workspace recovery commands use the saved recovery index by default. If the local workspace is missing, corrupted, or
-does not contain a usable index, `recover-workspace` and `recover-wallet` stop with an explicit error instead of
+does not contain a usable index, `channel recover-workspace` and `wallet recover-workspace` stop with an explicit error instead of
 silently replaying logs from channel genesis. Use `--from-genesis` only when you intentionally want to rebuild from the
 channel creation block:
 
 ```bash
-private-state-cli recover-workspace --channel-name <CHANNEL> --network mainnet --from-genesis
-private-state-cli recover-wallet --channel-name <CHANNEL> --network mainnet --account <ACCOUNT> --from-genesis
+private-state-cli channel recover-workspace --channel-name <CHANNEL> --network mainnet --from-genesis
+private-state-cli wallet recover-workspace --channel-name <CHANNEL> --network mainnet --account <ACCOUNT> --from-genesis
 ```
 
-`create-channel` is the exception: after the channel is created on-chain, the CLI initializes that new local workspace
+`channel create` is the exception: after the channel is created on-chain, the CLI initializes that new local workspace
 by replaying from the channel's genesis block because no prior recovery index can exist for a new channel.
 
-Wallet getter commands that need channel state, including `get-my-wallet-meta`, `get-my-channel-fund`, and
-`get-my-notes`, follow the same indexed recovery rule before reading local or on-chain state. `get-my-notes` also uses
+Wallet getter commands that need channel state, including `wallet get-meta`, `wallet get-channel-fund`, and
+`wallet get-notes`, follow the same indexed recovery rule before reading local or on-chain state. `wallet get-notes` also uses
 the wallet's saved note-receive scan index for encrypted note delivery logs. If either index is unusable, the command
 stops and asks the user to run the appropriate recovery command with `--from-genesis`.
 
 Estimate live transaction costs before sending commands with:
 
 ```bash
-private-state-cli transaction-fees --network mainnet --rpc-url <RPC_URL>
+private-state-cli help transaction-fees --network mainnet --rpc-url <RPC_URL>
 ```
 
-`transaction-fees` uses the measured gas data packaged in `assets/tx-fees.json`, the selected network's live fee data,
+`help transaction-fees` uses the measured gas data packaged in `assets/tx-fees.json`, the selected network's live fee data,
 and live ETH/USD pricing to print an ETH/USD fee table for transaction-sending commands. The table separates typical
 cost, based on the RPC `gasPrice`, from worst-case cost, based on `maxFeePerGas` when the network reports EIP-1559 fee
 data.
@@ -128,19 +129,19 @@ data.
 Proof-backed note commands can use a separate L1 transaction submitter:
 
 ```bash
-private-state-cli mint-notes --wallet <WALLET> --network mainnet --amounts '[1]' --tx-submitter <ACCOUNT>
+private-state-cli wallet mint-notes --wallet <WALLET> --network mainnet --amounts '[1]' --tx-submitter <ACCOUNT>
 ```
 
-`--tx-submitter <ACCOUNT>` is available on `mint-notes`, `transfer-notes`, and `redeem-notes`. The wallet still proves
+`--tx-submitter <ACCOUNT>` is available on `wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`. The wallet still proves
 note ownership and builds the ZK proof, but the selected local account submits `executeChannelTransaction` and pays gas.
 Use this option when you want stronger privacy by avoiding a direct on-chain link between the note owner's wallet L1
 account and the proof-submission transaction.
 
 Channel policy warning:
 
-- `create-channel` commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout,
+- `channel create` commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout,
   managed storage vector, and refund policy are fixed for that channel.
-- `join-channel` means the user accepts the channel's current policy. Later policy-level fixes require a new channel or
+- `channel join` means the user accepts the channel's current policy. Later policy-level fixes require a new channel or
   migration; the existing channel is intentionally not mutated in place without renewed user consent.
 - Before sending a channel-creation transaction or a first channel-registration transaction, the CLI prints the policy
   snapshot that will be accepted: DApp metadata digest, digest schema, Groth16 verifier address, Groth16 compatible
@@ -149,7 +150,7 @@ Channel policy warning:
   backend version is unexpected or has not been reviewed, do not create or join the channel. A later correction creates
   a new channel; it does not rewrite the policy of an already-created channel.
 
-`private-state-cli doctor` reports the CLI package version, dependency versions recorded by the last
+`private-state-cli help doctor` reports the CLI package version, dependency versions recorded by the last
 `private-state-cli install`, selected proof backend runtime versions, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime
 install mode, Docker mode, CUDA runtime metadata, live `nvidia-smi` and Docker GPU probe results, and Groth16
 runtime health. The doctor check fails when the Tokamak Docker `useGpus` metadata does not match the live GPU probes.
@@ -159,22 +160,22 @@ Local helper commands:
 ```bash
 private-state-cli account import --account <ACCOUNT_NAME> --network sepolia --private-key-file <PATH>
 private-state-cli account get-l1-address --account <ACCOUNT_NAME> --network sepolia
-private-state-cli list-local-wallets --network sepolia --channel-name cuda
-private-state-cli get-my-wallet-meta --wallet <WALLET_NAME> --network sepolia
+private-state-cli wallet list --network sepolia --channel-name cuda
+private-state-cli wallet get-meta --wallet <WALLET_NAME> --network sepolia
 ```
 
 `account import` is the only supported way to bring an L1 signing key into the CLI: it reads `--private-key-file` once
 and stores a protected local account secret for later `--account` use. The source file does not need `0600` permissions.
-`join-channel` imports `--wallet-secret-path <PATH>` into the protected wallet-local default secret while creating the
-encrypted local wallet. `list-local-wallets` reads only the local workspace and prints saved wallet names that can be reused with
+`channel join` imports `--wallet-secret-path <PATH>` into the protected wallet-local default secret while creating the
+encrypted local wallet. `wallet list` reads only the local workspace and prints saved wallet names that can be reused with
 `--wallet`.
-`get-my-wallet-meta` opens an encrypted local wallet and reports the stored L1/L2 identity metadata plus the current
+`wallet get-meta` opens an encrypted local wallet and reports the stored L1/L2 identity metadata plus the current
 on-chain channel registration match state. `account get-l1-address` is a simple offline helper that derives the L1
 address for a local account.
 
 ### Wallet Secret Source File
 
-`join-channel` needs a wallet secret source file because the CLI no longer accepts raw wallet secrets on the command
+`channel join` needs a wallet secret source file because the CLI no longer accepts raw wallet secrets on the command
 line. The source file is arbitrary high-entropy secret text that the CLI reads once and imports into the protected
 wallet-local canonical secret.
 
@@ -182,7 +183,7 @@ Create one before joining a channel:
 
 ```bash
 openssl rand -hex 32 > ./wallet-secret.txt
-private-state-cli join-channel --channel-name <CHANNEL> --network sepolia --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
+private-state-cli channel join --channel-name <CHANNEL> --network sepolia --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
 ```
 
 The import source file does not need `0600` permissions. The canonical wallet-local secret written by the CLI remains
@@ -227,9 +228,9 @@ Operating rules:
   - An account is the local nickname created by `account import`. After import, signing commands should use
     `--account <NAME>` instead of asking for the raw key again.
   - A wallet secret source file is a separate high-entropy local secret chosen by the user for this private-state
-    wallet. It is not the L1 private key. `join-channel` imports it once and uses it to protect and recover the
+    wallet. It is not the L1 private key. `channel join` imports it once and uses it to protect and recover the
     channel-local wallet.
-  - A wallet is the encrypted local private-state wallet created during `join-channel`. Its deterministic name is
+  - A wallet is the encrypted local private-state wallet created during `channel join`. Its deterministic name is
     `<channelName>-<l1Address>`.
   - The network RPC URL is the endpoint used to read and write chain state. It can be supplied once with `--rpc-url`
     on a bridge-facing command, after which the CLI saves it under the selected network.
@@ -241,37 +242,37 @@ Operating rules:
   their own node. Ask the user to create or select the endpoint in that provider's UI, then paste only the endpoint URL
   into the CLI command that accepts `--rpc-url`; do not ask for provider account passwords, API dashboards, seed phrases,
   private keys, or wallet secrets.
-- When a user wants to join a channel, do not jump straight to `join-channel`. Walk them through:
+- When a user wants to join a channel, do not jump straight to `channel join`. Walk them through:
   1. choose the network and channel name
   2. run `private-state-cli install`
-  3. run `private-state-cli doctor`
+  3. run `private-state-cli help doctor`
   4. obtain or confirm a network RPC URL for the selected network
   5. prepare a private key source file locally, without pasting the key into chat
   6. run `account import --account <NAME> --network <NETWORK> --private-key-file <PATH>`
   7. prepare a wallet secret source file locally, for example with `openssl rand -hex 32 > ./wallet-secret.txt`
-  8. inspect the channel with `get-channel` if it already exists, or create it with `create-channel` if the user is
+  8. inspect the channel with `channel get-meta` if it already exists, or create it with `channel create` if the user is
      the channel creator
   9. explain the immutable policy warning printed by the CLI
-  10. run `join-channel --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path <PATH>`
+  10. run `channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path <PATH>`
 - Before asking the user to create a file, explain what will be inside that file, who should be able to read it, and
   whether losing it prevents wallet recovery.
 - Prefer testnet examples unless the user explicitly asks for mainnet.
-- Before any proof-backed or bridge-facing workflow, ask the user to run `private-state-cli doctor` and inspect
+- Before any proof-backed or bridge-facing workflow, ask the user to run `private-state-cli help doctor` and inspect
   whether the runtime, Docker mode, CUDA/GPU probes, Groth16 runtime, and deployment artifacts are healthy.
-- Use `private-state-cli list-local-wallets` to discover local wallet names instead of asking the user to inspect
+- Use `private-state-cli wallet list` to discover local wallet names instead of asking the user to inspect
   filesystem paths manually.
 - Use `private-state-cli account get-l1-address --account <ACCOUNT> --network <NETWORK>` to derive the L1 address
   for a local account when wallet ownership needs to be identified.
-- Use `private-state-cli get-my-wallet-meta --wallet <WALLET> --network <NETWORK>` to inspect
+- Use `private-state-cli wallet get-meta --wallet <WALLET> --network <NETWORK>` to inspect
   local wallet metadata and on-chain channel registration state.
-- Use `private-state-cli account get-bridge-fund` and `private-state-cli get-my-channel-fund` to check balances before
+- Use `private-state-cli account get-bridge-fund` and `private-state-cli wallet get-channel-fund` to check balances before
   telling the user to move funds.
 - Explain that wallet names are local CLI identifiers, while private transfers use notes owned by L2 addresses
   registered in the channel.
-- Explain `--tx-submitter <ACCOUNT>` when the user wants stronger privacy for `mint-notes`, `transfer-notes`, or
-  `redeem-notes`: the wallet owner still proves note ownership, but another imported local L1 account can submit the
+- Explain `--tx-submitter <ACCOUNT>` when the user wants stronger privacy for `wallet mint-notes`, `wallet transfer-notes`, or
+  `wallet redeem-notes`: the wallet owner still proves note ownership, but another imported local L1 account can submit the
   on-chain `executeChannelTransaction` and pay gas.
-- Before guiding a user through `create-channel` or `join-channel`, explain that channel policy is immutable after
+- Before guiding a user through `channel create` or `channel join`, explain that channel policy is immutable after
   creation and that joining a channel means accepting its current verifier, DApp metadata, function layout, managed
   storage vector, and refund policy.
 - Do not present one fixed command sequence as universally correct. Some flows start from an existing channel or wallet,
@@ -286,15 +287,15 @@ Suggested interaction flow:
 1. Identify the target network, usually `sepolia` for testing.
 2. Identify whether a channel already exists.
 3. Identify the sender and recipient wallets or local account names.
-4. Run `doctor`.
-5. Run `list-local-wallets` and relevant metadata or balance checks.
-6. If needed, guide the user through `create-channel`, `deposit-bridge`, `join-channel`, `deposit-channel`, and
-   `mint-notes`.
-7. For a private transfer, select available note IDs from `get-my-notes`, find the recipient L2 address from
-   `get-my-wallet-meta`, then build `transfer-notes`.
-8. After transfer, guide the recipient to run `get-my-notes` to recover received notes from event logs.
+4. Run `help doctor`.
+5. Run `wallet list` and relevant metadata or balance checks.
+6. If needed, guide the user through `channel create`, `account deposit-bridge`, `channel join`, `wallet deposit-channel`, and
+   `wallet mint-notes`.
+7. For a private transfer, select available note IDs from `wallet get-notes`, find the recipient L2 address from
+   `wallet get-meta`, then build `wallet transfer-notes`.
+8. After transfer, guide the recipient to run `wallet get-notes` to recover received notes from event logs.
 
-Example onboarding explanation for `join-channel`:
+Example onboarding explanation for `channel join`:
 
 > First we need two different local secrets. Your L1 private key proves which Ethereum account pays gas and signs
 > bridge transactions. We import it once into a local account nickname, so later commands can say `--account alice`
@@ -312,7 +313,7 @@ command.
 Proof-backed commands require installed bridge, DApp, and Groth16 artifacts. Run `private-state-cli install` before
 using bridge-facing commands on a new machine.
 
-Channel balance commands such as `deposit-channel` and `withdraw-channel` use the installed Groth16 runtime workspace
+Channel balance commands such as `wallet deposit-channel` and `wallet withdraw-channel` use the installed Groth16 runtime workspace
 directly. Proof generation writes to the fixed workspace paths under `~/tokamak-private-channels/groth16/proof`; the CLI
 does not pass custom `--zkey`, proof-output, or public-output paths to the Groth16 prover.
 Before proof generation, the CLI compares the target channel's verifier compatibility versions with the installed

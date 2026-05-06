@@ -116,20 +116,20 @@ Important rules:
 - commands print human-readable output by default; pass `--json` when automation needs a machine-readable result
 - L1 signing commands use `--account`; create the local account secret once with `account import --private-key-file`
 - wallet commands use the wallet-local default secret file and do not accept explicit secret arguments
-- `join-channel` requires `--wallet-secret-path <PATH>` and imports that source file into the protected wallet-local secret
+- `channel join` requires `--wallet-secret-path <PATH>` and imports that source file into the protected wallet-local secret
 - channel creation commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy are fixed for that channel
 - joining a channel means accepting that channel's current policy; later fixes to policy-level bugs require a new channel or migration rather than in-place mutation of the joined channel
-- `join-channel` binds the channel name, wallet-local secret, and local account signer to derive the channel-specific L2 identity
-- `join-channel` is the only command that sets up encrypted L1/L2 wallet keys
+- `channel join` binds the channel name, wallet-local secret, and local account signer to derive the channel-specific L2 identity
+- `channel join` is the only command that sets up encrypted L1/L2 wallet keys
 - wallet folder names are fixed to `<channelName>-<l1Address>`
-- recipient note delivery is recovered from bridge-propagated Ethereum event logs through `get-my-notes`
+- recipient note delivery is recovered from bridge-propagated Ethereum event logs through `wallet get-notes`
 - `anvil` support exists only for command-driven local end-to-end testing
 - proof-backed commands print four progress phases, `loading`, `proving`, `submitting`, and `persisting`, followed by `done`
 - common failures print `Try:` recovery actions after the root error message
 - LLM agents that guide human users should read the CLI package's
   [LLM Agent Guidance](cli/README.md#llm-agent-guidance). That section explains how to introduce
   private key files, local account aliases, wallet secret source files, network RPC URLs, and
-  channel policy review before walking a new user through `join-channel`.
+  channel policy review before walking a new user through `channel join`.
 
 ## Recipient Note Delivery
 
@@ -144,7 +144,7 @@ The current implementation includes:
 - ciphertext publication on Ethereum for both transferred notes and self-minted notes
 - recipient note salt derived from the encrypted payload
 - bridge propagation of DApp event logs emitted from channel execution
-- wallet-side event-log scanning and decryption in `get-my-notes`
+- wallet-side event-log scanning and decryption in `wallet get-notes`
 - uniform event decryption for both transfer and self-mint delivery through the note-receive key path
 
 ## CLI Command Flow
@@ -153,7 +153,7 @@ The commands below are ordered by the normal execution flow.
 
 ### 1. Install or remove the local zk-EVM toolchain
 
-`guide`
+`help guide`
 
 - inspects local private-state workspace state, saved network RPC configuration, deployment artifacts, channel workspace state, account secrets, wallet metadata, bridge balance, channel balance, and local note inventory when enough selectors are provided
 - prints the next safe command and the reason for that recommendation
@@ -161,7 +161,7 @@ The commands below are ordered by the normal execution flow.
 - does not accept `--rpc-url`; configure network RPC through a bridge-facing command once with `--rpc-url`, or by writing `RPC_URL=<URL>` to `~/tokamak-private-channels/secrets/<network>/.env`
 - is read-only and never creates wallets, sends transactions, or changes channel state
 
-`doctor`
+`help doctor`
 
 - checks private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
 - prints a concise human-readable table by default
@@ -197,7 +197,7 @@ The commands below are ordered by the normal execution flow.
 - keeps the canonical account secret protected; macOS/Linux uses `0600`, and Windows uses ACL repair and inspection when possible
 - should be run before bridge-facing user commands that need L1 signing
 
-`create-channel`
+`channel create`
 
 - creates the bridge channel on-chain
 - always binds the channel to the `private-state` DApp
@@ -209,7 +209,7 @@ The commands below are ordered by the normal execution flow.
 Example:
 
 ```bash
-node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
+node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create \
   --channel-name demo-channel \
   --join-toll 0 \
   --account <account-name> \
@@ -219,7 +219,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 
 ### 3. Rebuild or refresh the saved channel workspace
 
-`recover-workspace`
+`channel recover-workspace`
 
 - reconstructs the latest channel snapshot from bridge events
 - writes the saved workspace into `~/tokamak-private-channels/workspace/<network>/<channel-name>/channel/`
@@ -230,7 +230,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - fails instead of silently replaying from channel genesis when no usable recovery index exists
 - accepts `--from-genesis` when the user intentionally wants to ignore the local index and replay the channel from its creation block
 
-`get-channel`
+`channel get-meta`
 
 - reads whether a channel exists and reports its manager, vault, join toll, refund schedule, and immutable policy snapshot
 - accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
@@ -238,7 +238,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 
 ### 4. Fund the shared L1 bridge vault
 
-`deposit-bridge`
+`account deposit-bridge`
 
 - deposits Tokamak Network Token into the shared bridge-level `bridgeTokenVault`
 - does not register the user in the channel
@@ -251,7 +251,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 
 ### 5. Join the channel-specific wallet and L2 identity
 
-`join-channel`
+`channel join`
 
 - derives the channel-specific L2 identity
 - registers the caller's L2 address, channel token-vault storage key, leaf index, and note-receive public key on-chain
@@ -264,7 +264,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - prints an immutable-channel-policy warning before first registration
 - should be treated as user acceptance of the channel's fixed verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy
 
-`recover-wallet`
+`wallet recover-workspace`
 
 - rebuilds the encrypted wallet only up to the subset that can be recovered from the current channel workspace, channel registration, and bridge-propagated encrypted note logs
 - recreates the channel-bound wallet keys from `--channel-name`, the wallet-local default secret file, and `--account`
@@ -276,14 +276,14 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - fails instead of silently replaying from channel genesis when no usable recovery index exists
 - accepts `--from-genesis` when the user intentionally wants to rebuild channel state from the channel creation block before recovering the wallet
 
-Wallet getter commands that need channel state, including `get-my-wallet-meta`, `get-my-channel-fund`, and
-`get-my-notes`, use only indexed recovery before reading state. `get-my-notes` also resumes encrypted note delivery
+Wallet getter commands that need channel state, including `wallet get-meta`, `wallet get-channel-fund`, and
+`wallet get-notes`, use only indexed recovery before reading state. `wallet get-notes` also resumes encrypted note delivery
 logs from the wallet's saved note-receive scan index. If the required index is missing or unusable, the command stops
-and asks the user to run `recover-workspace --from-genesis` or `recover-wallet --from-genesis` as appropriate.
+and asks the user to run `channel recover-workspace --from-genesis` or `wallet recover-workspace --from-genesis` as appropriate.
 
 ### 6. Inspect wallet-to-channel registration
 
-`get-my-wallet-meta`
+`wallet get-meta`
 
 - checks whether the wallet's stored L2 identity matches the on-chain registration
 - returns the wallet L2 address, registered L2 address, storage key, leaf index, and match status
@@ -291,20 +291,20 @@ and asks the user to run `recover-workspace --from-genesis` or `recover-wallet -
 
 ### 7. Move value into the channel L2 accounting vault
 
-`deposit-channel`
+`wallet deposit-channel`
 
 - moves value from the shared bridge-level `bridgeTokenVault` into the channel-level L2 accounting vault
 - accepts `--wallet`, `--network`, and `--amount`
 - requires an existing wallet with plaintext network/channel metadata and encrypted L1/L2 keys
 
-`get-my-channel-fund`
+`wallet get-channel-fund`
 
 - reads the current channel L2 accounting balance bound to the wallet registration
 - accepts `--wallet` and `--network`
 
 ### 8. Mint private notes from the wallet balance
 
-`mint-notes`
+`wallet mint-notes`
 
 - mints one or two notes owned by the wallet's L2 address with the currently registered private-state DApp metadata
 - builds self-mint ciphertext outputs and lets the controller derive note salts from the ciphertext hash
@@ -313,7 +313,7 @@ and asks the user to run `recover-workspace --from-genesis` or `recover-wallet -
 
 ### 9. Transfer notes
 
-`transfer-notes`
+`wallet transfer-notes`
 
 - consumes tracked input notes and creates encrypted recipient note payloads
 - accepts `--wallet`, `--network`, `--note-ids`, `--recipients`, and `--amounts`
@@ -322,7 +322,7 @@ and asks the user to run `recover-workspace --from-genesis` or `recover-wallet -
 
 ### 10. Recover and inspect received notes
 
-`get-my-notes`
+`wallet get-notes`
 
 - scans bridge-propagated private-state encrypted-note events from Ethereum
 - decrypts both transferred note payloads and self-minted note payloads with the note-receive private key
@@ -333,21 +333,21 @@ and asks the user to run `recover-workspace --from-genesis` or `recover-wallet -
 
 ### 11. Redeem notes
 
-`redeem-notes`
+`wallet redeem-notes`
 
 - redeems one or two tracked notes back into liquid accounting balance
 - accepts `--wallet`, `--network`, and `--note-ids`
 
 ### 12. Move value back to the shared L1 bridge vault
 
-`withdraw-channel`
+`wallet withdraw-channel`
 
 - moves value from the channel L2 accounting vault back into the shared bridge-level `bridgeTokenVault`
 - accepts `--wallet`, `--network`, and `--amount`
 
 ### 13. Exit the channel registration
 
-`exit-channel`
+`channel exit`
 
 - deletes the wallet's channel registration after the channel L2 accounting balance is zero
 - frees the reserved token-vault leaf binding, L2 address binding, storage-key binding, and note-receive key binding
@@ -357,7 +357,7 @@ and asks the user to run `recover-workspace --from-genesis` or `recover-wallet -
 
 ### 14. Claim the shared L1 bridge deposit
 
-`withdraw-bridge`
+`account withdraw-bridge`
 
 - claims value from the shared bridge-level `bridgeTokenVault` back into the caller wallet
 - uses the local `--account` signer instead of channel wallet state

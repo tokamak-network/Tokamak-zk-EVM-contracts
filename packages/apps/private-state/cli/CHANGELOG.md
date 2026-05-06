@@ -2,10 +2,26 @@
 
 ## Unreleased
 
+## 1.1.0 - 2026-05-06
+
+- Reclassified user-facing commands into `account`, `channel`, `wallet`, and `help` namespaces.
+  `install`, `uninstall`, and `--version` remain top-level commands.
 - Renamed `get-my-l1-address` to `account get-l1-address` so account helpers live under the
   same `account` command namespace as `account import`.
 - Renamed `get-my-bridge-fund` to `account get-bridge-fund` so bridge-vault balance lookup is
   grouped with account-level helpers.
+- Moved bridge-vault movement commands to `account deposit-bridge` and `account withdraw-bridge`.
+- Moved channel lifecycle commands to `channel create`, `channel recover-workspace`,
+  `channel get-meta`, `channel join`, and `channel exit`.
+- Moved wallet-local state, channel balance, and note commands to `wallet recover-workspace`,
+  `wallet get-meta`, `wallet list`, `wallet deposit-channel`, `wallet withdraw-channel`,
+  `wallet get-channel-fund`, `wallet mint-notes`, `wallet transfer-notes`,
+  `wallet redeem-notes`, and `wallet get-notes`.
+- Moved helper commands to `help commands`, `help update`, `help doctor`, `help guide`, and
+  `help transaction-fees`; `--help` still prints the same command reference for shell
+  compatibility.
+- Updated README files, private-state workflow docs, the browser CLI assistant, transaction-fee
+  command labels, and the CLI e2e harness to use the new command taxonomy.
 
 ## 1.0.2 - 2026-05-06
 

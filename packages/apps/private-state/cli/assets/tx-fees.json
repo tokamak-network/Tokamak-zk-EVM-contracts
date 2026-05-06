@@ -5,11 +5,11 @@
   "notes": [
     "Gas values are protocol transaction gasUsed values, not a guarantee for every future calldata shape or verifier implementation.",
     "ERC-20 approval transactions are listed as separate approve components when the CLI command sends an approval transaction.",
-    "transfer-notes and redeem-notes use the same proof-backed executeChannelTransaction baseline measured from the successful mint-notes CLI e2e receipt because the current e2e run stopped before producing fresh transfer/redeem receipts."
+    "wallet transfer-notes and wallet redeem-notes use the same proof-backed executeChannelTransaction baseline measured from the successful wallet mint-notes CLI e2e receipt because the current e2e run stopped before producing fresh transfer/redeem receipts."
   ],
   "commands": [
     {
-      "command": "create-channel",
+      "command": "channel create",
       "description": "Create a bridge channel and initialize its policy snapshot.",
       "transactions": [
         {
@@ -23,7 +23,7 @@
       ]
     },
     {
-      "command": "deposit-bridge",
+      "command": "account deposit-bridge",
       "description": "Deposit canonical tokens into the shared bridge vault.",
       "transactions": [
         {
@@ -45,7 +45,7 @@
       ]
     },
     {
-      "command": "withdraw-bridge",
+      "command": "account withdraw-bridge",
       "description": "Withdraw canonical tokens from the shared bridge vault.",
       "transactions": [
         {
@@ -59,7 +59,7 @@
       ]
     },
     {
-      "command": "join-channel",
+      "command": "channel join",
       "description": "Pay the channel join toll and register a wallet identity.",
       "transactions": [
         {
@@ -68,7 +68,7 @@
           "function": "approve",
           "gasUsed": 45729,
           "source": "cast-local-measurement",
-          "sourceDetail": "Measured on local anvil by deploying bridge/src/mocks/MockERC20.sol and sending approve(address,uint256). join-channel sends this approval only when the channel join toll is nonzero."
+          "sourceDetail": "Measured on local anvil by deploying bridge/src/mocks/MockERC20.sol and sending approve(address,uint256). channel join sends this approval only when the channel join toll is nonzero."
         },
         {
           "label": "joinChannel",
@@ -81,7 +81,7 @@
       ]
     },
     {
-      "command": "deposit-channel",
+      "command": "wallet deposit-channel",
       "description": "Move bridged funds into the channel L2 accounting vault.",
       "transactions": [
         {
@@ -92,12 +92,12 @@
           "gasUsedMin": 336464,
           "gasUsedMax": 336496,
           "source": "cli-e2e-receipts",
-          "sourceDetail": "Three completed local CLI e2e deposit-channel receipts from the current worktree."
+          "sourceDetail": "Three completed local CLI e2e wallet deposit-channel receipts from the current worktree."
         }
       ]
     },
     {
-      "command": "withdraw-channel",
+      "command": "wallet withdraw-channel",
       "description": "Move channel L2 accounting vault funds back into the shared bridge vault.",
       "transactions": [
         {
@@ -111,7 +111,7 @@
       ]
     },
     {
-      "command": "exit-channel",
+      "command": "channel exit",
       "description": "Exit a channel after the channel balance is zero.",
       "transactions": [
         {
@@ -125,7 +125,7 @@
       ]
     },
     {
-      "command": "mint-notes",
+      "command": "wallet mint-notes",
       "description": "Submit a proof-backed private-state mint transaction.",
       "transactions": [
         {
@@ -134,12 +134,12 @@
           "function": "executeChannelTransaction",
           "gasUsed": 861627,
           "source": "cli-e2e-receipt",
-          "sourceDetail": "Completed local CLI e2e mint-notes bridge-submit-receipt.json from the current worktree."
+          "sourceDetail": "Completed local CLI e2e wallet mint-notes bridge-submit-receipt.json from the current worktree."
         }
       ]
     },
     {
-      "command": "transfer-notes",
+      "command": "wallet transfer-notes",
       "description": "Submit a proof-backed private-state transfer transaction.",
       "transactions": [
         {
@@ -148,12 +148,12 @@
           "function": "executeChannelTransaction",
           "gasUsed": 861627,
           "source": "cli-e2e-baseline",
-          "sourceDetail": "Uses the current successful mint-notes executeChannelTransaction receipt as the shared proof-backed DApp command baseline."
+          "sourceDetail": "Uses the current successful wallet mint-notes executeChannelTransaction receipt as the shared proof-backed DApp command baseline."
         }
       ]
     },
     {
-      "command": "redeem-notes",
+      "command": "wallet redeem-notes",
       "description": "Submit a proof-backed private-state redeem transaction.",
       "transactions": [
         {
@@ -162,7 +162,7 @@
           "function": "executeChannelTransaction",
           "gasUsed": 861627,
           "source": "cli-e2e-baseline",
-          "sourceDetail": "Uses the current successful mint-notes executeChannelTransaction receipt as the shared proof-backed DApp command baseline."
+          "sourceDetail": "Uses the current successful wallet mint-notes executeChannelTransaction receipt as the shared proof-backed DApp command baseline."
         }
       ]
     }

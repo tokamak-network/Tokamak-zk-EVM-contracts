@@ -4,8 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import AdmZip from "adm-zip";
 import {
   HDNodeWallet,
   JsonRpcProvider,
@@ -86,6 +88,7 @@ const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
 const summaryPath = path.resolve(outputRoot, "summary.json");
 const failureDiagnosticsPath = path.resolve(outputRoot, "failure-diagnostics.json");
 const dappMetadataRoot = path.resolve(outputRoot, "dapp-metadata");
+const workspaceMirrorRoot = path.resolve(outputRoot, "workspace-mirror");
 const providerUrl = process.env.ANVIL_RPC_URL?.trim() || "http://127.0.0.1:8545";
 const workspaceNetworkName = "anvil";
 const anvilMnemonic = process.env.APPS_ANVIL_MNEMONIC?.trim() || "test test test test test test test test test test test junk";
@@ -1397,6 +1400,21 @@ function recoverWorkspace({ fromGenesis = false } = {}) {
   ]);
 }
 
+function recoverWorkspaceFromMirror() {
+  return runAnvilBridgeCliCommand("channel recover-workspace", [
+    "--channel-name", channelName,
+    "--source", "mirror",
+  ]);
+}
+
+function setWorkspaceMirror(url) {
+  return runAnvilBridgeCliCommand("channel set-workspace-mirror", [
+    "--channel-name", channelName,
+    "--account", txSubmitterAccount,
+    "--url", url,
+  ]);
+}
+
 function deleteWalletDir(participant) {
   expect(participant.walletName, `${participant.alias} walletName is not available.`);
   fs.rmSync(walletDirForName(participant.walletName), { recursive: true, force: true });
@@ -1407,6 +1425,13 @@ function deleteWorkspaceDir() {
     recursive: true,
     force: true,
   });
+}
+
+function deleteChannelWorkspaceCache() {
+  fs.rmSync(path.join(
+    workspaceDirForName(workspaceRoot, workspaceNetworkName, channelName),
+    "channel",
+  ), { recursive: true, force: true });
 }
 
 function txSubmitterCliArgs(account) {
@@ -1510,7 +1535,7 @@ function assertPostTransactionWorkspaceRecoveryIndex(result, label) {
   );
   const mode = result?.recoveryScanRange?.mode;
   expect(
-    mode === "recovery-index" || mode === "reused-current-snapshot",
+    mode === "recovery-index" || mode === "reused-current-snapshot" || mode === "reused-mirror-snapshot",
     `${label} must reuse the post-transaction recovery index, got ${mode ?? "missing"}.`,
   );
   expect(
@@ -1518,6 +1543,224 @@ function assertPostTransactionWorkspaceRecoveryIndex(result, label) {
       && Number(result.recoveryLastScannedBlock) === Number(result.recoveryScanRange.toBlock) + 1,
     `${label} returned inconsistent recoveryLastScannedBlock metadata.`,
   );
+}
+
+function channelWorkspaceMirrorProtocolPath(channelId) {
+  return path.join(
+    ".well-known",
+    "tokamak-private-state",
+    "channel-workspace",
+    "v1",
+    "31337",
+    channelId.toString(),
+  );
+}
+
+function sha256Hex(buffer) {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+function buildWorkspaceMirrorFiles(bridgeDeployment) {
+  cleanDir(workspaceMirrorRoot);
+  const channelId = deriveChannelIdFromName(channelName);
+  const mirrorDir = path.join(workspaceMirrorRoot, channelWorkspaceMirrorProtocolPath(channelId));
+  ensureDir(mirrorDir);
+
+  const workspaceDir = workspaceDirForName(workspaceRoot, workspaceNetworkName, channelName);
+  const channelDir = path.join(workspaceDir, "channel");
+  const currentDir = path.join(channelDir, "current");
+  const workspace = readJson(path.join(channelDir, "workspace.json"));
+  const archiveInputs = {
+    "workspace.json": path.join(channelDir, "workspace.json"),
+    "state_snapshot.json": path.join(currentDir, "state_snapshot.json"),
+    "block_info.json": path.join(currentDir, "block_info.json"),
+    "contract_codes.json": path.join(currentDir, "contract_codes.json"),
+  };
+
+  const archive = new AdmZip();
+  for (const [archiveName, filePath] of Object.entries(archiveInputs)) {
+    expect(fs.existsSync(filePath), `Missing workspace mirror input ${filePath}.`);
+    archive.addFile(archiveName, fs.readFileSync(filePath));
+  }
+  const archiveBuffer = archive.toBuffer();
+  const archivePath = path.join(mirrorDir, "workspace.zip");
+  fs.writeFileSync(archivePath, archiveBuffer);
+
+  const manifest = {
+    protocolVersion: 1,
+    chainId: 31337,
+    channelId: channelId.toString(),
+    channelName,
+    bridgeCore: bridgeDeployment.bridgeCore,
+    channelManager: workspace.channelManager,
+    recoveryLastScannedBlock: workspace.recoveryLastScannedBlock,
+    recoveryRootVectorHash: workspace.recoveryRootVectorHash,
+    archive: {
+      url: "workspace.zip",
+      sha256: sha256Hex(archiveBuffer),
+      sizeBytes: archiveBuffer.length,
+    },
+    createdAt: new Date().toISOString(),
+    minCliVersion: cliPackageManifest.version,
+  };
+  const manifestPath = path.join(mirrorDir, "manifest.json");
+  writeJson(manifestPath, manifest);
+  return {
+    rootDir: workspaceMirrorRoot,
+    mirrorDir,
+    manifestPath,
+    archivePath,
+    manifest,
+  };
+}
+
+async function startStaticFileServer(rootDir) {
+  const serverScript = `
+    import fs from "node:fs";
+    import http from "node:http";
+    import path from "node:path";
+
+    const rootDir = ${JSON.stringify(path.resolve(rootDir))};
+    const server = http.createServer((request, response) => {
+      try {
+        const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+        const decodedPath = decodeURIComponent(requestUrl.pathname);
+        const relativePath = decodedPath.split("/").filter(Boolean).join("/");
+        const filePath = path.resolve(rootDir, relativePath);
+        if (!filePath.startsWith(rootDir + path.sep)) {
+          response.writeHead(403);
+          response.end("forbidden");
+          return;
+        }
+        if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+          response.writeHead(404);
+          response.end("not found");
+          return;
+        }
+        response.writeHead(200, {
+          "content-type": filePath.endsWith(".json") ? "application/json" : "application/zip",
+        });
+        fs.createReadStream(filePath).pipe(response);
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+    });
+
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      console.log(JSON.stringify({ port: address.port }));
+    });
+  `;
+  const child = spawn(process.execPath, ["--input-type=module", "-e", serverScript], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const serverInfo = await new Promise((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error(`Workspace mirror server did not start in time. stderr: ${stderr}`));
+    }, 10_000);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+      const line = stdout.split(/\r?\n/u).find((entry) => entry.trim().length > 0);
+      if (!line) {
+        return;
+      }
+      clearTimeout(timeout);
+      try {
+        resolve(JSON.parse(line));
+      } catch (error) {
+        reject(new Error(`Workspace mirror server printed invalid startup JSON: ${error.message}`));
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("exit", (code, signal) => {
+      clearTimeout(timeout);
+      if (!stdout.trim()) {
+        reject(new Error(`Workspace mirror server exited before startup, code=${code}, signal=${signal}, stderr=${stderr}`));
+      }
+    });
+  });
+  expect(Number.isInteger(serverInfo.port), "Workspace mirror server did not expose a TCP port.");
+  return {
+    child,
+    url: `http://127.0.0.1:${serverInfo.port}`,
+  };
+}
+
+async function stopStaticFileServer(handle) {
+  if (!handle?.child || handle.child.killed) {
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      handle.child.kill("SIGKILL");
+      resolve();
+    }, 5_000);
+    handle.child.once("exit", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    handle.child.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    handle.child.kill("SIGTERM");
+  });
+}
+
+async function verifyWorkspaceMirrorRecovery(bridgeDeployment) {
+  const files = buildWorkspaceMirrorFiles(bridgeDeployment);
+  const server = await startStaticFileServer(files.rootDir);
+  try {
+    const registration = setWorkspaceMirror(server.url);
+    expect(
+      registration.url === server.url,
+      `channel set-workspace-mirror returned unexpected URL ${registration.url}.`,
+    );
+
+    deleteChannelWorkspaceCache();
+    const recovered = recoverWorkspaceFromMirror();
+    expect(recovered.source === "mirror", `mirror recovery returned source=${recovered.source}.`);
+    expect(recovered.workspaceMirror?.used === true, "mirror recovery did not use the workspace mirror.");
+    expect(
+      recovered.workspaceMirror?.registeredUrl === server.url,
+      "mirror recovery used an unexpected registered URL.",
+    );
+    expect(
+      recovered.workspaceMirror?.manifestUrl
+        === `${server.url}/${channelWorkspaceMirrorProtocolPath(files.manifest.channelId)}/manifest.json`,
+      "mirror recovery used an unexpected manifest URL.",
+    );
+    expect(
+      recovered.recoveryScanRange?.mode === "reused-mirror-snapshot"
+        || recovered.recoveryScanRange?.mode === "recovery-index",
+      `mirror recovery used unexpected scan mode ${recovered.recoveryScanRange?.mode}.`,
+    );
+    expect(
+      normalizeBytes32Hex(recovered.recoveryRootVectorHash)
+        === normalizeBytes32Hex(files.manifest.recoveryRootVectorHash),
+      "mirror recovery root vector hash does not match the mirrored snapshot.",
+    );
+    return {
+      registration,
+      recovered,
+      manifest: files.manifest,
+      manifestPath: files.manifestPath,
+      archivePath: files.archivePath,
+      serverUrl: server.url,
+    };
+  } finally {
+    await stopStaticFileServer(server);
+  }
 }
 
 function assertWalletCommandUsedCurrentWorkspace(result, label) {
@@ -1553,6 +1796,7 @@ async function main() {
   let createChannelResult = null;
   let recoverWorkspaceResult = null;
   let recoverWorkspaceAfterLocalTransactions = null;
+  let workspaceMirrorRecovery = null;
   let bridgeDeployment = null;
   let canonicalAsset = null;
   let dappRegistrationResult = null;
@@ -1759,6 +2003,11 @@ async function main() {
       recoverWorkspaceAfterLocalTransactions,
       "recover-workspace after local wallet transactions",
     );
+    workspaceMirrorRecovery = await verifyWorkspaceMirrorRecovery(bridgeDeployment);
+    assertPostTransactionWorkspaceRecoveryIndex(
+      workspaceMirrorRecovery.recovered,
+      "recover-workspace from workspace mirror",
+    );
 
     const walletExportIncludeNotes = exportWallet(participants[2], {
       includeNotes: true,
@@ -1901,6 +2150,7 @@ async function main() {
       createChannel: createChannelResult,
       recoverWorkspace: recoverWorkspaceResult,
       recoverWorkspaceAfterLocalTransactions,
+      workspaceMirrorRecovery,
       recoverWorkspaceAfterNotes: recoverWorkspaceAfterNotesResult,
       walletExportImport: {
         includeNotesExport: walletExportIncludeNotes,

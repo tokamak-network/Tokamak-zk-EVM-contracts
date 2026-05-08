@@ -776,7 +776,6 @@ async function syncChannelWorkspace({
   persist,
   allowExistingWorkspaceSync = false,
   useWorkspaceRecoveryIndex = false,
-  requireWorkspaceRecoveryIndex = false,
   fromGenesis = false,
   minimumToBlock = null,
   progressAction = null,
@@ -855,19 +854,12 @@ async function syncChannelWorkspace({
       managedStorageAddresses,
     })
     : null;
-  const localSnapshotReusable = !fromGenesis
-    && (!requireWorkspaceRecoveryIndex || recoveryIndex)
+  const localSnapshotReusable = !fromGenesis && (!useWorkspaceRecoveryIndex || recoveryIndex)
     && canReuseLocalWorkspaceSnapshot({
       existingArtifacts,
       currentRootVectorHash,
       managedStorageAddresses,
     });
-  if (useWorkspaceRecoveryIndex && requireWorkspaceRecoveryIndex && !fromGenesis && !recoveryIndex) {
-    throw new Error([
-      `Workspace recovery index is missing or unusable for channel ${channelName} on ${networkNameFromChainId(network.chainId)}.`,
-      "Run channel recover-workspace --from-genesis once before channel join.",
-    ].join(" "));
-  }
   if (useWorkspaceRecoveryIndex && !fromGenesis && !localSnapshotReusable && !recoveryIndex) {
     throw new Error([
       `Workspace recovery index is missing or unusable for channel ${channelName} on ${networkNameFromChainId(network.chainId)}.`,
@@ -4721,7 +4713,6 @@ async function loadJoinChannelContext({ args, network, provider }) {
     persist: true,
     allowExistingWorkspaceSync: true,
     useWorkspaceRecoveryIndex: true,
-    requireWorkspaceRecoveryIndex: true,
     progressAction: "channel join",
   });
 

@@ -27,6 +27,11 @@ const CHANNEL_MANAGER_ARTIFACT_PATH = path.join(
 const DEFAULT_CONFIRMATIONS = 12;
 const DEFAULT_LOOKBACK_BLOCKS = 64;
 const DEFAULT_CHUNK_SIZE = 20_000;
+const DEFAULT_LOG_SOURCE = "etherscan";
+const DEFAULT_ETHERSCAN_LOG_PAGE_SIZE = 1_000;
+const DEFAULT_LOG_RETRIES = 6;
+const DEFAULT_LOG_RETRY_DELAY_MS = 2_000;
+const DEFAULT_REQUEST_DELAY_MS = 0;
 
 function fail(message) {
   throw new Error(message);
@@ -69,7 +74,13 @@ Options:
   --to-block <block>    Override scan end block. Defaults to latest finalized by --confirmations
   --confirmations <n>   Blocks to lag from latest when --to-block is omitted. Default: ${DEFAULT_CONFIRMATIONS}
   --lookback-blocks <n> Re-scan this many blocks before the previous checkpoint. Default: ${DEFAULT_LOOKBACK_BLOCKS}
+  --log-source <source> ChannelCreated log source. Supported values: etherscan, rpc. Default: ${DEFAULT_LOG_SOURCE}
   --chunk-size <n>      RPC log scan chunk size. Default: ${DEFAULT_CHUNK_SIZE}
+  --request-delay-ms <n>
+                        Delay between log scan requests. Default: ${DEFAULT_REQUEST_DELAY_MS}
+  --log-retries <n>     Retry count for transient log scan failures. Default: ${DEFAULT_LOG_RETRIES}
+  --log-retry-delay-ms <n>
+                        Initial retry delay for log scan failures. Default: ${DEFAULT_LOG_RETRY_DELAY_MS}
   --dry-run             Scan and report without submitting Etherscan verification or writing state
   --refresh             Re-check managers already recorded in the local verification state
   --skip-build          Do not run forge build before extracting constructor args
@@ -85,7 +96,11 @@ function parseArgs(argv) {
     toBlock: null,
     confirmations: DEFAULT_CONFIRMATIONS,
     lookbackBlocks: DEFAULT_LOOKBACK_BLOCKS,
+    logSource: DEFAULT_LOG_SOURCE,
     chunkSize: DEFAULT_CHUNK_SIZE,
+    requestDelayMs: DEFAULT_REQUEST_DELAY_MS,
+    logRetries: DEFAULT_LOG_RETRIES,
+    logRetryDelayMs: DEFAULT_LOG_RETRY_DELAY_MS,
     dryRun: false,
     refresh: false,
     skipBuild: false,
@@ -127,8 +142,27 @@ function parseArgs(argv) {
         options.lookbackBlocks = parseNonNegativeInteger(requireOptionValue(current, next), current);
         index += 1;
         break;
+      case "--log-source":
+        options.logSource = requireOptionValue(current, next);
+        if (!["etherscan", "rpc"].includes(options.logSource)) {
+          fail(`Unsupported --log-source=${options.logSource}\nSupported values: etherscan, rpc`);
+        }
+        index += 1;
+        break;
       case "--chunk-size":
         options.chunkSize = parsePositiveInteger(requireOptionValue(current, next), current);
+        index += 1;
+        break;
+      case "--request-delay-ms":
+        options.requestDelayMs = parseNonNegativeInteger(requireOptionValue(current, next), current);
+        index += 1;
+        break;
+      case "--log-retries":
+        options.logRetries = parseNonNegativeInteger(requireOptionValue(current, next), current);
+        index += 1;
+        break;
+      case "--log-retry-delay-ms":
+        options.logRetryDelayMs = parseNonNegativeInteger(requireOptionValue(current, next), current);
         index += 1;
         break;
       case "--dry-run":
@@ -183,6 +217,10 @@ function parsePositiveInteger(value, label) {
     fail(`${label} must be greater than zero: ${value}`);
   }
   return parsed;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function resolveProjectPath(inputPath) {
@@ -266,22 +304,42 @@ function resolveEtherscanApiKey() {
   return apiKey;
 }
 
-async function fetchEtherscanJson(params, { method = "GET" } = {}) {
+async function fetchEtherscanJson(
+  params,
+  { method = "GET", retries = DEFAULT_LOG_RETRIES, retryDelayMs = DEFAULT_LOG_RETRY_DELAY_MS } = {},
+) {
   const urlParams = new URLSearchParams(params);
-  const response = method === "GET"
-    ? await fetch(`${ETHERSCAN_V2_API_URL}?${urlParams.toString()}`, { method })
-    : await fetch(ETHERSCAN_V2_API_URL, { method, body: urlParams });
-  const text = await response.text();
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    fail(`Etherscan returned non-JSON response: ${text}`);
+  let lastStatus = null;
+  let lastJson = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const response = method === "GET"
+      ? await fetch(`${ETHERSCAN_V2_API_URL}?${urlParams.toString()}`, { method })
+      : await fetch(ETHERSCAN_V2_API_URL, { method, body: urlParams });
+    const text = await response.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      fail(`Etherscan returned non-JSON response: ${text}`);
+    }
+    if (response.ok && !etherscanRetryable(json)) {
+      return json;
+    }
+
+    lastStatus = response.status;
+    lastJson = json;
+    if (attempt >= retries) {
+      break;
+    }
+
+    const delay = retryDelayMs * 2 ** attempt;
+    console.log(`Etherscan request throttled; retrying in ${delay}ms (${attempt + 1}/${retries})`);
+    await sleep(delay);
   }
-  if (!response.ok) {
-    fail(`Etherscan request failed with HTTP ${response.status}: ${JSON.stringify(json)}`);
+  if (lastStatus && lastStatus !== 200) {
+    fail(`Etherscan request failed with HTTP ${lastStatus}: ${JSON.stringify(lastJson)}`);
   }
-  return json;
+  fail(`Etherscan request failed: ${JSON.stringify(lastJson)}`);
 }
 
 async function getContractCreation(address, { chainId, etherscanApiKey }) {
@@ -349,34 +407,202 @@ function normalizeStateForWrite(state, { chainId, bridgeCore, deploymentPath }) 
   };
 }
 
-async function scanChannelCreatedEvents({ provider, bridgeCore, fromBlock, toBlock, chunkSize }) {
+function isRetryableLogError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("429")
+    || message.includes("exceeded")
+    || message.includes("rate limit")
+    || message.includes("timeout")
+    || message.includes("temporarily")
+    || message.includes("SERVER_ERROR")
+    || message.includes("UNKNOWN_ERROR");
+}
+
+async function getLogsWithRetry(provider, filter, { retries, retryDelayMs }) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await provider.getLogs(filter);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries || !isRetryableLogError(error)) {
+        throw error;
+      }
+      const delay = retryDelayMs * 2 ** attempt;
+      console.log(`Log scan failed; retrying in ${delay}ms (${attempt + 1}/${retries})`);
+      await sleep(delay);
+    }
+  }
+  throw lastError;
+}
+
+function parseLogNumber(value, label) {
+  const parsed = typeof value === "number" ? value : Number(BigInt(value));
+  if (!Number.isSafeInteger(parsed)) {
+    fail(`${label} is too large for a JavaScript-safe integer: ${String(value)}`);
+  }
+  return parsed;
+}
+
+function parseChannelCreatedLogs(logs) {
+  const iface = new ethers.Interface([CHANNEL_CREATED_EVENT]);
+  const events = [];
+  for (const log of logs) {
+    const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+    events.push({
+      channelId: parsed.args.channelId.toString(),
+      dappId: parsed.args.dappId.toString(),
+      manager: ethers.getAddress(parsed.args.manager),
+      bridgeTokenVault: ethers.getAddress(parsed.args.bridgeTokenVault),
+      transactionHash: log.transactionHash,
+      blockNumber: parseLogNumber(log.blockNumber, "log blockNumber"),
+      logIndex: parseLogNumber(log.logIndex ?? log.index ?? 0, "log index"),
+    });
+  }
+  events.sort((left, right) => left.blockNumber - right.blockNumber || left.logIndex - right.logIndex);
+  return events;
+}
+
+async function scanChannelCreatedEventsFromRpc({
+  provider,
+  bridgeCore,
+  fromBlock,
+  toBlock,
+  chunkSize,
+  requestDelayMs,
+  logRetries,
+  logRetryDelayMs,
+}) {
   const iface = new ethers.Interface([CHANNEL_CREATED_EVENT]);
   const topic = iface.getEvent("ChannelCreated").topicHash;
-  const events = [];
+  const logs = [];
   for (let start = fromBlock; start <= toBlock; start += chunkSize) {
     const end = Math.min(start + chunkSize - 1, toBlock);
     console.log(`Scanning ChannelCreated logs: ${start}..${end}`);
-    const logs = await provider.getLogs({
+    const chunkLogs = await getLogsWithRetry(provider, {
       address: bridgeCore,
       topics: [topic],
       fromBlock: start,
       toBlock: end,
+    }, {
+      retries: logRetries,
+      retryDelayMs: logRetryDelayMs,
     });
-    for (const log of logs) {
-      const parsed = iface.parseLog(log);
-      events.push({
-        channelId: parsed.args.channelId.toString(),
-        dappId: parsed.args.dappId.toString(),
-        manager: ethers.getAddress(parsed.args.manager),
-        bridgeTokenVault: ethers.getAddress(parsed.args.bridgeTokenVault),
-        transactionHash: log.transactionHash,
-        blockNumber: Number(log.blockNumber),
-        logIndex: Number(log.index),
-      });
+    logs.push(...chunkLogs);
+    if (requestDelayMs > 0 && end < toBlock) {
+      await sleep(requestDelayMs);
     }
   }
-  events.sort((left, right) => left.blockNumber - right.blockNumber || left.logIndex - right.logIndex);
-  return events;
+  return parseChannelCreatedLogs(logs);
+}
+
+function etherscanNoRecords(json) {
+  const message = `${json.message ?? ""} ${json.result ?? ""}`;
+  return json.status === "0" && /no records found/i.test(message);
+}
+
+function etherscanRetryable(json) {
+  const message = `${json.message ?? ""} ${json.result ?? ""}`;
+  return /rate limit|timeout|temporarily|busy/i.test(message);
+}
+
+async function fetchEtherscanLogsPage(params, { retries, retryDelayMs }) {
+  let lastJson = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const json = await fetchEtherscanJson(params);
+    if (etherscanNoRecords(json)) {
+      return [];
+    }
+    if (json.status === "1" && Array.isArray(json.result)) {
+      return json.result;
+    }
+    lastJson = json;
+    if (attempt >= retries || !etherscanRetryable(json)) {
+      fail(`Etherscan log scan failed: ${JSON.stringify(json)}`);
+    }
+    const delay = retryDelayMs * 2 ** attempt;
+    console.log(`Etherscan log scan failed; retrying in ${delay}ms (${attempt + 1}/${retries})`);
+    await sleep(delay);
+  }
+  fail(`Etherscan log scan failed: ${JSON.stringify(lastJson)}`);
+}
+
+async function scanChannelCreatedEventsFromEtherscan({
+  bridgeCore,
+  fromBlock,
+  toBlock,
+  chainId,
+  etherscanApiKey,
+  requestDelayMs,
+  logRetries,
+  logRetryDelayMs,
+}) {
+  const iface = new ethers.Interface([CHANNEL_CREATED_EVENT]);
+  const topic = iface.getEvent("ChannelCreated").topicHash;
+  const logs = [];
+  for (let page = 1; ; page += 1) {
+    console.log(`Scanning ChannelCreated logs from Etherscan: ${fromBlock}..${toBlock} page ${page}`);
+    const pageLogs = await fetchEtherscanLogsPage({
+      apikey: etherscanApiKey,
+      chainid: String(chainId),
+      module: "logs",
+      action: "getLogs",
+      address: bridgeCore,
+      fromBlock: String(fromBlock),
+      toBlock: String(toBlock),
+      topic0: topic,
+      page: String(page),
+      offset: String(DEFAULT_ETHERSCAN_LOG_PAGE_SIZE),
+    }, {
+      retries: logRetries,
+      retryDelayMs: logRetryDelayMs,
+    });
+    logs.push(...pageLogs);
+    if (pageLogs.length < DEFAULT_ETHERSCAN_LOG_PAGE_SIZE) {
+      break;
+    }
+    if (requestDelayMs > 0) {
+      await sleep(requestDelayMs);
+    }
+  }
+  return parseChannelCreatedLogs(logs);
+}
+
+async function scanChannelCreatedEvents({
+  logSource,
+  provider,
+  bridgeCore,
+  fromBlock,
+  toBlock,
+  chainId,
+  etherscanApiKey,
+  chunkSize,
+  requestDelayMs,
+  logRetries,
+  logRetryDelayMs,
+}) {
+  if (logSource === "etherscan") {
+    return scanChannelCreatedEventsFromEtherscan({
+      bridgeCore,
+      fromBlock,
+      toBlock,
+      chainId,
+      etherscanApiKey,
+      requestDelayMs,
+      logRetries,
+      logRetryDelayMs,
+    });
+  }
+  return scanChannelCreatedEventsFromRpc({
+    provider,
+    bridgeCore,
+    fromBlock,
+    toBlock,
+    chunkSize,
+    requestDelayMs,
+    logRetries,
+    logRetryDelayMs,
+  });
 }
 
 function uniqueEventsByManager(events) {
@@ -503,14 +729,21 @@ async function main() {
   console.log(`BridgeCore: ${bridgeCore}`);
   console.log(`Deployment artifact: ${deploymentPath}`);
   console.log(`State path: ${statePath}`);
+  console.log(`Log source: ${options.logSource}`);
   console.log(`Scan range: ${fromBlock}..${toBlock}`);
 
   const events = uniqueEventsByManager(await scanChannelCreatedEvents({
+    logSource: options.logSource,
     provider,
     bridgeCore,
     fromBlock,
     toBlock,
+    chainId,
+    etherscanApiKey,
     chunkSize: options.chunkSize,
+    requestDelayMs: options.requestDelayMs,
+    logRetries: options.logRetries,
+    logRetryDelayMs: options.logRetryDelayMs,
   }));
   console.log(`Discovered ${events.length} unique ChannelManager address(es) in scan range.`);
 

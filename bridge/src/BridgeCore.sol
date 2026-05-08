@@ -15,6 +15,7 @@ import { IChannelRegistry } from "./interfaces/IChannelRegistry.sol";
 
 contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChannelRegistry {
     uint256 internal constant MAX_MANAGED_STORAGES = 11;
+    uint256 internal constant MAX_WORKSPACE_MIRROR_URI_BYTES = 2048;
     uint16 internal constant BPS_DENOMINATOR = 10_000;
     address internal constant TOKAMAK_NETWORK_TOKEN_MAINNET =
         0x2be5e8c109e2197D077D13A82dAead6a9b3433C5;
@@ -34,6 +35,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     error UnsupportedCanonicalAssetChain(uint256 chainId);
     error InvalidJoinTollRefundSchedule();
     error DAppMetadataDigestMismatch(uint256 dappId, bytes32 expectedDigest, bytes32 actualDigest);
+    error OnlyChannelLeader(uint256 channelId, address expectedLeader, address actualCaller);
+    error WorkspaceMirrorUriTooLong(uint256 actualLength, uint256 maxLength);
 
     struct ChannelDeployment {
         bool exists;
@@ -61,6 +64,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     uint16 public defaultJoinTollRefundBps4;
 
     mapping(uint256 => ChannelDeployment) private _channels;
+    mapping(uint256 => string) private _channelWorkspaceMirrors;
 
     event ChannelCreated(
         uint256 indexed channelId, uint256 indexed dappId, address manager, address bridgeTokenVault
@@ -77,6 +81,9 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         uint64 cutoff3,
         uint16 bps3,
         uint16 bps4
+    );
+    event ChannelWorkspaceMirrorUpdated(
+        uint256 indexed channelId, address indexed leader, string previousUri, string newUri
     );
 
     constructor() {
@@ -246,6 +253,27 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     function getChannelManager(uint256 channelId) external view override returns (address) {
         if (!_channels[channelId].exists) revert UnknownChannel(channelId);
         return _channels[channelId].manager;
+    }
+
+    function setChannelWorkspaceMirror(uint256 channelId, string calldata uri) external {
+        ChannelDeployment memory channel = _channels[channelId];
+        if (!channel.exists) revert UnknownChannel(channelId);
+        if (msg.sender != channel.leader) {
+            revert OnlyChannelLeader(channelId, channel.leader, msg.sender);
+        }
+        uint256 uriLength = bytes(uri).length;
+        if (uriLength > MAX_WORKSPACE_MIRROR_URI_BYTES) {
+            revert WorkspaceMirrorUriTooLong(uriLength, MAX_WORKSPACE_MIRROR_URI_BYTES);
+        }
+
+        string memory previousUri = _channelWorkspaceMirrors[channelId];
+        _channelWorkspaceMirrors[channelId] = uri;
+        emit ChannelWorkspaceMirrorUpdated(channelId, msg.sender, previousUri, uri);
+    }
+
+    function getChannelWorkspaceMirror(uint256 channelId) external view returns (string memory) {
+        if (!_channels[channelId].exists) revert UnknownChannel(channelId);
+        return _channelWorkspaceMirrors[channelId];
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner { }

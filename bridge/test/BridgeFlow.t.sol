@@ -96,6 +96,10 @@ contract BridgeFlowTest is Test {
     address internal constant REAL_TOKAMAK_APP_STORAGE = 0x8b64A4D3DF1771d7dFC93b374f545563B680b420;
     uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = 43;
 
+    event ChannelWorkspaceMirrorUpdated(
+        uint256 indexed channelId, address indexed leader, string previousUri, string newUri
+    );
+
     DAppManager internal dAppManager;
     ChannelDeployer internal channelDeployer;
     BridgeCore internal bridgeCore;
@@ -446,6 +450,57 @@ contract BridgeFlowTest is Test {
         vm.expectRevert(ChannelManager.OnlyLeader.selector);
         vm.prank(alice);
         channelManager.setJoinToll(2 ether);
+    }
+
+    function testLeaderCanUpdateChannelWorkspaceMirror() public {
+        string memory firstUri = "https://mirror.example";
+        string memory secondUri = "https://mirror.example/v2";
+
+        vm.expectEmit(true, true, false, true, address(bridgeCore));
+        emit ChannelWorkspaceMirrorUpdated(channelId, leader, "", firstUri);
+        vm.prank(leader);
+        bridgeCore.setChannelWorkspaceMirror(channelId, firstUri);
+        assertEq(bridgeCore.getChannelWorkspaceMirror(channelId), firstUri);
+
+        vm.expectEmit(true, true, false, true, address(bridgeCore));
+        emit ChannelWorkspaceMirrorUpdated(channelId, leader, firstUri, secondUri);
+        vm.prank(leader);
+        bridgeCore.setChannelWorkspaceMirror(channelId, secondUri);
+        assertEq(bridgeCore.getChannelWorkspaceMirror(channelId), secondUri);
+    }
+
+    function testOnlyLeaderCanUpdateChannelWorkspaceMirror() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BridgeCore.OnlyChannelLeader.selector, channelId, leader, alice
+            )
+        );
+        vm.prank(alice);
+        bridgeCore.setChannelWorkspaceMirror(channelId, "https://mirror.example");
+    }
+
+    function testRejectsUnknownChannelWorkspaceMirrorUpdate() public {
+        vm.expectRevert(abi.encodeWithSelector(BridgeCore.UnknownChannel.selector, secondChannelId));
+        vm.prank(leader);
+        bridgeCore.setChannelWorkspaceMirror(secondChannelId, "https://mirror.example");
+
+        vm.expectRevert(abi.encodeWithSelector(BridgeCore.UnknownChannel.selector, secondChannelId));
+        bridgeCore.getChannelWorkspaceMirror(secondChannelId);
+    }
+
+    function testRejectsOversizedChannelWorkspaceMirrorUri() public {
+        bytes memory oversizedUri = new bytes(2049);
+        for (uint256 i = 0; i < oversizedUri.length; i++) {
+            oversizedUri[i] = "a";
+        }
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BridgeCore.WorkspaceMirrorUriTooLong.selector, uint256(2049), uint256(2048)
+            )
+        );
+        vm.prank(leader);
+        bridgeCore.setChannelWorkspaceMirror(channelId, string(oversizedUri));
     }
 
     function testChannelSnapshotsRefundScheduleAtCreation() public {

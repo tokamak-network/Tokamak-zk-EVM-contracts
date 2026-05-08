@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import AdmZip from "adm-zip";
 import {
+  createHash,
   createCipheriv,
   createDecipheriv,
   randomBytes,
@@ -135,6 +136,16 @@ const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const WALLET_EXPORT_FORMAT = "tokamak-private-state-wallet-export";
 const WALLET_EXPORT_FORMAT_VERSION = 1;
+const CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION = 1;
+const CHANNEL_WORKSPACE_MIRROR_MANIFEST_PATH_PREFIX =
+  ".well-known/tokamak-private-state/channel-workspace/v1";
+const CHANNEL_WORKSPACE_MIRROR_MAX_ARCHIVE_BYTES = 50 * 1024 * 1024;
+const CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES = Object.freeze(new Set([
+  "workspace.json",
+  "state_snapshot.json",
+  "block_info.json",
+  "contract_codes.json",
+]));
 let jsonOutputRequested = false;
 let activeCliArgs = {};
 
@@ -473,6 +484,13 @@ async function main() {
       await handleGetChannel({ args, network, provider });
       return;
     }
+    case "channel-set-workspace-mirror": {
+      assertSetWorkspaceMirrorArgs(args);
+      const { network, provider } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
+      await handleSetChannelWorkspaceMirror({ args, network, provider });
+      return;
+    }
     case "account-deposit-bridge": {
       assertDepositBridgeArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
@@ -658,6 +676,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
   const workspaceName = channelName;
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const recoverySource = resolveWorkspaceRecoverySource(args);
 
   const { workspaceDir, workspace, currentSnapshot } = await syncChannelWorkspace({
     workspaceName,
@@ -669,11 +688,13 @@ async function handleWorkspaceInit({ args, network, provider }) {
     allowExistingWorkspaceSync: true,
     useWorkspaceRecoveryIndex: true,
     fromGenesis: args.fromGenesis === true,
+    recoverySource,
     progressAction: "channel recover-workspace",
   });
 
   printJson({
     action: "channel recover-workspace",
+    source: workspace.recoverySource ?? recoverySource,
     workspace: workspaceName,
     workspaceDir,
     channelName,
@@ -686,6 +707,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     recoveryLastScannedBlock: workspace.recoveryLastScannedBlock,
     recoveryRootVectorHash: workspace.recoveryRootVectorHash,
     recoveryScanRange: workspace.recoveryScanRange,
+    workspaceMirror: workspace.workspaceMirror ?? null,
   });
 }
 
@@ -764,7 +786,441 @@ async function handleGetChannel({ args, network, provider }) {
     policySnapshot,
     refundSchedule,
     bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
+    workspaceMirror: await tryReadChannelWorkspaceMirror({ bridgeCore, channelId }),
   });
+}
+
+async function handleSetChannelWorkspaceMirror({ args, network, provider }) {
+  const channelName = requireArg(args.channelName, "--channel-name");
+  const url = requireWorkspaceMirrorUrl(args.url);
+  const signer = requireL1Signer(args, provider);
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const bridgeCore = new Contract(
+    bridgeResources.bridgeDeployment.bridgeCore,
+    bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
+    signer,
+  );
+  const channelId = deriveChannelIdFromName(channelName);
+  const previousUrl = await readChannelWorkspaceMirror({ bridgeCore, channelId });
+  const receipt = await waitForReceipt(await bridgeCore.setChannelWorkspaceMirror(channelId, url));
+  const currentUrl = await readChannelWorkspaceMirror({ bridgeCore, channelId });
+
+  printJson({
+    action: "channel set-workspace-mirror",
+    channelName,
+    channelId: channelId.toString(),
+    leader: getAddress(signer.address),
+    previousUrl,
+    url: currentUrl,
+    bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
+    gasUsed: receiptGasUsed(receipt),
+    txUrl: explorerTxUrl(network, receipt.hash),
+    receipt: sanitizeReceipt(receipt),
+  });
+}
+
+function resolveWorkspaceRecoverySource(args) {
+  const source = args.source === undefined ? "rpc" : String(args.source).trim().toLowerCase();
+  if (!["rpc", "mirror", "auto"].includes(source)) {
+    throw new Error("--source must be one of: rpc, mirror, auto.");
+  }
+  if (args.fromGenesis === true && source !== "rpc") {
+    throw new Error("--from-genesis can only be used with --source rpc.");
+  }
+  return source;
+}
+
+function requireWorkspaceMirrorUrl(value) {
+  const url = String(requireArg(value, "--url")).trim();
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      throw new Error("unsupported protocol");
+    }
+  } catch {
+    throw new Error("--url must be an http or https URL.");
+  }
+  return url;
+}
+
+async function readChannelWorkspaceMirror({ bridgeCore, channelId }) {
+  return String(await bridgeCore.getChannelWorkspaceMirror(channelId));
+}
+
+async function tryReadChannelWorkspaceMirror({ bridgeCore, channelId }) {
+  try {
+    return await readChannelWorkspaceMirror({ bridgeCore, channelId });
+  } catch {
+    return null;
+  }
+}
+
+async function loadWorkspaceMirrorRecoveryIndex({
+  recoverySource,
+  bridgeCore,
+  channelId,
+  channelName,
+  network,
+  bridgeDeployment,
+  channelInfo,
+  currentRootVectorHash,
+  genesisBlockNumber,
+  managedStorageAddresses,
+  blockInfo,
+  contractCodes,
+  latestBlock,
+}) {
+  const baseStatus = {
+    source: recoverySource,
+    used: false,
+    registeredUrl: null,
+    manifestUrl: null,
+    archiveUrl: null,
+    recoveryLastScannedBlock: null,
+    recoveryRootVectorHash: null,
+    error: null,
+  };
+  if (recoverySource === "rpc") {
+    return { recoveryIndex: null, workspaceMirror: baseStatus };
+  }
+
+  let registeredUrl;
+  try {
+    registeredUrl = String(await readChannelWorkspaceMirror({ bridgeCore, channelId })).trim();
+  } catch (error) {
+    const message = `Unable to read channel workspace mirror registry: ${error.message}`;
+    if (recoverySource === "auto") {
+      return { recoveryIndex: null, workspaceMirror: { ...baseStatus, error: message } };
+    }
+    throw new Error(message);
+  }
+  if (!registeredUrl) {
+    const error = `No workspace mirror URL is registered for channel ${channelName}.`;
+    if (recoverySource === "auto") {
+      return { recoveryIndex: null, workspaceMirror: { ...baseStatus, registeredUrl: null, error } };
+    }
+    throw new Error(error);
+  }
+
+  try {
+    const mirror = await fetchChannelWorkspaceMirror({
+      registeredUrl,
+      chainId: Number(network.chainId),
+      channelId,
+      channelName,
+      bridgeCoreAddress: bridgeDeployment.bridgeCore,
+      channelInfo,
+      currentRootVectorHash,
+      genesisBlockNumber,
+      managedStorageAddresses,
+      blockInfo,
+      contractCodes,
+      latestBlock,
+    });
+    return {
+      recoveryIndex: mirror.recoveryIndex,
+      workspaceMirror: {
+        source: recoverySource,
+        used: true,
+        registeredUrl,
+        manifestUrl: mirror.manifestUrl,
+        archiveUrl: mirror.archiveUrl,
+        recoveryLastScannedBlock: mirror.recoveryIndex.nextBlock,
+        recoveryRootVectorHash: mirror.recoveryIndex.recoveryRootVectorHash,
+        error: null,
+      },
+    };
+  } catch (error) {
+    if (recoverySource === "auto") {
+      return {
+        recoveryIndex: null,
+        workspaceMirror: {
+          ...baseStatus,
+          registeredUrl,
+          error: error.message,
+        },
+      };
+    }
+    throw new Error(`Workspace mirror recovery failed: ${error.message}`);
+  }
+}
+
+async function fetchChannelWorkspaceMirror({
+  registeredUrl,
+  chainId,
+  channelId,
+  channelName,
+  bridgeCoreAddress,
+  channelInfo,
+  currentRootVectorHash,
+  genesisBlockNumber,
+  managedStorageAddresses,
+  blockInfo,
+  contractCodes,
+  latestBlock,
+}) {
+  const manifestUrl = channelWorkspaceMirrorManifestUrl({ registeredUrl, chainId, channelId });
+  const manifest = await fetchJsonFromUrl(manifestUrl, 1024 * 1024);
+  validateWorkspaceMirrorManifest({
+    manifest,
+    chainId,
+    channelId,
+    channelName,
+    bridgeCoreAddress,
+    channelInfo,
+  });
+
+  const archiveUrl = resolveWorkspaceMirrorArchiveUrl(manifestUrl, manifest.archive.url);
+  const archiveBytes = await fetchBytesFromUrl(archiveUrl, CHANNEL_WORKSPACE_MIRROR_MAX_ARCHIVE_BYTES);
+  if (manifest.archive.sizeBytes !== undefined) {
+    expect(
+      Number(manifest.archive.sizeBytes) === archiveBytes.length,
+      `Workspace mirror archive size mismatch. Expected ${manifest.archive.sizeBytes}, got ${archiveBytes.length}.`,
+    );
+  }
+  const archiveSha256 = sha256Hex(archiveBytes);
+  expect(
+    String(manifest.archive.sha256).toLowerCase() === archiveSha256,
+    `Workspace mirror archive sha256 mismatch. Expected ${manifest.archive.sha256}, got ${archiveSha256}.`,
+  );
+
+  const archive = parseWorkspaceMirrorArchive(archiveBytes);
+  const recoveryIndex = validateWorkspaceMirrorArchive({
+    manifest,
+    archive,
+    chainId,
+    channelId,
+    channelName,
+    bridgeCoreAddress,
+    channelInfo,
+    currentRootVectorHash,
+    genesisBlockNumber,
+    managedStorageAddresses,
+    blockInfo,
+    contractCodes,
+    latestBlock,
+  });
+
+  return {
+    manifestUrl,
+    archiveUrl,
+    recoveryIndex,
+  };
+}
+
+function channelWorkspaceMirrorManifestUrl({ registeredUrl, chainId, channelId }) {
+  const parsed = new URL(registeredUrl);
+  if (parsed.pathname.endsWith(".json")) {
+    return parsed.toString();
+  }
+  parsed.search = "";
+  parsed.hash = "";
+  const basePath = parsed.pathname.replace(/\/+$/u, "");
+  parsed.pathname = [
+    basePath,
+    CHANNEL_WORKSPACE_MIRROR_MANIFEST_PATH_PREFIX,
+    String(chainId),
+    channelId.toString(),
+    "manifest.json",
+  ].filter(Boolean).join("/");
+  return parsed.toString();
+}
+
+function resolveWorkspaceMirrorArchiveUrl(manifestUrl, archivePath) {
+  expect(typeof archivePath === "string" && archivePath.length > 0, "Workspace mirror manifest is missing archive.url.");
+  return new URL(archivePath, manifestUrl).toString();
+}
+
+async function fetchJsonFromUrl(url, maxBytes) {
+  const bytes = await fetchBytesFromUrl(url, maxBytes);
+  try {
+    return JSON.parse(bytes.toString("utf8"));
+  } catch (error) {
+    throw new Error(`Invalid JSON from ${url}: ${error.message}`);
+  }
+}
+
+async function fetchBytesFromUrl(url, maxBytes) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`GET ${url} failed with HTTP ${response.status}.`);
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.length > maxBytes) {
+    throw new Error(`GET ${url} returned ${bytes.length} bytes, above the ${maxBytes} byte limit.`);
+  }
+  return bytes;
+}
+
+function sha256Hex(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function parseWorkspaceMirrorArchive(bytes) {
+  const zip = new AdmZip(bytes);
+  const parsed = {};
+  for (const entry of zip.getEntries()) {
+    const entryName = entry.entryName.replace(/\\/gu, "/");
+    if (entry.isDirectory) {
+      continue;
+    }
+    expect(
+      !entryName.startsWith("/") && !entryName.includes("/") && !entryName.includes(".."),
+      `Workspace mirror archive contains unsupported path: ${entry.entryName}.`,
+    );
+    expect(
+      CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES.has(entryName),
+      `Workspace mirror archive contains unsupported file: ${entry.entryName}.`,
+    );
+    expect(parsed[entryName] === undefined, `Workspace mirror archive contains duplicate file: ${entry.entryName}.`);
+    parsed[entryName] = JSON.parse(entry.getData().toString("utf8"));
+  }
+  for (const fileName of CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES) {
+    expect(parsed[fileName] !== undefined, `Workspace mirror archive is missing ${fileName}.`);
+  }
+  return {
+    workspace: parsed["workspace.json"],
+    stateSnapshot: parsed["state_snapshot.json"],
+    blockInfo: parsed["block_info.json"],
+    contractCodes: parsed["contract_codes.json"],
+  };
+}
+
+function validateWorkspaceMirrorManifest({
+  manifest,
+  chainId,
+  channelId,
+  channelName,
+  bridgeCoreAddress,
+  channelInfo,
+}) {
+  expect(Number(manifest.protocolVersion) === CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION, "Unsupported workspace mirror protocolVersion.");
+  expect(Number(manifest.chainId) === Number(chainId), "Workspace mirror manifest chainId mismatch.");
+  expect(
+    ethers.toBigInt(manifest.channelId) === ethers.toBigInt(channelId),
+    "Workspace mirror manifest channelId mismatch.",
+  );
+  if (manifest.channelName !== undefined) {
+    expect(String(manifest.channelName) === channelName, "Workspace mirror manifest channelName mismatch.");
+  }
+  expect(
+    ethers.toBigInt(getAddress(manifest.bridgeCore)) === ethers.toBigInt(getAddress(bridgeCoreAddress)),
+    "Workspace mirror manifest bridgeCore mismatch.",
+  );
+  expect(
+    ethers.toBigInt(getAddress(manifest.channelManager)) === ethers.toBigInt(getAddress(channelInfo.manager)),
+    "Workspace mirror manifest channelManager mismatch.",
+  );
+  expect(typeof manifest.archive?.url === "string", "Workspace mirror manifest archive.url is required.");
+  expect(typeof manifest.archive?.sha256 === "string", "Workspace mirror manifest archive.sha256 is required.");
+}
+
+function validateWorkspaceMirrorArchive({
+  manifest,
+  archive,
+  chainId,
+  channelId,
+  channelName,
+  bridgeCoreAddress,
+  channelInfo,
+  currentRootVectorHash,
+  genesisBlockNumber,
+  managedStorageAddresses,
+  blockInfo,
+  contractCodes,
+  latestBlock,
+}) {
+  const workspace = archive.workspace;
+  expect(Number(workspace.chainId) === Number(chainId), "Workspace mirror workspace chainId mismatch.");
+  expect(ethers.toBigInt(workspace.channelId) === ethers.toBigInt(channelId), "Workspace mirror workspace channelId mismatch.");
+  expect(String(workspace.channelName) === channelName, "Workspace mirror workspace channelName mismatch.");
+  expect(
+    ethers.toBigInt(getAddress(workspace.bridgeCore)) === ethers.toBigInt(getAddress(bridgeCoreAddress)),
+    "Workspace mirror workspace bridgeCore mismatch.",
+  );
+  expect(
+    ethers.toBigInt(getAddress(workspace.channelManager)) === ethers.toBigInt(getAddress(channelInfo.manager)),
+    "Workspace mirror workspace channelManager mismatch.",
+  );
+  expect(
+    ethers.toBigInt(getAddress(workspace.bridgeTokenVault)) === ethers.toBigInt(getAddress(channelInfo.bridgeTokenVault)),
+    "Workspace mirror workspace bridgeTokenVault mismatch.",
+  );
+  expect(Number(workspace.genesisBlockNumber) === Number(genesisBlockNumber), "Workspace mirror genesisBlockNumber mismatch.");
+
+  const mirroredManagedStorageAddresses = normalizedAddressVector(workspace.managedStorageAddresses ?? []);
+  expect(
+    mirroredManagedStorageAddresses.length === managedStorageAddresses.length
+      && mirroredManagedStorageAddresses.every(
+        (address, index) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(getAddress(managedStorageAddresses[index])),
+      ),
+    "Workspace mirror managedStorageAddresses mismatch.",
+  );
+
+  expect(
+    hashJsonValue(archive.blockInfo) === hashJsonValue(blockInfo),
+    "Workspace mirror block_info.json does not match the channel genesis block.",
+  );
+  expect(
+    hashJsonValue(archive.contractCodes) === hashJsonValue(contractCodes),
+    "Workspace mirror contract_codes.json does not match current managed storage contract code.",
+  );
+
+  const manifestRootVectorHash = normalizeBytes32Hex(manifest.recoveryRootVectorHash);
+  const workspaceRootVectorHash = normalizeBytes32Hex(workspace.recoveryRootVectorHash);
+  expect(
+    ethers.toBigInt(manifestRootVectorHash) === ethers.toBigInt(workspaceRootVectorHash),
+    "Workspace mirror recoveryRootVectorHash mismatch between manifest and workspace.",
+  );
+  const snapshotRootVectorHash = normalizeBytes32Hex(hashRootVector(archive.stateSnapshot.stateRoots));
+  expect(
+    ethers.toBigInt(snapshotRootVectorHash) === ethers.toBigInt(workspaceRootVectorHash),
+    "Workspace mirror state_snapshot root vector hash mismatch.",
+  );
+
+  const mirrorRecoveryLastScannedBlock = Number(manifest.recoveryLastScannedBlock);
+  expect(
+    Number.isInteger(mirrorRecoveryLastScannedBlock)
+      && mirrorRecoveryLastScannedBlock === Number(workspace.recoveryLastScannedBlock),
+    "Workspace mirror recoveryLastScannedBlock mismatch between manifest and workspace.",
+  );
+
+  const recoveryIndex = getUsableWorkspaceRecoveryIndex({
+    existingArtifacts: {
+      workspace: {
+        recoveryLastScannedBlock: mirrorRecoveryLastScannedBlock,
+        recoveryRootVectorHash: workspaceRootVectorHash,
+      },
+      stateSnapshot: archive.stateSnapshot,
+    },
+    genesisBlockNumber,
+    latestBlock,
+    managedStorageAddresses,
+  });
+  expect(recoveryIndex, "Workspace mirror recovery index is missing or unusable.");
+
+  if (ethers.toBigInt(workspaceRootVectorHash) !== ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash))) {
+    expect(
+      recoveryIndex.nextBlock <= Number(latestBlock),
+      "Workspace mirror is stale, but its recovery index cannot be replayed to the latest block.",
+    );
+  }
+  return {
+    ...recoveryIndex,
+    source: "mirror",
+  };
+}
+
+function selectWorkspaceRecoveryIndex(localRecoveryIndex, mirrorRecoveryIndex) {
+  if (!localRecoveryIndex) {
+    return mirrorRecoveryIndex ?? null;
+  }
+  if (!mirrorRecoveryIndex) {
+    return localRecoveryIndex;
+  }
+  return Number(mirrorRecoveryIndex.nextBlock) > Number(localRecoveryIndex.nextBlock)
+    ? mirrorRecoveryIndex
+    : localRecoveryIndex;
 }
 
 async function syncChannelWorkspace({
@@ -777,6 +1233,7 @@ async function syncChannelWorkspace({
   allowExistingWorkspaceSync = false,
   useWorkspaceRecoveryIndex = false,
   fromGenesis = false,
+  recoverySource = "rpc",
   minimumToBlock = null,
   progressAction = null,
 }) {
@@ -854,17 +1311,54 @@ async function syncChannelWorkspace({
       managedStorageAddresses,
     })
     : null;
+  const mirrorRecovery = useWorkspaceRecoveryIndex && !fromGenesis
+    ? await loadWorkspaceMirrorRecoveryIndex({
+      recoverySource,
+      provider,
+      bridgeCore,
+      channelId,
+      channelName,
+      network,
+      bridgeDeployment,
+      channelInfo,
+      currentRootVectorHash,
+      genesisBlockNumber,
+      managedStorageAddresses,
+      blockInfo,
+      contractCodes,
+      latestBlock,
+    })
+    : {
+      recoveryIndex: null,
+      workspaceMirror: {
+        source: recoverySource,
+        used: false,
+        registeredUrl: null,
+        manifestUrl: null,
+        error: null,
+      },
+    };
+  const selectedRecoveryIndex = selectWorkspaceRecoveryIndex(recoveryIndex, mirrorRecovery.recoveryIndex);
   const localSnapshotReusable = !fromGenesis && (!useWorkspaceRecoveryIndex || recoveryIndex)
     && canReuseLocalWorkspaceSnapshot({
       existingArtifacts,
       currentRootVectorHash,
       managedStorageAddresses,
     });
-  if (useWorkspaceRecoveryIndex && !fromGenesis && !localSnapshotReusable && !recoveryIndex) {
+  const mirrorSnapshotReusable = !fromGenesis && mirrorRecovery.recoveryIndex
+    && ethers.toBigInt(normalizeBytes32Hex(mirrorRecovery.recoveryIndex.recoveryRootVectorHash))
+      === ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash));
+  if (
+    useWorkspaceRecoveryIndex
+    && !fromGenesis
+    && !localSnapshotReusable
+    && !mirrorSnapshotReusable
+    && !selectedRecoveryIndex
+  ) {
     throw new Error([
       `Workspace recovery index is missing or unusable for channel ${channelName} on ${networkNameFromChainId(network.chainId)}.`,
       "The CLI will not fall back to replaying channel logs from genesis unless explicitly requested.",
-    "Run channel recover-workspace --from-genesis or wallet recover-workspace --from-genesis to rebuild from channel genesis.",
+      "Run channel recover-workspace --from-genesis or wallet recover-workspace --from-genesis to rebuild from channel genesis.",
     ].join(" "));
   }
   const reconstruction = localSnapshotReusable
@@ -876,6 +1370,15 @@ async function syncChannelWorkspace({
         mode: "reused-current-snapshot",
       },
     }
+    : mirrorSnapshotReusable
+      ? {
+        currentSnapshot: mirrorRecovery.recoveryIndex.stateSnapshot,
+        scanRange: {
+          fromBlock: latestBlock + 1,
+          toBlock: latestBlock,
+          mode: "reused-mirror-snapshot",
+        },
+      }
     : await reconstructChannelSnapshot({
       provider,
       bridgeAbiManifest,
@@ -889,8 +1392,8 @@ async function syncChannelWorkspace({
       controllerAddress,
       l2AccountingVaultAddress,
       liquidBalancesSlot,
-      baseSnapshot: recoveryIndex?.stateSnapshot ?? null,
-      fromBlock: recoveryIndex?.nextBlock ?? genesisBlockNumber,
+      baseSnapshot: selectedRecoveryIndex?.stateSnapshot ?? null,
+      fromBlock: selectedRecoveryIndex?.nextBlock ?? genesisBlockNumber,
       toBlock: latestBlock,
       progressAction,
     });
@@ -922,6 +1425,8 @@ async function syncChannelWorkspace({
     policySnapshot,
     managedStorageAddresses,
     liquidBalancesSlot: liquidBalancesSlot.toString(),
+    recoverySource,
+    workspaceMirror: mirrorRecovery.workspaceMirror,
     recoveryLastScannedBlock,
     recoveryRootVectorHash,
     recoveryScanRange: reconstruction.scanRange,
@@ -6681,10 +7186,19 @@ function assertCreateChannelArgs(args) {
 
 function assertRecoverWorkspaceArgs(args) {
   assertAllowedCommandSchema(args, "channel-recover-workspace");
+  resolveWorkspaceRecoverySource(args);
+  if (args.fromGenesis !== undefined && args.fromGenesis !== true) {
+    throw new Error("channel recover-workspace option --from-genesis does not accept a value.");
+  }
 }
 
 function assertGetChannelArgs(args) {
   assertAllowedCommandSchema(args, "channel-get-meta");
+}
+
+function assertSetWorkspaceMirrorArgs(args) {
+  assertAllowedCommandSchema(args, "channel-set-workspace-mirror");
+  requireWorkspaceMirrorUrl(args.url);
 }
 
 function assertDepositBridgeArgs(args) {

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 - 2026-05-08
+
+- Added optional channel workspace mirror recovery. `channel recover-workspace` now accepts
+  `--source rpc|mirror|auto`, with `rpc` remaining the default when `--source` is omitted.
+- Added `channel set-workspace-mirror` so a channel leader can register the official workspace
+  mirror base URL stored in `BridgeCore`.
+- Added mirror archive validation that checks the downloaded workspace snapshot against on-chain
+  channel metadata before replaying the remaining RPC log delta to the latest block.
+- Documented the static server protocol for channel workspace mirrors.
+
 ## 1.1.1 - 2026-05-08
 
 - Added bridge deployment verification support for Etherscan-compatible explorers, including

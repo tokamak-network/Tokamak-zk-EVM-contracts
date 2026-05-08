@@ -120,6 +120,11 @@ Wallet getter commands that need channel state, including `wallet get-meta`, `wa
 the wallet's saved note-receive scan index for encrypted note delivery logs. If either index is unusable, the command
 stops and asks the user to run the appropriate recovery command with `--from-genesis`.
 
+Channel leaders can optionally register a workspace mirror server so users can bootstrap recovery
+from a recent verified snapshot instead of replaying old channels from genesis. The CLI protocol is
+documented at
+https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/packages/apps/private-state/docs/channel-workspace-mirror-protocol.md.
+
 Back up a local wallet with:
 
 ```bash

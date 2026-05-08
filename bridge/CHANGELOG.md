@@ -71,6 +71,7 @@ the pending-GitHub section until a new mainnet deployment artifact records them.
 
 | Commit | Change | Deployment impact |
 | --- | --- | --- |
+| `TBD` | Add a `BridgeCore` channel workspace mirror registry controlled by each channel leader. | Requires a `BridgeCore` UUPS implementation upgrade so existing and future channels can publish official workspace mirror URLs. Adds new `BridgeCore` storage. |
 | `a21b23d` | Validate `ChannelManager` verifier compatible backend version strings against the `DAppManager` snapshot during `BridgeCore.createChannel`. | Requires a `BridgeCore` UUPS implementation upgrade to affect future channel creation. No storage layout change. |
 
 #### No Bridge Deployment Required

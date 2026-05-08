@@ -110,6 +110,11 @@ private-state-cli wallet recover-workspace --channel-name <CHANNEL> --network ma
 `channel create` is the exception: after the channel is created on-chain, the CLI initializes that new local workspace
 by replaying from the channel's genesis block because no prior recovery index can exist for a new channel.
 
+`channel join` requires the channel workspace to have a usable recovery index and refreshes that workspace through the
+indexed path before submitting the registration transaction. For a channel that was created elsewhere, run
+`channel recover-workspace --from-genesis` once before joining; later joins and wallet commands resume from the saved
+index instead of silently replaying from genesis.
+
 Wallet getter commands that need channel state, including `wallet get-meta`, `wallet get-channel-fund`, and
 `wallet get-notes`, follow the same indexed recovery rule before reading local or on-chain state. `wallet get-notes` also uses
 the wallet's saved note-receive scan index for encrypted note delivery logs. If either index is unusable, the command

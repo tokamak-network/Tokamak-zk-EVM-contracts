@@ -2,6 +2,10 @@
 
 ## 1.1.0 - 2026-05-06
 
+- Required `channel join` to use an existing recovered channel workspace and refresh through the
+  recovery index before submitting the join transaction, so old channels are not silently replayed
+  from genesis during join. `wallet recover-workspace --from-genesis` now also replays encrypted
+  note delivery logs from channel genesis for existing wallets.
 - Refreshed channel workspaces through the existing recovery-indexed replay path after successful
   wallet transactions instead of manually patching local snapshots, and bounded post-transaction
   replay by the transaction receipt block so provider latest-block lag cannot skip the confirmed

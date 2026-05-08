@@ -332,6 +332,8 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["channelName", "network", "account", "walletSecretPath", "rpcUrl"],
     usage: "--channel-name, --network, --account, --wallet-secret-path, and optional --rpc-url",
     help: [
+      "Requires a recovered channel workspace and refreshes it through the workspace recovery index before joining",
+      "Run channel recover-workspace --from-genesis once if no usable local recovery index exists",
       "--wallet-secret-path imports an existing source secret file into the protected wallet-local secret file",
       "Prints the immutable policy snapshot before first registration",
     ],

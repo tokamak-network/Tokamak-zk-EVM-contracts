@@ -776,6 +776,7 @@ async function syncChannelWorkspace({
   persist,
   allowExistingWorkspaceSync = false,
   useWorkspaceRecoveryIndex = false,
+  requireWorkspaceRecoveryIndex = false,
   fromGenesis = false,
   minimumToBlock = null,
   progressAction = null,
@@ -846,11 +847,6 @@ async function syncChannelWorkspace({
     ethers.toBigInt(derivedAPubBlockHash) === ethers.toBigInt(normalizeBytes32Hex(channelInfo.aPubBlockHash)),
     `Derived channel block-info hash ${derivedAPubBlockHash} does not match onchain ${channelInfo.aPubBlockHash}.`,
   );
-  const localSnapshotReusable = !fromGenesis && canReuseLocalWorkspaceSnapshot({
-    existingArtifacts,
-    currentRootVectorHash,
-    managedStorageAddresses,
-  });
   const recoveryIndex = useWorkspaceRecoveryIndex && !fromGenesis
     ? getUsableWorkspaceRecoveryIndex({
       existingArtifacts,
@@ -859,6 +855,19 @@ async function syncChannelWorkspace({
       managedStorageAddresses,
     })
     : null;
+  const localSnapshotReusable = !fromGenesis
+    && (!requireWorkspaceRecoveryIndex || recoveryIndex)
+    && canReuseLocalWorkspaceSnapshot({
+      existingArtifacts,
+      currentRootVectorHash,
+      managedStorageAddresses,
+    });
+  if (useWorkspaceRecoveryIndex && requireWorkspaceRecoveryIndex && !fromGenesis && !recoveryIndex) {
+    throw new Error([
+      `Workspace recovery index is missing or unusable for channel ${channelName} on ${networkNameFromChainId(network.chainId)}.`,
+      "Run channel recover-workspace --from-genesis once before channel join.",
+    ].join(" "));
+  }
   if (useWorkspaceRecoveryIndex && !fromGenesis && !localSnapshotReusable && !recoveryIndex) {
     throw new Error([
       `Workspace recovery index is missing or unusable for channel ${channelName} on ${networkNameFromChainId(network.chainId)}.`,
@@ -1155,6 +1164,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       signer,
       noteReceiveKeyMaterial,
       progressAction: "wallet recover-workspace",
+      fromGenesis: args.fromGenesis === true,
     });
     printJson({
       action: "wallet recover-workspace",
@@ -1202,6 +1212,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     signer,
     noteReceiveKeyMaterial,
     progressAction: "wallet recover-workspace",
+    fromGenesis: args.fromGenesis === true,
   });
 
   printJson({
@@ -2861,6 +2872,13 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   );
   status = "joined";
 
+  await refreshPersistedWorkspaceAfterLocalTransaction({
+    context,
+    provider,
+    receipt,
+    progressAction: "channel join",
+  });
+
   const walletContext = ensureWallet({
     channelContext: context,
     signerAddress: signer.address,
@@ -3718,6 +3736,7 @@ async function recoverWalletReceivedNotes({
   signer,
   noteReceiveKeyMaterial = null,
   progressAction = null,
+  fromGenesis = false,
 }) {
   const resolvedNoteReceiveKeyMaterial = noteReceiveKeyMaterial ?? await deriveNoteReceiveKeyMaterial({
     signer,
@@ -3732,6 +3751,7 @@ async function recoverWalletReceivedNotes({
     provider,
     noteReceivePrivateKey: resolvedNoteReceiveKeyMaterial.privateKey,
     progressAction,
+    fromGenesis,
   });
   return {
     noteReceiveKeyMaterial: resolvedNoteReceiveKeyMaterial,
@@ -3745,13 +3765,16 @@ async function recoverDeliveredNotesFromEventLogs({
   provider,
   noteReceivePrivateKey,
   progressAction = null,
+  fromGenesis = false,
 }) {
   const latestBlock = await provider.getBlockNumber();
-  const scanStartBlock = requireUsableWalletNoteReceiveRecoveryIndex({
-    walletContext,
-    context,
-    latestBlock,
-  });
+  const scanStartBlock = fromGenesis
+    ? Number(context.workspace.genesisBlockNumber)
+    : requireUsableWalletNoteReceiveRecoveryIndex({
+      walletContext,
+      context,
+      latestBlock,
+    });
   const scanRange = {
     fromBlock: scanStartBlock,
     toBlock: latestBlock,
@@ -4695,13 +4718,17 @@ async function loadJoinChannelContext({ args, network, provider }) {
     network: { chainId, name: resolvedNetworkName },
     provider,
     bridgeResources,
-    persist: false,
+    persist: true,
+    allowExistingWorkspaceSync: true,
+    useWorkspaceRecoveryIndex: true,
+    requireWorkspaceRecoveryIndex: true,
+    progressAction: "channel join",
   });
 
   return {
     workspaceName: channelName,
-    workspaceDir: null,
-    persistChannelWorkspace: false,
+    workspaceDir: initialized.workspaceDir,
+    persistChannelWorkspace: true,
     workspace: initialized.workspace,
     bridgeAbiManifest: bridgeResources.bridgeAbiManifest,
     currentSnapshot: initialized.currentSnapshot,

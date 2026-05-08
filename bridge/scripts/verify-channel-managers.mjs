@@ -71,6 +71,7 @@ Options:
   --lookback-blocks <n> Re-scan this many blocks before the previous checkpoint. Default: ${DEFAULT_LOOKBACK_BLOCKS}
   --chunk-size <n>      RPC log scan chunk size. Default: ${DEFAULT_CHUNK_SIZE}
   --dry-run             Scan and report without submitting Etherscan verification or writing state
+  --refresh             Re-check managers already recorded in the local verification state
   --skip-build          Do not run forge build before extracting constructor args
   --help, -h            Show this help message`);
 }
@@ -86,6 +87,7 @@ function parseArgs(argv) {
     lookbackBlocks: DEFAULT_LOOKBACK_BLOCKS,
     chunkSize: DEFAULT_CHUNK_SIZE,
     dryRun: false,
+    refresh: false,
     skipBuild: false,
   };
 
@@ -131,6 +133,9 @@ function parseArgs(argv) {
         break;
       case "--dry-run":
         options.dryRun = true;
+        break;
+      case "--refresh":
+        options.refresh = true;
         break;
       case "--skip-build":
         options.skipBuild = true;
@@ -314,8 +319,6 @@ async function getSourceCodeStatus(address, { chainId, etherscanApiKey }) {
   return {
     contractName: source.ContractName ?? "",
     isVerified: source.ABI !== "Contract source code not verified",
-    proxy: source.Proxy ?? "0",
-    implementation: source.Implementation ?? "",
   };
 }
 
@@ -430,6 +433,15 @@ async function getChannelManagerConstructorArgs(manager, context) {
   );
 }
 
+async function tryGetChannelManagerConstructorArgs(manager, context) {
+  try {
+    return await getChannelManagerConstructorArgs(manager, context);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
 function verifyChannelManager(event, constructorArgs, { chainId, rpcUrl, etherscanApiKey }) {
   console.log(`Verifying ChannelManager ${event.manager} for channel ${event.channelId}`);
   run("forge", [
@@ -493,10 +505,6 @@ async function main() {
   console.log(`State path: ${statePath}`);
   console.log(`Scan range: ${fromBlock}..${toBlock}`);
 
-  if (!options.skipBuild) {
-    run("forge", ["build", "--root", "bridge"], { cwd: projectRoot });
-  }
-
   const events = uniqueEventsByManager(await scanChannelCreatedEvents({
     provider,
     bridgeCore,
@@ -506,8 +514,15 @@ async function main() {
   }));
   console.log(`Discovered ${events.length} unique ChannelManager address(es) in scan range.`);
 
+  const verificationQueue = [];
   for (const event of events) {
     const managerKey = event.manager.toLowerCase();
+    const stateEntry = state.verifiedManagers[managerKey];
+    if (!options.refresh && stateEntry?.verified) {
+      console.log(`Known verified from state: ${event.manager}`);
+      continue;
+    }
+
     const sourceStatus = await getSourceCodeStatus(event.manager, { chainId, etherscanApiKey });
     if (sourceStatus.isVerified) {
       console.log(`Already verified: ${event.manager} (${sourceStatus.contractName || "unknown"})`);
@@ -525,25 +540,51 @@ async function main() {
     }
 
     console.log(`Not verified: ${event.manager} (channel ${event.channelId})`);
-    if (options.dryRun) {
-      continue;
+    verificationQueue.push(event);
+  }
+
+  if (verificationQueue.length === 0) {
+    console.log("No unverified ChannelManager contracts found.");
+  } else if (options.dryRun) {
+    console.log(`Dry run found ${verificationQueue.length} unverified ChannelManager contract(s).`);
+  } else {
+    if (!options.skipBuild) {
+      run("forge", ["build", "--root", "bridge"], { cwd: projectRoot });
     }
 
-    const constructorArgs = await getChannelManagerConstructorArgs(event.manager, {
-      chainId,
-      etherscanApiKey,
-    });
-    verifyChannelManager(event, constructorArgs, { chainId, rpcUrl, etherscanApiKey });
-    state.verifiedManagers[managerKey] = {
-      channelId: event.channelId,
-      dappId: event.dappId,
-      manager: event.manager,
-      bridgeTokenVault: event.bridgeTokenVault,
-      creationTxHash: event.transactionHash,
-      createdAtBlock: event.blockNumber,
-      verified: true,
-      verifiedAtUtc: new Date().toISOString(),
-    };
+    for (const event of verificationQueue) {
+      const managerKey = event.manager.toLowerCase();
+      const constructorArgs = await tryGetChannelManagerConstructorArgs(event.manager, {
+        chainId,
+        etherscanApiKey,
+      });
+      if (!constructorArgs) {
+        state.verifiedManagers[managerKey] = {
+          channelId: event.channelId,
+          dappId: event.dappId,
+          manager: event.manager,
+          bridgeTokenVault: event.bridgeTokenVault,
+          creationTxHash: event.transactionHash,
+          createdAtBlock: event.blockNumber,
+          verified: false,
+          error: "constructorArgsUnavailable",
+          updatedAtUtc: new Date().toISOString(),
+        };
+        continue;
+      }
+
+      verifyChannelManager(event, constructorArgs, { chainId, rpcUrl, etherscanApiKey });
+      state.verifiedManagers[managerKey] = {
+        channelId: event.channelId,
+        dappId: event.dappId,
+        manager: event.manager,
+        bridgeTokenVault: event.bridgeTokenVault,
+        creationTxHash: event.transactionHash,
+        createdAtBlock: event.blockNumber,
+        verified: true,
+        verifiedAtUtc: new Date().toISOString(),
+      };
+    }
   }
 
   state.lastScannedBlock = toBlock;

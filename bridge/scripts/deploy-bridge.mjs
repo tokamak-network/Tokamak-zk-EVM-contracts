@@ -60,6 +60,9 @@ const MAINNET_DEPLOYMENT_RELEVANT_DIRTY_PATHS = [
   ":(glob)scripts/drive/**/*.mjs",
   ":(glob)packages/groth16/lib/**/*.mjs",
 ];
+const ETHERSCAN_V2_API_URL = "https://api.etherscan.io/v2/api";
+const ETHERSCAN_PROXY_VERIFY_POLL_ATTEMPTS = 12;
+const ETHERSCAN_PROXY_VERIFY_POLL_DELAY_MS = 5_000;
 
 const BLS12_381_FQ_MODULUS = BigInt(
   "0x1a0111ea397fe69a4b1ba7b6434bacd7"
@@ -240,6 +243,9 @@ function usage() {
 Options:
   --network <name>  Bridge deployment network. Supported values: anvil, sepolia, mainnet
   --mode <mode>     Deployment mode. Supported values: upgrade, redeploy-proxy
+  --verify          Verify deployed contracts on Etherscan after deployment artifacts are published
+  --etherscan-api-key <key>
+                    Etherscan API key for --verify. Defaults to BRIDGE_ETHERSCAN_API_KEY or ETHERSCAN_API_KEY.
   --help, -h        Show this help message
 
 Additional arguments are forwarded to forge script.`);
@@ -446,6 +452,8 @@ function assertMainnetDeploymentSourceIntegrity({ networkName, deployMode, bridg
 function parseArgs(argv) {
   let deployMode = initialDeployMode;
   let networkName = null;
+  let verify = false;
+  let etherscanApiKey = null;
   const forwardArgs = [];
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
@@ -471,12 +479,25 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
+    if (current === "--verify") {
+      verify = true;
+      continue;
+    }
+    if (current === "--etherscan-api-key" || current === "-e") {
+      const value = argv[index + 1];
+      if (!value || value.startsWith("--")) {
+        fail(`Missing value for ${current}`);
+      }
+      etherscanApiKey = value;
+      index += 1;
+      continue;
+    }
     forwardArgs.push(current);
   }
   if (!networkName) {
     fail("Missing required argument: --network <sepolia|mainnet|anvil>");
   }
-  return { deployMode, networkName, forwardArgs };
+  return { deployMode, networkName, verify, etherscanApiKey, forwardArgs };
 }
 
 function loadEnvFile() {
@@ -1401,8 +1422,234 @@ function updateDeploymentAbiManifestPath(deploymentPath, canonicalAbiManifestPat
   writeJson(deploymentPath, deployment);
 }
 
+function resolveBridgeEtherscanApiKey(cliApiKey) {
+  return cliApiKey
+    || readOptionalEnvTrimmed("BRIDGE_ETHERSCAN_API_KEY")
+    || readOptionalEnvTrimmed("ETHERSCAN_API_KEY");
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isNonZeroAddress(value) {
+  return typeof value === "string" && ethers.isAddress(value) && value !== ethers.ZeroAddress;
+}
+
+function encodeConstructorArgs(types, values) {
+  return ethers.AbiCoder.defaultAbiCoder().encode(types, values);
+}
+
+function buildBridgeVerificationTargets(deployment) {
+  const grothVersion = String(deployment.grothVerifierCompatibleBackendVersion ?? "");
+  const tokamakVersion = String(deployment.tokamakVerifierCompatibleBackendVersion ?? "");
+  const mockAssetName = process.env.BRIDGE_MOCK_ASSET_NAME || "Bridge Test Asset";
+  const mockAssetSymbol = process.env.BRIDGE_MOCK_ASSET_SYMBOL || "BTA";
+  const proxyContract = "../lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy";
+  const targets = [
+    {
+      label: "DAppManager implementation",
+      address: deployment.dAppManagerImplementation,
+      contract: "src/DAppManager.sol:DAppManager",
+    },
+    {
+      label: "BridgeCore implementation",
+      address: deployment.bridgeCoreImplementation,
+      contract: "src/BridgeCore.sol:BridgeCore",
+    },
+    {
+      label: "L1TokenVault implementation",
+      address: deployment.bridgeTokenVaultImplementation,
+      contract: "src/L1TokenVault.sol:L1TokenVault",
+    },
+    {
+      label: "ChannelDeployer",
+      address: deployment.channelDeployer,
+      contract: "src/ChannelDeployer.sol:ChannelDeployer",
+    },
+    {
+      label: "Groth16Verifier",
+      address: deployment.grothVerifier,
+      contract: "src/generated/Groth16Verifier.sol:Groth16Verifier",
+      constructorArgs: encodeConstructorArgs(["string"], [grothVersion]),
+    },
+    {
+      label: "TokamakVerifier",
+      address: deployment.tokamakVerifier,
+      contract: "src/verifiers/TokamakVerifier.sol:TokamakVerifier",
+      constructorArgs: encodeConstructorArgs(["string"], [tokamakVersion]),
+    },
+    {
+      label: "DAppManager proxy",
+      address: deployment.dAppManager,
+      contract: proxyContract,
+      guessConstructorArgs: true,
+    },
+    {
+      label: "BridgeCore proxy",
+      address: deployment.bridgeCore,
+      contract: proxyContract,
+      guessConstructorArgs: true,
+    },
+    {
+      label: "L1TokenVault proxy",
+      address: deployment.bridgeTokenVault,
+      contract: proxyContract,
+      guessConstructorArgs: true,
+    },
+  ];
+
+  if (isNonZeroAddress(deployment.mockAsset)) {
+    targets.push({
+      label: "MockERC20 asset",
+      address: deployment.mockAsset,
+      contract: "src/mocks/MockERC20.sol:MockERC20",
+      constructorArgs: encodeConstructorArgs(["string", "string"], [mockAssetName, mockAssetSymbol]),
+    });
+  }
+
+  return targets.filter((target) => isNonZeroAddress(target.address));
+}
+
+function buildBridgeProxyVerificationPairs(deployment) {
+  return [
+    {
+      label: "DAppManager proxy",
+      proxy: deployment.dAppManager,
+      implementation: deployment.dAppManagerImplementation,
+    },
+    {
+      label: "BridgeCore proxy",
+      proxy: deployment.bridgeCore,
+      implementation: deployment.bridgeCoreImplementation,
+    },
+    {
+      label: "L1TokenVault proxy",
+      proxy: deployment.bridgeTokenVault,
+      implementation: deployment.bridgeTokenVaultImplementation,
+    },
+  ].filter((pair) => isNonZeroAddress(pair.proxy) && isNonZeroAddress(pair.implementation));
+}
+
+function runForgeContractVerification(target, { chainId, rpcUrl, etherscanApiKey }) {
+  const args = [
+    "verify-contract",
+    "--chain",
+    String(chainId),
+    "--verifier",
+    "etherscan",
+    "--watch",
+  ];
+  if (target.constructorArgs) {
+    args.push("--constructor-args", target.constructorArgs);
+  }
+  if (target.guessConstructorArgs) {
+    args.push("--guess-constructor-args");
+  }
+  args.push(target.address, target.contract);
+
+  console.log(`Verifying ${target.label}: ${target.address}`);
+  run("forge", args, {
+    cwd: bridgeRoot,
+    env: {
+      ...process.env,
+      ETHERSCAN_API_KEY: etherscanApiKey,
+      ETH_RPC_URL: rpcUrl,
+    },
+  });
+}
+
+function isSuccessfulEtherscanResponse(response) {
+  return String(response?.status ?? "") === "1";
+}
+
+function isAlreadyVerifiedEtherscanResponse(response) {
+  const text = `${response?.message ?? ""} ${response?.result ?? ""}`.toLowerCase();
+  return text.includes("already") && text.includes("verif");
+}
+
+async function fetchEtherscanJson(url, options) {
+  const response = await fetch(url, options);
+  const text = await response.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    fail(`Etherscan returned non-JSON response: ${text}`);
+  }
+  if (!response.ok) {
+    fail(`Etherscan request failed with HTTP ${response.status}: ${JSON.stringify(json)}`);
+  }
+  return json;
+}
+
+async function checkProxyVerificationStatus({ guid, chainId, etherscanApiKey }) {
+  const params = new URLSearchParams({
+    apikey: etherscanApiKey,
+    chainid: String(chainId),
+    module: "contract",
+    action: "checkproxyverification",
+    guid,
+  });
+  return fetchEtherscanJson(`${ETHERSCAN_V2_API_URL}?${params.toString()}`, { method: "GET" });
+}
+
+async function submitProxyVerification(pair, { chainId, etherscanApiKey }) {
+  const params = new URLSearchParams({
+    apikey: etherscanApiKey,
+    chainid: String(chainId),
+    module: "contract",
+    action: "verifyproxycontract",
+    address: pair.proxy,
+    expectedimplementation: pair.implementation,
+  });
+
+  console.log(`Linking ${pair.label} to implementation ${pair.implementation}`);
+  const submission = await fetchEtherscanJson(ETHERSCAN_V2_API_URL, {
+    method: "POST",
+    body: params,
+  });
+  if (isAlreadyVerifiedEtherscanResponse(submission)) {
+    console.log(`${pair.label} is already linked on Etherscan.`);
+    return;
+  }
+  if (!isSuccessfulEtherscanResponse(submission)) {
+    fail(`Etherscan proxy verification submission failed for ${pair.label}: ${JSON.stringify(submission)}`);
+  }
+
+  const guid = String(submission.result ?? "");
+  let latestStatus = submission;
+  for (let attempt = 1; attempt <= ETHERSCAN_PROXY_VERIFY_POLL_ATTEMPTS; attempt += 1) {
+    await sleep(ETHERSCAN_PROXY_VERIFY_POLL_DELAY_MS);
+    latestStatus = await checkProxyVerificationStatus({ guid, chainId, etherscanApiKey });
+    if (isSuccessfulEtherscanResponse(latestStatus) || isAlreadyVerifiedEtherscanResponse(latestStatus)) {
+      console.log(`${pair.label} proxy link verified on Etherscan.`);
+      return;
+    }
+  }
+
+  fail(`Timed out waiting for ${pair.label} proxy verification: ${JSON.stringify(latestStatus)}`);
+}
+
+async function verifyBridgeDeploymentOnEtherscan({ deploymentPath, chainId, rpcUrl, etherscanApiKey }) {
+  const deployment = readJson(deploymentPath);
+  const targets = buildBridgeVerificationTargets(deployment);
+  const proxyPairs = buildBridgeProxyVerificationPairs(deployment);
+
+  console.log(`Verifying ${targets.length} bridge contract source entries on Etherscan.`);
+  for (const target of targets) {
+    runForgeContractVerification(target, { chainId, rpcUrl, etherscanApiKey });
+  }
+
+  console.log(`Verifying ${proxyPairs.length} bridge proxy links on Etherscan.`);
+  for (const pair of proxyPairs) {
+    await submitProxyVerification(pair, { chainId, etherscanApiKey });
+  }
+}
+
 async function main() {
-  const { deployMode, networkName, forwardArgs } = parseArgs(process.argv.slice(2));
+  const { deployMode, networkName, verify, etherscanApiKey: cliEtherscanApiKey, forwardArgs } =
+    parseArgs(process.argv.slice(2));
   loadEnvFile();
 
   if (process.env.BRIDGE_DEPLOYER_PRIVATE_KEY && !process.env.BRIDGE_DEPLOYER_PRIVATE_KEY.startsWith("0x")) {
@@ -1414,6 +1661,14 @@ async function main() {
     requiredVars.push("BRIDGE_ALCHEMY_API_KEY");
   }
   requireEnv(requiredVars);
+
+  if (verify && networkName === "anvil") {
+    fail("--verify is only supported for Etherscan-backed networks, not anvil.");
+  }
+  const bridgeEtherscanApiKey = verify ? resolveBridgeEtherscanApiKey(cliEtherscanApiKey) : null;
+  if (verify && !bridgeEtherscanApiKey) {
+    fail("BRIDGE_ETHERSCAN_API_KEY or ETHERSCAN_API_KEY is required when --verify is used.");
+  }
 
   const bridgeNetwork = resolveBridgeNetwork(networkName);
   const bridgeChainId = bridgeNetwork.chainId;
@@ -1655,6 +1910,15 @@ async function main() {
 
   console.log(`Deployment artifact: ${publishedBridgeOutputPath}`);
   console.log(`ABI manifest: ${bridgeAbiManifestPathAbs}`);
+
+  if (verify) {
+    await verifyBridgeDeploymentOnEtherscan({
+      deploymentPath: publishedBridgeOutputPath,
+      chainId: bridgeChainId,
+      rpcUrl: bridgeRpcUrl,
+      etherscanApiKey: bridgeEtherscanApiKey,
+    });
+  }
 }
 
 main().catch((error) => {

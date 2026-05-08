@@ -1,7 +1,25 @@
 # Changelog
 
+## 1.1.1 - 2026-05-08
+
+- Added bridge deployment verification support for Etherscan-compatible explorers, including
+  proxy and implementation verification for the main bridge contracts after deploy or upgrade
+  flows.
+- Added an incremental ChannelManager verification script that scans channel creation events from
+  the last indexed block, skips already verified channel contracts, and persists scan progress for
+  later runs.
+- Required `channel join` to refresh through the recovery index before joining an existing channel,
+  while preserving the explicit `--from-genesis` path for recovery commands that intentionally
+  rebuild workspace state from channel genesis.
+- Verified the private-state CLI end-to-end flow with isolated local workspace state after the
+  indexed join recovery change.
+
 ## 1.1.0 - 2026-05-06
 
+- Required `channel join` to use an existing recovered channel workspace and refresh through the
+  recovery index before submitting the join transaction, so old channels are not silently replayed
+  from genesis during join. `wallet recover-workspace --from-genesis` now also replays encrypted
+  note delivery logs from channel genesis for existing wallets.
 - Refreshed channel workspaces through the existing recovery-indexed replay path after successful
   wallet transactions instead of manually patching local snapshots, and bounded post-transaction
   replay by the transaction receipt block so provider latest-block lag cannot skip the confirmed

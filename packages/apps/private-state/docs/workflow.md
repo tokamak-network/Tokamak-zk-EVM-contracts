@@ -51,6 +51,10 @@ The normal flow is:
 chooses the initial join toll. `channel join` binds the user's L1 identity to a channel-specific L2
 identity and registers the note-receive public key for encrypted note delivery.
 
+Joining an existing channel requires a recovered local channel workspace. If the workspace has no
+usable recovery index, the user must explicitly run `channel recover-workspace --from-genesis` once;
+`channel join` then refreshes from that index instead of silently replaying the channel from genesis.
+
 The flow moves value through three representations:
 
 1. L1 custody in the bridge vault

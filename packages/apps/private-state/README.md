@@ -231,7 +231,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
 - resumes RPC log scanning from the saved recovery index by default
 - fails instead of silently replaying from channel genesis when no usable recovery index exists
-- accepts `--from-genesis` when the user intentionally wants to ignore the local index and replay the channel from its creation block
+- accepts `--source rpc --from-genesis` when the user intentionally wants to ignore the local index and replay the channel from its creation block
 
 `channel get-meta`
 
@@ -282,7 +282,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 Wallet getter commands that need channel state, including `wallet get-meta`, `wallet get-channel-fund`, and
 `wallet get-notes`, use only indexed recovery before reading state. `wallet get-notes` also resumes encrypted note delivery
 logs from the wallet's saved note-receive scan index. If the required index is missing or unusable, the command stops
-and asks the user to run `channel recover-workspace --from-genesis` or `wallet recover-workspace --from-genesis` as appropriate.
+and asks the user to run `channel recover-workspace --source rpc --from-genesis` or `wallet recover-workspace --from-genesis` as appropriate.
 
 `wallet export`
 

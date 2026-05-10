@@ -157,15 +157,15 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
   fromGenesis: {
     label: "Scan From Genesis",
     type: "checkbox",
-    hint: "Ignore the local recovery index and replay channel logs from genesis.",
+    hint: "Requires --source rpc. Ignore the local recovery index and replay channel logs from genesis.",
     option: "--from-genesis",
     optional: true,
   },
   source: {
     label: "Recovery Source",
     type: "select",
-    options: ["rpc", "mirror", "auto"],
-    valueLabel: "<rpc|mirror|auto>",
+    options: ["rpc", "mirror"],
+    valueLabel: "<rpc|mirror>",
     hint: "Optional. Defaults to rpc. mirror downloads the channel leader's workspace mirror before RPC delta replay.",
     option: "--source",
     optional: true,
@@ -302,9 +302,8 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "By default, --source rpc resumes RPC log scanning from the workspace recovery index when available",
       "--source mirror downloads the channel leader's registered workspace mirror and then replays RPC logs to latest",
-      "--source auto tries the registered mirror first and falls back to RPC recovery when it is unavailable",
       "Fails instead of falling back to genesis when no usable recovery index exists",
-      "Use --from-genesis to ignore the recovery index and replay logs from channel genesis",
+      "Use --source rpc --from-genesis to ignore the recovery index and replay logs from channel genesis",
       "Prints RPC log scan progress while rebuilding the workspace",
     ],
   },
@@ -363,7 +362,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     usage: "--channel-name, --network, --account, --wallet-secret-path, and optional --rpc-url",
     help: [
       "Requires a recovered channel workspace and refreshes it through the workspace recovery index before joining",
-      "Run channel recover-workspace --from-genesis once if no usable local recovery index exists",
+      "Run channel recover-workspace --source rpc --from-genesis once if no usable local recovery index exists",
       "--wallet-secret-path imports an existing source secret file into the protected wallet-local secret file",
       "Prints the immutable policy snapshot before first registration",
     ],

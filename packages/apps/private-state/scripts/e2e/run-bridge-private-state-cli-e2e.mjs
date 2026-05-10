@@ -1396,6 +1396,7 @@ function importWallet(inputPath) {
 function recoverWorkspace({ fromGenesis = false } = {}) {
   return runAnvilBridgeCliCommand("channel recover-workspace", [
     "--channel-name", channelName,
+    ...(fromGenesis ? ["--source", "rpc"] : []),
     ...(fromGenesis ? ["--from-genesis"] : []),
   ]);
 }

@@ -1,9 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Removed `--source auto` from `channel recover-workspace`; recovery source is now either
+  `rpc` or `mirror`.
+- Required `channel recover-workspace --from-genesis` to be paired with explicit `--source rpc`
+  so genesis replay cannot be requested accidentally through an omitted source.
+
 ## 1.2.0 - 2026-05-08
 
 - Added optional channel workspace mirror recovery. `channel recover-workspace` now accepts
-  `--source rpc|mirror|auto`, with `rpc` remaining the default when `--source` is omitted.
+  `--source rpc|mirror`, with `rpc` remaining the default when `--source` is omitted.
 - Added `channel set-workspace-mirror` so a channel leader can register the official workspace
   mirror base URL stored in `BridgeCore`.
 - Added mirror archive validation that checks the downloaded workspace snapshot against on-chain

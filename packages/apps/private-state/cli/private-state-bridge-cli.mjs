@@ -821,11 +821,11 @@ async function handleSetChannelWorkspaceMirror({ args, network, provider }) {
 
 function resolveWorkspaceRecoverySource(args) {
   const source = args.source === undefined ? "rpc" : String(args.source).trim().toLowerCase();
-  if (!["rpc", "mirror", "auto"].includes(source)) {
-    throw new Error("--source must be one of: rpc, mirror, auto.");
+  if (!["rpc", "mirror"].includes(source)) {
+    throw new Error("--source must be one of: rpc, mirror.");
   }
-  if (args.fromGenesis === true && source !== "rpc") {
-    throw new Error("--from-genesis can only be used with --source rpc.");
+  if (args.fromGenesis === true && (args.source === undefined || source !== "rpc")) {
+    throw new Error("--from-genesis requires explicit --source rpc.");
   }
   return source;
 }
@@ -888,18 +888,10 @@ async function loadWorkspaceMirrorRecoveryIndex({
   try {
     registeredUrl = String(await readChannelWorkspaceMirror({ bridgeCore, channelId })).trim();
   } catch (error) {
-    const message = `Unable to read channel workspace mirror registry: ${error.message}`;
-    if (recoverySource === "auto") {
-      return { recoveryIndex: null, workspaceMirror: { ...baseStatus, error: message } };
-    }
-    throw new Error(message);
+    throw new Error(`Unable to read channel workspace mirror registry: ${error.message}`);
   }
   if (!registeredUrl) {
-    const error = `No workspace mirror URL is registered for channel ${channelName}.`;
-    if (recoverySource === "auto") {
-      return { recoveryIndex: null, workspaceMirror: { ...baseStatus, registeredUrl: null, error } };
-    }
-    throw new Error(error);
+    throw new Error(`No workspace mirror URL is registered for channel ${channelName}.`);
   }
 
   try {
@@ -931,16 +923,6 @@ async function loadWorkspaceMirrorRecoveryIndex({
       },
     };
   } catch (error) {
-    if (recoverySource === "auto") {
-      return {
-        recoveryIndex: null,
-        workspaceMirror: {
-          ...baseStatus,
-          registeredUrl,
-          error: error.message,
-        },
-      };
-    }
     throw new Error(`Workspace mirror recovery failed: ${error.message}`);
   }
 }
@@ -1358,7 +1340,7 @@ async function syncChannelWorkspace({
     throw new Error([
       `Workspace recovery index is missing or unusable for channel ${channelName} on ${networkNameFromChainId(network.chainId)}.`,
       "The CLI will not fall back to replaying channel logs from genesis unless explicitly requested.",
-      "Run channel recover-workspace --from-genesis or wallet recover-workspace --from-genesis to rebuild from channel genesis.",
+      "Run channel recover-workspace --source rpc --from-genesis or wallet recover-workspace --from-genesis to rebuild from channel genesis.",
     ].join(" "));
   }
   const reconstruction = localSnapshotReusable
@@ -3014,7 +2996,7 @@ function applyGuideNextAction(guide) {
   }
   if (guide.selectors.channelName && guide.state.channel?.onchain?.exists && !guide.state.channel?.local?.workspaceExists) {
     setGuideNextAction(guide, {
-      command: `channel recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network} --from-genesis`,
+      command: `channel recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network} --source rpc --from-genesis`,
       why: "The channel exists on-chain, but the local channel workspace has not been recovered yet, so there is no local recovery index to resume from.",
     });
     return;
@@ -8101,7 +8083,7 @@ function buildRecoveryHints(error, args = {}) {
   }
 
   if (message.includes("Workspace recovery index is missing or unusable")) {
-    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName} --from-genesis`);
+    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis`);
     hints.push(`private-state-cli wallet recover-workspace --channel-name ${channelName} --network ${networkName} --account ${accountName} --from-genesis`);
   }
 

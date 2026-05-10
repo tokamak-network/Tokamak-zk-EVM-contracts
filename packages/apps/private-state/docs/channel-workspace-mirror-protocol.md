@@ -23,10 +23,9 @@ URL. An empty URL clears the mirror. The URI is limited to 2048 bytes.
 - `--source rpc`: use only RPC log recovery. This is the default when `--source` is omitted.
 - `--source mirror`: require the registered mirror, download its snapshot, verify it, then replay RPC
   logs from the mirror recovery index to the latest block.
-- `--source auto`: try the registered mirror first, then continue with the normal RPC recovery path
-  if the mirror is missing or invalid.
 
-`--from-genesis` intentionally rebuilds from channel genesis and is only valid with the RPC source.
+`--from-genesis` intentionally rebuilds from channel genesis and is only valid when paired with
+explicit `--source rpc`.
 
 ## URL Layout
 

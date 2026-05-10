@@ -52,8 +52,10 @@ chooses the initial join toll. `channel join` binds the user's L1 identity to a 
 identity and registers the note-receive public key for encrypted note delivery.
 
 Joining an existing channel requires a recovered local channel workspace. If the workspace has no
-usable recovery index, the user must explicitly run `channel recover-workspace --from-genesis` once;
-`channel join` then refreshes from that index instead of silently replaying the channel from genesis.
+usable recovery index, the user must explicitly run
+`channel recover-workspace --source rpc --from-genesis` once or recover from a registered workspace
+mirror; `channel join` then refreshes from that index instead of silently replaying the channel from
+genesis.
 
 The flow moves value through three representations:
 

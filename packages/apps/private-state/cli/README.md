@@ -110,16 +110,14 @@ private-state-cli wallet recover-workspace --channel-name <CHANNEL> --network ma
 `channel create` is the exception: after the channel is created on-chain, the CLI initializes that new local workspace
 by replaying from the channel's genesis block because no prior recovery index can exist for a new channel.
 
-`channel join` requires the channel workspace to have a usable recovery index and refreshes that workspace through the
-indexed path before submitting the registration transaction. For a channel that was created elsewhere, run
+`channel join` requires a fresh recovered channel workspace before submitting the registration transaction. For a channel that was created elsewhere, run
 `channel recover-workspace --source rpc --from-genesis` once before joining, or recover from a registered workspace
 mirror; later joins and wallet commands resume from the saved index instead of silently replaying from genesis.
 
 Wallet getter commands that need channel state, including `wallet get-meta`, `wallet get-channel-fund`, and
-`wallet get-notes`, follow the same indexed recovery rule before reading local or on-chain state. `wallet get-notes` also uses
-the wallet's saved note-receive scan index for encrypted note delivery logs. If either index is unusable, the command
-stops and asks the user to run the appropriate recovery command. Channel genesis replay must use
-`channel recover-workspace --source rpc --from-genesis`.
+`wallet get-notes`, require fresh local workspaces and do not recover or refresh them implicitly. `wallet get-notes`
+checks the saved note-receive scan index before reading notes. If either workspace is stale or unusable, the command
+stops and asks the user to run the appropriate recovery command.
 
 Channel leaders can optionally register a workspace mirror server so users can bootstrap recovery
 from a recent verified snapshot instead of replaying old channels from genesis. The CLI protocol is
@@ -336,7 +334,7 @@ Suggested interaction flow:
    `wallet mint-notes`.
 7. For a private transfer, select available note IDs from `wallet get-notes`, find the recipient L2 address from
    `wallet get-meta`, then build `wallet transfer-notes`.
-8. After transfer, guide the recipient to run `wallet get-notes` to recover received notes from event logs.
+8. After transfer, guide the recipient to run `wallet recover-workspace` before `wallet get-notes` to recover received notes from event logs.
 
 Example onboarding explanation for `channel join`:
 

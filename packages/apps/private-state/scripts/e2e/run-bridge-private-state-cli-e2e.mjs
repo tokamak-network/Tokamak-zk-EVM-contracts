@@ -1926,6 +1926,10 @@ async function main() {
     const bMintNote = mintB.outputNotes[0];
     const cMintNote = mintC.outputNotes[0];
 
+    recoverWallet(participants[0]);
+    recoverWallet(participants[0]);
+    recoverWallet(participants[1]);
+    recoverWallet(participants[2]);
     const notesAfterMintA = getWalletNotes(participants[0]);
     const notesAfterMintB = getWalletNotes(participants[1]);
     const notesAfterMintC = getWalletNotes(participants[2]);
@@ -1959,6 +1963,9 @@ async function main() {
       Array.isArray(transferA.deliveredRecipients) && transferA.deliveredRecipients.length === 0,
       "transfer-notes must not write recipient inbox sidecars anymore.",
     );
+    recoverWallet(participants[0]);
+    recoverWallet(participants[1]);
+    recoverWallet(participants[2]);
     const notesAfterTransferALogScanB = getWalletNotes(participants[1]);
     const notesAfterTransferALogScanC = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterTransferALogScanB, { unusedCount: 2, spentCount: 0, unusedTotal: 4n * amountUnit, spentTotal: 0n });
@@ -1977,6 +1984,8 @@ async function main() {
       "transfer-notes must not write recipient inbox sidecars anymore.",
     );
 
+    recoverWallet(participants[1]);
+    recoverWallet(participants[2]);
     const notesAfterTransferA = getWalletNotes(participants[0]);
     const notesAfterTransferB = getWalletNotes(participants[1]);
     const notesAfterTransferC = getWalletNotes(participants[2]);
@@ -1985,7 +1994,9 @@ async function main() {
     assertWalletNoteSnapshot(notesAfterTransferC, { unusedCount: 3, spentCount: 0, unusedTotal: claimAmountBaseUnits, spentTotal: 0n });
 
     const redeemAToC = redeemNotes(participants[2], [noteAToC.commitment], { txSubmitter: txSubmitterAccount });
+    recoverWallet(participants[2]);
     const redeemBToC = redeemNotes(participants[2], [noteBToC.commitment]);
+    recoverWallet(participants[2]);
     const redeemCMint = redeemNotes(participants[2], [cMintNote.commitment]);
     assertWalletCommandUsedCurrentWorkspace(redeemBToC, "redeem transaction after a successful previous redeem");
     assertWalletCommandUsedCurrentWorkspace(redeemCMint, "redeem transaction after multiple successful redeems");
@@ -1997,6 +2008,7 @@ async function main() {
       getAddress(redeemAToC.l1WalletOwner) === getAddress(participants[2].l1Address),
       "redeem-notes --tx-submitter must not change the wallet owner.",
     );
+    recoverWallet(participants[2]);
     const notesAfterRedeemC = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
     recoverWorkspaceAfterLocalTransactions = recoverWorkspace();
@@ -2025,6 +2037,7 @@ async function main() {
       walletImportIncludeNotes.includeNotes === true,
       "wallet import must report includeNotes=true for an include-notes export.",
     );
+    recoverWallet(participants[2]);
     const notesAfterIncludeNotesImport = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterIncludeNotesImport, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
     const channelDepositAfterIncludeNotesImport = getChannelFund(participants[2]);
@@ -2053,6 +2066,7 @@ async function main() {
       recoverWorkspaceAfterDefaultWalletImport.channelName === channelName,
       "recover-workspace must rebuild channel state after default wallet import.",
     );
+    recoverWallet(participants[2]);
     const notesAfterDefaultImportRecovery = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterDefaultImportRecovery, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
     const channelDepositAfterDefaultImportRecovery = getChannelFund(participants[2]);

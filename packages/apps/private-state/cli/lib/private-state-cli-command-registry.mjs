@@ -361,7 +361,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["channelName", "network", "account", "walletSecretPath", "rpcUrl"],
     usage: "--channel-name, --network, --account, --wallet-secret-path, and optional --rpc-url",
     help: [
-      "Requires a recovered channel workspace and refreshes it through the workspace recovery index before joining",
+      "Requires a fresh recovered channel workspace before joining",
       "Run channel recover-workspace --source rpc --from-genesis once if no usable local recovery index exists",
       "--wallet-secret-path imports an existing source secret file into the protected wallet-local secret file",
       "Prints the immutable policy snapshot before first registration",
@@ -373,7 +373,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Check whether a wallet matches the on-chain channel registration.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Refreshes channel state through the workspace recovery index before reading registration metadata"],
+    help: ["Requires a fresh local channel workspace and does not recover or refresh it implicitly"],
   },
   {
     id: "wallet-list",
@@ -427,7 +427,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Read the current channel L2 accounting balance.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Refreshes channel state through the workspace recovery index before reading the L2 accounting balance"],
+    help: ["Requires a fresh local channel workspace and does not recover or refresh it implicitly"],
   },
   {
     id: "channel-exit",
@@ -463,12 +463,12 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
   {
     id: "wallet-get-notes",
     display: "wallet get-notes",
-    description: "Show the wallet's tracked note state and refresh received notes.",
+    description: "Show the wallet's tracked note state without recovering received notes.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
     help: [
-      "Refreshes channel state through the workspace recovery index before reading notes",
-      "Refreshes received-note logs through the wallet note recovery index",
+      "Requires a fresh local channel workspace",
+      "Requires the wallet note workspace to be current; run wallet recover-workspace when it is stale",
     ],
   },
 ]);

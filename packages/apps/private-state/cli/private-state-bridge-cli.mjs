@@ -3136,10 +3136,9 @@ function redactRpcUrl(rpcUrl) {
 
 async function handleWalletGetMeta({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
-  const contextResult = await loadPreferredWalletChannelContext({
+  const contextResult = await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
-    progressAction: "wallet get-meta",
   });
   const context = contextResult.context;
   const {
@@ -3170,11 +3169,10 @@ async function handleWalletGetMeta({ args, provider }) {
   });
 }
 
-async function loadWalletChannelFundState({ walletContext, provider, progressAction = null }) {
-  const contextResult = await loadPreferredWalletChannelContext({
+async function loadWalletChannelFundState({ walletContext, provider }) {
+  const contextResult = await loadFreshWalletChannelContext({
     walletContext,
     provider,
-    progressAction,
   });
   const context = contextResult.context;
   const {
@@ -3255,7 +3253,6 @@ async function handleWalletGetChannelFund({ args, provider }) {
   } = await loadWalletChannelFundState({
     walletContext: wallet,
     provider,
-    progressAction: "wallet get-channel-fund",
   });
 
   printJson({
@@ -3446,10 +3443,9 @@ async function handleGrothVaultMove({ args, provider, direction }) {
       : "wallet withdraw-channel";
   emitProgress(operationName, "loading");
   const { wallet: walletContext } = loadUnlockedWalletWithMetadata(args);
-  const contextResult = await loadPreferredWalletChannelContext({
+  const contextResult = await loadFreshWalletChannelContext({
     walletContext,
     provider,
-    progressAction: operationName,
   });
   const context = contextResult.context;
   const network = contextResult.network;
@@ -3569,7 +3565,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     gasUsed: receiptGasUsed(receipt),
     txUrl: explorerTxUrl(network, receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
-    recoveredWorkspace: contextResult.recoveredWorkspace,
+    recoveredWorkspace: false,
   });
 }
 
@@ -3676,10 +3672,9 @@ async function handleMintNotes({ args, provider }) {
     "Invalid --amounts. The array must contain at least one amount greater than zero.",
   );
   const totalMintAmount = baseUnitAmounts.reduce((sum, { amountBaseUnits }) => sum + amountBaseUnits, 0n);
-  const { channelFund } = await loadWalletChannelFundState({
+  const { channelFund, contextResult: preparedContextResult } = await loadWalletChannelFundState({
     walletContext: wallet,
     provider,
-    progressAction: "wallet mint-notes",
   });
   expect(
     totalMintAmount <= channelFund,
@@ -3692,12 +3687,13 @@ async function handleMintNotes({ args, provider }) {
     wallet,
     baseUnitAmounts: baseUnitAmounts.map(({ amountBaseUnits }) => amountBaseUnits),
   });
-  const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+  const { execution, contextResult, walletWarnings } = await executeWalletDirectTemplateCommand({
     args,
     wallet,
     provider,
     operationName: "wallet mint-notes",
     templatePayload,
+    preparedContextResult,
   });
 
   printJson({
@@ -3723,7 +3719,8 @@ async function handleMintNotes({ args, provider }) {
     gasUsed: receiptGasUsed(execution.receipt),
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
-    recoveredWorkspace,
+    recoveredWorkspace: false,
+    warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
 }
@@ -3731,17 +3728,27 @@ async function handleMintNotes({ args, provider }) {
 async function handleRedeemNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
+  const preparedContextResult = await loadFreshWalletChannelContext({
+    walletContext: wallet,
+    provider,
+  });
+  await assertWalletNoteReceiveStateFresh({
+    walletContext: wallet,
+    context: preparedContextResult.context,
+    provider,
+  });
   const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const templatePayload = buildRedeemNotesTemplatePayload({
     wallet,
     inputNotes,
   });
-  const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+  const { execution, contextResult, walletWarnings } = await executeWalletDirectTemplateCommand({
     args,
     wallet,
     provider,
     operationName: "wallet redeem-notes",
     templatePayload,
+    preparedContextResult,
   });
 
   printJson({
@@ -3767,7 +3774,8 @@ async function handleRedeemNotes({ args, provider }) {
     gasUsed: receiptGasUsed(execution.receipt),
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
-    recoveredWorkspace,
+    recoveredWorkspace: false,
+    warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
 }
@@ -3779,18 +3787,14 @@ async function handleWalletGetNotes({ args, provider }) {
     `Wallet ${wallet.walletName} is missing the stored controller address.`,
   );
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
-  const { context } = await loadPreferredWalletChannelContext({
+  const { context } = await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
-    progressAction: "wallet get-notes",
   });
-  const signer = restoreWalletSigner(wallet, provider);
-  const { recoveredDeliveryState } = await recoverWalletReceivedNotes({
+  const noteReceiveFreshness = await assertWalletNoteReceiveStateFresh({
     walletContext: wallet,
     context,
     provider,
-    signer,
-    progressAction: "wallet get-notes",
   });
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
@@ -3827,21 +3831,20 @@ async function handleWalletGetNotes({ args, provider }) {
     spentTotalBaseUnits: spentTotal.toString(),
     spentTotalTokens: ethers.formatUnits(spentTotal, canonicalAssetDecimals),
     bridgeStatusMismatches: [...unusedNotes, ...spentNotes].filter((note) => !note.walletStatusMatchesBridge).length,
-    recoveredFromLogs: recoveredDeliveryState.importedNotes,
-    scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
-    noteReceiveScanRange: recoveredDeliveryState.scanRange,
+    noteReceiveLastScannedBlock: noteReceiveFreshness.nextBlock,
+    latestBlock: noteReceiveFreshness.latestBlock,
   });
 }
 
 async function handleTransferNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
   const { signer } = restoreWalletParticipant(wallet, provider);
-  const preparedContextResult = await loadPreferredWalletChannelContext({
+  const preparedContextResult = await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
-    progressAction: "wallet transfer-notes",
   });
   const context = preparedContextResult.context;
+  await assertWalletNoteReceiveStateFresh({ walletContext: wallet, context, provider });
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
   const recipients = parseRecipientVector(requireArg(args.recipients, "--recipients"));
@@ -3851,12 +3854,12 @@ async function handleTransferNotes({ args, provider }) {
     "--amounts length must match --recipients length.",
   );
 
-  const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const outputAmounts = amountInputs.map((value, index) => {
     const parsed = parseTokenAmount(value, canonicalAssetDecimals);
     expect(parsed > 0n, `Invalid --amounts[${index}]. Each amount must be greater than zero.`);
     return parsed;
   });
+  const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const totalInput = inputNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
   const totalOutput = outputAmounts.reduce((sum, value) => sum + value, 0n);
   expect(
@@ -3871,12 +3874,13 @@ async function handleTransferNotes({ args, provider }) {
     recipients,
     outputAmounts,
   });
-  const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+  const { execution, contextResult, walletWarnings } = await executeWalletDirectTemplateCommand({
     args,
     wallet,
     provider,
     operationName: "wallet transfer-notes",
     templatePayload,
+    preparedContextResult,
   });
   const outputNotes = buildLifecycleTrackedOutputs({
     outputNotes: templatePayload.lifecycleOutputs,
@@ -3907,7 +3911,8 @@ async function handleTransferNotes({ args, provider }) {
     gasUsed: receiptGasUsed(execution.receipt),
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
-    recoveredWorkspace,
+    recoveredWorkspace: false,
+    warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
 }
@@ -4374,6 +4379,51 @@ function requireUsableWalletNoteReceiveRecoveryIndex({ walletContext, context, l
   return nextBlock;
 }
 
+async function assertWalletNoteReceiveStateFresh({ walletContext, context, provider }) {
+  const latestBlock = await provider.getBlockNumber();
+  const nextBlock = requireUsableWalletNoteReceiveRecoveryIndex({
+    walletContext,
+    context,
+    latestBlock,
+  });
+  if (nextBlock !== latestBlock + 1) {
+    throw new Error([
+      `Wallet note workspace is stale for wallet ${walletContext.walletName}.`,
+      `noteReceiveLastScannedBlock is ${nextBlock}, but latest block requires ${latestBlock + 1}.`,
+      "Run wallet recover-workspace before using commands that read or spend wallet notes.",
+    ].join(" "));
+  }
+  return {
+    latestBlock,
+    nextBlock,
+  };
+}
+
+async function buildPostWalletCommandWarnings({ walletContext, context, provider, receipt }) {
+  const latestBlock = await provider.getBlockNumber();
+  const noteReceiveNextBlock = Number(walletContext.wallet.noteReceiveLastScannedBlock);
+  const warnings = [];
+  if (
+    Number.isInteger(noteReceiveNextBlock)
+    && receipt?.blockNumber !== undefined
+    && noteReceiveNextBlock <= Number(receipt.blockNumber)
+  ) {
+    warnings.push([
+      `Wallet note workspace may be stale after block ${receipt.blockNumber}.`,
+      `Run wallet recover-workspace --channel-name ${context.workspace.channelName}`,
+      `--network ${context.workspace.network}`,
+      `--account <ACCOUNT> before commands that read or spend newly received notes.`,
+    ].join(" "));
+  } else if (Number.isInteger(noteReceiveNextBlock) && noteReceiveNextBlock !== latestBlock + 1) {
+    warnings.push([
+      "Wallet note workspace is not aligned with the latest block.",
+      `noteReceiveLastScannedBlock is ${noteReceiveNextBlock}, latest block requires ${latestBlock + 1}.`,
+      "Run wallet recover-workspace before commands that read or spend wallet notes.",
+    ].join(" "));
+  }
+  return warnings;
+}
+
 function extractEncryptedNoteValueFromBridgeLog(log) {
   if (!Array.isArray(log?.topics) || log.topics.length !== 1) {
     return null;
@@ -4837,52 +4887,41 @@ function walletChannelWorkspaceIsReady(walletContext) {
     && fs.existsSync(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"));
 }
 
-async function loadPreferredWalletChannelContext({
+async function loadFreshWalletChannelContext({
   walletContext,
   provider,
-  forceRecover = false,
-  progressAction = null,
 }) {
-  let recoveredWorkspace = false;
-  if (forceRecover || !walletChannelWorkspaceIsReady(walletContext)) {
-    await recoverWalletChannelWorkspace({ walletContext, provider, progressAction });
-    recoveredWorkspace = true;
-  }
-  let context = await loadWorkspaceContext(walletContext.wallet.channelName, walletContext.wallet.network, provider);
-  try {
-    await assertWorkspaceAlignedWithChain(context);
-  } catch (error) {
-    if (!isRecoverableWalletWorkspaceFailure(error)) {
-      throw error;
-    }
-    await recoverWalletChannelWorkspace({ walletContext, provider, progressAction });
-    recoveredWorkspace = true;
-    context = await loadWorkspaceContext(walletContext.wallet.channelName, walletContext.wallet.network, provider);
-    await assertWorkspaceAlignedWithChain(context);
-  }
+  const context = await loadFreshChannelWorkspaceContext({
+    channelName: walletContext.wallet.channelName,
+    networkName: walletContext.wallet.network,
+    provider,
+  });
   return {
     context,
     network: resolveCliNetwork(context.workspace.network),
-    usingWorkspaceCache: !recoveredWorkspace,
-    recoveredWorkspace,
+    usingWorkspaceCache: true,
+    recoveredWorkspace: false,
   };
 }
 
-async function recoverWalletChannelWorkspace({ walletContext, provider, progressAction = null }) {
-  const networkName = walletContext.wallet.network ?? networkNameFromChainId(Number(walletContext.wallet.chainId));
-  const network = resolveCliNetwork(networkName);
-  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
-  await syncChannelWorkspace({
-    workspaceName: walletContext.wallet.channelName,
-    channelName: walletContext.wallet.channelName,
-    network,
-    provider,
-    bridgeResources,
-    persist: true,
-    allowExistingWorkspaceSync: true,
-    useWorkspaceRecoveryIndex: true,
-    progressAction,
-  });
+async function loadFreshChannelWorkspaceContext({
+  channelName,
+  networkName,
+  provider,
+}) {
+  let context;
+  try {
+    context = await loadWorkspaceContext(channelName, networkName, provider);
+  } catch (error) {
+    throw new Error([
+      `Local channel workspace for ${channelName} on ${networkName} is missing or unreadable.`,
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} first.`,
+      "Use --source mirror when a registered mirror is available, or --source rpc --from-genesis when rebuilding from channel genesis.",
+      `Details: ${error.message}`,
+    ].join(" "));
+  }
+  await assertWorkspaceAlignedWithChain(context);
+  return context;
 }
 
 async function refreshPersistedWorkspaceAfterLocalTransaction({
@@ -4928,12 +4967,6 @@ async function refreshPersistedWorkspaceAfterLocalTransaction({
   return context;
 }
 
-function isRecoverableWalletWorkspaceFailure(error) {
-  const message = String(error?.message ?? error);
-  return (message.includes("--verify") && message.includes("failed with exit code"))
-    || message.includes("The workspace snapshot is stale relative to the bridge channel state.");
-}
-
 function assertWalletMatchesChannelContext(walletContext, l2Identity, context) {
   expect(
     ethers.toBigInt(walletContext.wallet.channelId) === ethers.toBigInt(context.workspace.channelId),
@@ -4951,6 +4984,7 @@ async function executeWalletDirectTemplateCommand({
   provider,
   operationName,
   templatePayload,
+  preparedContextResult = null,
 }) {
   emitProgress(operationName, "loading");
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
@@ -4963,46 +4997,10 @@ async function executeWalletDirectTemplateCommand({
     ownerSigner: signer,
     provider,
   });
-  let contextResult = await loadPreferredWalletChannelContext({
+  const contextResult = preparedContextResult ?? await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
-    progressAction: operationName,
   });
-  let recoveredWorkspace = contextResult.recoveredWorkspace;
-
-  try {
-    const execution = await executeWalletTemplateSend({
-      wallet,
-      signer,
-      txSubmitter,
-      txSubmitterSource,
-      txSubmitterAccount,
-      l2Identity,
-      context: contextResult.context,
-      provider,
-      operationName,
-      functionName: templatePayload.method,
-      templatePayload,
-    });
-    emitProgress(operationName, "done");
-    return {
-      execution,
-      contextResult,
-      recoveredWorkspace,
-    };
-  } catch (error) {
-    if (!isRecoverableWalletWorkspaceFailure(error)) {
-      throw error;
-    }
-  }
-
-  contextResult = await loadPreferredWalletChannelContext({
-    walletContext: wallet,
-    provider,
-    forceRecover: true,
-    progressAction: operationName,
-  });
-  recoveredWorkspace = contextResult.recoveredWorkspace;
   const execution = await executeWalletTemplateSend({
     wallet,
     signer,
@@ -5016,11 +5014,18 @@ async function executeWalletDirectTemplateCommand({
     functionName: templatePayload.method,
     templatePayload,
   });
+  const walletWarnings = await buildPostWalletCommandWarnings({
+    walletContext: wallet,
+    context: execution.context,
+    provider,
+    receipt: execution.receipt,
+  });
   emitProgress(operationName, "done");
   return {
     execution,
     contextResult,
-    recoveredWorkspace,
+    recoveredWorkspace: false,
+    walletWarnings,
   };
 }
 
@@ -5191,34 +5196,28 @@ async function loadJoinChannelContext({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
 
   const bridgeResources = loadBridgeResources({ chainId });
-  const initialized = await syncChannelWorkspace({
-    workspaceName: channelName,
+  const context = await loadFreshChannelWorkspaceContext({
     channelName,
-    network: { chainId, name: resolvedNetworkName },
+    networkName: resolvedNetworkName,
     provider,
-    bridgeResources,
-    persist: true,
-    allowExistingWorkspaceSync: true,
-    useWorkspaceRecoveryIndex: true,
-    progressAction: "channel join",
   });
 
   return {
     workspaceName: channelName,
-    workspaceDir: initialized.workspaceDir,
+    workspaceDir: context.workspaceDir,
     persistChannelWorkspace: true,
-    workspace: initialized.workspace,
+    workspace: context.workspace,
     bridgeAbiManifest: bridgeResources.bridgeAbiManifest,
-    currentSnapshot: initialized.currentSnapshot,
-    blockInfo: initialized.blockInfo,
-    contractCodes: initialized.contractCodes,
+    currentSnapshot: context.currentSnapshot,
+    blockInfo: context.blockInfo,
+    contractCodes: context.contractCodes,
     channelManager: new Contract(
-      initialized.workspace.channelManager,
+      context.workspace.channelManager,
       bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
       provider,
     ),
     bridgeTokenVault: new Contract(
-      initialized.workspace.bridgeTokenVault,
+      context.workspace.bridgeTokenVault,
       bridgeResources.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
       provider,
     ),
@@ -5420,6 +5419,7 @@ async function assertWorkspaceAlignedWithChain(context) {
       [
         "The workspace snapshot is stale relative to the bridge channel state.",
         `Workspace: ${context.workspaceDir}`,
+        `Run channel recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network}.`,
       ].join(" "),
     ),
   );

@@ -6,6 +6,11 @@
   `rpc` or `mirror`.
 - Required `channel recover-workspace --from-genesis` to be paired with explicit `--source rpc`
   so genesis replay cannot be requested accidentally through an omitted source.
+- Restricted implicit workspace recovery to recovery commands. Non-recovery commands now require
+  fresh local workspaces before execution; state-changing commands still refresh the channel
+  workspace after confirmed transactions.
+- Changed `wallet get-notes` to read existing wallet note state only. Received-note event-log
+  scanning and wallet note recovery now belong to `wallet recover-workspace`.
 
 ## 1.2.0 - 2026-05-08
 

@@ -40,8 +40,8 @@ channel lifetime.
 5. [Private-State Workflow](workflow.md)
    Describes the CLI workflow, wallet/workspace artifacts, bridge registration metadata, proof input bundle format, event recovery flow, and bridge-DApp execution coupling.
 6. [Channel Workspace Mirror Protocol](channel-workspace-mirror-protocol.md)
-   Defines the optional static server protocol that channel leaders can use to publish verified
-   workspace recovery-index snapshots for old channels.
+   Defines the optional static server protocol that channel leaders can use to publish signed
+   workspace checkpoints and delta bundles for old channels.
 
 The intended reading path moves from concepts, to contracts, to per-function constraints, to
 security assumptions, and finally to end-to-end workflow. A reader who only needs operational

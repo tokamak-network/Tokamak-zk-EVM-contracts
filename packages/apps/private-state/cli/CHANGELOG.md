@@ -1,7 +1,15 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 - 2026-05-08
 
+- Added optional channel workspace mirror recovery. `channel recover-workspace` now accepts
+  `--source rpc|mirror`, with `rpc` remaining the default when `--source` is omitted.
+- Added `channel set-workspace-mirror` so a channel leader can register the official workspace
+  mirror base URL stored in `BridgeCore`.
+- Added mirror checkpoint validation that checks signed checkpoint metadata before downloading
+  bundles, then validates downloaded checkpoint or delta bundle contents against on-chain channel
+  metadata before replaying the remaining RPC log delta to the latest block.
+- Documented the static server protocol for channel workspace mirrors.
 - Removed `--source auto` from `channel recover-workspace`; recovery source is now either
   `rpc` or `mirror`.
 - Required `channel recover-workspace --from-genesis` to be paired with explicit `--source rpc`
@@ -22,17 +30,6 @@
 - Added `channel publish-workspace-mirror` to build static mirror files when the local workspace is
   current and ahead of the registered mirror checkpoint.
 - Kept streaming checkpoint or delta bundle download progress with an estimated remaining time.
-
-## 1.2.0 - 2026-05-08
-
-- Added optional channel workspace mirror recovery. `channel recover-workspace` now accepts
-  `--source rpc|mirror`, with `rpc` remaining the default when `--source` is omitted.
-- Added `channel set-workspace-mirror` so a channel leader can register the official workspace
-  mirror base URL stored in `BridgeCore`.
-- Added mirror checkpoint validation that checks signed checkpoint metadata before downloading
-  bundles, then validates downloaded checkpoint or delta bundle contents against on-chain channel
-  metadata before replaying the remaining RPC log delta to the latest block.
-- Documented the static server protocol for channel workspace mirrors.
 
 ## 1.1.1 - 2026-05-08
 

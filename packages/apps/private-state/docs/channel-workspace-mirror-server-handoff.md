@@ -35,12 +35,14 @@ Important CLI implementation file:
 packages/apps/private-state/cli/private-state-bridge-cli.mjs
 ```
 
-Recent local commits relevant to mirror work:
+Recent feature-branch commits relevant to mirror work:
 
 - `ef7d080 Replace workspace mirror archives with signed deltas`
 - `8d6ecc1 Add workspace mirror publishing command`
+- `fc2ca86 Document channel workspace mirror server handoff`
 
-At the time this handoff was written, local `main` was ahead of `origin/main` by 10 commits.
+At the time this handoff was updated, these commits lived on the
+`feature/channel-workspace-mirror-recovery` branch and were not part of `main`.
 
 ## Server Repository Goal
 

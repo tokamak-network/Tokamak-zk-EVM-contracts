@@ -14,11 +14,14 @@
   `wallet redeem-notes`, limited to the saved wallet note recovery index.
 - Limited pre-command automatic recovery to a 10 second RPC log scan budget based on the CLI's
   paced log query rate.
-- Reworked workspace mirror recovery around leader-signed protocol v2 checkpoint manifests and
+- Reworked workspace mirror recovery around leader-signed checkpoint manifests and
   delta bundles. When a local recovery index exists, the CLI prechecks the mirror checkpoint and
   downloads only the matching delta bundle instead of a full workspace bundle.
-- Replaced the unpublished workspace mirror protocol without a v1 compatibility layer and kept
-  streaming checkpoint or delta bundle download progress with an estimated remaining time.
+- Removed the version segment from workspace mirror URLs and kept the protocol version only in
+  manifest and bundle metadata.
+- Added `channel publish-workspace-mirror` to build static mirror files when the local workspace is
+  current and ahead of the registered mirror checkpoint.
+- Kept streaming checkpoint or delta bundle download progress with an estimated remaining time.
 
 ## 1.2.0 - 2026-05-08
 

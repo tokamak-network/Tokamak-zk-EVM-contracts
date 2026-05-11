@@ -33,11 +33,12 @@ explicit `--source rpc`.
 The registered URL is a server base URL. For a channel on `chainId` and `channelId`, the CLI fetches:
 
 ```text
-GET <base>/.well-known/tokamak-private-state/channel-workspace/v2/<chainId>/<channelId>/manifest.json
+GET <base>/.well-known/tokamak-private-state/channel-workspace/<chainId>/<channelId>/manifest.json
 ```
 
 If the registered URL ends in `.json`, the CLI treats it as the manifest URL directly. This allows a
 channel leader to publish a single static manifest path instead of the well-known directory layout.
+The protocol version is carried only by manifest and bundle metadata, not by the URL path.
 
 ## Manifest
 
@@ -76,7 +77,7 @@ The manifest is UTF-8 JSON:
     }
   ],
   "validationCertificate": {
-    "schema": "tokamak-private-state-workspace-mirror-v2",
+    "schema": "tokamak-private-state-workspace-mirror",
     "signer": "0x...",
     "signedAt": "2026-05-08T00:00:00Z",
     "canary": {
@@ -97,6 +98,31 @@ the channel leader from `BridgeCore.getChannel(channelId).leader`.
 All `*Hash` fields except bundle `sha256` values are `keccak256` hashes of the CLI's canonical JSON
 encoding for the referenced object. Bundle `sha256` values are lowercase SHA-256 digests of the
 downloaded bundle bytes.
+
+## Operator Publishing
+
+The CLI can build the static mirror files for the registered mirror URL:
+
+```bash
+private-state-cli channel publish-workspace-mirror \
+  --channel-name <CHANNEL> \
+  --network mainnet \
+  --account <LEADER_ACCOUNT> \
+  --output ./mirror-public
+```
+
+The command does not upload to a remote server. It writes the static directory layout under
+`--output`, and the channel leader deploys that directory to the registered HTTPS mirror host.
+If the registered URL contains a base path or directly points to a `.json` manifest, the output path
+mirrors that URL path so the generated files resolve at the same locations the CLI will fetch.
+Before writing files, the command fetches only the registered mirror manifest and compares its
+checkpoint with the local channel workspace. Publishing continues only when the local workspace is
+current relative to on-chain state and its recovery index is ahead of the registered mirror
+checkpoint. If the remote manifest is not found, the command treats this as the first publish.
+
+When a previous mirror checkpoint exists, the command writes a delta bundle from the previous mirror
+checkpoint to the local checkpoint and references it from the new manifest. Existing delta files in
+the output directory are left in place unless overwritten.
 
 ## Checkpoint Bundle
 

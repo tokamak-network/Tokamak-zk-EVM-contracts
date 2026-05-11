@@ -138,7 +138,7 @@ const WALLET_EXPORT_FORMAT = "tokamak-private-state-wallet-export";
 const WALLET_EXPORT_FORMAT_VERSION = 1;
 const CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION = 2;
 const CHANNEL_WORKSPACE_MIRROR_MANIFEST_PATH_PREFIX =
-  ".well-known/tokamak-private-state/channel-workspace/v2";
+  ".well-known/tokamak-private-state/channel-workspace";
 const CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES = Object.freeze(new Set([
   "workspace.json",
   "state_snapshot.json",
@@ -492,6 +492,13 @@ async function main() {
       await handleSetChannelWorkspaceMirror({ args, network, provider });
       return;
     }
+    case "channel-publish-workspace-mirror": {
+      assertPublishWorkspaceMirrorArgs(args);
+      const { network, provider } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
+      await handlePublishChannelWorkspaceMirror({ args, network, provider });
+      return;
+    }
     case "account-deposit-bridge": {
       assertDepositBridgeArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
@@ -820,6 +827,178 @@ async function handleSetChannelWorkspaceMirror({ args, network, provider }) {
   });
 }
 
+async function handlePublishChannelWorkspaceMirror({ args, network, provider }) {
+  const channelName = requireArg(args.channelName, "--channel-name");
+  const outputRoot = path.resolve(String(requireArg(args.output, "--output")));
+  const signer = requireL1Signer(args, provider);
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
+  const bridgeCore = new Contract(
+    bridgeDeployment.bridgeCore,
+    bridgeAbiManifest.contracts.bridgeCore.abi,
+    signer,
+  );
+  const channelId = deriveChannelIdFromName(channelName);
+  const channelInfo = await bridgeCore.getChannel(channelId);
+  expect(channelInfo.exists, `Unknown channel ${channelId.toString()} in bridge core ${bridgeDeployment.bridgeCore}.`);
+  expect(
+    ethers.toBigInt(getAddress(signer.address)) === ethers.toBigInt(getAddress(channelInfo.leader)),
+    "Only the channel leader can publish a signed workspace mirror checkpoint.",
+  );
+
+  const registeredUrl = String(await readChannelWorkspaceMirror({ bridgeCore, channelId })).trim();
+  expect(
+    registeredUrl.length > 0,
+    `No workspace mirror URL is registered for channel ${channelName}. Run channel set-workspace-mirror first.`,
+  );
+  const manifestUrl = channelWorkspaceMirrorManifestUrl({
+    registeredUrl,
+    chainId: network.chainId,
+    channelId,
+  });
+
+  const local = await loadPublishableLocalWorkspaceMirrorCheckpoint({
+    channelName,
+    network,
+    provider,
+    bridgeResources,
+    channelInfo,
+  });
+  const remote = await readRemoteWorkspaceMirrorCheckpoint({
+    manifestUrl,
+    chainId: network.chainId,
+    channelId,
+    channelName,
+    bridgeCoreAddress: bridgeDeployment.bridgeCore,
+    channelInfo,
+    blockInfo: local.blockInfo,
+    contractCodes: local.contractCodes,
+  });
+  expect(
+    !remote.exists || Number(local.recoveryLastScannedBlock) > Number(remote.recoveryLastScannedBlock),
+    [
+      `Local workspace recovery index ${local.recoveryLastScannedBlock} is not ahead of the registered mirror`,
+      `checkpoint ${remote.exists ? remote.recoveryLastScannedBlock : "<missing>"}.`,
+      "Run channel recover-workspace first if the local workspace is stale.",
+    ].join(" "),
+  );
+
+  const publishTarget = workspaceMirrorPublishTarget({
+    outputRoot,
+    registeredUrl,
+    chainId: network.chainId,
+    channelId,
+  });
+  const mirrorDir = publishTarget.mirrorDir;
+  ensureDir(mirrorDir);
+
+  const checkpointBundle = buildWorkspaceMirrorCheckpointBundle({
+    workspace: local.workspace,
+    stateSnapshot: local.stateSnapshot,
+    blockInfo: local.blockInfo,
+    contractCodes: local.contractCodes,
+  });
+  const checkpointBundlePath = path.join(mirrorDir, "checkpoint.zip");
+  fs.writeFileSync(checkpointBundlePath, checkpointBundle.bytes);
+
+  const deltaBundles = [];
+  if (remote.exists) {
+    const delta = await buildWorkspaceMirrorDeltaBundle({
+      provider,
+      bridgeAbiManifest,
+      channelInfo,
+      chainId: network.chainId,
+      channelId,
+      fromBlock: Number(remote.recoveryLastScannedBlock),
+      toBlock: Number(local.recoveryLastScannedBlock) - 1,
+      baseRecoveryRootVectorHash: remote.recoveryRootVectorHash,
+      recoveryRootVectorHash: local.recoveryRootVectorHash,
+    });
+    const deltaRelativePath = `deltas/${delta.fromBlock}-${delta.toBlock}.json`;
+    const deltaBytes = Buffer.from(`${JSON.stringify(normalizeCliOutput(delta), null, 2)}\n`, "utf8");
+    const deltaPath = path.join(mirrorDir, deltaRelativePath);
+    ensureDir(path.dirname(deltaPath));
+    fs.writeFileSync(deltaPath, deltaBytes);
+    deltaBundles.push({
+      fromBlock: delta.fromBlock,
+      toBlock: delta.toBlock,
+      url: deltaRelativePath,
+      sha256: sha256Hex(deltaBytes),
+      sizeBytes: deltaBytes.length,
+    });
+  }
+
+  const unsignedManifest = {
+    protocolVersion: CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION,
+    chainId: Number(network.chainId),
+    channelId: channelId.toString(),
+    channelName,
+    bridgeCore: getAddress(bridgeDeployment.bridgeCore),
+    channelManager: getAddress(channelInfo.manager),
+    bridgeTokenVault: getAddress(channelInfo.bridgeTokenVault),
+    leader: getAddress(channelInfo.leader),
+    checkpoint: {
+      recoveryLastScannedBlock: Number(local.recoveryLastScannedBlock),
+      recoveryRootVectorHash: local.recoveryRootVectorHash,
+      workspaceHash: hashJsonValue(local.workspace),
+      stateSnapshotHash: hashJsonValue(local.stateSnapshot),
+      blockInfoHash: hashJsonValue(local.blockInfo),
+      contractCodesHash: hashJsonValue(local.contractCodes),
+      bundle: {
+        url: "checkpoint.zip",
+        sha256: checkpointBundle.sha256,
+        sizeBytes: checkpointBundle.bytes.length,
+      },
+    },
+    deltaBundles,
+    validationCertificate: {
+      schema: "tokamak-private-state-workspace-mirror",
+      signer: getAddress(signer.address),
+      signedAt: new Date().toISOString(),
+      canary: {
+        proofVerified: true,
+        description: "The channel leader attests that the checkpoint workspace passed the operator's canary proof generation and verification workflow.",
+      },
+    },
+    createdAt: new Date().toISOString(),
+    minCliVersion: privateStateCliPackageJson.version,
+  };
+  const signature = await signer.signMessage(ethers.getBytes(hashWorkspaceMirrorCertificatePayload(unsignedManifest)));
+  const manifest = {
+    ...unsignedManifest,
+    validationCertificate: {
+      ...unsignedManifest.validationCertificate,
+      signature,
+    },
+  };
+  writeJson(publishTarget.manifestPath, manifest);
+
+  printJson({
+    action: "channel publish-workspace-mirror",
+    channelName,
+    channelId: channelId.toString(),
+    outputRoot,
+    mirrorDir,
+    manifestPath: publishTarget.manifestPath,
+    registeredUrl,
+    manifestUrl,
+    remoteCheckpoint: remote.exists
+      ? {
+        recoveryLastScannedBlock: remote.recoveryLastScannedBlock,
+        recoveryRootVectorHash: remote.recoveryRootVectorHash,
+      }
+      : null,
+    checkpoint: {
+      recoveryLastScannedBlock: local.recoveryLastScannedBlock,
+      recoveryRootVectorHash: local.recoveryRootVectorHash,
+      bundlePath: checkpointBundlePath,
+      sha256: checkpointBundle.sha256,
+      sizeBytes: checkpointBundle.bytes.length,
+    },
+    deltaBundles,
+  });
+}
+
 function resolveWorkspaceRecoverySource(args) {
   const source = args.source === undefined ? "rpc" : String(args.source).trim().toLowerCase();
   if (!["rpc", "mirror"].includes(source)) {
@@ -846,6 +1025,252 @@ function requireWorkspaceMirrorUrl(value) {
 
 async function readChannelWorkspaceMirror({ bridgeCore, channelId }) {
   return String(await bridgeCore.getChannelWorkspaceMirror(channelId));
+}
+
+async function loadPublishableLocalWorkspaceMirrorCheckpoint({
+  channelName,
+  network,
+  provider,
+  bridgeResources,
+  channelInfo,
+}) {
+  const workspaceDir = channelWorkspacePath(networkNameFromChainId(network.chainId), channelName);
+  const existingArtifacts = loadExistingWorkspaceArtifacts(workspaceDir);
+  const workspace = existingArtifacts.workspace;
+  expect(workspace, `Local channel workspace is missing at ${channelWorkspaceConfigPath(workspaceDir)}.`);
+  const stateSnapshot = existingArtifacts.stateSnapshot;
+  expect(stateSnapshot, `Local channel state snapshot is missing under ${channelWorkspaceCurrentPath(workspaceDir)}.`);
+  expect(existingArtifacts.blockInfo, `Local channel block_info.json is missing under ${channelWorkspaceCurrentPath(workspaceDir)}.`);
+  expect(existingArtifacts.contractCodes, `Local channel contract_codes.json is missing under ${channelWorkspaceCurrentPath(workspaceDir)}.`);
+  const channelManager = new Contract(
+    channelInfo.manager,
+    bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
+  const [
+    currentRootVectorHash,
+    genesisBlockNumber,
+    latestBlock,
+    managedStorageAddresses,
+  ] = await Promise.all([
+    channelManager.currentRootVectorHash(),
+    channelManager.genesisBlockNumber(),
+    provider.getBlockNumber(),
+    channelManager.getManagedStorageAddresses(),
+  ]);
+  const normalizedManagedStorageAddresses = normalizedAddressVector(managedStorageAddresses);
+  const recoveryIndex = getUsableWorkspaceRecoveryIndex({
+    existingArtifacts,
+    genesisBlockNumber: Number(genesisBlockNumber),
+    latestBlock,
+    managedStorageAddresses: normalizedManagedStorageAddresses,
+  });
+  expect(
+    recoveryIndex,
+    [
+      "Local channel workspace does not contain a usable recovery index.",
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkNameFromChainId(network.chainId)} first.`,
+    ].join(" "),
+  );
+  expect(
+    canReuseLocalWorkspaceSnapshot({
+      existingArtifacts,
+      currentRootVectorHash,
+      managedStorageAddresses: normalizedManagedStorageAddresses,
+    }),
+    [
+      "Local channel workspace is stale relative to the on-chain channel state.",
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkNameFromChainId(network.chainId)} first.`,
+    ].join(" "),
+  );
+  expect(Number(workspace.chainId) === Number(network.chainId), "Local workspace chainId does not match --network.");
+  expect(ethers.toBigInt(workspace.channelId) === ethers.toBigInt(deriveChannelIdFromName(channelName)), "Local workspace channelId mismatch.");
+  expect(String(workspace.channelName) === channelName, "Local workspace channelName mismatch.");
+  expect(
+    ethers.toBigInt(getAddress(workspace.channelManager)) === ethers.toBigInt(getAddress(channelInfo.manager)),
+    "Local workspace channelManager mismatch.",
+  );
+  expect(
+    ethers.toBigInt(getAddress(workspace.bridgeTokenVault)) === ethers.toBigInt(getAddress(channelInfo.bridgeTokenVault)),
+    "Local workspace bridgeTokenVault mismatch.",
+  );
+
+  return {
+    workspaceDir,
+    workspace,
+    stateSnapshot,
+    blockInfo: existingArtifacts.blockInfo,
+    contractCodes: existingArtifacts.contractCodes,
+    recoveryLastScannedBlock: recoveryIndex.nextBlock,
+    recoveryRootVectorHash: recoveryIndex.recoveryRootVectorHash,
+  };
+}
+
+async function readRemoteWorkspaceMirrorCheckpoint({
+  manifestUrl,
+  chainId,
+  channelId,
+  channelName,
+  bridgeCoreAddress,
+  channelInfo,
+  blockInfo,
+  contractCodes,
+}) {
+  let manifest;
+  try {
+    manifest = await fetchJsonFromUrl(manifestUrl, { maxBytes: 1024 * 1024 });
+  } catch (error) {
+    if (/\bHTTP (404|410)\b/u.test(error.message)) {
+      return {
+        exists: false,
+        manifestUrl,
+        recoveryLastScannedBlock: null,
+        recoveryRootVectorHash: null,
+      };
+    }
+    throw new Error(`Unable to read registered workspace mirror manifest before publish: ${error.message}`);
+  }
+  const checkpoint = validateWorkspaceMirrorManifest({
+    manifest,
+    chainId,
+    channelId,
+    channelName,
+    bridgeCoreAddress,
+    channelInfo,
+    blockInfo,
+    contractCodes,
+  });
+  return {
+    exists: true,
+    manifestUrl,
+    recoveryLastScannedBlock: checkpoint.recoveryLastScannedBlock,
+    recoveryRootVectorHash: checkpoint.recoveryRootVectorHash,
+  };
+}
+
+function buildWorkspaceMirrorCheckpointBundle({
+  workspace,
+  stateSnapshot,
+  blockInfo,
+  contractCodes,
+}) {
+  const archive = new AdmZip();
+  const files = {
+    "workspace.json": workspace,
+    "state_snapshot.json": stateSnapshot,
+    "block_info.json": blockInfo,
+    "contract_codes.json": contractCodes,
+  };
+  for (const [fileName, value] of Object.entries(files)) {
+    archive.addFile(fileName, Buffer.from(`${JSON.stringify(normalizeCliOutput(value), null, 2)}\n`, "utf8"));
+  }
+  const bytes = archive.toBuffer();
+  return {
+    bytes,
+    sha256: sha256Hex(bytes),
+  };
+}
+
+async function buildWorkspaceMirrorDeltaBundle({
+  provider,
+  bridgeAbiManifest,
+  channelInfo,
+  chainId,
+  channelId,
+  fromBlock,
+  toBlock,
+  baseRecoveryRootVectorHash,
+  recoveryRootVectorHash,
+}) {
+  expect(Number.isInteger(fromBlock) && Number.isInteger(toBlock) && toBlock >= fromBlock, "Invalid workspace mirror delta block range.");
+  const channelManager = new Contract(
+    channelInfo.manager,
+    bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
+  const bridgeTokenVault = new Contract(
+    channelInfo.bridgeTokenVault,
+    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+    provider,
+  );
+  const currentRootVectorObservedTopic =
+    normalizeBytes32Hex(channelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
+  const channelManagerLogs = await fetchLogsChunked(provider, {
+    address: channelInfo.manager,
+    topics: [[
+      currentRootVectorObservedTopic,
+      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
+      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
+    ]],
+    fromBlock,
+    toBlock,
+  });
+  const bridgeVaultLogs = await queryContractEventsChunked({
+    contract: bridgeTokenVault,
+    eventName: "StorageWriteObserved",
+    fromBlock,
+    toBlock,
+  });
+  const logs = [...channelManagerLogs, ...bridgeVaultLogs]
+    .sort(compareLogsByPosition)
+    .map(serializeWorkspaceMirrorDeltaLog);
+  return {
+    protocolVersion: CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION,
+    chainId: Number(chainId),
+    channelId: channelId.toString(),
+    fromBlock,
+    toBlock,
+    baseRecoveryRootVectorHash: normalizeBytes32Hex(baseRecoveryRootVectorHash),
+    recoveryRootVectorHash: normalizeBytes32Hex(recoveryRootVectorHash),
+    logs,
+  };
+}
+
+function serializeWorkspaceMirrorDeltaLog(log) {
+  return {
+    address: getAddress(log.address),
+    topics: (log.topics ?? []).map((topic) => normalizeBytes32Hex(topic)),
+    data: log.data ?? "0x",
+    blockNumber: Number(log.blockNumber),
+    transactionHash: normalizeBytes32Hex(log.transactionHash),
+    transactionIndex: Number(log.transactionIndex),
+    index: Number(log.index ?? log.logIndex),
+  };
+}
+
+function workspaceMirrorPublishTarget({ outputRoot, registeredUrl, chainId, channelId }) {
+  const parsed = new URL(registeredUrl);
+  const registeredSegments = safeUrlPathSegments(parsed.pathname);
+  if (parsed.pathname.endsWith(".json")) {
+    const manifestPath = path.join(outputRoot, ...registeredSegments);
+    return {
+      mirrorDir: path.dirname(manifestPath),
+      manifestPath,
+    };
+  }
+  const mirrorDir = path.join(
+    outputRoot,
+    ...registeredSegments,
+    ...CHANNEL_WORKSPACE_MIRROR_MANIFEST_PATH_PREFIX.split("/"),
+    String(chainId),
+    channelId.toString(),
+  );
+  return {
+    mirrorDir,
+    manifestPath: path.join(mirrorDir, "manifest.json"),
+  };
+}
+
+function safeUrlPathSegments(pathname) {
+  return pathname
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => decodeURIComponent(segment))
+    .filter((segment) => segment !== ".")
+    .map((segment) => {
+      expect(segment !== ".." && !segment.includes("/") && !segment.includes("\\"), "Workspace mirror URL path contains an unsafe segment.");
+      return segment;
+    });
 }
 
 async function tryReadChannelWorkspaceMirror({ bridgeCore, channelId }) {
@@ -1227,7 +1652,7 @@ function validateWorkspaceMirrorManifest({
 function validateWorkspaceMirrorCertificate({ manifest }) {
   const certificate = manifest.validationCertificate;
   expect(certificate && typeof certificate === "object", "Workspace mirror validationCertificate is required.");
-  expect(certificate.schema === "tokamak-private-state-workspace-mirror-v2", "Workspace mirror validationCertificate schema mismatch.");
+  expect(certificate.schema === "tokamak-private-state-workspace-mirror", "Workspace mirror validationCertificate schema mismatch.");
   expect(certificate.canary?.proofVerified === true, "Workspace mirror validationCertificate must confirm canary proof verification.");
   expect(typeof certificate.signature === "string", "Workspace mirror validationCertificate signature is required.");
   const signer = getAddress(certificate.signer ?? manifest.leader);
@@ -7947,6 +8372,11 @@ function assertGetChannelArgs(args) {
 function assertSetWorkspaceMirrorArgs(args) {
   assertAllowedCommandSchema(args, "channel-set-workspace-mirror");
   requireWorkspaceMirrorUrl(args.url);
+}
+
+function assertPublishWorkspaceMirrorArgs(args) {
+  assertAllowedCommandSchema(args, "channel-publish-workspace-mirror");
+  requireArg(args.output, "--output");
 }
 
 function assertDepositBridgeArgs(args) {

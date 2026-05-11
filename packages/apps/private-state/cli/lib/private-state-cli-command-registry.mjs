@@ -69,10 +69,10 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     option: "--wallet",
   },
   output: {
-    label: "Output ZIP",
+    label: "Output Path",
     type: "text",
-    placeholder: "/path/to/wallet-export.zip",
-    valueLabel: "<ZIP>",
+    placeholder: "/path/to/output",
+    valueLabel: "<PATH>",
     option: "--output",
   },
   input: {
@@ -316,6 +316,18 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Only the on-chain channel leader can update the registered mirror URL",
       "The URL points to a server implementing the private-state channel workspace mirror protocol",
+    ],
+  },
+  {
+    id: "channel-publish-workspace-mirror",
+    display: "channel publish-workspace-mirror",
+    description: "Build static workspace mirror files for the registered mirror URL.",
+    fields: ["channelName", "network", "account", "output", "rpcUrl"],
+    usage: "--channel-name, --network, --account, --output, and optional --rpc-url",
+    help: [
+      "Requires the local channel workspace to be current and ahead of the registered mirror checkpoint",
+      "Writes manifest.json, checkpoint.zip, and any needed delta bundle under the workspace mirror static path",
+      "Does not upload files to a remote server; deploy the output directory to the registered HTTPS mirror host",
     ],
   },
   {

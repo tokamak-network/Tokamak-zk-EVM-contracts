@@ -124,7 +124,9 @@ command with `--from-genesis` explicitly when needed.
 
 Channel leaders can optionally register a workspace mirror server so users can bootstrap recovery
 from a signed checkpoint and download only the local-to-checkpoint delta when a local recovery index
-already exists. The CLI protocol is documented at
+already exists. The channel leader can build the static mirror files with
+`channel publish-workspace-mirror` and then deploy the output directory to the registered mirror
+host. The CLI protocol is documented at
 https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/packages/apps/private-state/docs/channel-workspace-mirror-protocol.md.
 
 Back up a local wallet with:

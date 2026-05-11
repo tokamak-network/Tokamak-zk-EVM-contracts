@@ -118,8 +118,9 @@ saved index instead of silently replaying from genesis.
 Wallet getter commands that need channel state, including `wallet get-meta`, `wallet get-channel-fund`, and
 `wallet get-notes`, refresh stale local workspaces through saved recovery indexes before reading state. `wallet get-notes`
 also refreshes received-note logs through the saved wallet note recovery index. Automatic refresh never replays from
-channel genesis; if a saved index is missing or unusable, the command stops and asks the user to run the appropriate
-recovery command with `--from-genesis` explicitly.
+channel genesis and only runs when the estimated RPC log scan fits within the 15 second pre-command budget. If a saved
+index is missing, unusable, or too far behind, the command stops and asks the user to run the appropriate recovery
+command with `--from-genesis` explicitly when needed.
 
 Channel leaders can optionally register a workspace mirror server so users can bootstrap recovery
 from a recent verified snapshot instead of replaying old channels from genesis. The CLI protocol is
@@ -336,7 +337,7 @@ Suggested interaction flow:
    `wallet mint-notes`.
 7. For a private transfer, select available note IDs from `wallet get-notes`, find the recipient L2 address from
    `wallet get-meta`, then build `wallet transfer-notes`.
-8. After transfer, guide the recipient to run `wallet get-notes`; it refreshes received notes from the saved recovery index. If the index is missing, explain `wallet recover-workspace --from-genesis`.
+8. After transfer, guide the recipient to run `wallet get-notes`; it refreshes received notes from the saved recovery index when the delta fits the 15 second pre-command budget. If the index is missing or too far behind, explain `wallet recover-workspace --from-genesis`.
 
 Example onboarding explanation for `channel join`:
 

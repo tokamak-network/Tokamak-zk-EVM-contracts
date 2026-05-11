@@ -208,6 +208,8 @@ const ZERO_TOPIC = normalizeBytes32Hex(ethers.ZeroHash);
 const DEFAULT_LOG_CHUNK_SIZE = 2000;
 const DEFAULT_LOG_REQUESTS_PER_SECOND = 5;
 const LOG_REQUEST_INTERVAL_MS = Math.ceil(1000 / DEFAULT_LOG_REQUESTS_PER_SECOND);
+const AUTO_RECOVERY_TIME_BUDGET_SECONDS = 15;
+const AUTO_RECOVERY_LOG_REQUEST_BUDGET = DEFAULT_LOG_REQUESTS_PER_SECOND * AUTO_RECOVERY_TIME_BUDGET_SECONDS;
 let lastLogRequestStartedAtMs = 0;
 
 function printImmutableChannelPolicyWarning({
@@ -3743,6 +3745,7 @@ async function handleRedeemNotes({ args, provider }) {
     context: preparedContextResult.context,
     provider,
     progressAction: "wallet redeem-notes",
+    preConsumedLogRequests: preparedContextResult.autoRecoveryLogRequests,
   });
   const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const templatePayload = buildRedeemNotesTemplatePayload({
@@ -3794,16 +3797,18 @@ async function handleWalletGetNotes({ args, provider }) {
     `Wallet ${wallet.walletName} is missing the stored controller address.`,
   );
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
-  const { context } = await loadFreshWalletChannelContext({
+  const contextResult = await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
     progressAction: "wallet get-notes",
   });
+  const context = contextResult.context;
   const noteReceiveFreshness = await ensureWalletNoteReceiveStateCurrent({
     walletContext: wallet,
     context,
     provider,
     progressAction: "wallet get-notes",
+    preConsumedLogRequests: contextResult.autoRecoveryLogRequests,
   });
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
@@ -3864,6 +3869,7 @@ async function handleTransferNotes({ args, provider }) {
     provider,
     signer,
     progressAction: "wallet transfer-notes",
+    preConsumedLogRequests: preparedContextResult.autoRecoveryLogRequests,
   });
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
@@ -4425,6 +4431,7 @@ async function ensureWalletNoteReceiveStateCurrent({
   provider,
   signer = null,
   progressAction = null,
+  preConsumedLogRequests = 0,
 }) {
   const latestBlock = await provider.getBlockNumber();
   let nextBlock;
@@ -4449,8 +4456,18 @@ async function ensureWalletNoteReceiveStateCurrent({
       nextBlock,
       recoveredWalletWorkspace: false,
       recoveredDeliveryState: null,
+      autoRecoveryLogRequests: 0,
     };
   }
+  const remainingLogRequestBudget = AUTO_RECOVERY_LOG_REQUEST_BUDGET - Math.max(0, Number(preConsumedLogRequests));
+  const autoRecoveryLogRequests = assertAutoRecoveryLogScanBudget({
+    label: `wallet note workspace ${walletContext.walletName}`,
+    fromBlock: nextBlock,
+    toBlock: latestBlock,
+    logScanCount: 1,
+    recoveryCommand: `wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT>`,
+    logRequestBudget: remainingLogRequestBudget,
+  });
 
   const resolvedSigner = signer ?? restoreWalletParticipant(walletContext, provider).signer;
   let recoveredDeliveryState;
@@ -4477,6 +4494,7 @@ async function ensureWalletNoteReceiveStateCurrent({
       ...freshness,
       recoveredWalletWorkspace: true,
       recoveredDeliveryState,
+      autoRecoveryLogRequests,
     };
   } catch (postRecoveryError) {
     throw new Error([
@@ -4992,6 +5010,7 @@ async function loadFreshWalletChannelContext({
     network: resolveCliNetwork(contextResult.context.workspace.network),
     usingWorkspaceCache: !contextResult.recoveredWorkspace,
     recoveredWorkspace: contextResult.recoveredWorkspace,
+    autoRecoveryLogRequests: contextResult.autoRecoveryLogRequests,
   };
 }
 
@@ -5023,9 +5042,10 @@ async function loadFreshChannelWorkspaceContextResult({
     return {
       context,
       recoveredWorkspace: false,
+      autoRecoveryLogRequests: 0,
     };
   } catch (error) {
-    context = await recoverChannelWorkspaceFromIndexOnly({
+    const recovery = await recoverChannelWorkspaceFromIndexOnly({
       channelName,
       networkName,
       provider,
@@ -5033,8 +5053,9 @@ async function loadFreshChannelWorkspaceContextResult({
       cause: error,
     });
     return {
-      context,
+      context: recovery.context,
       recoveredWorkspace: true,
+      autoRecoveryLogRequests: recovery.autoRecoveryLogRequests,
     };
   }
 }
@@ -5056,7 +5077,10 @@ async function recoverChannelWorkspaceFromIndexOnly({
     cause,
   });
   if (readiness.alreadyCurrent) {
-    return loadWorkspaceContext(channelName, networkName, provider);
+    return {
+      context: await loadWorkspaceContext(channelName, networkName, provider),
+      autoRecoveryLogRequests: 0,
+    };
   }
   try {
     await syncChannelWorkspace({
@@ -5093,7 +5117,10 @@ async function recoverChannelWorkspaceFromIndexOnly({
       cause ? `Initial freshness failure: ${cause.message}` : null,
     ].filter(Boolean).join(" "));
   }
-  return context;
+  return {
+    context,
+    autoRecoveryLogRequests: readiness.autoRecoveryLogRequests,
+  };
 }
 
 async function requireChannelWorkspaceRecoveryIndexForAutoRefresh({
@@ -5148,7 +5175,14 @@ async function requireChannelWorkspaceRecoveryIndexForAutoRefresh({
   if (Number(recoveryIndex.nextBlock) > Number(latestBlock)) {
     fail(`Channel workspace recovery index has already scanned through block ${recoveryIndex.nextBlock - 1}, but the local snapshot is not current.`);
   }
-  return { alreadyCurrent: false };
+  const autoRecoveryLogRequests = assertAutoRecoveryLogScanBudget({
+    label: `channel workspace ${channelName} on ${networkName}`,
+    fromBlock: recoveryIndex.nextBlock,
+    toBlock: latestBlock,
+    logScanCount: 2,
+    recoveryCommand: `channel recover-workspace --channel-name ${channelName} --network ${networkName}`,
+  });
+  return { alreadyCurrent: false, autoRecoveryLogRequests };
 }
 
 async function refreshPersistedWorkspaceAfterLocalTransaction({
@@ -6459,6 +6493,56 @@ async function fetchLogsChunked(provider, {
   });
 
   return aggregatedLogs;
+}
+
+function estimateLogScanRequestCount({
+  fromBlock,
+  toBlock,
+  logScanCount = 1,
+  chunkSize = DEFAULT_LOG_CHUNK_SIZE,
+}) {
+  const normalizedFromBlock = Number(fromBlock);
+  const normalizedToBlock = Number(toBlock);
+  if (!Number.isInteger(normalizedFromBlock) || !Number.isInteger(normalizedToBlock)) {
+    return Number.POSITIVE_INFINITY;
+  }
+  if (normalizedFromBlock > normalizedToBlock) {
+    return 0;
+  }
+  const totalBlocks = normalizedToBlock - normalizedFromBlock + 1;
+  return Math.ceil(totalBlocks / Math.max(1, Number(chunkSize))) * Math.max(1, Number(logScanCount));
+}
+
+function assertAutoRecoveryLogScanBudget({
+  label,
+  fromBlock,
+  toBlock,
+  logScanCount,
+  recoveryCommand,
+  logRequestBudget = AUTO_RECOVERY_LOG_REQUEST_BUDGET,
+}) {
+  const estimatedRequests = estimateLogScanRequestCount({
+    fromBlock,
+    toBlock,
+    logScanCount,
+  });
+  const normalizedBudget = Math.max(0, Number(logRequestBudget));
+  if (estimatedRequests <= normalizedBudget) {
+    return estimatedRequests;
+  }
+  const normalizedFromBlock = Number(fromBlock);
+  const normalizedToBlock = Number(toBlock);
+  const totalBlocks = normalizedFromBlock <= normalizedToBlock
+    ? normalizedToBlock - normalizedFromBlock + 1
+    : 0;
+  const estimatedSeconds = estimatedRequests / DEFAULT_LOG_REQUESTS_PER_SECOND;
+  throw new Error([
+    `Automatic recovery for ${label} would exceed the ${AUTO_RECOVERY_TIME_BUDGET_SECONDS}s pre-command budget.`,
+    `Recovery delta is ${totalBlocks} blocks from ${normalizedFromBlock} to ${normalizedToBlock}.`,
+    `Estimated log requests: ${estimatedRequests}; remaining budget: ${normalizedBudget} of ${AUTO_RECOVERY_LOG_REQUEST_BUDGET} at ${DEFAULT_LOG_REQUESTS_PER_SECOND}/s.`,
+    `Estimated minimum scan time: ${estimatedSeconds.toFixed(1)}s.`,
+    `Run ${recoveryCommand} first; add --from-genesis only if the saved recovery index is unusable.`,
+  ].join(" "));
 }
 
 async function throttleLogRequest() {

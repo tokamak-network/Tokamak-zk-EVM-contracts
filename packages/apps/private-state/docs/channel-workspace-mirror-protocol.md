@@ -1,10 +1,11 @@
 # Channel Workspace Mirror Protocol
 
 Channel workspace mirrors are optional bootstrap caches operated by channel leaders. They reduce the
-cost of joining or recovering an old channel by serving a recent channel workspace snapshot with a
-usable recovery index. The mirror is not a source of consensus. The CLI must verify the downloaded
-snapshot against on-chain channel metadata and then replay RPC logs from the mirrored recovery index
-to the latest block.
+cost of joining or recovering an old channel by serving a leader-signed checkpoint and, when the user
+already has a local workspace, only the delta from the local recovery index to that checkpoint. The
+mirror is not a source of consensus. The CLI still validates mirror data against on-chain channel
+metadata and uses RPC replay from the mirror checkpoint to the latest block when the checkpoint is
+not already current.
 
 ## On-Chain Registry
 
@@ -21,8 +22,8 @@ URL. An empty URL clears the mirror. The URI is limited to 2048 bytes.
 `channel recover-workspace` supports these sources:
 
 - `--source rpc`: use only RPC log recovery. This is the default when `--source` is omitted.
-- `--source mirror`: require the registered mirror, download its snapshot, verify it, then replay RPC
-  logs from the mirror recovery index to the latest block.
+- `--source mirror`: require the registered mirror, validate its signed checkpoint manifest, then
+  download only the required checkpoint or delta bundle.
 
 `--from-genesis` intentionally rebuilds from channel genesis and is only valid when paired with
 explicit `--source rpc`.
@@ -32,7 +33,7 @@ explicit `--source rpc`.
 The registered URL is a server base URL. For a channel on `chainId` and `channelId`, the CLI fetches:
 
 ```text
-GET <base>/.well-known/tokamak-private-state/channel-workspace/v1/<chainId>/<channelId>/manifest.json
+GET <base>/.well-known/tokamak-private-state/channel-workspace/v2/<chainId>/<channelId>/manifest.json
 ```
 
 If the registered URL ends in `.json`, the CLI treats it as the manifest URL directly. This allows a
@@ -44,67 +45,145 @@ The manifest is UTF-8 JSON:
 
 ```json
 {
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "chainId": 1,
   "channelId": "9300182250917983789525974997190401499154408837858857556147320880169742109284",
   "channelName": "example-channel",
   "bridgeCore": "0x992E2Ae206620d811832a8F697c526c4f95974b6",
   "channelManager": "0x...",
-  "recoveryLastScannedBlock": 25018369,
-  "recoveryRootVectorHash": "0x...",
-  "archive": {
-    "url": "workspace.zip",
-    "sha256": "0123456789abcdef...",
-    "sizeBytes": 123456
+  "bridgeTokenVault": "0x...",
+  "leader": "0x...",
+  "checkpoint": {
+    "recoveryLastScannedBlock": 25018369,
+    "recoveryRootVectorHash": "0x...",
+    "workspaceHash": "0x...",
+    "stateSnapshotHash": "0x...",
+    "blockInfoHash": "0x...",
+    "contractCodesHash": "0x...",
+    "bundle": {
+      "url": "checkpoint.zip",
+      "sha256": "0123456789abcdef...",
+      "sizeBytes": 123456
+    }
+  },
+  "deltaBundles": [
+    {
+      "fromBlock": 25017000,
+      "toBlock": 25018368,
+      "url": "deltas/25017000-25018368.json",
+      "sha256": "abcdef0123456789...",
+      "sizeBytes": 23456
+    }
+  ],
+  "validationCertificate": {
+    "schema": "tokamak-private-state-workspace-mirror-v2",
+    "signer": "0x...",
+    "signedAt": "2026-05-08T00:00:00Z",
+    "canary": {
+      "proofVerified": true,
+      "description": "Checkpoint workspace was used to generate and verify the mirror operator's canary proof."
+    },
+    "signature": "0x..."
   },
   "createdAt": "2026-05-08T00:00:00Z",
   "minCliVersion": "1.2.0"
 }
 ```
 
-`archive.url` may be absolute or relative to the manifest URL. `archive.sha256` is the lowercase
-SHA-256 digest of the ZIP bytes. `sizeBytes` is optional, but recommended.
+The `validationCertificate.signature` is an EIP-191 personal-signature over the canonical manifest
+certificate payload with `validationCertificate.signature` omitted. The recovered signer must equal
+the channel leader from `BridgeCore.getChannel(channelId).leader`.
 
-## Archive
+All `*Hash` fields except bundle `sha256` values are `keccak256` hashes of the CLI's canonical JSON
+encoding for the referenced object. Bundle `sha256` values are lowercase SHA-256 digests of the
+downloaded bundle bytes.
 
-The ZIP archive must contain exactly these root-level JSON files:
+## Checkpoint Bundle
+
+The checkpoint bundle is needed when the user has no usable local recovery index. It is a ZIP file
+containing exactly these root-level JSON files:
 
 - `workspace.json`
 - `state_snapshot.json`
 - `block_info.json`
 - `contract_codes.json`
 
-The archive must not contain wallet files, account secrets, wallet secrets, note secrets, absolute
-paths, nested paths, or duplicate file names. The CLI streams the archive download and displays
-download progress with an estimated remaining time.
+The bundle must not contain wallet files, account secrets, wallet secrets, note secrets, absolute
+paths, nested paths, or duplicate file names. The CLI streams the download and displays progress
+with an estimated remaining time.
 
-`workspace.json` is the same channel workspace metadata shape stored locally by the CLI. Its
-`recoveryLastScannedBlock` and `recoveryRootVectorHash` must match the manifest. `state_snapshot.json`
-must hash to `recoveryRootVectorHash`.
+The CLI downloads the checkpoint bundle only after validating the manifest metadata and leader
+signature. After download, the CLI verifies the bundle SHA-256, optional size, every declared content
+hash, channel metadata, managed storage vector, block info, contract code, and snapshot root vector.
+
+## Delta Bundle
+
+When a usable local recovery index exists and the mirror checkpoint is ahead of it, the CLI does not
+download the checkpoint bundle. It selects a delta bundle whose `fromBlock` equals the local
+`recoveryLastScannedBlock` and whose `toBlock + 1` equals the mirror checkpoint
+`recoveryLastScannedBlock`.
+
+The delta bundle is UTF-8 JSON:
+
+```json
+{
+  "protocolVersion": 2,
+  "chainId": 1,
+  "channelId": "9300182250917983789525974997190401499154408837858857556147320880169742109284",
+  "fromBlock": 25017000,
+  "toBlock": 25018368,
+  "baseRecoveryRootVectorHash": "0x...",
+  "recoveryRootVectorHash": "0x...",
+  "logs": [
+    {
+      "address": "0x...",
+      "topics": ["0x..."],
+      "data": "0x...",
+      "blockNumber": 25017001,
+      "transactionHash": "0x...",
+      "transactionIndex": 1,
+      "index": 12
+    }
+  ]
+}
+```
+
+The `logs` array contains the same channel-manager and bridge-vault logs that RPC recovery would
+consume. The CLI applies these logs to the local snapshot with the same transition logic used by RPC
+recovery, verifies every emitted root vector transition, and rejects the delta unless the resulting
+root vector hash equals the manifest checkpoint `recoveryRootVectorHash`.
 
 ## Required CLI Verification
 
-Before accepting a mirror snapshot, the CLI verifies:
+Before downloading any checkpoint or delta bundle, the CLI verifies:
 
-- manifest `chainId`, `channelId`, `bridgeCore`, and `channelManager` match on-chain
-  `BridgeCore.getChannel(channelId)`
+- manifest `chainId`, `channelId`, `bridgeCore`, `channelManager`, `bridgeTokenVault`, and
+  `leader` match on-chain `BridgeCore.getChannel(channelId)`
 - optional manifest `channelName` matches the requested channel name
-- archive SHA-256 and optional size match the manifest
-- archive contains only the allowed root-level JSON files
-- `workspace.json` bridge, channel, manager, vault, genesis block, and managed storage vector match
-  on-chain channel metadata
-- `block_info.json` matches the channel genesis block used by the channel `aPubBlockHash`
-- `contract_codes.json` matches the current managed storage contract code fetched from RPC
-- `state_snapshot.json` storage addresses match the channel managed storage vector
-- snapshot root vector hash equals the mirrored recovery root vector hash
+- manifest `blockInfoHash` and `contractCodesHash` match local RPC-derived channel genesis data and
+  current managed storage contract code
+- `validationCertificate` is signed by the channel leader and states that the checkpoint workspace
+  was used for canary proof generation and verification
+- mirror `recoveryLastScannedBlock` is ahead of the local recovery index before any delta bundle is
+  downloaded
 
-After these checks, the CLI uses the mirrored snapshot only as a recovery index. It still replays RPC
-logs from `recoveryLastScannedBlock` to the latest block and rejects the result unless the final root
-vector hash equals `ChannelManager.currentRootVectorHash()`.
+After download, the CLI verifies:
+
+- bundle SHA-256 and optional size match the manifest
+- checkpoint bundle contains only the allowed root-level JSON files, if a checkpoint bundle is used
+- checkpoint content hashes match the manifest, if a checkpoint bundle is used
+- delta logs are in the declared block range and come only from the channel manager or bridge vault,
+  if a delta bundle is used
+- the resulting root vector hash equals the mirror checkpoint root
+
+After these checks, the CLI uses the mirrored checkpoint only as a recovery index. It still replays
+RPC logs from `recoveryLastScannedBlock` to the latest block and rejects the result unless the final
+root vector hash equals `ChannelManager.currentRootVectorHash()`.
 
 ## Operational Guidance
 
 A channel leader can publish the mirror as static files behind HTTPS. Updating the mirror is safe to
-do periodically rather than continuously; a stale mirror still helps if it is newer than channel
-genesis because the CLI replays the remaining RPC delta. The mirror operator should regenerate the
-archive after meaningful channel activity and keep old archives private or garbage-collected.
+do periodically rather than continuously; a stale mirror still helps if it is newer than the user's
+local recovery index because the CLI downloads only the matching delta bundle and replays any
+remaining RPC delta. Mirror operators should publish delta bundles for common recent checkpoint
+ranges and garbage-collect bundles that are no longer useful.

@@ -14,8 +14,11 @@
   `wallet redeem-notes`, limited to the saved wallet note recovery index.
 - Limited pre-command automatic recovery to a 10 second RPC log scan budget based on the CLI's
   paced log query rate.
-- Removed the fixed 50 MiB workspace mirror archive cap and added streaming archive download
-  progress with an estimated remaining time.
+- Reworked workspace mirror recovery around leader-signed protocol v2 checkpoint manifests and
+  delta bundles. When a local recovery index exists, the CLI prechecks the mirror checkpoint and
+  downloads only the matching delta bundle instead of a full workspace bundle.
+- Replaced the unpublished workspace mirror protocol without a v1 compatibility layer and kept
+  streaming checkpoint or delta bundle download progress with an estimated remaining time.
 
 ## 1.2.0 - 2026-05-08
 
@@ -23,8 +26,9 @@
   `--source rpc|mirror`, with `rpc` remaining the default when `--source` is omitted.
 - Added `channel set-workspace-mirror` so a channel leader can register the official workspace
   mirror base URL stored in `BridgeCore`.
-- Added mirror archive validation that checks the downloaded workspace snapshot against on-chain
-  channel metadata before replaying the remaining RPC log delta to the latest block.
+- Added mirror checkpoint validation that checks signed checkpoint metadata before downloading
+  bundles, then validates downloaded checkpoint or delta bundle contents against on-chain channel
+  metadata before replaying the remaining RPC log delta to the latest block.
 - Documented the static server protocol for channel workspace mirrors.
 
 ## 1.1.1 - 2026-05-08

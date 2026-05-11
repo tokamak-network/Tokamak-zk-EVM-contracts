@@ -166,7 +166,7 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     type: "select",
     options: ["rpc", "mirror"],
     valueLabel: "<rpc|mirror>",
-    hint: "Optional. Defaults to rpc. mirror downloads the channel leader's workspace mirror before RPC delta replay.",
+    hint: "Optional. Defaults to rpc. mirror validates the channel leader's checkpoint manifest and downloads only the needed checkpoint or delta bundle before RPC delta replay.",
     option: "--source",
     optional: true,
   },
@@ -301,7 +301,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     usage: "--channel-name, --network, optional --source, optional --from-genesis, and optional --rpc-url",
     help: [
       "By default, --source rpc resumes RPC log scanning from the workspace recovery index when available",
-      "--source mirror downloads the channel leader's registered workspace mirror and then replays RPC logs to latest",
+      "--source mirror validates the channel leader's registered checkpoint manifest, downloads only the needed checkpoint or delta bundle, and then replays RPC logs to latest",
       "Fails instead of falling back to genesis when no usable recovery index exists",
       "Use --source rpc --from-genesis to ignore the recovery index and replay logs from channel genesis",
       "Prints RPC log scan progress while rebuilding the workspace",

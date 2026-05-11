@@ -136,9 +136,9 @@ const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const WALLET_EXPORT_FORMAT = "tokamak-private-state-wallet-export";
 const WALLET_EXPORT_FORMAT_VERSION = 1;
-const CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION = 1;
+const CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION = 2;
 const CHANNEL_WORKSPACE_MIRROR_MANIFEST_PATH_PREFIX =
-  ".well-known/tokamak-private-state/channel-workspace/v1";
+  ".well-known/tokamak-private-state/channel-workspace/v2";
 const CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES = Object.freeze(new Set([
   "workspace.json",
   "state_snapshot.json",
@@ -864,19 +864,25 @@ async function loadWorkspaceMirrorRecoveryIndex({
   network,
   bridgeDeployment,
   channelInfo,
-  currentRootVectorHash,
   genesisBlockNumber,
   managedStorageAddresses,
   blockInfo,
   contractCodes,
   latestBlock,
+  localRecoveryIndex = null,
+  existingArtifacts = null,
+  bridgeAbiManifest,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
 }) {
   const baseStatus = {
     source: recoverySource,
     used: false,
     registeredUrl: null,
     manifestUrl: null,
-    archiveUrl: null,
+    bundleUrl: null,
+    skippedReason: null,
     recoveryLastScannedBlock: null,
     recoveryRootVectorHash: null,
     error: null,
@@ -903,23 +909,29 @@ async function loadWorkspaceMirrorRecoveryIndex({
       channelName,
       bridgeCoreAddress: bridgeDeployment.bridgeCore,
       channelInfo,
-      currentRootVectorHash,
       genesisBlockNumber,
       managedStorageAddresses,
       blockInfo,
       contractCodes,
       latestBlock,
+      localRecoveryIndex,
+      existingArtifacts,
+      bridgeAbiManifest,
+      controllerAddress,
+      l2AccountingVaultAddress,
+      liquidBalancesSlot,
     });
     return {
       recoveryIndex: mirror.recoveryIndex,
       workspaceMirror: {
         source: recoverySource,
-        used: true,
+        used: mirror.recoveryIndex !== null,
         registeredUrl,
         manifestUrl: mirror.manifestUrl,
-        archiveUrl: mirror.archiveUrl,
-        recoveryLastScannedBlock: mirror.recoveryIndex.nextBlock,
-        recoveryRootVectorHash: mirror.recoveryIndex.recoveryRootVectorHash,
+        bundleUrl: mirror.bundleUrl,
+        skippedReason: mirror.skippedReason ?? null,
+        recoveryLastScannedBlock: mirror.recoveryIndex?.nextBlock ?? null,
+        recoveryRootVectorHash: mirror.recoveryIndex?.recoveryRootVectorHash ?? null,
         error: null,
       },
     };
@@ -935,66 +947,80 @@ async function fetchChannelWorkspaceMirror({
   channelName,
   bridgeCoreAddress,
   channelInfo,
-  currentRootVectorHash,
   genesisBlockNumber,
   managedStorageAddresses,
   blockInfo,
   contractCodes,
   latestBlock,
+  localRecoveryIndex = null,
+  existingArtifacts = null,
+  bridgeAbiManifest,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
 }) {
   const manifestUrl = channelWorkspaceMirrorManifestUrl({ registeredUrl, chainId, channelId });
   const manifest = await fetchJsonFromUrl(manifestUrl, { maxBytes: 1024 * 1024 });
-  validateWorkspaceMirrorManifest({
+  const manifestPrecheck = validateWorkspaceMirrorManifest({
     manifest,
     chainId,
     channelId,
     channelName,
     bridgeCoreAddress,
     channelInfo,
-  });
-
-  const archiveUrl = resolveWorkspaceMirrorArchiveUrl(manifestUrl, manifest.archive.url);
-  const archiveBytes = await fetchBytesFromUrl(archiveUrl, {
-    expectedBytes: manifest.archive.sizeBytes,
-    onProgress: createByteDownloadProgress({
-      action: "channel recover-workspace",
-      label: "workspace mirror archive",
-      url: archiveUrl,
-    }),
-  });
-  if (manifest.archive.sizeBytes !== undefined) {
-    expect(
-      Number(manifest.archive.sizeBytes) === archiveBytes.length,
-      `Workspace mirror archive size mismatch. Expected ${manifest.archive.sizeBytes}, got ${archiveBytes.length}.`,
-    );
-  }
-  const archiveSha256 = sha256Hex(archiveBytes);
-  expect(
-    String(manifest.archive.sha256).toLowerCase() === archiveSha256,
-    `Workspace mirror archive sha256 mismatch. Expected ${manifest.archive.sha256}, got ${archiveSha256}.`,
-  );
-
-  const archive = parseWorkspaceMirrorArchive(archiveBytes);
-  const recoveryIndex = validateWorkspaceMirrorArchive({
-    manifest,
-    archive,
-    chainId,
-    channelId,
-    channelName,
-    bridgeCoreAddress,
-    channelInfo,
-    currentRootVectorHash,
-    genesisBlockNumber,
-    managedStorageAddresses,
     blockInfo,
     contractCodes,
-    latestBlock,
   });
+
+  if (
+    localRecoveryIndex
+    && Number(manifestPrecheck.recoveryLastScannedBlock) <= Number(localRecoveryIndex.nextBlock)
+  ) {
+    return {
+      manifestUrl,
+      bundleUrl: null,
+      recoveryIndex: null,
+      skippedReason: "mirror-checkpoint-not-ahead-of-local",
+    };
+  }
+
+  const mirrorAheadOfLocal = localRecoveryIndex
+    && Number(manifestPrecheck.recoveryLastScannedBlock) > Number(localRecoveryIndex.nextBlock);
+  const bundleResult = mirrorAheadOfLocal
+    ? await fetchAndApplyWorkspaceMirrorDelta({
+      manifest,
+      manifestUrl,
+      localRecoveryIndex,
+      chainId,
+      channelId,
+      channelInfo,
+      bridgeAbiManifest,
+      managedStorageAddresses,
+      contractCodes,
+      controllerAddress,
+      l2AccountingVaultAddress,
+      liquidBalancesSlot,
+    })
+    : await fetchWorkspaceMirrorCheckpoint({
+      manifest,
+      manifestUrl,
+      chainId,
+      channelId,
+      channelName,
+      bridgeCoreAddress,
+      channelInfo,
+      genesisBlockNumber,
+      managedStorageAddresses,
+      blockInfo,
+      contractCodes,
+      latestBlock,
+      existingArtifacts,
+    });
 
   return {
     manifestUrl,
-    archiveUrl,
-    recoveryIndex,
+    bundleUrl: bundleResult.bundleUrl,
+    recoveryIndex: bundleResult.recoveryIndex,
   };
 }
 
@@ -1016,9 +1042,9 @@ function channelWorkspaceMirrorManifestUrl({ registeredUrl, chainId, channelId }
   return parsed.toString();
 }
 
-function resolveWorkspaceMirrorArchiveUrl(manifestUrl, archivePath) {
-  expect(typeof archivePath === "string" && archivePath.length > 0, "Workspace mirror manifest is missing archive.url.");
-  return new URL(archivePath, manifestUrl).toString();
+function resolveWorkspaceMirrorBundleUrl(manifestUrl, bundlePath, label) {
+  expect(typeof bundlePath === "string" && bundlePath.length > 0, `Workspace mirror manifest is missing ${label}.url.`);
+  return new URL(bundlePath, manifestUrl).toString();
 }
 
 async function fetchJsonFromUrl(url, { maxBytes = null } = {}) {
@@ -1126,17 +1152,17 @@ function parseWorkspaceMirrorArchive(bytes) {
     }
     expect(
       !entryName.startsWith("/") && !entryName.includes("/") && !entryName.includes(".."),
-      `Workspace mirror archive contains unsupported path: ${entry.entryName}.`,
+      `Workspace mirror checkpoint bundle contains unsupported path: ${entry.entryName}.`,
     );
     expect(
       CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES.has(entryName),
-      `Workspace mirror archive contains unsupported file: ${entry.entryName}.`,
+      `Workspace mirror checkpoint bundle contains unsupported file: ${entry.entryName}.`,
     );
-    expect(parsed[entryName] === undefined, `Workspace mirror archive contains duplicate file: ${entry.entryName}.`);
+    expect(parsed[entryName] === undefined, `Workspace mirror checkpoint bundle contains duplicate file: ${entry.entryName}.`);
     parsed[entryName] = JSON.parse(entry.getData().toString("utf8"));
   }
   for (const fileName of CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES) {
-    expect(parsed[fileName] !== undefined, `Workspace mirror archive is missing ${fileName}.`);
+    expect(parsed[fileName] !== undefined, `Workspace mirror checkpoint bundle is missing ${fileName}.`);
   }
   return {
     workspace: parsed["workspace.json"],
@@ -1153,6 +1179,8 @@ function validateWorkspaceMirrorManifest({
   channelName,
   bridgeCoreAddress,
   channelInfo,
+  blockInfo,
+  contractCodes,
 }) {
   expect(Number(manifest.protocolVersion) === CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION, "Unsupported workspace mirror protocolVersion.");
   expect(Number(manifest.chainId) === Number(chainId), "Workspace mirror manifest chainId mismatch.");
@@ -1171,11 +1199,110 @@ function validateWorkspaceMirrorManifest({
     ethers.toBigInt(getAddress(manifest.channelManager)) === ethers.toBigInt(getAddress(channelInfo.manager)),
     "Workspace mirror manifest channelManager mismatch.",
   );
-  expect(typeof manifest.archive?.url === "string", "Workspace mirror manifest archive.url is required.");
-  expect(typeof manifest.archive?.sha256 === "string", "Workspace mirror manifest archive.sha256 is required.");
+  expect(
+    ethers.toBigInt(getAddress(manifest.bridgeTokenVault)) === ethers.toBigInt(getAddress(channelInfo.bridgeTokenVault)),
+    "Workspace mirror manifest bridgeTokenVault mismatch.",
+  );
+  expect(
+    ethers.toBigInt(getAddress(manifest.leader)) === ethers.toBigInt(getAddress(channelInfo.leader)),
+    "Workspace mirror manifest leader mismatch.",
+  );
+  const checkpoint = manifest.checkpoint;
+  expect(checkpoint && typeof checkpoint === "object", "Workspace mirror manifest checkpoint is required.");
+  const recoveryLastScannedBlock = Number(checkpoint.recoveryLastScannedBlock);
+  expect(Number.isInteger(recoveryLastScannedBlock), "Workspace mirror checkpoint recoveryLastScannedBlock must be an integer.");
+  const recoveryRootVectorHash = normalizeBytes32Hex(checkpoint.recoveryRootVectorHash);
+  expect(recoveryRootVectorHash !== null, "Workspace mirror checkpoint recoveryRootVectorHash is required.");
+  expect(typeof checkpoint.stateSnapshotHash === "string", "Workspace mirror checkpoint stateSnapshotHash is required.");
+  expect(typeof checkpoint.workspaceHash === "string", "Workspace mirror checkpoint workspaceHash is required.");
+  expect(hashJsonValue(blockInfo) === normalizeBytes32Hex(checkpoint.blockInfoHash), "Workspace mirror checkpoint blockInfoHash mismatch.");
+  expect(hashJsonValue(contractCodes) === normalizeBytes32Hex(checkpoint.contractCodesHash), "Workspace mirror checkpoint contractCodesHash mismatch.");
+  validateWorkspaceMirrorCertificate({ manifest });
+  return {
+    recoveryLastScannedBlock,
+    recoveryRootVectorHash,
+  };
 }
 
-function validateWorkspaceMirrorArchive({
+function validateWorkspaceMirrorCertificate({ manifest }) {
+  const certificate = manifest.validationCertificate;
+  expect(certificate && typeof certificate === "object", "Workspace mirror validationCertificate is required.");
+  expect(certificate.schema === "tokamak-private-state-workspace-mirror-v2", "Workspace mirror validationCertificate schema mismatch.");
+  expect(certificate.canary?.proofVerified === true, "Workspace mirror validationCertificate must confirm canary proof verification.");
+  expect(typeof certificate.signature === "string", "Workspace mirror validationCertificate signature is required.");
+  const signer = getAddress(certificate.signer ?? manifest.leader);
+  expect(
+    ethers.toBigInt(signer) === ethers.toBigInt(getAddress(manifest.leader)),
+    "Workspace mirror validationCertificate signer must be the channel leader.",
+  );
+  const payloadHash = hashWorkspaceMirrorCertificatePayload(manifest);
+  const recoveredSigner = getAddress(ethers.verifyMessage(ethers.getBytes(payloadHash), certificate.signature));
+  expect(
+    ethers.toBigInt(recoveredSigner) === ethers.toBigInt(getAddress(manifest.leader)),
+    "Workspace mirror validationCertificate signature was not produced by the channel leader.",
+  );
+}
+
+function hashWorkspaceMirrorCertificatePayload(manifest) {
+  const certificate = { ...(manifest.validationCertificate ?? {}) };
+  delete certificate.signature;
+  return hashJsonValue({
+    protocolVersion: manifest.protocolVersion,
+    chainId: manifest.chainId,
+    channelId: manifest.channelId,
+    channelName: manifest.channelName,
+    bridgeCore: manifest.bridgeCore,
+    channelManager: manifest.channelManager,
+    bridgeTokenVault: manifest.bridgeTokenVault,
+    leader: manifest.leader,
+    checkpoint: manifest.checkpoint,
+    deltaBundles: manifest.deltaBundles ?? [],
+    validationCertificate: certificate,
+  });
+}
+
+async function fetchWorkspaceMirrorCheckpoint({
+  manifest,
+  manifestUrl,
+  chainId,
+  channelId,
+  channelName,
+  bridgeCoreAddress,
+  channelInfo,
+  genesisBlockNumber,
+  managedStorageAddresses,
+  blockInfo,
+  contractCodes,
+  latestBlock,
+}) {
+  const bundleDescriptor = manifest.checkpoint?.bundle;
+  expect(bundleDescriptor?.url, "Workspace mirror checkpoint.bundle.url is required when no usable local recovery index exists.");
+  expect(bundleDescriptor?.sha256, "Workspace mirror checkpoint.bundle.sha256 is required.");
+  const bundleUrl = resolveWorkspaceMirrorBundleUrl(manifestUrl, bundleDescriptor.url, "checkpoint.bundle");
+  const archiveBytes = await fetchWorkspaceMirrorBundleBytes({
+    bundleUrl,
+    bundleDescriptor,
+    label: "workspace mirror checkpoint",
+  });
+  const archive = parseWorkspaceMirrorArchive(archiveBytes);
+  const recoveryIndex = validateWorkspaceMirrorCheckpointArchive({
+    manifest,
+    archive,
+    chainId,
+    channelId,
+    channelName,
+    bridgeCoreAddress,
+    channelInfo,
+    genesisBlockNumber,
+    managedStorageAddresses,
+    blockInfo,
+    contractCodes,
+    latestBlock,
+  });
+  return { bundleUrl, recoveryIndex };
+}
+
+function validateWorkspaceMirrorCheckpointArchive({
   manifest,
   archive,
   chainId,
@@ -1183,7 +1310,6 @@ function validateWorkspaceMirrorArchive({
   channelName,
   bridgeCoreAddress,
   channelInfo,
-  currentRootVectorHash,
   genesisBlockNumber,
   managedStorageAddresses,
   blockInfo,
@@ -1207,7 +1333,6 @@ function validateWorkspaceMirrorArchive({
     "Workspace mirror workspace bridgeTokenVault mismatch.",
   );
   expect(Number(workspace.genesisBlockNumber) === Number(genesisBlockNumber), "Workspace mirror genesisBlockNumber mismatch.");
-
   const mirroredManagedStorageAddresses = normalizedAddressVector(workspace.managedStorageAddresses ?? []);
   expect(
     mirroredManagedStorageAddresses.length === managedStorageAddresses.length
@@ -1216,20 +1341,19 @@ function validateWorkspaceMirrorArchive({
       ),
     "Workspace mirror managedStorageAddresses mismatch.",
   );
-
+  expect(hashJsonValue(workspace) === normalizeBytes32Hex(manifest.checkpoint.workspaceHash), "Workspace mirror workspace hash mismatch.");
   expect(
-    hashJsonValue(archive.blockInfo) === hashJsonValue(blockInfo),
-    "Workspace mirror block_info.json does not match the channel genesis block.",
+    hashJsonValue(archive.stateSnapshot) === normalizeBytes32Hex(manifest.checkpoint.stateSnapshotHash),
+    "Workspace mirror state_snapshot hash mismatch.",
   );
+  expect(hashJsonValue(archive.blockInfo) === hashJsonValue(blockInfo), "Workspace mirror block_info.json does not match the channel genesis block.");
   expect(
     hashJsonValue(archive.contractCodes) === hashJsonValue(contractCodes),
     "Workspace mirror contract_codes.json does not match current managed storage contract code.",
   );
-
-  const manifestRootVectorHash = normalizeBytes32Hex(manifest.recoveryRootVectorHash);
   const workspaceRootVectorHash = normalizeBytes32Hex(workspace.recoveryRootVectorHash);
   expect(
-    ethers.toBigInt(manifestRootVectorHash) === ethers.toBigInt(workspaceRootVectorHash),
+    ethers.toBigInt(normalizeBytes32Hex(manifest.checkpoint.recoveryRootVectorHash)) === ethers.toBigInt(workspaceRootVectorHash),
     "Workspace mirror recoveryRootVectorHash mismatch between manifest and workspace.",
   );
   const snapshotRootVectorHash = normalizeBytes32Hex(hashRootVector(archive.stateSnapshot.stateRoots));
@@ -1237,14 +1361,12 @@ function validateWorkspaceMirrorArchive({
     ethers.toBigInt(snapshotRootVectorHash) === ethers.toBigInt(workspaceRootVectorHash),
     "Workspace mirror state_snapshot root vector hash mismatch.",
   );
-
-  const mirrorRecoveryLastScannedBlock = Number(manifest.recoveryLastScannedBlock);
+  const mirrorRecoveryLastScannedBlock = Number(manifest.checkpoint.recoveryLastScannedBlock);
   expect(
     Number.isInteger(mirrorRecoveryLastScannedBlock)
       && mirrorRecoveryLastScannedBlock === Number(workspace.recoveryLastScannedBlock),
     "Workspace mirror recoveryLastScannedBlock mismatch between manifest and workspace.",
   );
-
   const recoveryIndex = getUsableWorkspaceRecoveryIndex({
     existingArtifacts: {
       workspace: {
@@ -1258,17 +1380,91 @@ function validateWorkspaceMirrorArchive({
     managedStorageAddresses,
   });
   expect(recoveryIndex, "Workspace mirror recovery index is missing or unusable.");
-
-  if (ethers.toBigInt(workspaceRootVectorHash) !== ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash))) {
-    expect(
-      recoveryIndex.nextBlock <= Number(latestBlock),
-      "Workspace mirror is stale, but its recovery index cannot be replayed to the latest block.",
-    );
-  }
   return {
     ...recoveryIndex,
     source: "mirror",
   };
+}
+
+async function fetchAndApplyWorkspaceMirrorDelta({
+  manifest,
+  manifestUrl,
+  localRecoveryIndex,
+  chainId,
+  channelId,
+  channelInfo,
+  bridgeAbiManifest,
+  managedStorageAddresses,
+  contractCodes,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
+}) {
+  const fromBlock = Number(localRecoveryIndex.nextBlock);
+  const toBlock = Number(manifest.checkpoint.recoveryLastScannedBlock) - 1;
+  const bundleDescriptor = selectWorkspaceMirrorDeltaBundle({ manifest, fromBlock, toBlock });
+  expect(
+    bundleDescriptor,
+    `Workspace mirror does not provide a delta bundle for local recovery index ${fromBlock} to checkpoint block ${toBlock}.`,
+  );
+  const bundleUrl = resolveWorkspaceMirrorBundleUrl(manifestUrl, bundleDescriptor.url, "deltaBundles[]");
+  const bundleBytes = await fetchWorkspaceMirrorBundleBytes({
+    bundleUrl,
+    bundleDescriptor,
+    label: "workspace mirror delta",
+  });
+  const delta = parseJsonBytes(bundleBytes, bundleUrl);
+  const recoveryIndex = await applyWorkspaceMirrorDeltaBundle({
+    delta,
+    localRecoveryIndex,
+    manifest,
+    chainId,
+    channelId,
+    channelInfo,
+    bridgeAbiManifest,
+    managedStorageAddresses,
+    contractCodes,
+    controllerAddress,
+    l2AccountingVaultAddress,
+    liquidBalancesSlot,
+  });
+  return { bundleUrl, recoveryIndex };
+}
+
+function selectWorkspaceMirrorDeltaBundle({ manifest, fromBlock, toBlock }) {
+  const bundles = Array.isArray(manifest.deltaBundles) ? manifest.deltaBundles : [];
+  return bundles.find((bundle) => Number(bundle.fromBlock) === fromBlock && Number(bundle.toBlock) === toBlock) ?? null;
+}
+
+async function fetchWorkspaceMirrorBundleBytes({ bundleUrl, bundleDescriptor, label }) {
+  const bytes = await fetchBytesFromUrl(bundleUrl, {
+    expectedBytes: bundleDescriptor.sizeBytes,
+    onProgress: createByteDownloadProgress({
+      action: "channel recover-workspace",
+      label,
+      url: bundleUrl,
+    }),
+  });
+  if (bundleDescriptor.sizeBytes !== undefined) {
+    expect(
+      Number(bundleDescriptor.sizeBytes) === bytes.length,
+      `Workspace mirror bundle size mismatch. Expected ${bundleDescriptor.sizeBytes}, got ${bytes.length}.`,
+    );
+  }
+  const bundleSha256 = sha256Hex(bytes);
+  expect(
+    String(bundleDescriptor.sha256).toLowerCase() === bundleSha256,
+    `Workspace mirror bundle sha256 mismatch. Expected ${bundleDescriptor.sha256}, got ${bundleSha256}.`,
+  );
+  return bytes;
+}
+
+function parseJsonBytes(bytes, url) {
+  try {
+    return JSON.parse(bytes.toString("utf8"));
+  } catch (error) {
+    throw new Error(`Invalid JSON from ${url}: ${error.message}`);
+  }
 }
 
 function selectWorkspaceRecoveryIndex(localRecoveryIndex, mirrorRecoveryIndex) {
@@ -1381,12 +1577,17 @@ async function syncChannelWorkspace({
       network,
       bridgeDeployment,
       channelInfo,
-      currentRootVectorHash,
       genesisBlockNumber,
       managedStorageAddresses,
       blockInfo,
       contractCodes,
       latestBlock,
+      localRecoveryIndex: recoveryIndex,
+      existingArtifacts,
+      bridgeAbiManifest,
+      controllerAddress,
+      l2AccountingVaultAddress,
+      liquidBalancesSlot,
     })
     : {
       recoveryIndex: null,
@@ -6383,8 +6584,43 @@ async function reconstructChannelSnapshot({
   }
 
   const groupedValues = [...groupedEvents.values()].sort((left, right) => compareLogsByPosition(left[0], right[0]));
+  const currentSnapshot = await applyChannelRecoveryEventGroups({
+    startingSnapshot,
+    groupedValues,
+    contractCodes,
+    channelInfo,
+    controllerAddress,
+    l2AccountingVaultAddress,
+    liquidBalancesSlot,
+  });
+
+  expect(
+    ethers.toBigInt(normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)))
+      === ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash)),
+    "Reconstructed channel snapshot does not match the current on-chain root vector hash.",
+  );
+
+  return {
+    currentSnapshot,
+    scanRange: {
+      fromBlock: scanFromBlock,
+      toBlock: latestBlock,
+      mode: baseSnapshot ? "recovery-index" : "genesis",
+    },
+  };
+}
+
+async function applyChannelRecoveryEventGroups({
+  startingSnapshot,
+  groupedValues,
+  contractCodes,
+  channelInfo,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
+}) {
   let currentSnapshot = startingSnapshot;
-  let stateManager = await buildStateManager(currentSnapshot, contractCodes);
+  const stateManager = await buildStateManager(currentSnapshot, contractCodes);
 
   for (const group of groupedValues) {
     const orderedGroup = [...group].sort(compareLogsByPosition);
@@ -6458,20 +6694,161 @@ async function reconstructChannelSnapshot({
       `CurrentRootVectorObserved root vector mismatch at tx ${rootEvent.transactionHash}.`,
     );
   }
+  return currentSnapshot;
+}
 
+async function applyWorkspaceMirrorDeltaBundle({
+  delta,
+  localRecoveryIndex,
+  manifest,
+  chainId,
+  channelId,
+  channelInfo,
+  bridgeAbiManifest,
+  managedStorageAddresses,
+  contractCodes,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
+}) {
+  expect(Number(delta.protocolVersion) === CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION, "Workspace mirror delta protocolVersion mismatch.");
+  expect(Number(delta.chainId) === Number(chainId), "Workspace mirror delta chainId mismatch.");
+  expect(ethers.toBigInt(delta.channelId) === ethers.toBigInt(channelId), "Workspace mirror delta channelId mismatch.");
+  const fromBlock = Number(localRecoveryIndex.nextBlock);
+  const toBlock = Number(manifest.checkpoint.recoveryLastScannedBlock) - 1;
+  expect(Number(delta.fromBlock) === fromBlock, "Workspace mirror delta fromBlock mismatch.");
+  expect(Number(delta.toBlock) === toBlock, "Workspace mirror delta toBlock mismatch.");
   expect(
-    ethers.toBigInt(normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)))
-      === ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash)),
-    "Reconstructed channel snapshot does not match the current on-chain root vector hash.",
+    ethers.toBigInt(normalizeBytes32Hex(delta.baseRecoveryRootVectorHash))
+      === ethers.toBigInt(normalizeBytes32Hex(localRecoveryIndex.recoveryRootVectorHash)),
+    "Workspace mirror delta base root mismatch.",
   );
-
+  expect(
+    ethers.toBigInt(normalizeBytes32Hex(delta.recoveryRootVectorHash))
+      === ethers.toBigInt(normalizeBytes32Hex(manifest.checkpoint.recoveryRootVectorHash)),
+    "Workspace mirror delta recovery root mismatch.",
+  );
+  const groupedValues = normalizeWorkspaceMirrorDeltaEventGroups({
+    logs: delta.logs,
+    channelInfo,
+    bridgeAbiManifest,
+    fromBlock,
+    toBlock,
+  });
+  const currentSnapshot = await applyChannelRecoveryEventGroups({
+    startingSnapshot: localRecoveryIndex.stateSnapshot,
+    groupedValues,
+    contractCodes,
+    channelInfo,
+    controllerAddress,
+    l2AccountingVaultAddress,
+    liquidBalancesSlot,
+  });
+  const recoveryRootVectorHash = normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots));
+  expect(
+    ethers.toBigInt(recoveryRootVectorHash) === ethers.toBigInt(normalizeBytes32Hex(manifest.checkpoint.recoveryRootVectorHash)),
+    "Workspace mirror delta result root does not match the manifest checkpoint root.",
+  );
+  expect(
+    Array.isArray(currentSnapshot.storageAddresses)
+      && currentSnapshot.storageAddresses.length === managedStorageAddresses.length
+      && currentSnapshot.storageAddresses.every(
+        (address, index) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(getAddress(managedStorageAddresses[index])),
+      ),
+    "Workspace mirror delta result storage address vector mismatch.",
+  );
   return {
-    currentSnapshot,
-    scanRange: {
-      fromBlock: scanFromBlock,
-      toBlock: latestBlock,
-      mode: baseSnapshot ? "recovery-index" : "genesis",
-    },
+    nextBlock: Number(manifest.checkpoint.recoveryLastScannedBlock),
+    stateSnapshot: currentSnapshot,
+    recoveryRootVectorHash,
+    source: "mirror",
+  };
+}
+
+function normalizeWorkspaceMirrorDeltaEventGroups({
+  logs,
+  channelInfo,
+  bridgeAbiManifest,
+  fromBlock,
+  toBlock,
+}) {
+  expect(Array.isArray(logs), "Workspace mirror delta logs must be an array.");
+  const channelManager = new Contract(
+    channelInfo.manager,
+    bridgeAbiManifest.contracts.channelManager.abi,
+  );
+  const bridgeTokenVault = new Contract(
+    channelInfo.bridgeTokenVault,
+    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+  );
+  const currentRootVectorObservedTopic =
+    normalizeBytes32Hex(channelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
+  const groupedEvents = new Map();
+  for (const rawLog of logs) {
+    const event = normalizeWorkspaceMirrorDeltaLog({
+      rawLog,
+      channelInfo,
+      channelManager,
+      bridgeTokenVault,
+      currentRootVectorObservedTopic,
+      fromBlock,
+      toBlock,
+    });
+    const group = groupedEvents.get(event.transactionHash) ?? [];
+    group.push(event);
+    groupedEvents.set(event.transactionHash, group);
+  }
+  return [...groupedEvents.values()].sort((left, right) => compareLogsByPosition(left[0], right[0]));
+}
+
+function normalizeWorkspaceMirrorDeltaLog({
+  rawLog,
+  channelInfo,
+  channelManager,
+  bridgeTokenVault,
+  currentRootVectorObservedTopic,
+  fromBlock,
+  toBlock,
+}) {
+  const event = {
+    ...rawLog,
+    address: getAddress(rawLog.address),
+    topics: (rawLog.topics ?? []).map((topic) => normalizeBytes32Hex(topic)),
+    data: rawLog.data ?? "0x",
+    blockNumber: Number(rawLog.blockNumber),
+    transactionHash: normalizeBytes32Hex(rawLog.transactionHash),
+    transactionIndex: Number(rawLog.transactionIndex),
+    index: Number(rawLog.index ?? rawLog.logIndex),
+  };
+  expect(event.blockNumber >= fromBlock && event.blockNumber <= toBlock, "Workspace mirror delta log block is outside the declared range.");
+  expect(Number.isInteger(event.transactionIndex) && Number.isInteger(event.index), "Workspace mirror delta log is missing transactionIndex or index.");
+  const topic0 = event.topics[0] ? normalizeBytes32Hex(event.topics[0]) : null;
+  if (ethers.toBigInt(event.address) === ethers.toBigInt(getAddress(channelInfo.manager))) {
+    if (topic0 === currentRootVectorObservedTopic) {
+      const parsed = channelManager.interface.parseLog(event);
+      return {
+        ...event,
+        args: parsed.args,
+        fragment: parsed.fragment,
+      };
+    }
+    expect(
+      topic0 === normalizeBytes32Hex(CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC)
+        || topic0 === normalizeBytes32Hex(VAULT_STORAGE_WRITE_OBSERVED_TOPIC),
+      "Workspace mirror delta contains unsupported channel manager log topic.",
+    );
+    return event;
+  }
+  expect(
+    ethers.toBigInt(event.address) === ethers.toBigInt(getAddress(channelInfo.bridgeTokenVault)),
+    "Workspace mirror delta contains a log from an unsupported address.",
+  );
+  const parsed = bridgeTokenVault.interface.parseLog(event);
+  expect(parsed.fragment?.name === "StorageWriteObserved", "Workspace mirror delta contains unsupported bridge vault log.");
+  return {
+    ...event,
+    args: parsed.args,
+    fragment: parsed.fragment,
   };
 }
 

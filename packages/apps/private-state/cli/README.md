@@ -123,8 +123,8 @@ index is missing, unusable, or too far behind, the command stops and asks the us
 command with `--from-genesis` explicitly when needed.
 
 Channel leaders can optionally register a workspace mirror server so users can bootstrap recovery
-from a recent verified snapshot instead of replaying old channels from genesis. The CLI protocol is
-documented at
+from a signed checkpoint and download only the local-to-checkpoint delta when a local recovery index
+already exists. The CLI protocol is documented at
 https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/packages/apps/private-state/docs/channel-workspace-mirror-protocol.md.
 
 Back up a local wallet with:

@@ -5,9 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawn, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import AdmZip from "adm-zip";
 import {
   HDNodeWallet,
   JsonRpcProvider,
@@ -1416,6 +1414,14 @@ function setWorkspaceMirror(url) {
   ]);
 }
 
+function publishWorkspaceMirror() {
+  return runAnvilBridgeCliCommand("channel publish-workspace-mirror", [
+    "--channel-name", channelName,
+    "--account", txSubmitterAccount,
+    "--output", workspaceMirrorRoot,
+  ]);
+}
+
 function deleteWalletDir(participant) {
   expect(participant.walletName, `${participant.alias} walletName is not available.`);
   fs.rmSync(walletDirForName(participant.walletName), { recursive: true, force: true });
@@ -1551,68 +1557,9 @@ function channelWorkspaceMirrorProtocolPath(channelId) {
     ".well-known",
     "tokamak-private-state",
     "channel-workspace",
-    "v1",
     "31337",
     channelId.toString(),
   );
-}
-
-function sha256Hex(buffer) {
-  return createHash("sha256").update(buffer).digest("hex");
-}
-
-function buildWorkspaceMirrorFiles(bridgeDeployment) {
-  cleanDir(workspaceMirrorRoot);
-  const channelId = deriveChannelIdFromName(channelName);
-  const mirrorDir = path.join(workspaceMirrorRoot, channelWorkspaceMirrorProtocolPath(channelId));
-  ensureDir(mirrorDir);
-
-  const workspaceDir = workspaceDirForName(workspaceRoot, workspaceNetworkName, channelName);
-  const channelDir = path.join(workspaceDir, "channel");
-  const currentDir = path.join(channelDir, "current");
-  const workspace = readJson(path.join(channelDir, "workspace.json"));
-  const archiveInputs = {
-    "workspace.json": path.join(channelDir, "workspace.json"),
-    "state_snapshot.json": path.join(currentDir, "state_snapshot.json"),
-    "block_info.json": path.join(currentDir, "block_info.json"),
-    "contract_codes.json": path.join(currentDir, "contract_codes.json"),
-  };
-
-  const archive = new AdmZip();
-  for (const [archiveName, filePath] of Object.entries(archiveInputs)) {
-    expect(fs.existsSync(filePath), `Missing workspace mirror input ${filePath}.`);
-    archive.addFile(archiveName, fs.readFileSync(filePath));
-  }
-  const archiveBuffer = archive.toBuffer();
-  const archivePath = path.join(mirrorDir, "workspace.zip");
-  fs.writeFileSync(archivePath, archiveBuffer);
-
-  const manifest = {
-    protocolVersion: 1,
-    chainId: 31337,
-    channelId: channelId.toString(),
-    channelName,
-    bridgeCore: bridgeDeployment.bridgeCore,
-    channelManager: workspace.channelManager,
-    recoveryLastScannedBlock: workspace.recoveryLastScannedBlock,
-    recoveryRootVectorHash: workspace.recoveryRootVectorHash,
-    archive: {
-      url: "workspace.zip",
-      sha256: sha256Hex(archiveBuffer),
-      sizeBytes: archiveBuffer.length,
-    },
-    createdAt: new Date().toISOString(),
-    minCliVersion: cliPackageManifest.version,
-  };
-  const manifestPath = path.join(mirrorDir, "manifest.json");
-  writeJson(manifestPath, manifest);
-  return {
-    rootDir: workspaceMirrorRoot,
-    mirrorDir,
-    manifestPath,
-    archivePath,
-    manifest,
-  };
 }
 
 async function startStaticFileServer(rootDir) {
@@ -1718,15 +1665,17 @@ async function stopStaticFileServer(handle) {
   });
 }
 
-async function verifyWorkspaceMirrorRecovery(bridgeDeployment) {
-  const files = buildWorkspaceMirrorFiles(bridgeDeployment);
-  const server = await startStaticFileServer(files.rootDir);
+async function verifyWorkspaceMirrorRecovery() {
+  cleanDir(workspaceMirrorRoot);
+  const server = await startStaticFileServer(workspaceMirrorRoot);
   try {
     const registration = setWorkspaceMirror(server.url);
     expect(
       registration.url === server.url,
       `channel set-workspace-mirror returned unexpected URL ${registration.url}.`,
     );
+    const published = publishWorkspaceMirror();
+    const manifest = readJson(published.manifestPath);
 
     deleteChannelWorkspaceCache();
     const recovered = recoverWorkspaceFromMirror();
@@ -1738,7 +1687,7 @@ async function verifyWorkspaceMirrorRecovery(bridgeDeployment) {
     );
     expect(
       recovered.workspaceMirror?.manifestUrl
-        === `${server.url}/${channelWorkspaceMirrorProtocolPath(files.manifest.channelId)}/manifest.json`,
+        === `${server.url}/${channelWorkspaceMirrorProtocolPath(published.channelId)}/manifest.json`,
       "mirror recovery used an unexpected manifest URL.",
     );
     expect(
@@ -1748,15 +1697,16 @@ async function verifyWorkspaceMirrorRecovery(bridgeDeployment) {
     );
     expect(
       normalizeBytes32Hex(recovered.recoveryRootVectorHash)
-        === normalizeBytes32Hex(files.manifest.recoveryRootVectorHash),
+        === normalizeBytes32Hex(manifest.checkpoint.recoveryRootVectorHash),
       "mirror recovery root vector hash does not match the mirrored snapshot.",
     );
     return {
       registration,
+      published,
       recovered,
-      manifest: files.manifest,
-      manifestPath: files.manifestPath,
-      archivePath: files.archivePath,
+      manifest,
+      manifestPath: published.manifestPath,
+      checkpointBundlePath: published.checkpoint.bundlePath,
       serverUrl: server.url,
     };
   } finally {
@@ -2016,7 +1966,7 @@ async function main() {
       recoverWorkspaceAfterLocalTransactions,
       "recover-workspace after local wallet transactions",
     );
-    workspaceMirrorRecovery = await verifyWorkspaceMirrorRecovery(bridgeDeployment);
+    workspaceMirrorRecovery = await verifyWorkspaceMirrorRecovery();
     assertPostTransactionWorkspaceRecoveryIndex(
       workspaceMirrorRecovery.recovered,
       "recover-workspace from workspace mirror",

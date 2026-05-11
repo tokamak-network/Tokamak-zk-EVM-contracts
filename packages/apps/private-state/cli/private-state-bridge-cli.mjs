@@ -1096,7 +1096,6 @@ async function loadPublishableLocalWorkspaceMirrorCheckpoint({
   );
 
   return {
-    workspaceDir,
     workspace,
     stateSnapshot,
     blockInfo: existingArtifacts.blockInfo,
@@ -1123,7 +1122,6 @@ async function readRemoteWorkspaceMirrorCheckpoint({
     if (/\bHTTP (404|410)\b/u.test(error.message)) {
       return {
         exists: false,
-        manifestUrl,
         recoveryLastScannedBlock: null,
         recoveryRootVectorHash: null,
       };
@@ -1142,7 +1140,6 @@ async function readRemoteWorkspaceMirrorCheckpoint({
   });
   return {
     exists: true,
-    manifestUrl,
     recoveryLastScannedBlock: checkpoint.recoveryLastScannedBlock,
     recoveryRootVectorHash: checkpoint.recoveryRootVectorHash,
   };
@@ -1295,7 +1292,6 @@ async function loadWorkspaceMirrorRecoveryIndex({
   contractCodes,
   latestBlock,
   localRecoveryIndex = null,
-  existingArtifacts = null,
   bridgeAbiManifest,
   controllerAddress,
   l2AccountingVaultAddress,
@@ -1340,7 +1336,6 @@ async function loadWorkspaceMirrorRecoveryIndex({
       contractCodes,
       latestBlock,
       localRecoveryIndex,
-      existingArtifacts,
       bridgeAbiManifest,
       controllerAddress,
       l2AccountingVaultAddress,
@@ -1378,7 +1373,6 @@ async function fetchChannelWorkspaceMirror({
   contractCodes,
   latestBlock,
   localRecoveryIndex = null,
-  existingArtifacts = null,
   bridgeAbiManifest,
   controllerAddress,
   l2AccountingVaultAddress,
@@ -1439,7 +1433,6 @@ async function fetchChannelWorkspaceMirror({
       blockInfo,
       contractCodes,
       latestBlock,
-      existingArtifacts,
     });
 
   return {
@@ -1995,7 +1988,6 @@ async function syncChannelWorkspace({
   const mirrorRecovery = useWorkspaceRecoveryIndex && !fromGenesis
     ? await loadWorkspaceMirrorRecoveryIndex({
       recoverySource,
-      provider,
       bridgeCore,
       channelId,
       channelName,
@@ -2008,7 +2000,6 @@ async function syncChannelWorkspace({
       contractCodes,
       latestBlock,
       localRecoveryIndex: recoveryIndex,
-      existingArtifacts,
       bridgeAbiManifest,
       controllerAddress,
       l2AccountingVaultAddress,

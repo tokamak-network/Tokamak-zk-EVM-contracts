@@ -32,6 +32,8 @@
 - Added `channel publish-workspace-mirror --force` so a channel leader can repair an unreadable or
   invalid remote mirror manifest by publishing a full checkpoint without using that manifest as a
   delta base.
+- Required mirror bundle `sizeBytes` and enforce it as the download limit before verifying bundle
+  contents.
 - Kept streaming checkpoint or delta bundle download progress with an estimated remaining time.
 
 ## 1.1.1 - 2026-05-08

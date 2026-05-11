@@ -97,7 +97,8 @@ the channel leader from `BridgeCore.getChannel(channelId).leader`.
 
 All `*Hash` fields except bundle `sha256` values are `keccak256` hashes of the CLI's canonical JSON
 encoding for the referenced object. Bundle `sha256` values are lowercase SHA-256 digests of the
-downloaded bundle bytes.
+downloaded bundle bytes. `sizeBytes` is required for every checkpoint and delta bundle descriptor;
+clients use it as a hard download limit before verifying the bundle hash.
 
 ## Operator Publishing
 
@@ -156,8 +157,9 @@ paths, nested paths, or duplicate file names. The CLI streams the download and d
 with an estimated remaining time.
 
 The CLI downloads the checkpoint bundle only after validating the manifest metadata and leader
-signature. After download, the CLI verifies the bundle SHA-256, optional size, every declared content
-hash, channel metadata, managed storage vector, block info, contract code, and snapshot root vector.
+signature. It enforces the declared `sizeBytes` during download. After download, the CLI verifies the
+bundle SHA-256, exact size, every declared content hash, channel metadata, managed storage vector,
+block info, contract code, and snapshot root vector.
 
 ## Delta Bundle
 
@@ -212,7 +214,7 @@ Before downloading any checkpoint or delta bundle, the CLI verifies:
 
 After download, the CLI verifies:
 
-- bundle SHA-256 and optional size match the manifest
+- bundle SHA-256 and exact size match the manifest
 - checkpoint bundle contains only the allowed root-level JSON files, if a checkpoint bundle is used
 - checkpoint content hashes match the manifest, if a checkpoint bundle is used
 - delta logs are in the declared block range and come only from the channel manager or bridge vault,

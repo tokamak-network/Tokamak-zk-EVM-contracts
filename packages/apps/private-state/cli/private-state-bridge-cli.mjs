@@ -1516,6 +1516,9 @@ async function fetchBytesFromUrl(url, {
   });
 
   if (!response.body?.getReader) {
+    if (maxBytes !== null && hasContentLength && contentLength > Number(maxBytes)) {
+      throw new Error(`GET ${url} Content-Length ${contentLength} exceeds the ${maxBytes} byte limit.`);
+    }
     const bytes = Buffer.from(await response.arrayBuffer());
     if (maxBytes !== null && bytes.length > Number(maxBytes)) {
       throw new Error(`GET ${url} returned ${bytes.length} bytes, above the ${maxBytes} byte limit.`);
@@ -1865,20 +1868,25 @@ function selectWorkspaceMirrorDeltaBundle({ manifest, fromBlock, toBlock }) {
 }
 
 async function fetchWorkspaceMirrorBundleBytes({ bundleUrl, bundleDescriptor, label }) {
+  expect(bundleDescriptor?.sizeBytes !== undefined, `Workspace mirror ${label} sizeBytes is required.`);
+  const expectedBytes = Number(bundleDescriptor.sizeBytes);
+  expect(
+    Number.isSafeInteger(expectedBytes) && expectedBytes >= 0,
+    `Workspace mirror ${label} sizeBytes must be a non-negative safe integer.`,
+  );
   const bytes = await fetchBytesFromUrl(bundleUrl, {
-    expectedBytes: bundleDescriptor.sizeBytes,
+    maxBytes: expectedBytes,
+    expectedBytes,
     onProgress: createByteDownloadProgress({
       action: "channel recover-workspace",
       label,
       url: bundleUrl,
     }),
   });
-  if (bundleDescriptor.sizeBytes !== undefined) {
-    expect(
-      Number(bundleDescriptor.sizeBytes) === bytes.length,
-      `Workspace mirror bundle size mismatch. Expected ${bundleDescriptor.sizeBytes}, got ${bytes.length}.`,
-    );
-  }
+  expect(
+    expectedBytes === bytes.length,
+    `Workspace mirror bundle size mismatch. Expected ${expectedBytes}, got ${bytes.length}.`,
+  );
   const bundleSha256 = sha256Hex(bytes);
   expect(
     String(bundleDescriptor.sha256).toLowerCase() === bundleSha256,

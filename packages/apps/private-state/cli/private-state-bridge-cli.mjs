@@ -207,8 +207,7 @@ const ZERO_TOPIC = normalizeBytes32Hex(ethers.ZeroHash);
 const DEFAULT_LOG_CHUNK_SIZE = 2000;
 const DEFAULT_LOG_REQUESTS_PER_SECOND = 5;
 const LOG_REQUEST_INTERVAL_MS = Math.ceil(1000 / DEFAULT_LOG_REQUESTS_PER_SECOND);
-const AUTO_RECOVERY_TIME_BUDGET_SECONDS = 10;
-const AUTO_RECOVERY_LOG_REQUEST_BUDGET = DEFAULT_LOG_REQUESTS_PER_SECOND * AUTO_RECOVERY_TIME_BUDGET_SECONDS;
+const AUTO_RECOVERY_BLOCK_BUDGET = 7200;
 let lastLogRequestStartedAtMs = 0;
 
 function printImmutableChannelPolicyWarning({
@@ -4456,7 +4455,7 @@ async function handleRedeemNotes({ args, provider }) {
     context: preparedContextResult.context,
     provider,
     progressAction: "wallet redeem-notes",
-    preConsumedLogRequests: preparedContextResult.autoRecoveryLogRequests,
+    preConsumedBlockDelta: preparedContextResult.autoRecoveryBlockDelta,
   });
   const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const templatePayload = buildRedeemNotesTemplatePayload({
@@ -4519,7 +4518,7 @@ async function handleWalletGetNotes({ args, provider }) {
     context,
     provider,
     progressAction: "wallet get-notes",
-    preConsumedLogRequests: contextResult.autoRecoveryLogRequests,
+    preConsumedBlockDelta: contextResult.autoRecoveryBlockDelta,
   });
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
@@ -4580,7 +4579,7 @@ async function handleTransferNotes({ args, provider }) {
     provider,
     signer,
     progressAction: "wallet transfer-notes",
-    preConsumedLogRequests: preparedContextResult.autoRecoveryLogRequests,
+    preConsumedBlockDelta: preparedContextResult.autoRecoveryBlockDelta,
   });
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
@@ -5142,7 +5141,7 @@ async function ensureWalletNoteReceiveStateCurrent({
   provider,
   signer = null,
   progressAction = null,
-  preConsumedLogRequests = 0,
+  preConsumedBlockDelta = 0,
 }) {
   const latestBlock = await provider.getBlockNumber();
   let nextBlock;
@@ -5167,17 +5166,16 @@ async function ensureWalletNoteReceiveStateCurrent({
       nextBlock,
       recoveredWalletWorkspace: false,
       recoveredDeliveryState: null,
-      autoRecoveryLogRequests: 0,
+      autoRecoveryBlockDelta: 0,
     };
   }
-  const remainingLogRequestBudget = AUTO_RECOVERY_LOG_REQUEST_BUDGET - Math.max(0, Number(preConsumedLogRequests));
-  const autoRecoveryLogRequests = assertAutoRecoveryLogScanBudget({
+  const remainingBlockBudget = AUTO_RECOVERY_BLOCK_BUDGET - Math.max(0, Number(preConsumedBlockDelta));
+  const autoRecoveryBlockDelta = assertAutoRecoveryBlockBudget({
     label: `wallet note workspace ${walletContext.walletName}`,
     fromBlock: nextBlock,
     toBlock: latestBlock,
-    logScanCount: 1,
     recoveryCommand: `wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT>`,
-    logRequestBudget: remainingLogRequestBudget,
+    blockBudget: remainingBlockBudget,
   });
 
   const resolvedSigner = signer ?? restoreWalletParticipant(walletContext, provider).signer;
@@ -5205,7 +5203,7 @@ async function ensureWalletNoteReceiveStateCurrent({
       ...freshness,
       recoveredWalletWorkspace: true,
       recoveredDeliveryState,
-      autoRecoveryLogRequests,
+      autoRecoveryBlockDelta,
     };
   } catch (postRecoveryError) {
     throw new Error([
@@ -5721,7 +5719,7 @@ async function loadFreshWalletChannelContext({
     network: resolveCliNetwork(contextResult.context.workspace.network),
     usingWorkspaceCache: !contextResult.recoveredWorkspace,
     recoveredWorkspace: contextResult.recoveredWorkspace,
-    autoRecoveryLogRequests: contextResult.autoRecoveryLogRequests,
+    autoRecoveryBlockDelta: contextResult.autoRecoveryBlockDelta,
   };
 }
 
@@ -5753,7 +5751,7 @@ async function loadFreshChannelWorkspaceContextResult({
     return {
       context,
       recoveredWorkspace: false,
-      autoRecoveryLogRequests: 0,
+      autoRecoveryBlockDelta: 0,
     };
   } catch (error) {
     const recovery = await recoverChannelWorkspaceFromIndexOnly({
@@ -5766,7 +5764,7 @@ async function loadFreshChannelWorkspaceContextResult({
     return {
       context: recovery.context,
       recoveredWorkspace: true,
-      autoRecoveryLogRequests: recovery.autoRecoveryLogRequests,
+      autoRecoveryBlockDelta: recovery.autoRecoveryBlockDelta,
     };
   }
 }
@@ -5790,7 +5788,7 @@ async function recoverChannelWorkspaceFromIndexOnly({
   if (readiness.alreadyCurrent) {
     return {
       context: await loadWorkspaceContext(channelName, networkName, provider),
-      autoRecoveryLogRequests: 0,
+      autoRecoveryBlockDelta: 0,
     };
   }
   try {
@@ -5830,7 +5828,7 @@ async function recoverChannelWorkspaceFromIndexOnly({
   }
   return {
     context,
-    autoRecoveryLogRequests: readiness.autoRecoveryLogRequests,
+    autoRecoveryBlockDelta: readiness.autoRecoveryBlockDelta,
   };
 }
 
@@ -5886,14 +5884,13 @@ async function requireChannelWorkspaceRecoveryIndexForAutoRefresh({
   if (Number(recoveryIndex.nextBlock) > Number(latestBlock)) {
     fail(`Channel workspace recovery index has already scanned through block ${recoveryIndex.nextBlock - 1}, but the local snapshot is not current.`);
   }
-  const autoRecoveryLogRequests = assertAutoRecoveryLogScanBudget({
+  const autoRecoveryBlockDelta = assertAutoRecoveryBlockBudget({
     label: `channel workspace ${channelName} on ${networkName}`,
     fromBlock: recoveryIndex.nextBlock,
     toBlock: latestBlock,
-    logScanCount: 2,
     recoveryCommand: `channel recover-workspace --channel-name ${channelName} --network ${networkName}`,
   });
-  return { alreadyCurrent: false, autoRecoveryLogRequests };
+  return { alreadyCurrent: false, autoRecoveryBlockDelta };
 }
 
 async function refreshPersistedWorkspaceAfterLocalTransaction({
@@ -7416,12 +7413,7 @@ async function fetchLogsChunked(provider, {
   return aggregatedLogs;
 }
 
-function estimateLogScanRequestCount({
-  fromBlock,
-  toBlock,
-  logScanCount = 1,
-  chunkSize = DEFAULT_LOG_CHUNK_SIZE,
-}) {
+function recoveryBlockDelta({ fromBlock, toBlock }) {
   const normalizedFromBlock = Number(fromBlock);
   const normalizedToBlock = Number(toBlock);
   if (!Number.isInteger(normalizedFromBlock) || !Number.isInteger(normalizedToBlock)) {
@@ -7430,38 +7422,27 @@ function estimateLogScanRequestCount({
   if (normalizedFromBlock > normalizedToBlock) {
     return 0;
   }
-  const totalBlocks = normalizedToBlock - normalizedFromBlock + 1;
-  return Math.ceil(totalBlocks / Math.max(1, Number(chunkSize))) * Math.max(1, Number(logScanCount));
+  return normalizedToBlock - normalizedFromBlock + 1;
 }
 
-function assertAutoRecoveryLogScanBudget({
+function assertAutoRecoveryBlockBudget({
   label,
   fromBlock,
   toBlock,
-  logScanCount,
   recoveryCommand,
-  logRequestBudget = AUTO_RECOVERY_LOG_REQUEST_BUDGET,
+  blockBudget = AUTO_RECOVERY_BLOCK_BUDGET,
 }) {
-  const estimatedRequests = estimateLogScanRequestCount({
-    fromBlock,
-    toBlock,
-    logScanCount,
-  });
-  const normalizedBudget = Math.max(0, Number(logRequestBudget));
-  if (estimatedRequests <= normalizedBudget) {
-    return estimatedRequests;
+  const blockDelta = recoveryBlockDelta({ fromBlock, toBlock });
+  const normalizedBudget = Math.max(0, Number(blockBudget));
+  if (blockDelta <= normalizedBudget) {
+    return blockDelta;
   }
   const normalizedFromBlock = Number(fromBlock);
   const normalizedToBlock = Number(toBlock);
-  const totalBlocks = normalizedFromBlock <= normalizedToBlock
-    ? normalizedToBlock - normalizedFromBlock + 1
-    : 0;
-  const estimatedSeconds = estimatedRequests / DEFAULT_LOG_REQUESTS_PER_SECOND;
   throw new Error([
-    `Automatic recovery for ${label} would exceed the ${AUTO_RECOVERY_TIME_BUDGET_SECONDS}s pre-command budget.`,
-    `Recovery delta is ${totalBlocks} blocks from ${normalizedFromBlock} to ${normalizedToBlock}.`,
-    `Estimated log requests: ${estimatedRequests}; remaining budget: ${normalizedBudget} of ${AUTO_RECOVERY_LOG_REQUEST_BUDGET} at ${DEFAULT_LOG_REQUESTS_PER_SECOND}/s.`,
-    `Estimated minimum scan time: ${estimatedSeconds.toFixed(1)}s.`,
+    `Automatic recovery for ${label} would exceed the ${AUTO_RECOVERY_BLOCK_BUDGET}-block pre-command budget.`,
+    `Recovery delta is ${blockDelta} blocks from ${normalizedFromBlock} to ${normalizedToBlock}.`,
+    `Remaining automatic recovery budget is ${normalizedBudget} blocks.`,
     `Run ${recoveryCommand} first; add --from-genesis only if the saved recovery index is unusable.`,
   ].join(" "));
 }

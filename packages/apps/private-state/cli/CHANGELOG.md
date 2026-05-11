@@ -20,8 +20,8 @@
   when a genesis rebuild is required.
 - Restored received-note event-log refresh for `wallet get-notes`, `wallet transfer-notes`, and
   `wallet redeem-notes`, limited to the saved wallet note recovery index.
-- Limited pre-command automatic recovery to a 10 second RPC log scan budget based on the CLI's
-  paced log query rate.
+- Limited pre-command automatic recovery to a fixed 7,200-block recovery delta budget instead of
+  estimating wall-clock time from RPC log request counts.
 - Reworked workspace mirror recovery around leader-signed checkpoint manifests and
   delta bundles. When a local recovery index exists, the CLI prechecks the mirror checkpoint and
   downloads only the matching delta bundle instead of a full workspace bundle.

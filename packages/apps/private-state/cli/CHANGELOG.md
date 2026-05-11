@@ -14,6 +14,8 @@
   `wallet redeem-notes`, limited to the saved wallet note recovery index.
 - Limited pre-command automatic recovery to a 10 second RPC log scan budget based on the CLI's
   paced log query rate.
+- Removed the fixed 50 MiB workspace mirror archive cap and added streaming archive download
+  progress with an estimated remaining time.
 
 ## 1.2.0 - 2026-05-08
 

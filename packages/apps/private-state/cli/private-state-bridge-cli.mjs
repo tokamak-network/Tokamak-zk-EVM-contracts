@@ -139,7 +139,6 @@ const WALLET_EXPORT_FORMAT_VERSION = 1;
 const CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION = 1;
 const CHANNEL_WORKSPACE_MIRROR_MANIFEST_PATH_PREFIX =
   ".well-known/tokamak-private-state/channel-workspace/v1";
-const CHANNEL_WORKSPACE_MIRROR_MAX_ARCHIVE_BYTES = 50 * 1024 * 1024;
 const CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES = Object.freeze(new Set([
   "workspace.json",
   "state_snapshot.json",
@@ -944,7 +943,7 @@ async function fetchChannelWorkspaceMirror({
   latestBlock,
 }) {
   const manifestUrl = channelWorkspaceMirrorManifestUrl({ registeredUrl, chainId, channelId });
-  const manifest = await fetchJsonFromUrl(manifestUrl, 1024 * 1024);
+  const manifest = await fetchJsonFromUrl(manifestUrl, { maxBytes: 1024 * 1024 });
   validateWorkspaceMirrorManifest({
     manifest,
     chainId,
@@ -955,7 +954,14 @@ async function fetchChannelWorkspaceMirror({
   });
 
   const archiveUrl = resolveWorkspaceMirrorArchiveUrl(manifestUrl, manifest.archive.url);
-  const archiveBytes = await fetchBytesFromUrl(archiveUrl, CHANNEL_WORKSPACE_MIRROR_MAX_ARCHIVE_BYTES);
+  const archiveBytes = await fetchBytesFromUrl(archiveUrl, {
+    expectedBytes: manifest.archive.sizeBytes,
+    onProgress: createByteDownloadProgress({
+      action: "channel recover-workspace",
+      label: "workspace mirror archive",
+      url: archiveUrl,
+    }),
+  });
   if (manifest.archive.sizeBytes !== undefined) {
     expect(
       Number(manifest.archive.sizeBytes) === archiveBytes.length,
@@ -1015,8 +1021,8 @@ function resolveWorkspaceMirrorArchiveUrl(manifestUrl, archivePath) {
   return new URL(archivePath, manifestUrl).toString();
 }
 
-async function fetchJsonFromUrl(url, maxBytes) {
-  const bytes = await fetchBytesFromUrl(url, maxBytes);
+async function fetchJsonFromUrl(url, { maxBytes = null } = {}) {
+  const bytes = await fetchBytesFromUrl(url, { maxBytes });
   try {
     return JSON.parse(bytes.toString("utf8"));
   } catch (error) {
@@ -1024,15 +1030,85 @@ async function fetchJsonFromUrl(url, maxBytes) {
   }
 }
 
-async function fetchBytesFromUrl(url, maxBytes) {
+async function fetchBytesFromUrl(url, {
+  maxBytes = null,
+  expectedBytes = null,
+  onProgress = null,
+} = {}) {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`GET ${url} failed with HTTP ${response.status}.`);
   }
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length > maxBytes) {
-    throw new Error(`GET ${url} returned ${bytes.length} bytes, above the ${maxBytes} byte limit.`);
+  const contentLength = Number(response.headers.get("content-length"));
+  const hasExpectedBytes = expectedBytes !== null && expectedBytes !== undefined && Number.isFinite(Number(expectedBytes));
+  const hasContentLength = response.headers.get("content-length") !== null && Number.isFinite(contentLength);
+  const totalBytes = hasExpectedBytes
+    ? Number(expectedBytes)
+    : hasContentLength
+      ? contentLength
+      : null;
+  const chunks = [];
+  let downloadedBytes = 0;
+  onProgress?.({
+    status: "start",
+    downloadedBytes,
+    totalBytes,
+  });
+
+  const reportProgress = () => onProgress?.({
+    status: "progress",
+    downloadedBytes,
+    totalBytes,
+  });
+
+  if (!response.body?.getReader) {
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (maxBytes !== null && bytes.length > Number(maxBytes)) {
+      throw new Error(`GET ${url} returned ${bytes.length} bytes, above the ${maxBytes} byte limit.`);
+    }
+    onProgress?.({
+      status: "done",
+      downloadedBytes: bytes.length,
+      totalBytes: totalBytes ?? bytes.length,
+    });
+    return bytes;
   }
+
+  const reader = response.body.getReader();
+  let lastProgressAtMs = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      const chunk = Buffer.from(value);
+      chunks.push(chunk);
+      downloadedBytes += chunk.length;
+      if (maxBytes !== null && downloadedBytes > Number(maxBytes)) {
+        throw new Error(`GET ${url} returned more than ${maxBytes} bytes.`);
+      }
+      const now = Date.now();
+      if (now - lastProgressAtMs >= 250) {
+        reportProgress();
+        lastProgressAtMs = now;
+      }
+    }
+  } catch (error) {
+    onProgress?.({
+      status: "error",
+      downloadedBytes,
+      totalBytes,
+    });
+    throw error;
+  }
+
+  const bytes = Buffer.concat(chunks, downloadedBytes);
+  onProgress?.({
+    status: "done",
+    downloadedBytes,
+    totalBytes: totalBytes ?? downloadedBytes,
+  });
   return bytes;
 }
 
@@ -8264,6 +8340,94 @@ function emitProgress(action, phase) {
   } else {
     console.log(line);
   }
+}
+
+function createByteDownloadProgress({ action, label, url }) {
+  const startedAtMs = Date.now();
+  const useInlineProgress = process.stderr.isTTY && !isJsonOutputRequested();
+  let lastLineLength = 0;
+  const writeInline = (line, done = false) => {
+    if (!useInlineProgress) {
+      if (done) {
+        emitProgress(action, line);
+      }
+      return;
+    }
+    const paddedLine = line.padEnd(lastLineLength, " ");
+    process.stderr.write(`\r[${action}] ${paddedLine}`);
+    lastLineLength = line.length;
+    if (done) {
+      process.stderr.write("\n");
+      lastLineLength = 0;
+    }
+  };
+  return (event) => {
+    const downloadedBytes = Number(event.downloadedBytes ?? 0);
+    const totalBytes = Number.isFinite(Number(event.totalBytes)) ? Number(event.totalBytes) : null;
+    const elapsedSeconds = Math.max(0.001, (Date.now() - startedAtMs) / 1000);
+    const bytesPerSecond = downloadedBytes / elapsedSeconds;
+    const remainingBytes = totalBytes !== null ? Math.max(0, totalBytes - downloadedBytes) : null;
+    const etaSeconds = remainingBytes !== null && bytesPerSecond > 0
+      ? remainingBytes / bytesPerSecond
+      : null;
+    const percent = totalBytes && totalBytes > 0
+      ? `${Math.min(100, (downloadedBytes * 100) / totalBytes).toFixed(1)}%`
+      : "unknown";
+    const base = [
+      `${label}: ${percent}`,
+      `${formatByteCount(downloadedBytes)}/${totalBytes !== null ? formatByteCount(totalBytes) : "unknown"}`,
+      `${formatByteRate(bytesPerSecond)}`,
+      `ETA ${etaSeconds !== null ? formatDurationSeconds(etaSeconds) : "unknown"}`,
+    ].join(" ");
+    if (event.status === "start") {
+      writeInline(`${base} from ${url}`);
+      return;
+    }
+    if (event.status === "done") {
+      writeInline(`${label}: 100% (${formatByteCount(downloadedBytes)}, done)`, true);
+      return;
+    }
+    if (event.status === "error") {
+      writeInline(`${label}: failed after ${formatByteCount(downloadedBytes)}`, true);
+      return;
+    }
+    if (event.status === "progress") {
+      writeInline(base);
+    }
+  };
+}
+
+function formatByteCount(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value)) {
+    return "unknown";
+  }
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  let scaled = Math.max(0, value);
+  let unitIndex = 0;
+  while (scaled >= 1024 && unitIndex < units.length - 1) {
+    scaled /= 1024;
+    unitIndex += 1;
+  }
+  const decimals = unitIndex === 0 ? 0 : 1;
+  return `${scaled.toFixed(decimals)} ${units[unitIndex]}`;
+}
+
+function formatByteRate(bytesPerSecond) {
+  return `${formatByteCount(bytesPerSecond)}/s`;
+}
+
+function formatDurationSeconds(seconds) {
+  const value = Math.max(0, Number(seconds));
+  if (!Number.isFinite(value)) {
+    return "unknown";
+  }
+  if (value < 60) {
+    return `${Math.ceil(value)}s`;
+  }
+  const minutes = Math.floor(value / 60);
+  const remainingSeconds = Math.ceil(value % 60);
+  return `${minutes}m ${remainingSeconds}s`;
 }
 
 function createRpcLogScanProgress({ action, label }) {

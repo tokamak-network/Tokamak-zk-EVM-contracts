@@ -75,7 +75,8 @@ The ZIP archive must contain exactly these root-level JSON files:
 - `contract_codes.json`
 
 The archive must not contain wallet files, account secrets, wallet secrets, note secrets, absolute
-paths, nested paths, or duplicate file names. The CLI rejects archives above 50 MiB.
+paths, nested paths, or duplicate file names. The CLI streams the archive download and displays
+download progress with an estimated remaining time.
 
 `workspace.json` is the same channel workspace metadata shape stored locally by the CLI. Its
 `recoveryLastScannedBlock` and `recoveryRootVectorHash` must match the manifest. `state_snapshot.json`

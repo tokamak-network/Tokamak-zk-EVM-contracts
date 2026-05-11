@@ -9,7 +9,7 @@ mainnet deployments. It has two jobs:
   included in each mainnet deployment
 
 The deployment artifact is the source of truth for deployed code. For mainnet, the current
-artifact is `deployment/chain-id-1/bridge/20260504T001437Z/bridge.1.json`.
+artifact is `deployment/chain-id-1/bridge/20260511T065651Z/bridge.1.json`.
 
 ## Status Definitions
 
@@ -29,10 +29,10 @@ artifact is `deployment/chain-id-1/bridge/20260504T001437Z/bridge.1.json`.
 | --- | --- |
 | Network | Ethereum mainnet |
 | Chain ID | `1` |
-| Deployment timestamp | `20260504T001437Z` |
-| Deployment artifact | `deployment/chain-id-1/bridge/20260504T001437Z/bridge.1.json` |
-| Deployed source commit | `caecf7679d17ad9855580390edc9da469bbafb81` |
-| `origin/main` at changelog update | `caecf7679d17ad9855580390edc9da469bbafb81` |
+| Deployment timestamp | `20260511T065651Z` |
+| Deployment artifact | `deployment/chain-id-1/bridge/20260511T065651Z/bridge.1.json` |
+| Deployed source commit | `b3910b39d49cd4d13bb167999dca48c917878b56` |
+| `origin/main` at changelog update | `b3910b39d49cd4d13bb167999dca48c917878b56` |
 | GitHub-main changes pending mainnet deployment | None at the time this entry was written |
 | Merkle tree depth | `36` |
 | Groth16 compatible backend version | `0.2` |
@@ -43,14 +43,14 @@ artifact is `deployment/chain-id-1/bridge/20260504T001437Z/bridge.1.json`.
 | Component | Address |
 | --- | --- |
 | `BridgeCore` proxy | `0x992E2Ae206620d811832a8F697c526c4f95974b6` |
-| `BridgeCore` implementation | `0x0eC8DeEb01e7a7b43818DFfA670F0460cf292Dae` |
+| `BridgeCore` implementation | `0x1713171adc06BF82b4f05945d742FFd351a8d1bD` |
 | `DAppManager` proxy | `0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA` |
-| `DAppManager` implementation | `0xe9DDe46d97149E59b1919Af533d41fAedefca33F` |
+| `DAppManager` implementation | `0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5` |
 | `L1TokenVault` proxy | `0xf127Aef661c815ad46c5159146078f6F1E9f5F61` |
-| `L1TokenVault` implementation | `0xfDA73D59AB5Ab8d3f681384225Cf350Bb7b6Ba92` |
-| `ChannelDeployer` | `0xE9B3d20e5925DEB506B5F5cCA94F753B6A34Af7C` |
-| `Groth16Verifier` | `0xC1523baF508B5d45663Cb69fc0cA7F35e82101eB` |
-| `TokamakVerifier` | `0xfC0BaCc0628BafAcB7Ce52fde21680caAA3cC9E1` |
+| `L1TokenVault` implementation | `0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710` |
+| `ChannelDeployer` | `0xEB8eBE0E09bb897785a3bB9A60f93cef7b1AEf78` |
+| `Groth16Verifier` | `0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5` |
+| `TokamakVerifier` | `0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626` |
 | Owner at deployment | `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7` |
 | Deployer | `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7` |
 
@@ -63,40 +63,46 @@ deployment artifact.
 
 ### Local Pending
 
-These commits are ahead of the deployed source commit in the local repository. They are not
-included in the current mainnet bridge deployment. Once pushed to GitHub, they should move to
-the pending-GitHub section until a new mainnet deployment artifact records them.
-
-#### Requires Bridge Mainnet Upgrade
-
-| Commit | Change | Deployment impact |
-| --- | --- | --- |
-| `a7769fb` | Add a `BridgeCore` channel workspace mirror registry controlled by each channel leader. | Requires a `BridgeCore` UUPS implementation upgrade so existing and future channels can publish official workspace mirror URLs. Adds new `BridgeCore` storage. |
-| `a21b23d` | Validate `ChannelManager` verifier compatible backend version strings against the `DAppManager` snapshot during `BridgeCore.createChannel`. | Requires a `BridgeCore` UUPS implementation upgrade to affect future channel creation. No storage layout change. |
-
-#### No Bridge Deployment Required
-
-| Commit | Change |
-| --- | --- |
-| `07423d2` | Add recovery hints to private-state CLI errors. |
-| `f71ef15` | Unify private-state CLI JSON output behind `--json`. |
-| `a4fad24` | Make private-state `doctor` human-readable by default. |
-| `ddd58e1` | Add private-state CLI `guide` command. |
-| `a98a44d` | Remove account import `--force`. |
-| `57993b7` | Remove stale exit-channel `--force`. |
-| `9e2dad7` | Clarify recover-wallet secret requirements. |
-| `4071268` | Require wallet secret path for channel joins. |
-| `911291f` | Relax imported source secret file permission checks while keeping canonical secrets protected. |
-| `c920004` | Add interactive private-state CLI uninstall. |
-| `ee85a1d` | Normalize private-state CLI command names. |
-| `d3d181c` | Persist private-state CLI RPC URLs. |
-| `cce13e9` | Simplify private-state wallet secret creation. |
-| `df056a9` | Restrict private-state CLI secret sources. |
-| `b43f63f` | Add local secret sources for private-state CLI. |
-| `30f8354` | Add private-state channel lookup command. |
-| `da62bab` | Add workspace recovery log checkpointing. |
+None at the time this entry was written.
 
 ## Mainnet Deployments
+
+### 2026-05-11 Bridge Mainnet Upgrade
+
+Status: **Mainnet deployed**
+
+Source commit: `b3910b39d49cd4d13bb167999dca48c917878b56`
+
+Artifact: `deployment/chain-id-1/bridge/20260511T065651Z/bridge.1.json`
+
+Included bridge changes:
+
+- Upgraded the UUPS bridge stack on Ethereum mainnet while preserving the existing
+  `BridgeCore`, `DAppManager`, and `L1TokenVault` proxy addresses.
+- Added the `BridgeCore` channel workspace mirror registry, allowing each channel leader
+  to set, update, read, or clear the official workspace mirror URI for that channel.
+- Added `ChannelWorkspaceMirrorUpdated`, `OnlyChannelLeader`, and
+  `WorkspaceMirrorUriTooLong` to support mirror URI management and validation.
+- Validated `ChannelManager` verifier compatible backend version strings against the
+  `DAppManager` snapshot during channel creation.
+- Replaced the recorded implementations and standalone support contracts for the current
+  source commit while keeping Merkle tree depth `36`, Groth16 backend version `0.2`, and
+  Tokamak backend version `2.1`.
+
+Verification:
+
+- `BridgeCore` implementation `0x1713171adc06BF82b4f05945d742FFd351a8d1bD` was submitted
+  to Etherscan and verified.
+- `DAppManager`, `L1TokenVault`, and proxy verification links were confirmed as already
+  verified or successfully linked.
+- The post-upgrade EIP-1967 implementation slot for the `BridgeCore` proxy matched the
+  deployment artifact.
+
+Operational notes:
+
+- Existing channel managers were not redeployed.
+- The workspace mirror registry starts empty for existing channels. Channel leaders must
+  register mirror URIs before users can recover channel workspaces from mirror servers.
 
 ### 2026-05-04 Initial Mainnet Bridge Deployment
 

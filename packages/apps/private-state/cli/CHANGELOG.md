@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1 - 2026-05-11
+
+- Changed pre-command automatic recovery from an RPC log request time estimate to a fixed
+  7,200-block recovery delta budget.
+
 ## 1.2.0 - 2026-05-08
 
 - Added optional channel workspace mirror recovery. `channel recover-workspace` now accepts
@@ -20,8 +25,6 @@
   when a genesis rebuild is required.
 - Restored received-note event-log refresh for `wallet get-notes`, `wallet transfer-notes`, and
   `wallet redeem-notes`, limited to the saved wallet note recovery index.
-- Limited pre-command automatic recovery to a fixed 7,200-block recovery delta budget instead of
-  estimating wall-clock time from RPC log request counts.
 - Reworked workspace mirror recovery around leader-signed checkpoint manifests and
   delta bundles. When a local recovery index exists, the CLI prechecks the mirror checkpoint and
   downloads only the matching delta bundle instead of a full workspace bundle.

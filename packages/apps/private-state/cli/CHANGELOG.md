@@ -12,7 +12,7 @@
   when a genesis rebuild is required.
 - Restored received-note event-log refresh for `wallet get-notes`, `wallet transfer-notes`, and
   `wallet redeem-notes`, limited to the saved wallet note recovery index.
-- Limited pre-command automatic recovery to a 15 second RPC log scan budget based on the CLI's
+- Limited pre-command automatic recovery to a 10 second RPC log scan budget based on the CLI's
   paced log query rate.
 
 ## 1.2.0 - 2026-05-08

@@ -281,7 +281,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 
 Wallet getter commands that need channel state, including `wallet get-meta`, `wallet get-channel-fund`, and
 `wallet get-notes`, refresh stale local workspaces through saved recovery indexes before reading state when the
-estimated RPC log scan fits within the 15 second pre-command budget. Automatic refresh never replays from channel
+estimated RPC log scan fits within the 10 second pre-command budget. Automatic refresh never replays from channel
 genesis; if the saved index is missing, unusable, or too far behind, the command stops and asks the user to run
 `channel recover-workspace --source rpc --from-genesis` or `wallet recover-workspace --from-genesis` explicitly.
 

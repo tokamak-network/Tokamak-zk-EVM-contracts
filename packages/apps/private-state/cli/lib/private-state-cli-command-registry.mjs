@@ -361,7 +361,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["channelName", "network", "account", "walletSecretPath", "rpcUrl"],
     usage: "--channel-name, --network, --account, --wallet-secret-path, and optional --rpc-url",
     help: [
-      "Refreshes the local channel workspace through the saved recovery index before joining when the scan fits the 15 second pre-command budget",
+      "Refreshes the local channel workspace through the saved recovery index before joining when the scan fits the 10 second pre-command budget",
       "Fails instead of replaying from genesis; run channel recover-workspace --source rpc --from-genesis when a genesis rebuild is required",
       "--wallet-secret-path imports an existing source secret file into the protected wallet-local secret file",
       "Prints the immutable policy snapshot before first registration",
@@ -373,7 +373,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Check whether a wallet matches the on-chain channel registration.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Refreshes the local channel workspace through the saved recovery index before reading registration metadata when the scan fits the 15 second pre-command budget"],
+    help: ["Refreshes the local channel workspace through the saved recovery index before reading registration metadata when the scan fits the 10 second pre-command budget"],
   },
   {
     id: "wallet-list",
@@ -413,7 +413,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Move bridged funds into the channel L2 accounting balance.",
     fields: ["wallet", "network", "amount"],
     usage: "--wallet, --network, and --amount",
-    help: ["Refreshes the local channel workspace through the saved recovery index before proving the deposit when the scan fits the 15 second pre-command budget"],
+    help: ["Refreshes the local channel workspace through the saved recovery index before proving the deposit when the scan fits the 10 second pre-command budget"],
   },
   {
     id: "wallet-withdraw-channel",
@@ -421,7 +421,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Move channel L2 balance back into the shared bridge vault.",
     fields: ["wallet", "network", "amount"],
     usage: "--wallet, --network, and --amount",
-    help: ["Refreshes the local channel workspace through the saved recovery index before proving the withdrawal when the scan fits the 15 second pre-command budget"],
+    help: ["Refreshes the local channel workspace through the saved recovery index before proving the withdrawal when the scan fits the 10 second pre-command budget"],
   },
   {
     id: "wallet-get-channel-fund",
@@ -429,7 +429,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Read the current channel L2 accounting balance.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Refreshes the local channel workspace through the saved recovery index before reading the L2 accounting balance when the scan fits the 15 second pre-command budget"],
+    help: ["Refreshes the local channel workspace through the saved recovery index before reading the L2 accounting balance when the scan fits the 10 second pre-command budget"],
   },
   {
     id: "channel-exit",
@@ -437,7 +437,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Exit a channel. Both the CLI and bridge contract require a zero channel balance.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Refreshes the local channel workspace through the saved recovery index before checking the channel balance when the scan fits the 15 second pre-command budget"],
+    help: ["Refreshes the local channel workspace through the saved recovery index before checking the channel balance when the scan fits the 10 second pre-command budget"],
   },
   {
     id: "wallet-mint-notes",
@@ -446,7 +446,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network", "amounts", "txSubmitter"],
     usage: "--wallet, --network, --amounts, and optional --tx-submitter",
     help: [
-      "Refreshes the local channel workspace through the saved recovery index before proving the mint when the scan fits the 15 second pre-command budget",
+      "Refreshes the local channel workspace through the saved recovery index before proving the mint when the scan fits the 10 second pre-command budget",
       "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
     ],
   },
@@ -457,7 +457,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network", "noteIds", "recipients", "amounts", "txSubmitter"],
     usage: "--wallet, --network, --note-ids, --recipients, --amounts, and optional --tx-submitter",
     help: [
-      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the transfer when scans fit the 15 second pre-command budget",
+      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the transfer when scans fit the 10 second pre-command budget",
       "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
     ],
   },
@@ -468,7 +468,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network", "noteIds", "txSubmitter"],
     usage: "--wallet, --network, --note-ids, and optional --tx-submitter",
     help: [
-      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the redeem when scans fit the 15 second pre-command budget",
+      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the redeem when scans fit the 10 second pre-command budget",
       "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
     ],
   },
@@ -479,8 +479,8 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
     help: [
-      "Refreshes the local channel workspace through the saved recovery index before reading notes when the scan fits the 15 second pre-command budget",
-      "Refreshes received-note logs through the saved wallet note recovery index when the scan fits the 15 second pre-command budget",
+      "Refreshes the local channel workspace through the saved recovery index before reading notes when the scan fits the 10 second pre-command budget",
+      "Refreshes received-note logs through the saved wallet note recovery index when the scan fits the 10 second pre-command budget",
       "Fails instead of replaying from genesis; run wallet recover-workspace --from-genesis when a genesis rebuild is required",
     ],
   },

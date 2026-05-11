@@ -1180,31 +1180,10 @@ async function buildWorkspaceMirrorDeltaBundle({
   recoveryRootVectorHash,
 }) {
   expect(Number.isInteger(fromBlock) && Number.isInteger(toBlock) && toBlock >= fromBlock, "Invalid workspace mirror delta block range.");
-  const channelManager = new Contract(
-    channelInfo.manager,
-    bridgeAbiManifest.contracts.channelManager.abi,
+  const { channelManagerLogs, bridgeVaultLogs } = await fetchChannelRecoveryLogs({
     provider,
-  );
-  const bridgeTokenVault = new Contract(
-    channelInfo.bridgeTokenVault,
-    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
-    provider,
-  );
-  const currentRootVectorObservedTopic =
-    normalizeBytes32Hex(channelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
-  const channelManagerLogs = await fetchLogsChunked(provider, {
-    address: channelInfo.manager,
-    topics: [[
-      currentRootVectorObservedTopic,
-      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
-      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
-    ]],
-    fromBlock,
-    toBlock,
-  });
-  const bridgeVaultLogs = await queryContractEventsChunked({
-    contract: bridgeTokenVault,
-    eventName: "StorageWriteObserved",
+    bridgeAbiManifest,
+    channelInfo,
     fromBlock,
     toBlock,
   });
@@ -6917,6 +6896,56 @@ async function fetchChannelBlockInfo(provider, blockNumber) {
   };
 }
 
+async function fetchChannelRecoveryLogs({
+  provider,
+  bridgeAbiManifest,
+  channelInfo,
+  channelManager = null,
+  fromBlock,
+  toBlock,
+  progressAction = null,
+}) {
+  const resolvedChannelManager = channelManager ?? new Contract(
+    channelInfo.manager,
+    bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
+  const bridgeTokenVault = new Contract(
+    channelInfo.bridgeTokenVault,
+    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+    provider,
+  );
+  const currentRootVectorObservedTopic =
+    normalizeBytes32Hex(resolvedChannelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
+  const channelManagerLogs = await fetchLogsChunked(provider, {
+    address: channelInfo.manager,
+    topics: [[
+      currentRootVectorObservedTopic,
+      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
+      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
+    ]],
+    fromBlock,
+    toBlock,
+    onProgress: progressAction
+      ? createRpcLogScanProgress({ action: progressAction, label: "channel-manager events" })
+      : null,
+  });
+  const bridgeVaultLogs = await queryContractEventsChunked({
+    contract: bridgeTokenVault,
+    eventName: "StorageWriteObserved",
+    fromBlock,
+    toBlock,
+    onProgress: progressAction
+      ? createRpcLogScanProgress({ action: progressAction, label: "bridge-vault events" })
+      : null,
+  });
+  return {
+    currentRootVectorObservedTopic,
+    channelManagerLogs,
+    bridgeVaultLogs,
+  };
+}
+
 async function reconstructChannelSnapshot({
   provider,
   bridgeAbiManifest,
@@ -6947,27 +6976,20 @@ async function reconstructChannelSnapshot({
     startingSnapshot = await genesisStateManager.captureStateSnapshot();
   }
 
-  const bridgeTokenVault = new Contract(
-    channelInfo.bridgeTokenVault,
-    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
-    provider,
-  );
   const latestBlock = toBlock === null ? await provider.getBlockNumber() : Number(toBlock);
   const scanFromBlock = Math.max(Number(genesisBlockNumber), Number(fromBlock));
-  const currentRootVectorObservedTopic =
-    normalizeBytes32Hex(channelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
-  const channelManagerLogs = await fetchLogsChunked(provider, {
-    address: channelInfo.manager,
-    topics: [[
-      currentRootVectorObservedTopic,
-      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
-      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
-    ]],
+  const {
+    currentRootVectorObservedTopic,
+    channelManagerLogs,
+    bridgeVaultLogs,
+  } = await fetchChannelRecoveryLogs({
+    provider,
+    bridgeAbiManifest,
+    channelInfo,
+    channelManager,
     fromBlock: scanFromBlock,
     toBlock: latestBlock,
-    onProgress: progressAction
-      ? createRpcLogScanProgress({ action: progressAction, label: "channel-manager events" })
-      : null,
+    progressAction,
   });
   const channelManagerEvents = channelManagerLogs.map((log) => {
     const topic0 = log.topics[0] ? normalizeBytes32Hex(log.topics[0]) : null;
@@ -6981,18 +7003,9 @@ async function reconstructChannelSnapshot({
     }
     return log;
   });
-  const vaultStorageWriteEvents = await queryContractEventsChunked({
-    contract: bridgeTokenVault,
-    eventName: "StorageWriteObserved",
-    fromBlock: scanFromBlock,
-    toBlock: latestBlock,
-    onProgress: progressAction
-      ? createRpcLogScanProgress({ action: progressAction, label: "bridge-vault events" })
-      : null,
-  });
 
   const groupedEvents = new Map();
-  for (const event of [...channelManagerEvents, ...vaultStorageWriteEvents]) {
+  for (const event of [...channelManagerEvents, ...bridgeVaultLogs]) {
     const key = event.transactionHash;
     const group = groupedEvents.get(key) ?? [];
     group.push(event);

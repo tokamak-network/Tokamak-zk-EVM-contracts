@@ -69,10 +69,10 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     option: "--wallet",
   },
   output: {
-    label: "Output ZIP",
+    label: "Output Path",
     type: "text",
-    placeholder: "/path/to/wallet-export.zip",
-    valueLabel: "<ZIP>",
+    placeholder: "/path/to/output",
+    valueLabel: "<PATH>",
     option: "--output",
   },
   input: {
@@ -157,8 +157,32 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
   fromGenesis: {
     label: "Scan From Genesis",
     type: "checkbox",
-    hint: "Ignore the local recovery index and replay channel logs from genesis.",
+    hint: "Requires --source rpc. Ignore the local recovery index and replay channel logs from genesis.",
     option: "--from-genesis",
+    optional: true,
+  },
+  source: {
+    label: "Recovery Source",
+    type: "select",
+    options: ["rpc", "mirror"],
+    valueLabel: "<rpc|mirror>",
+    hint: "Optional. Defaults to rpc. mirror validates the channel leader's checkpoint manifest and downloads only the needed checkpoint or delta bundle before RPC delta replay.",
+    option: "--source",
+    optional: true,
+  },
+  url: {
+    label: "Workspace Mirror URL",
+    type: "text",
+    placeholder: "https://mirror.example",
+    valueLabel: "<URL>",
+    hint: "Base URL for the channel workspace mirror protocol.",
+    option: "--url",
+  },
+  force: {
+    label: "Force",
+    type: "checkbox",
+    hint: "Ignore an unreadable or invalid existing mirror manifest and publish a full checkpoint instead of a delta.",
+    option: "--force",
     optional: true,
   },
   json: {
@@ -280,13 +304,38 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "channel-recover-workspace",
     display: "channel recover-workspace",
     description: "Rebuild the local channel workspace from bridge state.",
-    fields: ["channelName", "network", "fromGenesis", "rpcUrl"],
-    usage: "--channel-name, --network, optional --from-genesis, and optional --rpc-url",
+    fields: ["channelName", "network", "source", "fromGenesis", "rpcUrl"],
+    usage: "--channel-name, --network, optional --source, optional --from-genesis, and optional --rpc-url",
     help: [
-      "By default, resumes RPC log scanning from the workspace recovery index when available",
+      "By default, --source rpc resumes RPC log scanning from the workspace recovery index when available",
+      "--source mirror validates the channel leader's registered checkpoint manifest, downloads only the needed checkpoint or delta bundle, and then replays RPC logs to latest",
       "Fails instead of falling back to genesis when no usable recovery index exists",
-      "Use --from-genesis to ignore the recovery index and replay logs from channel genesis",
+      "Use --source rpc --from-genesis to ignore the recovery index and replay logs from channel genesis",
       "Prints RPC log scan progress while rebuilding the workspace",
+    ],
+  },
+  {
+    id: "channel-set-workspace-mirror",
+    display: "channel set-workspace-mirror",
+    description: "Register or update the channel leader's workspace mirror base URL.",
+    fields: ["channelName", "network", "account", "url", "rpcUrl"],
+    usage: "--channel-name, --network, --account, --url, and optional --rpc-url",
+    help: [
+      "Only the on-chain channel leader can update the registered mirror URL",
+      "The URL points to a server implementing the private-state channel workspace mirror protocol",
+    ],
+  },
+  {
+    id: "channel-publish-workspace-mirror",
+    display: "channel publish-workspace-mirror",
+    description: "Build static workspace mirror files for the registered mirror URL.",
+    fields: ["channelName", "network", "account", "output", "force", "rpcUrl"],
+    usage: "--channel-name, --network, --account, --output, optional --force, and optional --rpc-url",
+    help: [
+      "Requires the local channel workspace to be current and ahead of the registered mirror checkpoint",
+      "--force ignores an unreadable or invalid existing mirror manifest and publishes a full checkpoint without a delta",
+      "Writes manifest.json, checkpoint.zip, and any needed delta bundle under the workspace mirror static path",
+      "Does not upload files to a remote server; deploy the output directory to the registered HTTPS mirror host",
     ],
   },
   {
@@ -332,8 +381,8 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["channelName", "network", "account", "walletSecretPath", "rpcUrl"],
     usage: "--channel-name, --network, --account, --wallet-secret-path, and optional --rpc-url",
     help: [
-      "Requires a recovered channel workspace and refreshes it through the workspace recovery index before joining",
-      "Run channel recover-workspace --from-genesis once if no usable local recovery index exists",
+      "Refreshes the local channel workspace through the saved recovery index before joining when the scan fits the 10 second pre-command budget",
+      "Fails instead of replaying from genesis; run channel recover-workspace --source rpc --from-genesis when a genesis rebuild is required",
       "--wallet-secret-path imports an existing source secret file into the protected wallet-local secret file",
       "Prints the immutable policy snapshot before first registration",
     ],
@@ -344,7 +393,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Check whether a wallet matches the on-chain channel registration.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Refreshes channel state through the workspace recovery index before reading registration metadata"],
+    help: ["Refreshes the local channel workspace through the saved recovery index before reading registration metadata when the scan fits the 10 second pre-command budget"],
   },
   {
     id: "wallet-list",
@@ -384,6 +433,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Move bridged funds into the channel L2 accounting balance.",
     fields: ["wallet", "network", "amount"],
     usage: "--wallet, --network, and --amount",
+    help: ["Refreshes the local channel workspace through the saved recovery index before proving the deposit when the scan fits the 10 second pre-command budget"],
   },
   {
     id: "wallet-withdraw-channel",
@@ -391,6 +441,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Move channel L2 balance back into the shared bridge vault.",
     fields: ["wallet", "network", "amount"],
     usage: "--wallet, --network, and --amount",
+    help: ["Refreshes the local channel workspace through the saved recovery index before proving the withdrawal when the scan fits the 10 second pre-command budget"],
   },
   {
     id: "wallet-get-channel-fund",
@@ -398,7 +449,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Read the current channel L2 accounting balance.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Refreshes channel state through the workspace recovery index before reading the L2 accounting balance"],
+    help: ["Refreshes the local channel workspace through the saved recovery index before reading the L2 accounting balance when the scan fits the 10 second pre-command budget"],
   },
   {
     id: "channel-exit",
@@ -406,6 +457,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Exit a channel. Both the CLI and bridge contract require a zero channel balance.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
+    help: ["Refreshes the local channel workspace through the saved recovery index before checking the channel balance when the scan fits the 10 second pre-command budget"],
   },
   {
     id: "wallet-mint-notes",
@@ -413,7 +465,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Mint one or two private-state notes from the wallet's channel balance.",
     fields: ["wallet", "network", "amounts", "txSubmitter"],
     usage: "--wallet, --network, --amounts, and optional --tx-submitter",
-    help: ["Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy"],
+    help: [
+      "Refreshes the local channel workspace through the saved recovery index before proving the mint when the scan fits the 10 second pre-command budget",
+      "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
+    ],
   },
   {
     id: "wallet-transfer-notes",
@@ -421,7 +476,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Spend input notes into the registered 1->1, 1->2, or 2->1 private transfer shapes.",
     fields: ["wallet", "network", "noteIds", "recipients", "amounts", "txSubmitter"],
     usage: "--wallet, --network, --note-ids, --recipients, --amounts, and optional --tx-submitter",
-    help: ["Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy"],
+    help: [
+      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the transfer when scans fit the 10 second pre-command budget",
+      "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
+    ],
   },
   {
     id: "wallet-redeem-notes",
@@ -429,17 +487,21 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Redeem one tracked note back into the wallet's channel balance.",
     fields: ["wallet", "network", "noteIds", "txSubmitter"],
     usage: "--wallet, --network, --note-ids, and optional --tx-submitter",
-    help: ["Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy"],
+    help: [
+      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the redeem when scans fit the 10 second pre-command budget",
+      "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
+    ],
   },
   {
     id: "wallet-get-notes",
     display: "wallet get-notes",
-    description: "Show the wallet's tracked note state and refresh received notes.",
+    description: "Refresh received notes when the saved recovery index is recent, then show tracked note state.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
     help: [
-      "Refreshes channel state through the workspace recovery index before reading notes",
-      "Refreshes received-note logs through the wallet note recovery index",
+      "Refreshes the local channel workspace through the saved recovery index before reading notes when the scan fits the 10 second pre-command budget",
+      "Refreshes received-note logs through the saved wallet note recovery index when the scan fits the 10 second pre-command budget",
+      "Fails instead of replaying from genesis; run wallet recover-workspace --from-genesis when a genesis rebuild is required",
     ],
   },
 ]);

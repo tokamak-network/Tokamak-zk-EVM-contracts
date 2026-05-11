@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import AdmZip from "adm-zip";
 import {
+  createHash,
   createCipheriv,
   createDecipheriv,
   randomBytes,
@@ -135,6 +136,15 @@ const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const WALLET_EXPORT_FORMAT = "tokamak-private-state-wallet-export";
 const WALLET_EXPORT_FORMAT_VERSION = 1;
+const CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION = 2;
+const CHANNEL_WORKSPACE_MIRROR_MANIFEST_PATH_PREFIX =
+  ".well-known/tokamak-private-state/channel-workspace";
+const CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES = Object.freeze(new Set([
+  "workspace.json",
+  "state_snapshot.json",
+  "block_info.json",
+  "contract_codes.json",
+]));
 let jsonOutputRequested = false;
 let activeCliArgs = {};
 
@@ -197,6 +207,8 @@ const ZERO_TOPIC = normalizeBytes32Hex(ethers.ZeroHash);
 const DEFAULT_LOG_CHUNK_SIZE = 2000;
 const DEFAULT_LOG_REQUESTS_PER_SECOND = 5;
 const LOG_REQUEST_INTERVAL_MS = Math.ceil(1000 / DEFAULT_LOG_REQUESTS_PER_SECOND);
+const AUTO_RECOVERY_TIME_BUDGET_SECONDS = 10;
+const AUTO_RECOVERY_LOG_REQUEST_BUDGET = DEFAULT_LOG_REQUESTS_PER_SECOND * AUTO_RECOVERY_TIME_BUDGET_SECONDS;
 let lastLogRequestStartedAtMs = 0;
 
 function printImmutableChannelPolicyWarning({
@@ -473,6 +485,20 @@ async function main() {
       await handleGetChannel({ args, network, provider });
       return;
     }
+    case "channel-set-workspace-mirror": {
+      assertSetWorkspaceMirrorArgs(args);
+      const { network, provider } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
+      await handleSetChannelWorkspaceMirror({ args, network, provider });
+      return;
+    }
+    case "channel-publish-workspace-mirror": {
+      assertPublishWorkspaceMirrorArgs(args);
+      const { network, provider } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
+      await handlePublishChannelWorkspaceMirror({ args, network, provider });
+      return;
+    }
     case "account-deposit-bridge": {
       assertDepositBridgeArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
@@ -658,6 +684,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
   const workspaceName = channelName;
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const recoverySource = resolveWorkspaceRecoverySource(args);
 
   const { workspaceDir, workspace, currentSnapshot } = await syncChannelWorkspace({
     workspaceName,
@@ -669,11 +696,13 @@ async function handleWorkspaceInit({ args, network, provider }) {
     allowExistingWorkspaceSync: true,
     useWorkspaceRecoveryIndex: true,
     fromGenesis: args.fromGenesis === true,
+    recoverySource,
     progressAction: "channel recover-workspace",
   });
 
   printJson({
     action: "channel recover-workspace",
+    source: workspace.recoverySource ?? recoverySource,
     workspace: workspaceName,
     workspaceDir,
     channelName,
@@ -686,6 +715,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     recoveryLastScannedBlock: workspace.recoveryLastScannedBlock,
     recoveryRootVectorHash: workspace.recoveryRootVectorHash,
     recoveryScanRange: workspace.recoveryScanRange,
+    workspaceMirror: workspace.workspaceMirror ?? null,
   });
 }
 
@@ -764,7 +794,1125 @@ async function handleGetChannel({ args, network, provider }) {
     policySnapshot,
     refundSchedule,
     bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
+    workspaceMirror: await tryReadChannelWorkspaceMirror({ bridgeCore, channelId }),
   });
+}
+
+async function handleSetChannelWorkspaceMirror({ args, network, provider }) {
+  const channelName = requireArg(args.channelName, "--channel-name");
+  const url = requireWorkspaceMirrorUrl(args.url);
+  const signer = requireL1Signer(args, provider);
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const bridgeCore = new Contract(
+    bridgeResources.bridgeDeployment.bridgeCore,
+    bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
+    signer,
+  );
+  const channelId = deriveChannelIdFromName(channelName);
+  const previousUrl = await readChannelWorkspaceMirror({ bridgeCore, channelId });
+  const receipt = await waitForReceipt(await bridgeCore.setChannelWorkspaceMirror(channelId, url));
+  const currentUrl = await readChannelWorkspaceMirror({ bridgeCore, channelId });
+
+  printJson({
+    action: "channel set-workspace-mirror",
+    channelName,
+    channelId: channelId.toString(),
+    leader: getAddress(signer.address),
+    previousUrl,
+    url: currentUrl,
+    bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
+    gasUsed: receiptGasUsed(receipt),
+    txUrl: explorerTxUrl(network, receipt.hash),
+    receipt: sanitizeReceipt(receipt),
+  });
+}
+
+async function handlePublishChannelWorkspaceMirror({ args, network, provider }) {
+  const channelName = requireArg(args.channelName, "--channel-name");
+  const outputRoot = path.resolve(String(requireArg(args.output, "--output")));
+  const force = args.force === true;
+  const signer = requireL1Signer(args, provider);
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
+  const bridgeCore = new Contract(
+    bridgeDeployment.bridgeCore,
+    bridgeAbiManifest.contracts.bridgeCore.abi,
+    signer,
+  );
+  const channelId = deriveChannelIdFromName(channelName);
+  const channelInfo = await bridgeCore.getChannel(channelId);
+  expect(channelInfo.exists, `Unknown channel ${channelId.toString()} in bridge core ${bridgeDeployment.bridgeCore}.`);
+  expect(
+    ethers.toBigInt(getAddress(signer.address)) === ethers.toBigInt(getAddress(channelInfo.leader)),
+    "Only the channel leader can publish a signed workspace mirror checkpoint.",
+  );
+
+  const registeredUrl = String(await readChannelWorkspaceMirror({ bridgeCore, channelId })).trim();
+  expect(
+    registeredUrl.length > 0,
+    `No workspace mirror URL is registered for channel ${channelName}. Run channel set-workspace-mirror first.`,
+  );
+  const manifestUrl = channelWorkspaceMirrorManifestUrl({
+    registeredUrl,
+    chainId: network.chainId,
+    channelId,
+  });
+
+  const local = await loadPublishableLocalWorkspaceMirrorCheckpoint({
+    channelName,
+    network,
+    provider,
+    bridgeResources,
+    channelInfo,
+  });
+  const remote = await readRemoteWorkspaceMirrorCheckpoint({
+    manifestUrl,
+    chainId: network.chainId,
+    channelId,
+    channelName,
+    bridgeCoreAddress: bridgeDeployment.bridgeCore,
+    channelInfo,
+    blockInfo: local.blockInfo,
+    contractCodes: local.contractCodes,
+    force,
+  });
+  expect(
+    !remote.exists || Number(local.recoveryLastScannedBlock) > Number(remote.recoveryLastScannedBlock),
+    [
+      `Local workspace recovery index ${local.recoveryLastScannedBlock} is not ahead of the registered mirror`,
+      `checkpoint ${remote.exists ? remote.recoveryLastScannedBlock : "<missing>"}.`,
+      "Run channel recover-workspace first if the local workspace is stale.",
+    ].join(" "),
+  );
+
+  const publishTarget = workspaceMirrorPublishTarget({
+    outputRoot,
+    registeredUrl,
+    chainId: network.chainId,
+    channelId,
+  });
+  const mirrorDir = publishTarget.mirrorDir;
+  ensureDir(mirrorDir);
+
+  const checkpointBundle = buildWorkspaceMirrorCheckpointBundle({
+    workspace: local.workspace,
+    stateSnapshot: local.stateSnapshot,
+    blockInfo: local.blockInfo,
+    contractCodes: local.contractCodes,
+  });
+  const checkpointBundlePath = path.join(mirrorDir, "checkpoint.zip");
+  fs.writeFileSync(checkpointBundlePath, checkpointBundle.bytes);
+
+  const deltaBundles = [];
+  if (remote.exists) {
+    const delta = await buildWorkspaceMirrorDeltaBundle({
+      provider,
+      bridgeAbiManifest,
+      channelInfo,
+      chainId: network.chainId,
+      channelId,
+      fromBlock: Number(remote.recoveryLastScannedBlock),
+      toBlock: Number(local.recoveryLastScannedBlock) - 1,
+      baseRecoveryRootVectorHash: remote.recoveryRootVectorHash,
+      recoveryRootVectorHash: local.recoveryRootVectorHash,
+    });
+    const deltaRelativePath = `deltas/${delta.fromBlock}-${delta.toBlock}.json`;
+    const deltaBytes = Buffer.from(`${JSON.stringify(normalizeCliOutput(delta), null, 2)}\n`, "utf8");
+    const deltaPath = path.join(mirrorDir, deltaRelativePath);
+    ensureDir(path.dirname(deltaPath));
+    fs.writeFileSync(deltaPath, deltaBytes);
+    deltaBundles.push({
+      fromBlock: delta.fromBlock,
+      toBlock: delta.toBlock,
+      url: deltaRelativePath,
+      sha256: sha256Hex(deltaBytes),
+      sizeBytes: deltaBytes.length,
+    });
+  }
+
+  const unsignedManifest = {
+    protocolVersion: CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION,
+    chainId: Number(network.chainId),
+    channelId: channelId.toString(),
+    channelName,
+    bridgeCore: getAddress(bridgeDeployment.bridgeCore),
+    channelManager: getAddress(channelInfo.manager),
+    bridgeTokenVault: getAddress(channelInfo.bridgeTokenVault),
+    leader: getAddress(channelInfo.leader),
+    checkpoint: {
+      recoveryLastScannedBlock: Number(local.recoveryLastScannedBlock),
+      recoveryRootVectorHash: local.recoveryRootVectorHash,
+      workspaceHash: hashJsonValue(local.workspace),
+      stateSnapshotHash: hashJsonValue(local.stateSnapshot),
+      blockInfoHash: hashJsonValue(local.blockInfo),
+      contractCodesHash: hashJsonValue(local.contractCodes),
+      bundle: {
+        url: "checkpoint.zip",
+        sha256: checkpointBundle.sha256,
+        sizeBytes: checkpointBundle.bytes.length,
+      },
+    },
+    deltaBundles,
+    validationCertificate: {
+      schema: "tokamak-private-state-workspace-mirror",
+      signer: getAddress(signer.address),
+      signedAt: new Date().toISOString(),
+      canary: {
+        proofVerified: true,
+        description: "The channel leader attests that the checkpoint workspace passed the operator's canary proof generation and verification workflow.",
+      },
+    },
+    createdAt: new Date().toISOString(),
+    minCliVersion: privateStateCliPackageJson.version,
+  };
+  const signature = await signer.signMessage(ethers.getBytes(hashWorkspaceMirrorCertificatePayload(unsignedManifest)));
+  const manifest = {
+    ...unsignedManifest,
+    validationCertificate: {
+      ...unsignedManifest.validationCertificate,
+      signature,
+    },
+  };
+  writeJson(publishTarget.manifestPath, manifest);
+
+  printJson({
+    action: "channel publish-workspace-mirror",
+    channelName,
+    channelId: channelId.toString(),
+    force,
+    outputRoot,
+    mirrorDir,
+    manifestPath: publishTarget.manifestPath,
+    registeredUrl,
+    manifestUrl,
+    remoteCheckpoint: remote.exists
+      ? {
+        recoveryLastScannedBlock: remote.recoveryLastScannedBlock,
+        recoveryRootVectorHash: remote.recoveryRootVectorHash,
+      }
+      : null,
+    ignoredRemoteCheckpoint: remote.ignored
+      ? {
+        manifestUrl,
+        error: remote.error,
+      }
+      : null,
+    checkpoint: {
+      recoveryLastScannedBlock: local.recoveryLastScannedBlock,
+      recoveryRootVectorHash: local.recoveryRootVectorHash,
+      bundlePath: checkpointBundlePath,
+      sha256: checkpointBundle.sha256,
+      sizeBytes: checkpointBundle.bytes.length,
+    },
+    deltaBundles,
+  });
+}
+
+function resolveWorkspaceRecoverySource(args) {
+  const source = args.source === undefined ? "rpc" : String(args.source).trim().toLowerCase();
+  if (!["rpc", "mirror"].includes(source)) {
+    throw new Error("--source must be one of: rpc, mirror.");
+  }
+  if (args.fromGenesis === true && (args.source === undefined || source !== "rpc")) {
+    throw new Error("--from-genesis requires explicit --source rpc.");
+  }
+  return source;
+}
+
+function requireWorkspaceMirrorUrl(value) {
+  const url = String(requireArg(value, "--url")).trim();
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      throw new Error("unsupported protocol");
+    }
+  } catch {
+    throw new Error("--url must be an http or https URL.");
+  }
+  return url;
+}
+
+async function readChannelWorkspaceMirror({ bridgeCore, channelId }) {
+  return String(await bridgeCore.getChannelWorkspaceMirror(channelId));
+}
+
+async function loadPublishableLocalWorkspaceMirrorCheckpoint({
+  channelName,
+  network,
+  provider,
+  bridgeResources,
+  channelInfo,
+}) {
+  const workspaceDir = channelWorkspacePath(networkNameFromChainId(network.chainId), channelName);
+  const existingArtifacts = loadExistingWorkspaceArtifacts(workspaceDir);
+  const workspace = existingArtifacts.workspace;
+  expect(workspace, `Local channel workspace is missing at ${channelWorkspaceConfigPath(workspaceDir)}.`);
+  const stateSnapshot = existingArtifacts.stateSnapshot;
+  expect(stateSnapshot, `Local channel state snapshot is missing under ${channelWorkspaceCurrentPath(workspaceDir)}.`);
+  expect(existingArtifacts.blockInfo, `Local channel block_info.json is missing under ${channelWorkspaceCurrentPath(workspaceDir)}.`);
+  expect(existingArtifacts.contractCodes, `Local channel contract_codes.json is missing under ${channelWorkspaceCurrentPath(workspaceDir)}.`);
+  const channelManager = new Contract(
+    channelInfo.manager,
+    bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
+  const [
+    currentRootVectorHash,
+    genesisBlockNumber,
+    latestBlock,
+    managedStorageAddresses,
+  ] = await Promise.all([
+    channelManager.currentRootVectorHash(),
+    channelManager.genesisBlockNumber(),
+    provider.getBlockNumber(),
+    channelManager.getManagedStorageAddresses(),
+  ]);
+  const normalizedManagedStorageAddresses = normalizedAddressVector(managedStorageAddresses);
+  const recoveryIndex = getUsableWorkspaceRecoveryIndex({
+    existingArtifacts,
+    genesisBlockNumber: Number(genesisBlockNumber),
+    latestBlock,
+    managedStorageAddresses: normalizedManagedStorageAddresses,
+  });
+  expect(
+    recoveryIndex,
+    [
+      "Local channel workspace does not contain a usable recovery index.",
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkNameFromChainId(network.chainId)} first.`,
+    ].join(" "),
+  );
+  expect(
+    canReuseLocalWorkspaceSnapshot({
+      existingArtifacts,
+      currentRootVectorHash,
+      managedStorageAddresses: normalizedManagedStorageAddresses,
+    }),
+    [
+      "Local channel workspace is stale relative to the on-chain channel state.",
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkNameFromChainId(network.chainId)} first.`,
+    ].join(" "),
+  );
+  expect(Number(workspace.chainId) === Number(network.chainId), "Local workspace chainId does not match --network.");
+  expect(ethers.toBigInt(workspace.channelId) === ethers.toBigInt(deriveChannelIdFromName(channelName)), "Local workspace channelId mismatch.");
+  expect(String(workspace.channelName) === channelName, "Local workspace channelName mismatch.");
+  expect(
+    ethers.toBigInt(getAddress(workspace.channelManager)) === ethers.toBigInt(getAddress(channelInfo.manager)),
+    "Local workspace channelManager mismatch.",
+  );
+  expect(
+    ethers.toBigInt(getAddress(workspace.bridgeTokenVault)) === ethers.toBigInt(getAddress(channelInfo.bridgeTokenVault)),
+    "Local workspace bridgeTokenVault mismatch.",
+  );
+
+  return {
+    workspace,
+    stateSnapshot,
+    blockInfo: existingArtifacts.blockInfo,
+    contractCodes: existingArtifacts.contractCodes,
+    recoveryLastScannedBlock: recoveryIndex.nextBlock,
+    recoveryRootVectorHash: recoveryIndex.recoveryRootVectorHash,
+  };
+}
+
+async function readRemoteWorkspaceMirrorCheckpoint({
+  manifestUrl,
+  chainId,
+  channelId,
+  channelName,
+  bridgeCoreAddress,
+  channelInfo,
+  blockInfo,
+  contractCodes,
+  force = false,
+}) {
+  const ignoreRemote = (error) => {
+    if (!force) {
+      throw error;
+    }
+    return {
+      exists: false,
+      ignored: true,
+      error: error.message,
+      recoveryLastScannedBlock: null,
+      recoveryRootVectorHash: null,
+    };
+  };
+  let manifest;
+  try {
+    manifest = await fetchJsonFromUrl(manifestUrl, { maxBytes: 1024 * 1024 });
+  } catch (error) {
+    if (/\bHTTP (404|410)\b/u.test(error.message)) {
+      return {
+        exists: false,
+        ignored: false,
+        error: null,
+        recoveryLastScannedBlock: null,
+        recoveryRootVectorHash: null,
+      };
+    }
+    return ignoreRemote(new Error(`Unable to read registered workspace mirror manifest before publish: ${error.message}`));
+  }
+  let checkpoint;
+  try {
+    checkpoint = validateWorkspaceMirrorManifest({
+      manifest,
+      chainId,
+      channelId,
+      channelName,
+      bridgeCoreAddress,
+      channelInfo,
+      blockInfo,
+      contractCodes,
+    });
+  } catch (error) {
+    return ignoreRemote(new Error(`Registered workspace mirror manifest is invalid before publish: ${error.message}`));
+  }
+  return {
+    exists: true,
+    ignored: false,
+    error: null,
+    recoveryLastScannedBlock: checkpoint.recoveryLastScannedBlock,
+    recoveryRootVectorHash: checkpoint.recoveryRootVectorHash,
+  };
+}
+
+function buildWorkspaceMirrorCheckpointBundle({
+  workspace,
+  stateSnapshot,
+  blockInfo,
+  contractCodes,
+}) {
+  const archive = new AdmZip();
+  const files = {
+    "workspace.json": workspace,
+    "state_snapshot.json": stateSnapshot,
+    "block_info.json": blockInfo,
+    "contract_codes.json": contractCodes,
+  };
+  for (const [fileName, value] of Object.entries(files)) {
+    archive.addFile(fileName, Buffer.from(`${JSON.stringify(normalizeCliOutput(value), null, 2)}\n`, "utf8"));
+  }
+  const bytes = archive.toBuffer();
+  return {
+    bytes,
+    sha256: sha256Hex(bytes),
+  };
+}
+
+async function buildWorkspaceMirrorDeltaBundle({
+  provider,
+  bridgeAbiManifest,
+  channelInfo,
+  chainId,
+  channelId,
+  fromBlock,
+  toBlock,
+  baseRecoveryRootVectorHash,
+  recoveryRootVectorHash,
+}) {
+  expect(Number.isInteger(fromBlock) && Number.isInteger(toBlock) && toBlock >= fromBlock, "Invalid workspace mirror delta block range.");
+  const { channelManagerLogs, bridgeVaultLogs } = await fetchChannelRecoveryLogs({
+    provider,
+    bridgeAbiManifest,
+    channelInfo,
+    fromBlock,
+    toBlock,
+  });
+  const logs = [...channelManagerLogs, ...bridgeVaultLogs]
+    .sort(compareLogsByPosition)
+    .map(serializeWorkspaceMirrorDeltaLog);
+  return {
+    protocolVersion: CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION,
+    chainId: Number(chainId),
+    channelId: channelId.toString(),
+    fromBlock,
+    toBlock,
+    baseRecoveryRootVectorHash: normalizeBytes32Hex(baseRecoveryRootVectorHash),
+    recoveryRootVectorHash: normalizeBytes32Hex(recoveryRootVectorHash),
+    logs,
+  };
+}
+
+function serializeWorkspaceMirrorDeltaLog(log) {
+  return {
+    address: getAddress(log.address),
+    topics: (log.topics ?? []).map((topic) => normalizeBytes32Hex(topic)),
+    data: log.data ?? "0x",
+    blockNumber: Number(log.blockNumber),
+    transactionHash: normalizeBytes32Hex(log.transactionHash),
+    transactionIndex: Number(log.transactionIndex),
+    index: Number(log.index ?? log.logIndex),
+  };
+}
+
+function workspaceMirrorPublishTarget({ outputRoot, registeredUrl, chainId, channelId }) {
+  const parsed = new URL(registeredUrl);
+  const registeredSegments = safeUrlPathSegments(parsed.pathname);
+  if (parsed.pathname.endsWith(".json")) {
+    const manifestPath = path.join(outputRoot, ...registeredSegments);
+    return {
+      mirrorDir: path.dirname(manifestPath),
+      manifestPath,
+    };
+  }
+  const mirrorDir = path.join(
+    outputRoot,
+    ...registeredSegments,
+    ...CHANNEL_WORKSPACE_MIRROR_MANIFEST_PATH_PREFIX.split("/"),
+    String(chainId),
+    channelId.toString(),
+  );
+  return {
+    mirrorDir,
+    manifestPath: path.join(mirrorDir, "manifest.json"),
+  };
+}
+
+function safeUrlPathSegments(pathname) {
+  return pathname
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => decodeURIComponent(segment))
+    .filter((segment) => segment !== ".")
+    .map((segment) => {
+      expect(segment !== ".." && !segment.includes("/") && !segment.includes("\\"), "Workspace mirror URL path contains an unsafe segment.");
+      return segment;
+    });
+}
+
+async function tryReadChannelWorkspaceMirror({ bridgeCore, channelId }) {
+  try {
+    return await readChannelWorkspaceMirror({ bridgeCore, channelId });
+  } catch {
+    return null;
+  }
+}
+
+async function loadWorkspaceMirrorRecoveryIndex({
+  recoverySource,
+  bridgeCore,
+  channelId,
+  channelName,
+  network,
+  bridgeDeployment,
+  channelInfo,
+  genesisBlockNumber,
+  managedStorageAddresses,
+  blockInfo,
+  contractCodes,
+  latestBlock,
+  localRecoveryIndex = null,
+  bridgeAbiManifest,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
+}) {
+  const baseStatus = {
+    source: recoverySource,
+    used: false,
+    registeredUrl: null,
+    manifestUrl: null,
+    bundleUrl: null,
+    skippedReason: null,
+    recoveryLastScannedBlock: null,
+    recoveryRootVectorHash: null,
+    error: null,
+  };
+  if (recoverySource === "rpc") {
+    return { recoveryIndex: null, workspaceMirror: baseStatus };
+  }
+
+  let registeredUrl;
+  try {
+    registeredUrl = String(await readChannelWorkspaceMirror({ bridgeCore, channelId })).trim();
+  } catch (error) {
+    throw new Error(`Unable to read channel workspace mirror registry: ${error.message}`);
+  }
+  if (!registeredUrl) {
+    throw new Error(`No workspace mirror URL is registered for channel ${channelName}.`);
+  }
+
+  try {
+    const mirror = await fetchChannelWorkspaceMirror({
+      registeredUrl,
+      chainId: Number(network.chainId),
+      channelId,
+      channelName,
+      bridgeCoreAddress: bridgeDeployment.bridgeCore,
+      channelInfo,
+      genesisBlockNumber,
+      managedStorageAddresses,
+      blockInfo,
+      contractCodes,
+      latestBlock,
+      localRecoveryIndex,
+      bridgeAbiManifest,
+      controllerAddress,
+      l2AccountingVaultAddress,
+      liquidBalancesSlot,
+    });
+    return {
+      recoveryIndex: mirror.recoveryIndex,
+      workspaceMirror: {
+        source: recoverySource,
+        used: mirror.recoveryIndex !== null,
+        registeredUrl,
+        manifestUrl: mirror.manifestUrl,
+        bundleUrl: mirror.bundleUrl,
+        skippedReason: mirror.skippedReason ?? null,
+        recoveryLastScannedBlock: mirror.recoveryIndex?.nextBlock ?? null,
+        recoveryRootVectorHash: mirror.recoveryIndex?.recoveryRootVectorHash ?? null,
+        error: null,
+      },
+    };
+  } catch (error) {
+    throw new Error(`Workspace mirror recovery failed: ${error.message}`);
+  }
+}
+
+async function fetchChannelWorkspaceMirror({
+  registeredUrl,
+  chainId,
+  channelId,
+  channelName,
+  bridgeCoreAddress,
+  channelInfo,
+  genesisBlockNumber,
+  managedStorageAddresses,
+  blockInfo,
+  contractCodes,
+  latestBlock,
+  localRecoveryIndex = null,
+  bridgeAbiManifest,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
+}) {
+  const manifestUrl = channelWorkspaceMirrorManifestUrl({ registeredUrl, chainId, channelId });
+  const manifest = await fetchJsonFromUrl(manifestUrl, { maxBytes: 1024 * 1024 });
+  const manifestPrecheck = validateWorkspaceMirrorManifest({
+    manifest,
+    chainId,
+    channelId,
+    channelName,
+    bridgeCoreAddress,
+    channelInfo,
+    blockInfo,
+    contractCodes,
+  });
+
+  if (
+    localRecoveryIndex
+    && Number(manifestPrecheck.recoveryLastScannedBlock) <= Number(localRecoveryIndex.nextBlock)
+  ) {
+    return {
+      manifestUrl,
+      bundleUrl: null,
+      recoveryIndex: null,
+      skippedReason: "mirror-checkpoint-not-ahead-of-local",
+    };
+  }
+
+  const mirrorAheadOfLocal = localRecoveryIndex
+    && Number(manifestPrecheck.recoveryLastScannedBlock) > Number(localRecoveryIndex.nextBlock);
+  const bundleResult = mirrorAheadOfLocal
+    ? await fetchAndApplyWorkspaceMirrorDelta({
+      manifest,
+      manifestUrl,
+      localRecoveryIndex,
+      chainId,
+      channelId,
+      channelInfo,
+      bridgeAbiManifest,
+      managedStorageAddresses,
+      contractCodes,
+      controllerAddress,
+      l2AccountingVaultAddress,
+      liquidBalancesSlot,
+    })
+    : await fetchWorkspaceMirrorCheckpoint({
+      manifest,
+      manifestUrl,
+      chainId,
+      channelId,
+      channelName,
+      bridgeCoreAddress,
+      channelInfo,
+      genesisBlockNumber,
+      managedStorageAddresses,
+      blockInfo,
+      contractCodes,
+      latestBlock,
+    });
+
+  return {
+    manifestUrl,
+    bundleUrl: bundleResult.bundleUrl,
+    recoveryIndex: bundleResult.recoveryIndex,
+  };
+}
+
+function channelWorkspaceMirrorManifestUrl({ registeredUrl, chainId, channelId }) {
+  const parsed = new URL(registeredUrl);
+  if (parsed.pathname.endsWith(".json")) {
+    return parsed.toString();
+  }
+  parsed.search = "";
+  parsed.hash = "";
+  const basePath = parsed.pathname.replace(/\/+$/u, "");
+  parsed.pathname = [
+    basePath,
+    CHANNEL_WORKSPACE_MIRROR_MANIFEST_PATH_PREFIX,
+    String(chainId),
+    channelId.toString(),
+    "manifest.json",
+  ].filter(Boolean).join("/");
+  return parsed.toString();
+}
+
+function resolveWorkspaceMirrorBundleUrl(manifestUrl, bundlePath, label) {
+  expect(typeof bundlePath === "string" && bundlePath.length > 0, `Workspace mirror manifest is missing ${label}.url.`);
+  return new URL(bundlePath, manifestUrl).toString();
+}
+
+async function fetchJsonFromUrl(url, { maxBytes = null } = {}) {
+  const bytes = await fetchBytesFromUrl(url, { maxBytes });
+  try {
+    return JSON.parse(bytes.toString("utf8"));
+  } catch (error) {
+    throw new Error(`Invalid JSON from ${url}: ${error.message}`);
+  }
+}
+
+async function fetchBytesFromUrl(url, {
+  maxBytes = null,
+  expectedBytes = null,
+  onProgress = null,
+} = {}) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`GET ${url} failed with HTTP ${response.status}.`);
+  }
+  const contentLength = Number(response.headers.get("content-length"));
+  const hasExpectedBytes = expectedBytes !== null && expectedBytes !== undefined && Number.isFinite(Number(expectedBytes));
+  const hasContentLength = response.headers.get("content-length") !== null && Number.isFinite(contentLength);
+  const totalBytes = hasExpectedBytes
+    ? Number(expectedBytes)
+    : hasContentLength
+      ? contentLength
+      : null;
+  const chunks = [];
+  let downloadedBytes = 0;
+  onProgress?.({
+    status: "start",
+    downloadedBytes,
+    totalBytes,
+  });
+
+  const reportProgress = () => onProgress?.({
+    status: "progress",
+    downloadedBytes,
+    totalBytes,
+  });
+
+  if (!response.body?.getReader) {
+    if (maxBytes !== null && hasContentLength && contentLength > Number(maxBytes)) {
+      throw new Error(`GET ${url} Content-Length ${contentLength} exceeds the ${maxBytes} byte limit.`);
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (maxBytes !== null && bytes.length > Number(maxBytes)) {
+      throw new Error(`GET ${url} returned ${bytes.length} bytes, above the ${maxBytes} byte limit.`);
+    }
+    onProgress?.({
+      status: "done",
+      downloadedBytes: bytes.length,
+      totalBytes: totalBytes ?? bytes.length,
+    });
+    return bytes;
+  }
+
+  const reader = response.body.getReader();
+  let lastProgressAtMs = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      const chunk = Buffer.from(value);
+      chunks.push(chunk);
+      downloadedBytes += chunk.length;
+      if (maxBytes !== null && downloadedBytes > Number(maxBytes)) {
+        throw new Error(`GET ${url} returned more than ${maxBytes} bytes.`);
+      }
+      const now = Date.now();
+      if (now - lastProgressAtMs >= 250) {
+        reportProgress();
+        lastProgressAtMs = now;
+      }
+    }
+  } catch (error) {
+    onProgress?.({
+      status: "error",
+      downloadedBytes,
+      totalBytes,
+    });
+    throw error;
+  }
+
+  const bytes = Buffer.concat(chunks, downloadedBytes);
+  onProgress?.({
+    status: "done",
+    downloadedBytes,
+    totalBytes: totalBytes ?? downloadedBytes,
+  });
+  return bytes;
+}
+
+function sha256Hex(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function parseWorkspaceMirrorArchive(bytes) {
+  const zip = new AdmZip(bytes);
+  const parsed = {};
+  for (const entry of zip.getEntries()) {
+    const entryName = entry.entryName.replace(/\\/gu, "/");
+    if (entry.isDirectory) {
+      continue;
+    }
+    expect(
+      !entryName.startsWith("/") && !entryName.includes("/") && !entryName.includes(".."),
+      `Workspace mirror checkpoint bundle contains unsupported path: ${entry.entryName}.`,
+    );
+    expect(
+      CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES.has(entryName),
+      `Workspace mirror checkpoint bundle contains unsupported file: ${entry.entryName}.`,
+    );
+    expect(parsed[entryName] === undefined, `Workspace mirror checkpoint bundle contains duplicate file: ${entry.entryName}.`);
+    parsed[entryName] = JSON.parse(entry.getData().toString("utf8"));
+  }
+  for (const fileName of CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES) {
+    expect(parsed[fileName] !== undefined, `Workspace mirror checkpoint bundle is missing ${fileName}.`);
+  }
+  return {
+    workspace: parsed["workspace.json"],
+    stateSnapshot: parsed["state_snapshot.json"],
+    blockInfo: parsed["block_info.json"],
+    contractCodes: parsed["contract_codes.json"],
+  };
+}
+
+function validateWorkspaceMirrorManifest({
+  manifest,
+  chainId,
+  channelId,
+  channelName,
+  bridgeCoreAddress,
+  channelInfo,
+  blockInfo,
+  contractCodes,
+}) {
+  expect(Number(manifest.protocolVersion) === CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION, "Unsupported workspace mirror protocolVersion.");
+  expect(Number(manifest.chainId) === Number(chainId), "Workspace mirror manifest chainId mismatch.");
+  expect(
+    ethers.toBigInt(manifest.channelId) === ethers.toBigInt(channelId),
+    "Workspace mirror manifest channelId mismatch.",
+  );
+  if (manifest.channelName !== undefined) {
+    expect(String(manifest.channelName) === channelName, "Workspace mirror manifest channelName mismatch.");
+  }
+  expect(
+    ethers.toBigInt(getAddress(manifest.bridgeCore)) === ethers.toBigInt(getAddress(bridgeCoreAddress)),
+    "Workspace mirror manifest bridgeCore mismatch.",
+  );
+  expect(
+    ethers.toBigInt(getAddress(manifest.channelManager)) === ethers.toBigInt(getAddress(channelInfo.manager)),
+    "Workspace mirror manifest channelManager mismatch.",
+  );
+  expect(
+    ethers.toBigInt(getAddress(manifest.bridgeTokenVault)) === ethers.toBigInt(getAddress(channelInfo.bridgeTokenVault)),
+    "Workspace mirror manifest bridgeTokenVault mismatch.",
+  );
+  expect(
+    ethers.toBigInt(getAddress(manifest.leader)) === ethers.toBigInt(getAddress(channelInfo.leader)),
+    "Workspace mirror manifest leader mismatch.",
+  );
+  const checkpoint = manifest.checkpoint;
+  expect(checkpoint && typeof checkpoint === "object", "Workspace mirror manifest checkpoint is required.");
+  const recoveryLastScannedBlock = Number(checkpoint.recoveryLastScannedBlock);
+  expect(Number.isInteger(recoveryLastScannedBlock), "Workspace mirror checkpoint recoveryLastScannedBlock must be an integer.");
+  const recoveryRootVectorHash = normalizeBytes32Hex(checkpoint.recoveryRootVectorHash);
+  expect(recoveryRootVectorHash !== null, "Workspace mirror checkpoint recoveryRootVectorHash is required.");
+  expect(typeof checkpoint.stateSnapshotHash === "string", "Workspace mirror checkpoint stateSnapshotHash is required.");
+  expect(typeof checkpoint.workspaceHash === "string", "Workspace mirror checkpoint workspaceHash is required.");
+  expect(hashJsonValue(blockInfo) === normalizeBytes32Hex(checkpoint.blockInfoHash), "Workspace mirror checkpoint blockInfoHash mismatch.");
+  expect(hashJsonValue(contractCodes) === normalizeBytes32Hex(checkpoint.contractCodesHash), "Workspace mirror checkpoint contractCodesHash mismatch.");
+  validateWorkspaceMirrorCertificate({ manifest });
+  return {
+    recoveryLastScannedBlock,
+    recoveryRootVectorHash,
+  };
+}
+
+function validateWorkspaceMirrorCertificate({ manifest }) {
+  const certificate = manifest.validationCertificate;
+  expect(certificate && typeof certificate === "object", "Workspace mirror validationCertificate is required.");
+  expect(certificate.schema === "tokamak-private-state-workspace-mirror", "Workspace mirror validationCertificate schema mismatch.");
+  expect(certificate.canary?.proofVerified === true, "Workspace mirror validationCertificate must confirm canary proof verification.");
+  expect(typeof certificate.signature === "string", "Workspace mirror validationCertificate signature is required.");
+  const signer = getAddress(certificate.signer ?? manifest.leader);
+  expect(
+    ethers.toBigInt(signer) === ethers.toBigInt(getAddress(manifest.leader)),
+    "Workspace mirror validationCertificate signer must be the channel leader.",
+  );
+  const payloadHash = hashWorkspaceMirrorCertificatePayload(manifest);
+  const recoveredSigner = getAddress(ethers.verifyMessage(ethers.getBytes(payloadHash), certificate.signature));
+  expect(
+    ethers.toBigInt(recoveredSigner) === ethers.toBigInt(getAddress(manifest.leader)),
+    "Workspace mirror validationCertificate signature was not produced by the channel leader.",
+  );
+}
+
+function hashWorkspaceMirrorCertificatePayload(manifest) {
+  const certificate = { ...(manifest.validationCertificate ?? {}) };
+  delete certificate.signature;
+  return hashJsonValue({
+    protocolVersion: manifest.protocolVersion,
+    chainId: manifest.chainId,
+    channelId: manifest.channelId,
+    channelName: manifest.channelName,
+    bridgeCore: manifest.bridgeCore,
+    channelManager: manifest.channelManager,
+    bridgeTokenVault: manifest.bridgeTokenVault,
+    leader: manifest.leader,
+    checkpoint: manifest.checkpoint,
+    deltaBundles: manifest.deltaBundles ?? [],
+    validationCertificate: certificate,
+  });
+}
+
+async function fetchWorkspaceMirrorCheckpoint({
+  manifest,
+  manifestUrl,
+  chainId,
+  channelId,
+  channelName,
+  bridgeCoreAddress,
+  channelInfo,
+  genesisBlockNumber,
+  managedStorageAddresses,
+  blockInfo,
+  contractCodes,
+  latestBlock,
+}) {
+  const bundleDescriptor = manifest.checkpoint?.bundle;
+  expect(bundleDescriptor?.url, "Workspace mirror checkpoint.bundle.url is required when no usable local recovery index exists.");
+  expect(bundleDescriptor?.sha256, "Workspace mirror checkpoint.bundle.sha256 is required.");
+  const bundleUrl = resolveWorkspaceMirrorBundleUrl(manifestUrl, bundleDescriptor.url, "checkpoint.bundle");
+  const archiveBytes = await fetchWorkspaceMirrorBundleBytes({
+    bundleUrl,
+    bundleDescriptor,
+    label: "workspace mirror checkpoint",
+  });
+  const archive = parseWorkspaceMirrorArchive(archiveBytes);
+  const recoveryIndex = validateWorkspaceMirrorCheckpointArchive({
+    manifest,
+    archive,
+    chainId,
+    channelId,
+    channelName,
+    bridgeCoreAddress,
+    channelInfo,
+    genesisBlockNumber,
+    managedStorageAddresses,
+    blockInfo,
+    contractCodes,
+    latestBlock,
+  });
+  return { bundleUrl, recoveryIndex };
+}
+
+function validateWorkspaceMirrorCheckpointArchive({
+  manifest,
+  archive,
+  chainId,
+  channelId,
+  channelName,
+  bridgeCoreAddress,
+  channelInfo,
+  genesisBlockNumber,
+  managedStorageAddresses,
+  blockInfo,
+  contractCodes,
+  latestBlock,
+}) {
+  const workspace = archive.workspace;
+  expect(Number(workspace.chainId) === Number(chainId), "Workspace mirror workspace chainId mismatch.");
+  expect(ethers.toBigInt(workspace.channelId) === ethers.toBigInt(channelId), "Workspace mirror workspace channelId mismatch.");
+  expect(String(workspace.channelName) === channelName, "Workspace mirror workspace channelName mismatch.");
+  expect(
+    ethers.toBigInt(getAddress(workspace.bridgeCore)) === ethers.toBigInt(getAddress(bridgeCoreAddress)),
+    "Workspace mirror workspace bridgeCore mismatch.",
+  );
+  expect(
+    ethers.toBigInt(getAddress(workspace.channelManager)) === ethers.toBigInt(getAddress(channelInfo.manager)),
+    "Workspace mirror workspace channelManager mismatch.",
+  );
+  expect(
+    ethers.toBigInt(getAddress(workspace.bridgeTokenVault)) === ethers.toBigInt(getAddress(channelInfo.bridgeTokenVault)),
+    "Workspace mirror workspace bridgeTokenVault mismatch.",
+  );
+  expect(Number(workspace.genesisBlockNumber) === Number(genesisBlockNumber), "Workspace mirror genesisBlockNumber mismatch.");
+  const mirroredManagedStorageAddresses = normalizedAddressVector(workspace.managedStorageAddresses ?? []);
+  expect(
+    mirroredManagedStorageAddresses.length === managedStorageAddresses.length
+      && mirroredManagedStorageAddresses.every(
+        (address, index) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(getAddress(managedStorageAddresses[index])),
+      ),
+    "Workspace mirror managedStorageAddresses mismatch.",
+  );
+  expect(hashJsonValue(workspace) === normalizeBytes32Hex(manifest.checkpoint.workspaceHash), "Workspace mirror workspace hash mismatch.");
+  expect(
+    hashJsonValue(archive.stateSnapshot) === normalizeBytes32Hex(manifest.checkpoint.stateSnapshotHash),
+    "Workspace mirror state_snapshot hash mismatch.",
+  );
+  expect(hashJsonValue(archive.blockInfo) === hashJsonValue(blockInfo), "Workspace mirror block_info.json does not match the channel genesis block.");
+  expect(
+    hashJsonValue(archive.contractCodes) === hashJsonValue(contractCodes),
+    "Workspace mirror contract_codes.json does not match current managed storage contract code.",
+  );
+  const workspaceRootVectorHash = normalizeBytes32Hex(workspace.recoveryRootVectorHash);
+  expect(
+    ethers.toBigInt(normalizeBytes32Hex(manifest.checkpoint.recoveryRootVectorHash)) === ethers.toBigInt(workspaceRootVectorHash),
+    "Workspace mirror recoveryRootVectorHash mismatch between manifest and workspace.",
+  );
+  const snapshotRootVectorHash = normalizeBytes32Hex(hashRootVector(archive.stateSnapshot.stateRoots));
+  expect(
+    ethers.toBigInt(snapshotRootVectorHash) === ethers.toBigInt(workspaceRootVectorHash),
+    "Workspace mirror state_snapshot root vector hash mismatch.",
+  );
+  const mirrorRecoveryLastScannedBlock = Number(manifest.checkpoint.recoveryLastScannedBlock);
+  expect(
+    Number.isInteger(mirrorRecoveryLastScannedBlock)
+      && mirrorRecoveryLastScannedBlock === Number(workspace.recoveryLastScannedBlock),
+    "Workspace mirror recoveryLastScannedBlock mismatch between manifest and workspace.",
+  );
+  const recoveryIndex = getUsableWorkspaceRecoveryIndex({
+    existingArtifacts: {
+      workspace: {
+        recoveryLastScannedBlock: mirrorRecoveryLastScannedBlock,
+        recoveryRootVectorHash: workspaceRootVectorHash,
+      },
+      stateSnapshot: archive.stateSnapshot,
+    },
+    genesisBlockNumber,
+    latestBlock,
+    managedStorageAddresses,
+  });
+  expect(recoveryIndex, "Workspace mirror recovery index is missing or unusable.");
+  return {
+    ...recoveryIndex,
+    source: "mirror",
+  };
+}
+
+async function fetchAndApplyWorkspaceMirrorDelta({
+  manifest,
+  manifestUrl,
+  localRecoveryIndex,
+  chainId,
+  channelId,
+  channelInfo,
+  bridgeAbiManifest,
+  managedStorageAddresses,
+  contractCodes,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
+}) {
+  const fromBlock = Number(localRecoveryIndex.nextBlock);
+  const toBlock = Number(manifest.checkpoint.recoveryLastScannedBlock) - 1;
+  const bundleDescriptor = selectWorkspaceMirrorDeltaBundle({ manifest, fromBlock, toBlock });
+  expect(
+    bundleDescriptor,
+    `Workspace mirror does not provide a delta bundle for local recovery index ${fromBlock} to checkpoint block ${toBlock}.`,
+  );
+  const bundleUrl = resolveWorkspaceMirrorBundleUrl(manifestUrl, bundleDescriptor.url, "deltaBundles[]");
+  const bundleBytes = await fetchWorkspaceMirrorBundleBytes({
+    bundleUrl,
+    bundleDescriptor,
+    label: "workspace mirror delta",
+  });
+  const delta = parseJsonBytes(bundleBytes, bundleUrl);
+  const recoveryIndex = await applyWorkspaceMirrorDeltaBundle({
+    delta,
+    localRecoveryIndex,
+    manifest,
+    chainId,
+    channelId,
+    channelInfo,
+    bridgeAbiManifest,
+    managedStorageAddresses,
+    contractCodes,
+    controllerAddress,
+    l2AccountingVaultAddress,
+    liquidBalancesSlot,
+  });
+  return { bundleUrl, recoveryIndex };
+}
+
+function selectWorkspaceMirrorDeltaBundle({ manifest, fromBlock, toBlock }) {
+  const bundles = Array.isArray(manifest.deltaBundles) ? manifest.deltaBundles : [];
+  return bundles.find((bundle) => Number(bundle.fromBlock) === fromBlock && Number(bundle.toBlock) === toBlock) ?? null;
+}
+
+async function fetchWorkspaceMirrorBundleBytes({ bundleUrl, bundleDescriptor, label }) {
+  expect(bundleDescriptor?.sizeBytes !== undefined, `Workspace mirror ${label} sizeBytes is required.`);
+  const expectedBytes = Number(bundleDescriptor.sizeBytes);
+  expect(
+    Number.isSafeInteger(expectedBytes) && expectedBytes >= 0,
+    `Workspace mirror ${label} sizeBytes must be a non-negative safe integer.`,
+  );
+  const bytes = await fetchBytesFromUrl(bundleUrl, {
+    maxBytes: expectedBytes,
+    expectedBytes,
+    onProgress: createByteDownloadProgress({
+      action: "channel recover-workspace",
+      label,
+      url: bundleUrl,
+    }),
+  });
+  expect(
+    expectedBytes === bytes.length,
+    `Workspace mirror bundle size mismatch. Expected ${expectedBytes}, got ${bytes.length}.`,
+  );
+  const bundleSha256 = sha256Hex(bytes);
+  expect(
+    String(bundleDescriptor.sha256).toLowerCase() === bundleSha256,
+    `Workspace mirror bundle sha256 mismatch. Expected ${bundleDescriptor.sha256}, got ${bundleSha256}.`,
+  );
+  return bytes;
+}
+
+function parseJsonBytes(bytes, url) {
+  try {
+    return JSON.parse(bytes.toString("utf8"));
+  } catch (error) {
+    throw new Error(`Invalid JSON from ${url}: ${error.message}`);
+  }
+}
+
+function selectWorkspaceRecoveryIndex(localRecoveryIndex, mirrorRecoveryIndex) {
+  if (!localRecoveryIndex) {
+    return mirrorRecoveryIndex ?? null;
+  }
+  if (!mirrorRecoveryIndex) {
+    return localRecoveryIndex;
+  }
+  return Number(mirrorRecoveryIndex.nextBlock) > Number(localRecoveryIndex.nextBlock)
+    ? mirrorRecoveryIndex
+    : localRecoveryIndex;
 }
 
 async function syncChannelWorkspace({
@@ -777,6 +1925,7 @@ async function syncChannelWorkspace({
   allowExistingWorkspaceSync = false,
   useWorkspaceRecoveryIndex = false,
   fromGenesis = false,
+  recoverySource = "rpc",
   minimumToBlock = null,
   progressAction = null,
 }) {
@@ -854,17 +2003,57 @@ async function syncChannelWorkspace({
       managedStorageAddresses,
     })
     : null;
+  const mirrorRecovery = useWorkspaceRecoveryIndex && !fromGenesis
+    ? await loadWorkspaceMirrorRecoveryIndex({
+      recoverySource,
+      bridgeCore,
+      channelId,
+      channelName,
+      network,
+      bridgeDeployment,
+      channelInfo,
+      genesisBlockNumber,
+      managedStorageAddresses,
+      blockInfo,
+      contractCodes,
+      latestBlock,
+      localRecoveryIndex: recoveryIndex,
+      bridgeAbiManifest,
+      controllerAddress,
+      l2AccountingVaultAddress,
+      liquidBalancesSlot,
+    })
+    : {
+      recoveryIndex: null,
+      workspaceMirror: {
+        source: recoverySource,
+        used: false,
+        registeredUrl: null,
+        manifestUrl: null,
+        error: null,
+      },
+    };
+  const selectedRecoveryIndex = selectWorkspaceRecoveryIndex(recoveryIndex, mirrorRecovery.recoveryIndex);
   const localSnapshotReusable = !fromGenesis && (!useWorkspaceRecoveryIndex || recoveryIndex)
     && canReuseLocalWorkspaceSnapshot({
       existingArtifacts,
       currentRootVectorHash,
       managedStorageAddresses,
     });
-  if (useWorkspaceRecoveryIndex && !fromGenesis && !localSnapshotReusable && !recoveryIndex) {
+  const mirrorSnapshotReusable = !fromGenesis && mirrorRecovery.recoveryIndex
+    && ethers.toBigInt(normalizeBytes32Hex(mirrorRecovery.recoveryIndex.recoveryRootVectorHash))
+      === ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash));
+  if (
+    useWorkspaceRecoveryIndex
+    && !fromGenesis
+    && !localSnapshotReusable
+    && !mirrorSnapshotReusable
+    && !selectedRecoveryIndex
+  ) {
     throw new Error([
       `Workspace recovery index is missing or unusable for channel ${channelName} on ${networkNameFromChainId(network.chainId)}.`,
       "The CLI will not fall back to replaying channel logs from genesis unless explicitly requested.",
-    "Run channel recover-workspace --from-genesis or wallet recover-workspace --from-genesis to rebuild from channel genesis.",
+      "Run channel recover-workspace --source rpc --from-genesis or wallet recover-workspace --from-genesis to rebuild from channel genesis.",
     ].join(" "));
   }
   const reconstruction = localSnapshotReusable
@@ -876,6 +2065,15 @@ async function syncChannelWorkspace({
         mode: "reused-current-snapshot",
       },
     }
+    : mirrorSnapshotReusable
+      ? {
+        currentSnapshot: mirrorRecovery.recoveryIndex.stateSnapshot,
+        scanRange: {
+          fromBlock: latestBlock + 1,
+          toBlock: latestBlock,
+          mode: "reused-mirror-snapshot",
+        },
+      }
     : await reconstructChannelSnapshot({
       provider,
       bridgeAbiManifest,
@@ -889,8 +2087,8 @@ async function syncChannelWorkspace({
       controllerAddress,
       l2AccountingVaultAddress,
       liquidBalancesSlot,
-      baseSnapshot: recoveryIndex?.stateSnapshot ?? null,
-      fromBlock: recoveryIndex?.nextBlock ?? genesisBlockNumber,
+      baseSnapshot: selectedRecoveryIndex?.stateSnapshot ?? null,
+      fromBlock: selectedRecoveryIndex?.nextBlock ?? genesisBlockNumber,
       toBlock: latestBlock,
       progressAction,
     });
@@ -922,6 +2120,8 @@ async function syncChannelWorkspace({
     policySnapshot,
     managedStorageAddresses,
     liquidBalancesSlot: liquidBalancesSlot.toString(),
+    recoverySource,
+    workspaceMirror: mirrorRecovery.workspaceMirror,
     recoveryLastScannedBlock,
     recoveryRootVectorHash,
     recoveryScanRange: reconstruction.scanRange,
@@ -2509,7 +3709,7 @@ function applyGuideNextAction(guide) {
   }
   if (guide.selectors.channelName && guide.state.channel?.onchain?.exists && !guide.state.channel?.local?.workspaceExists) {
     setGuideNextAction(guide, {
-      command: `channel recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network} --from-genesis`,
+      command: `channel recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network} --source rpc --from-genesis`,
       why: "The channel exists on-chain, but the local channel workspace has not been recovered yet, so there is no local recovery index to resume from.",
     });
     return;
@@ -2649,7 +3849,7 @@ function redactRpcUrl(rpcUrl) {
 
 async function handleWalletGetMeta({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
-  const contextResult = await loadPreferredWalletChannelContext({
+  const contextResult = await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
     progressAction: "wallet get-meta",
@@ -2683,8 +3883,8 @@ async function handleWalletGetMeta({ args, provider }) {
   });
 }
 
-async function loadWalletChannelFundState({ walletContext, provider, progressAction = null }) {
-  const contextResult = await loadPreferredWalletChannelContext({
+async function loadWalletChannelFundState({ walletContext, provider, progressAction = "wallet get-channel-fund" }) {
+  const contextResult = await loadFreshWalletChannelContext({
     walletContext,
     provider,
     progressAction,
@@ -2768,7 +3968,6 @@ async function handleWalletGetChannelFund({ args, provider }) {
   } = await loadWalletChannelFundState({
     walletContext: wallet,
     provider,
-    progressAction: "wallet get-channel-fund",
   });
 
   printJson({
@@ -2914,6 +4113,7 @@ async function handleExitChannel({ args, provider }) {
   const { signer, context, channelFund, contextResult } = await loadWalletChannelFundState({
     walletContext,
     provider,
+    progressAction: "channel exit",
   });
   const network = contextResult.network;
   expect(
@@ -2959,7 +4159,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
       : "wallet withdraw-channel";
   emitProgress(operationName, "loading");
   const { wallet: walletContext } = loadUnlockedWalletWithMetadata(args);
-  const contextResult = await loadPreferredWalletChannelContext({
+  const contextResult = await loadFreshWalletChannelContext({
     walletContext,
     provider,
     progressAction: operationName,
@@ -3189,7 +4389,7 @@ async function handleMintNotes({ args, provider }) {
     "Invalid --amounts. The array must contain at least one amount greater than zero.",
   );
   const totalMintAmount = baseUnitAmounts.reduce((sum, { amountBaseUnits }) => sum + amountBaseUnits, 0n);
-  const { channelFund } = await loadWalletChannelFundState({
+  const { channelFund, contextResult: preparedContextResult } = await loadWalletChannelFundState({
     walletContext: wallet,
     provider,
     progressAction: "wallet mint-notes",
@@ -3205,12 +4405,13 @@ async function handleMintNotes({ args, provider }) {
     wallet,
     baseUnitAmounts: baseUnitAmounts.map(({ amountBaseUnits }) => amountBaseUnits),
   });
-  const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+  const { execution, contextResult, walletWarnings } = await executeWalletDirectTemplateCommand({
     args,
     wallet,
     provider,
     operationName: "wallet mint-notes",
     templatePayload,
+    preparedContextResult,
   });
 
   printJson({
@@ -3236,7 +4437,8 @@ async function handleMintNotes({ args, provider }) {
     gasUsed: receiptGasUsed(execution.receipt),
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
-    recoveredWorkspace,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
+    warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
 }
@@ -3244,17 +4446,30 @@ async function handleMintNotes({ args, provider }) {
 async function handleRedeemNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
+  const preparedContextResult = await loadFreshWalletChannelContext({
+    walletContext: wallet,
+    provider,
+    progressAction: "wallet redeem-notes",
+  });
+  await ensureWalletNoteReceiveStateCurrent({
+    walletContext: wallet,
+    context: preparedContextResult.context,
+    provider,
+    progressAction: "wallet redeem-notes",
+    preConsumedLogRequests: preparedContextResult.autoRecoveryLogRequests,
+  });
   const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const templatePayload = buildRedeemNotesTemplatePayload({
     wallet,
     inputNotes,
   });
-  const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+  const { execution, contextResult, walletWarnings } = await executeWalletDirectTemplateCommand({
     args,
     wallet,
     provider,
     operationName: "wallet redeem-notes",
     templatePayload,
+    preparedContextResult,
   });
 
   printJson({
@@ -3280,7 +4495,8 @@ async function handleRedeemNotes({ args, provider }) {
     gasUsed: receiptGasUsed(execution.receipt),
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
-    recoveredWorkspace,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
+    warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
 }
@@ -3292,18 +4508,18 @@ async function handleWalletGetNotes({ args, provider }) {
     `Wallet ${wallet.walletName} is missing the stored controller address.`,
   );
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
-  const { context } = await loadPreferredWalletChannelContext({
+  const contextResult = await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
     progressAction: "wallet get-notes",
   });
-  const signer = restoreWalletSigner(wallet, provider);
-  const { recoveredDeliveryState } = await recoverWalletReceivedNotes({
+  const context = contextResult.context;
+  const noteReceiveFreshness = await ensureWalletNoteReceiveStateCurrent({
     walletContext: wallet,
     context,
     provider,
-    signer,
     progressAction: "wallet get-notes",
+    preConsumedLogRequests: contextResult.autoRecoveryLogRequests,
   });
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
@@ -3340,21 +4556,32 @@ async function handleWalletGetNotes({ args, provider }) {
     spentTotalBaseUnits: spentTotal.toString(),
     spentTotalTokens: ethers.formatUnits(spentTotal, canonicalAssetDecimals),
     bridgeStatusMismatches: [...unusedNotes, ...spentNotes].filter((note) => !note.walletStatusMatchesBridge).length,
-    recoveredFromLogs: recoveredDeliveryState.importedNotes,
-    scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
-    noteReceiveScanRange: recoveredDeliveryState.scanRange,
+    noteReceiveLastScannedBlock: noteReceiveFreshness.nextBlock,
+    latestBlock: noteReceiveFreshness.latestBlock,
+    recoveredWalletWorkspace: noteReceiveFreshness.recoveredWalletWorkspace,
+    recoveredFromLogs: noteReceiveFreshness.recoveredDeliveryState?.importedNotes ?? 0,
+    scannedDeliveryLogs: noteReceiveFreshness.recoveredDeliveryState?.scannedLogs ?? 0,
+    noteReceiveScanRange: noteReceiveFreshness.recoveredDeliveryState?.scanRange ?? null,
   });
 }
 
 async function handleTransferNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
   const { signer } = restoreWalletParticipant(wallet, provider);
-  const preparedContextResult = await loadPreferredWalletChannelContext({
+  const preparedContextResult = await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
     progressAction: "wallet transfer-notes",
   });
   const context = preparedContextResult.context;
+  await ensureWalletNoteReceiveStateCurrent({
+    walletContext: wallet,
+    context,
+    provider,
+    signer,
+    progressAction: "wallet transfer-notes",
+    preConsumedLogRequests: preparedContextResult.autoRecoveryLogRequests,
+  });
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
   const recipients = parseRecipientVector(requireArg(args.recipients, "--recipients"));
@@ -3364,12 +4591,12 @@ async function handleTransferNotes({ args, provider }) {
     "--amounts length must match --recipients length.",
   );
 
-  const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const outputAmounts = amountInputs.map((value, index) => {
     const parsed = parseTokenAmount(value, canonicalAssetDecimals);
     expect(parsed > 0n, `Invalid --amounts[${index}]. Each amount must be greater than zero.`);
     return parsed;
   });
+  const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const totalInput = inputNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
   const totalOutput = outputAmounts.reduce((sum, value) => sum + value, 0n);
   expect(
@@ -3384,12 +4611,13 @@ async function handleTransferNotes({ args, provider }) {
     recipients,
     outputAmounts,
   });
-  const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+  const { execution, contextResult, walletWarnings } = await executeWalletDirectTemplateCommand({
     args,
     wallet,
     provider,
     operationName: "wallet transfer-notes",
     templatePayload,
+    preparedContextResult,
   });
   const outputNotes = buildLifecycleTrackedOutputs({
     outputNotes: templatePayload.lifecycleOutputs,
@@ -3420,7 +4648,8 @@ async function handleTransferNotes({ args, provider }) {
     gasUsed: receiptGasUsed(execution.receipt),
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
-    recoveredWorkspace,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
+    warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
 }
@@ -3887,6 +5116,132 @@ function requireUsableWalletNoteReceiveRecoveryIndex({ walletContext, context, l
   return nextBlock;
 }
 
+async function assertWalletNoteReceiveStateFresh({ walletContext, context, provider }) {
+  const latestBlock = await provider.getBlockNumber();
+  const nextBlock = requireUsableWalletNoteReceiveRecoveryIndex({
+    walletContext,
+    context,
+    latestBlock,
+  });
+  if (nextBlock !== latestBlock + 1) {
+    throw new Error([
+      `Wallet note workspace is stale for wallet ${walletContext.walletName}.`,
+      `noteReceiveLastScannedBlock is ${nextBlock}, but latest block requires ${latestBlock + 1}.`,
+      "Run wallet recover-workspace before using commands that read or spend wallet notes.",
+    ].join(" "));
+  }
+  return {
+    latestBlock,
+    nextBlock,
+  };
+}
+
+async function ensureWalletNoteReceiveStateCurrent({
+  walletContext,
+  context,
+  provider,
+  signer = null,
+  progressAction = null,
+  preConsumedLogRequests = 0,
+}) {
+  const latestBlock = await provider.getBlockNumber();
+  let nextBlock;
+  try {
+    nextBlock = requireUsableWalletNoteReceiveRecoveryIndex({
+      walletContext,
+      context,
+      latestBlock,
+    });
+  } catch (indexError) {
+    throw new Error([
+      `Wallet note recovery index is missing or unusable for wallet ${walletContext.walletName}.`,
+      "Automatic wallet recovery uses only the saved note recovery index and will not replay from genesis.",
+      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if a genesis rebuild is required.`,
+      `Details: ${indexError.message}`,
+    ].join(" "));
+  }
+
+  if (nextBlock === latestBlock + 1) {
+    return {
+      latestBlock,
+      nextBlock,
+      recoveredWalletWorkspace: false,
+      recoveredDeliveryState: null,
+      autoRecoveryLogRequests: 0,
+    };
+  }
+  const remainingLogRequestBudget = AUTO_RECOVERY_LOG_REQUEST_BUDGET - Math.max(0, Number(preConsumedLogRequests));
+  const autoRecoveryLogRequests = assertAutoRecoveryLogScanBudget({
+    label: `wallet note workspace ${walletContext.walletName}`,
+    fromBlock: nextBlock,
+    toBlock: latestBlock,
+    logScanCount: 1,
+    recoveryCommand: `wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT>`,
+    logRequestBudget: remainingLogRequestBudget,
+  });
+
+  const resolvedSigner = signer ?? restoreWalletParticipant(walletContext, provider).signer;
+  let recoveredDeliveryState;
+  try {
+    ({ recoveredDeliveryState } = await recoverWalletReceivedNotes({
+      walletContext,
+      context,
+      provider,
+      signer: resolvedSigner,
+      progressAction,
+      fromGenesis: false,
+    }));
+  } catch (recoveryError) {
+    throw new Error([
+      `Wallet workspace is not current for wallet ${walletContext.walletName}.`,
+      "Automatic wallet recovery uses only the saved note recovery index and will not replay from genesis.",
+      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if a genesis rebuild is required.`,
+      `Details: ${recoveryError.message}`,
+    ].join(" "));
+  }
+  try {
+    const freshness = await assertWalletNoteReceiveStateFresh({ walletContext, context, provider });
+    return {
+      ...freshness,
+      recoveredWalletWorkspace: true,
+      recoveredDeliveryState,
+      autoRecoveryLogRequests,
+    };
+  } catch (postRecoveryError) {
+    throw new Error([
+      `Wallet workspace is still stale after recovery-index sync for wallet ${walletContext.walletName}.`,
+      "Automatic wallet recovery will not replay from genesis.",
+      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if a genesis rebuild is required.`,
+      `Details: ${postRecoveryError.message}`,
+    ].join(" "));
+  }
+}
+
+async function buildPostWalletCommandWarnings({ walletContext, context, provider, receipt }) {
+  const latestBlock = await provider.getBlockNumber();
+  const noteReceiveNextBlock = Number(walletContext.wallet.noteReceiveLastScannedBlock);
+  const warnings = [];
+  if (
+    Number.isInteger(noteReceiveNextBlock)
+    && receipt?.blockNumber !== undefined
+    && noteReceiveNextBlock <= Number(receipt.blockNumber)
+  ) {
+    warnings.push([
+      `Wallet note workspace may be stale after block ${receipt.blockNumber}.`,
+      `Run wallet recover-workspace --channel-name ${context.workspace.channelName}`,
+      `--network ${context.workspace.network}`,
+      `--account <ACCOUNT> before commands that read or spend newly received notes.`,
+    ].join(" "));
+  } else if (Number.isInteger(noteReceiveNextBlock) && noteReceiveNextBlock !== latestBlock + 1) {
+    warnings.push([
+      "Wallet note workspace is not aligned with the latest block.",
+      `noteReceiveLastScannedBlock is ${noteReceiveNextBlock}, latest block requires ${latestBlock + 1}.`,
+      "Run wallet recover-workspace before commands that read or spend wallet notes.",
+    ].join(" "));
+  }
+  return warnings;
+}
+
 function extractEncryptedNoteValueFromBridgeLog(log) {
   if (!Array.isArray(log?.topics) || log.topics.length !== 1) {
     return null;
@@ -4350,52 +5705,195 @@ function walletChannelWorkspaceIsReady(walletContext) {
     && fs.existsSync(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"));
 }
 
-async function loadPreferredWalletChannelContext({
+async function loadFreshWalletChannelContext({
   walletContext,
   provider,
-  forceRecover = false,
   progressAction = null,
 }) {
-  let recoveredWorkspace = false;
-  if (forceRecover || !walletChannelWorkspaceIsReady(walletContext)) {
-    await recoverWalletChannelWorkspace({ walletContext, provider, progressAction });
-    recoveredWorkspace = true;
-  }
-  let context = await loadWorkspaceContext(walletContext.wallet.channelName, walletContext.wallet.network, provider);
-  try {
-    await assertWorkspaceAlignedWithChain(context);
-  } catch (error) {
-    if (!isRecoverableWalletWorkspaceFailure(error)) {
-      throw error;
-    }
-    await recoverWalletChannelWorkspace({ walletContext, provider, progressAction });
-    recoveredWorkspace = true;
-    context = await loadWorkspaceContext(walletContext.wallet.channelName, walletContext.wallet.network, provider);
-    await assertWorkspaceAlignedWithChain(context);
-  }
+  const contextResult = await loadFreshChannelWorkspaceContextResult({
+    channelName: walletContext.wallet.channelName,
+    networkName: walletContext.wallet.network,
+    provider,
+    progressAction,
+  });
   return {
-    context,
-    network: resolveCliNetwork(context.workspace.network),
-    usingWorkspaceCache: !recoveredWorkspace,
-    recoveredWorkspace,
+    context: contextResult.context,
+    network: resolveCliNetwork(contextResult.context.workspace.network),
+    usingWorkspaceCache: !contextResult.recoveredWorkspace,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
+    autoRecoveryLogRequests: contextResult.autoRecoveryLogRequests,
   };
 }
 
-async function recoverWalletChannelWorkspace({ walletContext, provider, progressAction = null }) {
-  const networkName = walletContext.wallet.network ?? networkNameFromChainId(Number(walletContext.wallet.chainId));
-  const network = resolveCliNetwork(networkName);
-  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
-  await syncChannelWorkspace({
-    workspaceName: walletContext.wallet.channelName,
-    channelName: walletContext.wallet.channelName,
-    network,
+async function loadFreshChannelWorkspaceContext({
+  channelName,
+  networkName,
+  provider,
+  progressAction = null,
+}) {
+  const { context } = await loadFreshChannelWorkspaceContextResult({
+    channelName,
+    networkName,
     provider,
-    bridgeResources,
-    persist: true,
-    allowExistingWorkspaceSync: true,
-    useWorkspaceRecoveryIndex: true,
     progressAction,
   });
+  return context;
+}
+
+async function loadFreshChannelWorkspaceContextResult({
+  channelName,
+  networkName,
+  provider,
+  progressAction = null,
+}) {
+  let context;
+  try {
+    context = await loadWorkspaceContext(channelName, networkName, provider);
+    await assertWorkspaceAlignedWithChain(context);
+    return {
+      context,
+      recoveredWorkspace: false,
+      autoRecoveryLogRequests: 0,
+    };
+  } catch (error) {
+    const recovery = await recoverChannelWorkspaceFromIndexOnly({
+      channelName,
+      networkName,
+      provider,
+      progressAction,
+      cause: error,
+    });
+    return {
+      context: recovery.context,
+      recoveredWorkspace: true,
+      autoRecoveryLogRequests: recovery.autoRecoveryLogRequests,
+    };
+  }
+}
+
+async function recoverChannelWorkspaceFromIndexOnly({
+  channelName,
+  networkName,
+  provider,
+  progressAction = null,
+  cause = null,
+}) {
+  const network = resolveCliNetwork(networkName);
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const readiness = await requireChannelWorkspaceRecoveryIndexForAutoRefresh({
+    channelName,
+    networkName,
+    provider,
+    bridgeResources,
+    cause,
+  });
+  if (readiness.alreadyCurrent) {
+    return {
+      context: await loadWorkspaceContext(channelName, networkName, provider),
+      autoRecoveryLogRequests: 0,
+    };
+  }
+  try {
+    await syncChannelWorkspace({
+      workspaceName: channelName,
+      channelName,
+      network,
+      provider,
+      bridgeResources,
+      persist: true,
+      allowExistingWorkspaceSync: true,
+      useWorkspaceRecoveryIndex: true,
+      fromGenesis: false,
+      progressAction,
+    });
+  } catch (recoveryError) {
+    throw new Error([
+      `Channel workspace is not current for ${channelName} on ${networkName}.`,
+      "Automatic channel workspace recovery uses only the saved recovery index and will not replay from genesis.",
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis if a genesis rebuild is required.`,
+      `Details: ${recoveryError.message}`,
+      cause ? `Initial freshness failure: ${cause.message}` : null,
+    ].filter(Boolean).join(" "));
+  }
+
+  const context = await loadWorkspaceContext(channelName, networkName, provider);
+  try {
+    await assertWorkspaceAlignedWithChain(context);
+  } catch (postRecoveryError) {
+    throw new Error([
+      `Channel workspace is still stale after recovery-index sync for ${channelName} on ${networkName}.`,
+      "Automatic channel workspace recovery will not replay from genesis.",
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis if a genesis rebuild is required.`,
+      `Details: ${postRecoveryError.message}`,
+      cause ? `Initial freshness failure: ${cause.message}` : null,
+    ].filter(Boolean).join(" "));
+  }
+  return {
+    context,
+    autoRecoveryLogRequests: readiness.autoRecoveryLogRequests,
+  };
+}
+
+async function requireChannelWorkspaceRecoveryIndexForAutoRefresh({
+  channelName,
+  networkName,
+  provider,
+  bridgeResources,
+  cause = null,
+}) {
+  const workspaceDir = channelWorkspacePath(networkName, channelName);
+  const existingArtifacts = loadExistingWorkspaceArtifacts(workspaceDir);
+  const fail = (message) => {
+    throw new Error([
+      message,
+      "Automatic channel workspace recovery uses only the saved recovery index and will not replay from genesis.",
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis if a genesis rebuild is required.`,
+      cause ? `Initial freshness failure: ${cause.message}` : null,
+    ].filter(Boolean).join(" "));
+  };
+  if (!existingArtifacts.workspace || !existingArtifacts.stateSnapshot) {
+    fail(`Channel workspace recovery index is missing for ${channelName} on ${networkName}.`);
+  }
+
+  const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
+  const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, provider);
+  const channelId = deriveChannelIdFromName(channelName);
+  const channelInfo = await bridgeCore.getChannel(channelId);
+  if (!channelInfo.exists) {
+    fail(`Unknown channel ${channelId.toString()} in bridge core ${bridgeDeployment.bridgeCore}.`);
+  }
+  const channelManager = new Contract(
+    channelInfo.manager,
+    bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
+  const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
+  const latestBlock = await provider.getBlockNumber();
+  const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
+  const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
+  if (canReuseLocalWorkspaceSnapshot({ existingArtifacts, currentRootVectorHash, managedStorageAddresses })) {
+    return { alreadyCurrent: true };
+  }
+  const recoveryIndex = getUsableWorkspaceRecoveryIndex({
+    existingArtifacts,
+    genesisBlockNumber,
+    latestBlock,
+    managedStorageAddresses,
+  });
+  if (!recoveryIndex) {
+    fail(`Channel workspace recovery index is unusable for ${channelName} on ${networkName}.`);
+  }
+  if (Number(recoveryIndex.nextBlock) > Number(latestBlock)) {
+    fail(`Channel workspace recovery index has already scanned through block ${recoveryIndex.nextBlock - 1}, but the local snapshot is not current.`);
+  }
+  const autoRecoveryLogRequests = assertAutoRecoveryLogScanBudget({
+    label: `channel workspace ${channelName} on ${networkName}`,
+    fromBlock: recoveryIndex.nextBlock,
+    toBlock: latestBlock,
+    logScanCount: 2,
+    recoveryCommand: `channel recover-workspace --channel-name ${channelName} --network ${networkName}`,
+  });
+  return { alreadyCurrent: false, autoRecoveryLogRequests };
 }
 
 async function refreshPersistedWorkspaceAfterLocalTransaction({
@@ -4441,12 +5939,6 @@ async function refreshPersistedWorkspaceAfterLocalTransaction({
   return context;
 }
 
-function isRecoverableWalletWorkspaceFailure(error) {
-  const message = String(error?.message ?? error);
-  return (message.includes("--verify") && message.includes("failed with exit code"))
-    || message.includes("The workspace snapshot is stale relative to the bridge channel state.");
-}
-
 function assertWalletMatchesChannelContext(walletContext, l2Identity, context) {
   expect(
     ethers.toBigInt(walletContext.wallet.channelId) === ethers.toBigInt(context.workspace.channelId),
@@ -4464,6 +5956,7 @@ async function executeWalletDirectTemplateCommand({
   provider,
   operationName,
   templatePayload,
+  preparedContextResult = null,
 }) {
   emitProgress(operationName, "loading");
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
@@ -4476,46 +5969,11 @@ async function executeWalletDirectTemplateCommand({
     ownerSigner: signer,
     provider,
   });
-  let contextResult = await loadPreferredWalletChannelContext({
+  const contextResult = preparedContextResult ?? await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
     progressAction: operationName,
   });
-  let recoveredWorkspace = contextResult.recoveredWorkspace;
-
-  try {
-    const execution = await executeWalletTemplateSend({
-      wallet,
-      signer,
-      txSubmitter,
-      txSubmitterSource,
-      txSubmitterAccount,
-      l2Identity,
-      context: contextResult.context,
-      provider,
-      operationName,
-      functionName: templatePayload.method,
-      templatePayload,
-    });
-    emitProgress(operationName, "done");
-    return {
-      execution,
-      contextResult,
-      recoveredWorkspace,
-    };
-  } catch (error) {
-    if (!isRecoverableWalletWorkspaceFailure(error)) {
-      throw error;
-    }
-  }
-
-  contextResult = await loadPreferredWalletChannelContext({
-    walletContext: wallet,
-    provider,
-    forceRecover: true,
-    progressAction: operationName,
-  });
-  recoveredWorkspace = contextResult.recoveredWorkspace;
   const execution = await executeWalletTemplateSend({
     wallet,
     signer,
@@ -4529,11 +5987,18 @@ async function executeWalletDirectTemplateCommand({
     functionName: templatePayload.method,
     templatePayload,
   });
+  const walletWarnings = await buildPostWalletCommandWarnings({
+    walletContext: wallet,
+    context: execution.context,
+    provider,
+    receipt: execution.receipt,
+  });
   emitProgress(operationName, "done");
   return {
     execution,
     contextResult,
-    recoveredWorkspace,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
+    walletWarnings,
   };
 }
 
@@ -4704,34 +6169,29 @@ async function loadJoinChannelContext({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
 
   const bridgeResources = loadBridgeResources({ chainId });
-  const initialized = await syncChannelWorkspace({
-    workspaceName: channelName,
+  const context = await loadFreshChannelWorkspaceContext({
     channelName,
-    network: { chainId, name: resolvedNetworkName },
+    networkName: resolvedNetworkName,
     provider,
-    bridgeResources,
-    persist: true,
-    allowExistingWorkspaceSync: true,
-    useWorkspaceRecoveryIndex: true,
     progressAction: "channel join",
   });
 
   return {
     workspaceName: channelName,
-    workspaceDir: initialized.workspaceDir,
+    workspaceDir: context.workspaceDir,
     persistChannelWorkspace: true,
-    workspace: initialized.workspace,
+    workspace: context.workspace,
     bridgeAbiManifest: bridgeResources.bridgeAbiManifest,
-    currentSnapshot: initialized.currentSnapshot,
-    blockInfo: initialized.blockInfo,
-    contractCodes: initialized.contractCodes,
+    currentSnapshot: context.currentSnapshot,
+    blockInfo: context.blockInfo,
+    contractCodes: context.contractCodes,
     channelManager: new Contract(
-      initialized.workspace.channelManager,
+      context.workspace.channelManager,
       bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
       provider,
     ),
     bridgeTokenVault: new Contract(
-      initialized.workspace.bridgeTokenVault,
+      context.workspace.bridgeTokenVault,
       bridgeResources.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
       provider,
     ),
@@ -4933,6 +6393,7 @@ async function assertWorkspaceAlignedWithChain(context) {
       [
         "The workspace snapshot is stale relative to the bridge channel state.",
         `Workspace: ${context.workspaceDir}`,
+        `Run channel recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network}.`,
       ].join(" "),
     ),
   );
@@ -5474,6 +6935,56 @@ async function fetchChannelBlockInfo(provider, blockNumber) {
   };
 }
 
+async function fetchChannelRecoveryLogs({
+  provider,
+  bridgeAbiManifest,
+  channelInfo,
+  channelManager = null,
+  fromBlock,
+  toBlock,
+  progressAction = null,
+}) {
+  const resolvedChannelManager = channelManager ?? new Contract(
+    channelInfo.manager,
+    bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
+  const bridgeTokenVault = new Contract(
+    channelInfo.bridgeTokenVault,
+    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+    provider,
+  );
+  const currentRootVectorObservedTopic =
+    normalizeBytes32Hex(resolvedChannelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
+  const channelManagerLogs = await fetchLogsChunked(provider, {
+    address: channelInfo.manager,
+    topics: [[
+      currentRootVectorObservedTopic,
+      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
+      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
+    ]],
+    fromBlock,
+    toBlock,
+    onProgress: progressAction
+      ? createRpcLogScanProgress({ action: progressAction, label: "channel-manager events" })
+      : null,
+  });
+  const bridgeVaultLogs = await queryContractEventsChunked({
+    contract: bridgeTokenVault,
+    eventName: "StorageWriteObserved",
+    fromBlock,
+    toBlock,
+    onProgress: progressAction
+      ? createRpcLogScanProgress({ action: progressAction, label: "bridge-vault events" })
+      : null,
+  });
+  return {
+    currentRootVectorObservedTopic,
+    channelManagerLogs,
+    bridgeVaultLogs,
+  };
+}
+
 async function reconstructChannelSnapshot({
   provider,
   bridgeAbiManifest,
@@ -5504,27 +7015,20 @@ async function reconstructChannelSnapshot({
     startingSnapshot = await genesisStateManager.captureStateSnapshot();
   }
 
-  const bridgeTokenVault = new Contract(
-    channelInfo.bridgeTokenVault,
-    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
-    provider,
-  );
   const latestBlock = toBlock === null ? await provider.getBlockNumber() : Number(toBlock);
   const scanFromBlock = Math.max(Number(genesisBlockNumber), Number(fromBlock));
-  const currentRootVectorObservedTopic =
-    normalizeBytes32Hex(channelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
-  const channelManagerLogs = await fetchLogsChunked(provider, {
-    address: channelInfo.manager,
-    topics: [[
-      currentRootVectorObservedTopic,
-      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
-      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
-    ]],
+  const {
+    currentRootVectorObservedTopic,
+    channelManagerLogs,
+    bridgeVaultLogs,
+  } = await fetchChannelRecoveryLogs({
+    provider,
+    bridgeAbiManifest,
+    channelInfo,
+    channelManager,
     fromBlock: scanFromBlock,
     toBlock: latestBlock,
-    onProgress: progressAction
-      ? createRpcLogScanProgress({ action: progressAction, label: "channel-manager events" })
-      : null,
+    progressAction,
   });
   const channelManagerEvents = channelManagerLogs.map((log) => {
     const topic0 = log.topics[0] ? normalizeBytes32Hex(log.topics[0]) : null;
@@ -5538,18 +7042,9 @@ async function reconstructChannelSnapshot({
     }
     return log;
   });
-  const vaultStorageWriteEvents = await queryContractEventsChunked({
-    contract: bridgeTokenVault,
-    eventName: "StorageWriteObserved",
-    fromBlock: scanFromBlock,
-    toBlock: latestBlock,
-    onProgress: progressAction
-      ? createRpcLogScanProgress({ action: progressAction, label: "bridge-vault events" })
-      : null,
-  });
 
   const groupedEvents = new Map();
-  for (const event of [...channelManagerEvents, ...vaultStorageWriteEvents]) {
+  for (const event of [...channelManagerEvents, ...bridgeVaultLogs]) {
     const key = event.transactionHash;
     const group = groupedEvents.get(key) ?? [];
     group.push(event);
@@ -5557,8 +7052,43 @@ async function reconstructChannelSnapshot({
   }
 
   const groupedValues = [...groupedEvents.values()].sort((left, right) => compareLogsByPosition(left[0], right[0]));
+  const currentSnapshot = await applyChannelRecoveryEventGroups({
+    startingSnapshot,
+    groupedValues,
+    contractCodes,
+    channelInfo,
+    controllerAddress,
+    l2AccountingVaultAddress,
+    liquidBalancesSlot,
+  });
+
+  expect(
+    ethers.toBigInt(normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)))
+      === ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash)),
+    "Reconstructed channel snapshot does not match the current on-chain root vector hash.",
+  );
+
+  return {
+    currentSnapshot,
+    scanRange: {
+      fromBlock: scanFromBlock,
+      toBlock: latestBlock,
+      mode: baseSnapshot ? "recovery-index" : "genesis",
+    },
+  };
+}
+
+async function applyChannelRecoveryEventGroups({
+  startingSnapshot,
+  groupedValues,
+  contractCodes,
+  channelInfo,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
+}) {
   let currentSnapshot = startingSnapshot;
-  let stateManager = await buildStateManager(currentSnapshot, contractCodes);
+  const stateManager = await buildStateManager(currentSnapshot, contractCodes);
 
   for (const group of groupedValues) {
     const orderedGroup = [...group].sort(compareLogsByPosition);
@@ -5632,20 +7162,161 @@ async function reconstructChannelSnapshot({
       `CurrentRootVectorObserved root vector mismatch at tx ${rootEvent.transactionHash}.`,
     );
   }
+  return currentSnapshot;
+}
 
+async function applyWorkspaceMirrorDeltaBundle({
+  delta,
+  localRecoveryIndex,
+  manifest,
+  chainId,
+  channelId,
+  channelInfo,
+  bridgeAbiManifest,
+  managedStorageAddresses,
+  contractCodes,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
+}) {
+  expect(Number(delta.protocolVersion) === CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION, "Workspace mirror delta protocolVersion mismatch.");
+  expect(Number(delta.chainId) === Number(chainId), "Workspace mirror delta chainId mismatch.");
+  expect(ethers.toBigInt(delta.channelId) === ethers.toBigInt(channelId), "Workspace mirror delta channelId mismatch.");
+  const fromBlock = Number(localRecoveryIndex.nextBlock);
+  const toBlock = Number(manifest.checkpoint.recoveryLastScannedBlock) - 1;
+  expect(Number(delta.fromBlock) === fromBlock, "Workspace mirror delta fromBlock mismatch.");
+  expect(Number(delta.toBlock) === toBlock, "Workspace mirror delta toBlock mismatch.");
   expect(
-    ethers.toBigInt(normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)))
-      === ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash)),
-    "Reconstructed channel snapshot does not match the current on-chain root vector hash.",
+    ethers.toBigInt(normalizeBytes32Hex(delta.baseRecoveryRootVectorHash))
+      === ethers.toBigInt(normalizeBytes32Hex(localRecoveryIndex.recoveryRootVectorHash)),
+    "Workspace mirror delta base root mismatch.",
   );
-
+  expect(
+    ethers.toBigInt(normalizeBytes32Hex(delta.recoveryRootVectorHash))
+      === ethers.toBigInt(normalizeBytes32Hex(manifest.checkpoint.recoveryRootVectorHash)),
+    "Workspace mirror delta recovery root mismatch.",
+  );
+  const groupedValues = normalizeWorkspaceMirrorDeltaEventGroups({
+    logs: delta.logs,
+    channelInfo,
+    bridgeAbiManifest,
+    fromBlock,
+    toBlock,
+  });
+  const currentSnapshot = await applyChannelRecoveryEventGroups({
+    startingSnapshot: localRecoveryIndex.stateSnapshot,
+    groupedValues,
+    contractCodes,
+    channelInfo,
+    controllerAddress,
+    l2AccountingVaultAddress,
+    liquidBalancesSlot,
+  });
+  const recoveryRootVectorHash = normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots));
+  expect(
+    ethers.toBigInt(recoveryRootVectorHash) === ethers.toBigInt(normalizeBytes32Hex(manifest.checkpoint.recoveryRootVectorHash)),
+    "Workspace mirror delta result root does not match the manifest checkpoint root.",
+  );
+  expect(
+    Array.isArray(currentSnapshot.storageAddresses)
+      && currentSnapshot.storageAddresses.length === managedStorageAddresses.length
+      && currentSnapshot.storageAddresses.every(
+        (address, index) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(getAddress(managedStorageAddresses[index])),
+      ),
+    "Workspace mirror delta result storage address vector mismatch.",
+  );
   return {
-    currentSnapshot,
-    scanRange: {
-      fromBlock: scanFromBlock,
-      toBlock: latestBlock,
-      mode: baseSnapshot ? "recovery-index" : "genesis",
-    },
+    nextBlock: Number(manifest.checkpoint.recoveryLastScannedBlock),
+    stateSnapshot: currentSnapshot,
+    recoveryRootVectorHash,
+    source: "mirror",
+  };
+}
+
+function normalizeWorkspaceMirrorDeltaEventGroups({
+  logs,
+  channelInfo,
+  bridgeAbiManifest,
+  fromBlock,
+  toBlock,
+}) {
+  expect(Array.isArray(logs), "Workspace mirror delta logs must be an array.");
+  const channelManager = new Contract(
+    channelInfo.manager,
+    bridgeAbiManifest.contracts.channelManager.abi,
+  );
+  const bridgeTokenVault = new Contract(
+    channelInfo.bridgeTokenVault,
+    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+  );
+  const currentRootVectorObservedTopic =
+    normalizeBytes32Hex(channelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
+  const groupedEvents = new Map();
+  for (const rawLog of logs) {
+    const event = normalizeWorkspaceMirrorDeltaLog({
+      rawLog,
+      channelInfo,
+      channelManager,
+      bridgeTokenVault,
+      currentRootVectorObservedTopic,
+      fromBlock,
+      toBlock,
+    });
+    const group = groupedEvents.get(event.transactionHash) ?? [];
+    group.push(event);
+    groupedEvents.set(event.transactionHash, group);
+  }
+  return [...groupedEvents.values()].sort((left, right) => compareLogsByPosition(left[0], right[0]));
+}
+
+function normalizeWorkspaceMirrorDeltaLog({
+  rawLog,
+  channelInfo,
+  channelManager,
+  bridgeTokenVault,
+  currentRootVectorObservedTopic,
+  fromBlock,
+  toBlock,
+}) {
+  const event = {
+    ...rawLog,
+    address: getAddress(rawLog.address),
+    topics: (rawLog.topics ?? []).map((topic) => normalizeBytes32Hex(topic)),
+    data: rawLog.data ?? "0x",
+    blockNumber: Number(rawLog.blockNumber),
+    transactionHash: normalizeBytes32Hex(rawLog.transactionHash),
+    transactionIndex: Number(rawLog.transactionIndex),
+    index: Number(rawLog.index ?? rawLog.logIndex),
+  };
+  expect(event.blockNumber >= fromBlock && event.blockNumber <= toBlock, "Workspace mirror delta log block is outside the declared range.");
+  expect(Number.isInteger(event.transactionIndex) && Number.isInteger(event.index), "Workspace mirror delta log is missing transactionIndex or index.");
+  const topic0 = event.topics[0] ? normalizeBytes32Hex(event.topics[0]) : null;
+  if (ethers.toBigInt(event.address) === ethers.toBigInt(getAddress(channelInfo.manager))) {
+    if (topic0 === currentRootVectorObservedTopic) {
+      const parsed = channelManager.interface.parseLog(event);
+      return {
+        ...event,
+        args: parsed.args,
+        fragment: parsed.fragment,
+      };
+    }
+    expect(
+      topic0 === normalizeBytes32Hex(CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC)
+        || topic0 === normalizeBytes32Hex(VAULT_STORAGE_WRITE_OBSERVED_TOPIC),
+      "Workspace mirror delta contains unsupported channel manager log topic.",
+    );
+    return event;
+  }
+  expect(
+    ethers.toBigInt(event.address) === ethers.toBigInt(getAddress(channelInfo.bridgeTokenVault)),
+    "Workspace mirror delta contains a log from an unsupported address.",
+  );
+  const parsed = bridgeTokenVault.interface.parseLog(event);
+  expect(parsed.fragment?.name === "StorageWriteObserved", "Workspace mirror delta contains unsupported bridge vault log.");
+  return {
+    ...event,
+    args: parsed.args,
+    fragment: parsed.fragment,
   };
 }
 
@@ -5743,6 +7414,56 @@ async function fetchLogsChunked(provider, {
   });
 
   return aggregatedLogs;
+}
+
+function estimateLogScanRequestCount({
+  fromBlock,
+  toBlock,
+  logScanCount = 1,
+  chunkSize = DEFAULT_LOG_CHUNK_SIZE,
+}) {
+  const normalizedFromBlock = Number(fromBlock);
+  const normalizedToBlock = Number(toBlock);
+  if (!Number.isInteger(normalizedFromBlock) || !Number.isInteger(normalizedToBlock)) {
+    return Number.POSITIVE_INFINITY;
+  }
+  if (normalizedFromBlock > normalizedToBlock) {
+    return 0;
+  }
+  const totalBlocks = normalizedToBlock - normalizedFromBlock + 1;
+  return Math.ceil(totalBlocks / Math.max(1, Number(chunkSize))) * Math.max(1, Number(logScanCount));
+}
+
+function assertAutoRecoveryLogScanBudget({
+  label,
+  fromBlock,
+  toBlock,
+  logScanCount,
+  recoveryCommand,
+  logRequestBudget = AUTO_RECOVERY_LOG_REQUEST_BUDGET,
+}) {
+  const estimatedRequests = estimateLogScanRequestCount({
+    fromBlock,
+    toBlock,
+    logScanCount,
+  });
+  const normalizedBudget = Math.max(0, Number(logRequestBudget));
+  if (estimatedRequests <= normalizedBudget) {
+    return estimatedRequests;
+  }
+  const normalizedFromBlock = Number(fromBlock);
+  const normalizedToBlock = Number(toBlock);
+  const totalBlocks = normalizedFromBlock <= normalizedToBlock
+    ? normalizedToBlock - normalizedFromBlock + 1
+    : 0;
+  const estimatedSeconds = estimatedRequests / DEFAULT_LOG_REQUESTS_PER_SECOND;
+  throw new Error([
+    `Automatic recovery for ${label} would exceed the ${AUTO_RECOVERY_TIME_BUDGET_SECONDS}s pre-command budget.`,
+    `Recovery delta is ${totalBlocks} blocks from ${normalizedFromBlock} to ${normalizedToBlock}.`,
+    `Estimated log requests: ${estimatedRequests}; remaining budget: ${normalizedBudget} of ${AUTO_RECOVERY_LOG_REQUEST_BUDGET} at ${DEFAULT_LOG_REQUESTS_PER_SECOND}/s.`,
+    `Estimated minimum scan time: ${estimatedSeconds.toFixed(1)}s.`,
+    `Run ${recoveryCommand} first; add --from-genesis only if the saved recovery index is unusable.`,
+  ].join(" "));
 }
 
 async function throttleLogRequest() {
@@ -6681,10 +8402,27 @@ function assertCreateChannelArgs(args) {
 
 function assertRecoverWorkspaceArgs(args) {
   assertAllowedCommandSchema(args, "channel-recover-workspace");
+  resolveWorkspaceRecoverySource(args);
+  if (args.fromGenesis !== undefined && args.fromGenesis !== true) {
+    throw new Error("channel recover-workspace option --from-genesis does not accept a value.");
+  }
 }
 
 function assertGetChannelArgs(args) {
   assertAllowedCommandSchema(args, "channel-get-meta");
+}
+
+function assertSetWorkspaceMirrorArgs(args) {
+  assertAllowedCommandSchema(args, "channel-set-workspace-mirror");
+  requireWorkspaceMirrorUrl(args.url);
+}
+
+function assertPublishWorkspaceMirrorArgs(args) {
+  assertAllowedCommandSchema(args, "channel-publish-workspace-mirror");
+  requireArg(args.output, "--output");
+  if (args.force !== undefined && args.force !== true) {
+    throw new Error("channel publish-workspace-mirror option --force does not accept a value.");
+  }
 }
 
 function assertDepositBridgeArgs(args) {
@@ -7457,6 +9195,94 @@ function emitProgress(action, phase) {
   }
 }
 
+function createByteDownloadProgress({ action, label, url }) {
+  const startedAtMs = Date.now();
+  const useInlineProgress = process.stderr.isTTY && !isJsonOutputRequested();
+  let lastLineLength = 0;
+  const writeInline = (line, done = false) => {
+    if (!useInlineProgress) {
+      if (done) {
+        emitProgress(action, line);
+      }
+      return;
+    }
+    const paddedLine = line.padEnd(lastLineLength, " ");
+    process.stderr.write(`\r[${action}] ${paddedLine}`);
+    lastLineLength = line.length;
+    if (done) {
+      process.stderr.write("\n");
+      lastLineLength = 0;
+    }
+  };
+  return (event) => {
+    const downloadedBytes = Number(event.downloadedBytes ?? 0);
+    const totalBytes = Number.isFinite(Number(event.totalBytes)) ? Number(event.totalBytes) : null;
+    const elapsedSeconds = Math.max(0.001, (Date.now() - startedAtMs) / 1000);
+    const bytesPerSecond = downloadedBytes / elapsedSeconds;
+    const remainingBytes = totalBytes !== null ? Math.max(0, totalBytes - downloadedBytes) : null;
+    const etaSeconds = remainingBytes !== null && bytesPerSecond > 0
+      ? remainingBytes / bytesPerSecond
+      : null;
+    const percent = totalBytes && totalBytes > 0
+      ? `${Math.min(100, (downloadedBytes * 100) / totalBytes).toFixed(1)}%`
+      : "unknown";
+    const base = [
+      `${label}: ${percent}`,
+      `${formatByteCount(downloadedBytes)}/${totalBytes !== null ? formatByteCount(totalBytes) : "unknown"}`,
+      `${formatByteRate(bytesPerSecond)}`,
+      `ETA ${etaSeconds !== null ? formatDurationSeconds(etaSeconds) : "unknown"}`,
+    ].join(" ");
+    if (event.status === "start") {
+      writeInline(`${base} from ${url}`);
+      return;
+    }
+    if (event.status === "done") {
+      writeInline(`${label}: 100% (${formatByteCount(downloadedBytes)}, done)`, true);
+      return;
+    }
+    if (event.status === "error") {
+      writeInline(`${label}: failed after ${formatByteCount(downloadedBytes)}`, true);
+      return;
+    }
+    if (event.status === "progress") {
+      writeInline(base);
+    }
+  };
+}
+
+function formatByteCount(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value)) {
+    return "unknown";
+  }
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  let scaled = Math.max(0, value);
+  let unitIndex = 0;
+  while (scaled >= 1024 && unitIndex < units.length - 1) {
+    scaled /= 1024;
+    unitIndex += 1;
+  }
+  const decimals = unitIndex === 0 ? 0 : 1;
+  return `${scaled.toFixed(decimals)} ${units[unitIndex]}`;
+}
+
+function formatByteRate(bytesPerSecond) {
+  return `${formatByteCount(bytesPerSecond)}/s`;
+}
+
+function formatDurationSeconds(seconds) {
+  const value = Math.max(0, Number(seconds));
+  if (!Number.isFinite(value)) {
+    return "unknown";
+  }
+  if (value < 60) {
+    return `${Math.ceil(value)}s`;
+  }
+  const minutes = Math.floor(value / 60);
+  const remainingSeconds = Math.ceil(value % 60);
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
 function createRpcLogScanProgress({ action, label }) {
   let lastBucket = -1;
   return (event) => {
@@ -7587,7 +9413,7 @@ function buildRecoveryHints(error, args = {}) {
   }
 
   if (message.includes("Workspace recovery index is missing or unusable")) {
-    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName} --from-genesis`);
+    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis`);
     hints.push(`private-state-cli wallet recover-workspace --channel-name ${channelName} --network ${networkName} --account ${accountName} --from-genesis`);
   }
 

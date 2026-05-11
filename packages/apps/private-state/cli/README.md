@@ -99,26 +99,37 @@ continues to print the same command list for shell compatibility.
 
 Workspace recovery commands use the saved recovery index by default. If the local workspace is missing, corrupted, or
 does not contain a usable index, `channel recover-workspace` and `wallet recover-workspace` stop with an explicit error instead of
-silently replaying logs from channel genesis. Use `--from-genesis` only when you intentionally want to rebuild from the
-channel creation block:
+silently replaying logs from channel genesis. Use `--source rpc --from-genesis` only when you intentionally want to
+rebuild channel workspace state from the channel creation block:
 
 ```bash
-private-state-cli channel recover-workspace --channel-name <CHANNEL> --network mainnet --from-genesis
+private-state-cli channel recover-workspace --channel-name <CHANNEL> --network mainnet --source rpc --from-genesis
 private-state-cli wallet recover-workspace --channel-name <CHANNEL> --network mainnet --account <ACCOUNT> --from-genesis
 ```
 
 `channel create` is the exception: after the channel is created on-chain, the CLI initializes that new local workspace
 by replaying from the channel's genesis block because no prior recovery index can exist for a new channel.
 
-`channel join` requires the channel workspace to have a usable recovery index and refreshes that workspace through the
-indexed path before submitting the registration transaction. For a channel that was created elsewhere, run
-`channel recover-workspace --from-genesis` once before joining; later joins and wallet commands resume from the saved
-index instead of silently replaying from genesis.
+`channel join` refreshes stale channel workspace state through the saved recovery index before submitting the
+registration transaction. For a channel that was created elsewhere, run `channel recover-workspace --source rpc --from-genesis`
+once before joining, or recover from a registered workspace mirror; later joins and wallet commands resume from the
+saved index instead of silently replaying from genesis.
 
 Wallet getter commands that need channel state, including `wallet get-meta`, `wallet get-channel-fund`, and
-`wallet get-notes`, follow the same indexed recovery rule before reading local or on-chain state. `wallet get-notes` also uses
-the wallet's saved note-receive scan index for encrypted note delivery logs. If either index is unusable, the command
-stops and asks the user to run the appropriate recovery command with `--from-genesis`.
+`wallet get-notes`, refresh stale local workspaces through saved recovery indexes before reading state. `wallet get-notes`
+also refreshes received-note logs through the saved wallet note recovery index. Automatic refresh never replays from
+channel genesis and only runs when the estimated RPC log scan fits within the 10 second pre-command budget. If a saved
+index is missing, unusable, or too far behind, the command stops and asks the user to run the appropriate recovery
+command with `--from-genesis` explicitly when needed.
+
+Channel leaders can optionally register a workspace mirror server so users can bootstrap recovery
+from a signed checkpoint and download only the local-to-checkpoint delta when a local recovery index
+already exists. The channel leader can build the static mirror files with
+`channel publish-workspace-mirror` and then deploy the output directory to the registered mirror
+host. If the existing mirror manifest is unreadable or invalid, the leader can use
+`channel publish-workspace-mirror --force` to write a full checkpoint without trusting that remote
+manifest as a delta base. The CLI protocol is documented at
+https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/packages/apps/private-state/docs/channel-workspace-mirror-protocol.md.
 
 Back up a local wallet with:
 
@@ -134,7 +145,7 @@ run `channel recover-workspace` before using wallet commands that need channel s
 
 ```bash
 private-state-cli wallet import --input ./wallet-backup.zip
-private-state-cli channel recover-workspace --channel-name <CHANNEL> --network mainnet --from-genesis
+private-state-cli channel recover-workspace --channel-name <CHANNEL> --network mainnet --source rpc --from-genesis
 ```
 
 For a wider backup that can run wallet commands immediately when the imported channel workspace cache is still
@@ -330,7 +341,7 @@ Suggested interaction flow:
    `wallet mint-notes`.
 7. For a private transfer, select available note IDs from `wallet get-notes`, find the recipient L2 address from
    `wallet get-meta`, then build `wallet transfer-notes`.
-8. After transfer, guide the recipient to run `wallet get-notes` to recover received notes from event logs.
+8. After transfer, guide the recipient to run `wallet get-notes`; it refreshes received notes from the saved recovery index when the delta fits the 10 second pre-command budget. If the index is missing or too far behind, explain `wallet recover-workspace --from-genesis`.
 
 Example onboarding explanation for `channel join`:
 

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   HDNodeWallet,
@@ -60,8 +60,6 @@ const bridgeRoot = path.resolve(repoRoot, "bridge");
 const commonPackageRoot = path.resolve(repoRoot, "packages", "common");
 const groth16PackageRoot = path.resolve(repoRoot, "packages", "groth16");
 const cliPackageRoot = path.resolve(appRoot, "cli");
-const cliPackageManifestPath = path.resolve(appRoot, "cli", "package.json");
-const cliPackageManifest = JSON.parse(fs.readFileSync(cliPackageManifestPath, "utf8"));
 const cliPackageSpecs = resolveCliPackageSpecs();
 const cliPackageSpecLabel = cliPackageSpecs.join(" ");
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
@@ -86,6 +84,7 @@ const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
 const summaryPath = path.resolve(outputRoot, "summary.json");
 const failureDiagnosticsPath = path.resolve(outputRoot, "failure-diagnostics.json");
 const dappMetadataRoot = path.resolve(outputRoot, "dapp-metadata");
+const workspaceMirrorRoot = path.resolve(outputRoot, "workspace-mirror");
 const providerUrl = process.env.ANVIL_RPC_URL?.trim() || "http://127.0.0.1:8545";
 const workspaceNetworkName = "anvil";
 const anvilMnemonic = process.env.APPS_ANVIL_MNEMONIC?.trim() || "test test test test test test test test test test test junk";
@@ -1393,7 +1392,31 @@ function importWallet(inputPath) {
 function recoverWorkspace({ fromGenesis = false } = {}) {
   return runAnvilBridgeCliCommand("channel recover-workspace", [
     "--channel-name", channelName,
+    ...(fromGenesis ? ["--source", "rpc"] : []),
     ...(fromGenesis ? ["--from-genesis"] : []),
+  ]);
+}
+
+function recoverWorkspaceFromMirror() {
+  return runAnvilBridgeCliCommand("channel recover-workspace", [
+    "--channel-name", channelName,
+    "--source", "mirror",
+  ]);
+}
+
+function setWorkspaceMirror(url) {
+  return runAnvilBridgeCliCommand("channel set-workspace-mirror", [
+    "--channel-name", channelName,
+    "--account", txSubmitterAccount,
+    "--url", url,
+  ]);
+}
+
+function publishWorkspaceMirror() {
+  return runAnvilBridgeCliCommand("channel publish-workspace-mirror", [
+    "--channel-name", channelName,
+    "--account", txSubmitterAccount,
+    "--output", workspaceMirrorRoot,
   ]);
 }
 
@@ -1407,6 +1430,13 @@ function deleteWorkspaceDir() {
     recursive: true,
     force: true,
   });
+}
+
+function deleteChannelWorkspaceCache() {
+  fs.rmSync(path.join(
+    workspaceDirForName(workspaceRoot, workspaceNetworkName, channelName),
+    "channel",
+  ), { recursive: true, force: true });
 }
 
 function txSubmitterCliArgs(account) {
@@ -1510,7 +1540,7 @@ function assertPostTransactionWorkspaceRecoveryIndex(result, label) {
   );
   const mode = result?.recoveryScanRange?.mode;
   expect(
-    mode === "recovery-index" || mode === "reused-current-snapshot",
+    mode === "recovery-index" || mode === "reused-current-snapshot" || mode === "reused-mirror-snapshot",
     `${label} must reuse the post-transaction recovery index, got ${mode ?? "missing"}.`,
   );
   expect(
@@ -1518,6 +1548,168 @@ function assertPostTransactionWorkspaceRecoveryIndex(result, label) {
       && Number(result.recoveryLastScannedBlock) === Number(result.recoveryScanRange.toBlock) + 1,
     `${label} returned inconsistent recoveryLastScannedBlock metadata.`,
   );
+}
+
+function channelWorkspaceMirrorProtocolPath(channelId) {
+  return path.join(
+    ".well-known",
+    "tokamak-private-state",
+    "channel-workspace",
+    "31337",
+    channelId.toString(),
+  );
+}
+
+async function startStaticFileServer(rootDir) {
+  const serverScript = `
+    import fs from "node:fs";
+    import http from "node:http";
+    import path from "node:path";
+
+    const rootDir = ${JSON.stringify(path.resolve(rootDir))};
+    const server = http.createServer((request, response) => {
+      try {
+        const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+        const decodedPath = decodeURIComponent(requestUrl.pathname);
+        const relativePath = decodedPath.split("/").filter(Boolean).join("/");
+        const filePath = path.resolve(rootDir, relativePath);
+        if (!filePath.startsWith(rootDir + path.sep)) {
+          response.writeHead(403);
+          response.end("forbidden");
+          return;
+        }
+        if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+          response.writeHead(404);
+          response.end("not found");
+          return;
+        }
+        response.writeHead(200, {
+          "content-type": filePath.endsWith(".json") ? "application/json" : "application/zip",
+        });
+        fs.createReadStream(filePath).pipe(response);
+      } catch (error) {
+        response.writeHead(500);
+        response.end(error instanceof Error ? error.message : String(error));
+      }
+    });
+
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      console.log(JSON.stringify({ port: address.port }));
+    });
+  `;
+  const child = spawn(process.execPath, ["--input-type=module", "-e", serverScript], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const serverInfo = await new Promise((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error(`Workspace mirror server did not start in time. stderr: ${stderr}`));
+    }, 10_000);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+      const line = stdout.split(/\r?\n/u).find((entry) => entry.trim().length > 0);
+      if (!line) {
+        return;
+      }
+      clearTimeout(timeout);
+      try {
+        resolve(JSON.parse(line));
+      } catch (error) {
+        reject(new Error(`Workspace mirror server printed invalid startup JSON: ${error.message}`));
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("exit", (code, signal) => {
+      clearTimeout(timeout);
+      if (!stdout.trim()) {
+        reject(new Error(`Workspace mirror server exited before startup, code=${code}, signal=${signal}, stderr=${stderr}`));
+      }
+    });
+  });
+  expect(Number.isInteger(serverInfo.port), "Workspace mirror server did not expose a TCP port.");
+  return {
+    child,
+    url: `http://127.0.0.1:${serverInfo.port}`,
+  };
+}
+
+async function stopStaticFileServer(handle) {
+  if (!handle?.child || handle.child.killed) {
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      handle.child.kill("SIGKILL");
+      resolve();
+    }, 5_000);
+    handle.child.once("exit", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    handle.child.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    handle.child.kill("SIGTERM");
+  });
+}
+
+async function verifyWorkspaceMirrorRecovery() {
+  cleanDir(workspaceMirrorRoot);
+  const server = await startStaticFileServer(workspaceMirrorRoot);
+  try {
+    const registration = setWorkspaceMirror(server.url);
+    expect(
+      registration.url === server.url,
+      `channel set-workspace-mirror returned unexpected URL ${registration.url}.`,
+    );
+    const published = publishWorkspaceMirror();
+    const manifest = readJson(published.manifestPath);
+
+    deleteChannelWorkspaceCache();
+    const recovered = recoverWorkspaceFromMirror();
+    expect(recovered.source === "mirror", `mirror recovery returned source=${recovered.source}.`);
+    expect(recovered.workspaceMirror?.used === true, "mirror recovery did not use the workspace mirror.");
+    expect(
+      recovered.workspaceMirror?.registeredUrl === server.url,
+      "mirror recovery used an unexpected registered URL.",
+    );
+    expect(
+      recovered.workspaceMirror?.manifestUrl
+        === `${server.url}/${channelWorkspaceMirrorProtocolPath(published.channelId)}/manifest.json`,
+      "mirror recovery used an unexpected manifest URL.",
+    );
+    expect(
+      recovered.recoveryScanRange?.mode === "reused-mirror-snapshot"
+        || recovered.recoveryScanRange?.mode === "recovery-index",
+      `mirror recovery used unexpected scan mode ${recovered.recoveryScanRange?.mode}.`,
+    );
+    expect(
+      normalizeBytes32Hex(recovered.recoveryRootVectorHash)
+        === normalizeBytes32Hex(manifest.checkpoint.recoveryRootVectorHash),
+      "mirror recovery root vector hash does not match the mirrored snapshot.",
+    );
+    return {
+      registration,
+      published,
+      recovered,
+      manifest,
+      manifestPath: published.manifestPath,
+      checkpointBundlePath: published.checkpoint.bundlePath,
+      serverUrl: server.url,
+    };
+  } finally {
+    await stopStaticFileServer(server);
+  }
 }
 
 function assertWalletCommandUsedCurrentWorkspace(result, label) {
@@ -1553,6 +1745,7 @@ async function main() {
   let createChannelResult = null;
   let recoverWorkspaceResult = null;
   let recoverWorkspaceAfterLocalTransactions = null;
+  let workspaceMirrorRecovery = null;
   let bridgeDeployment = null;
   let canonicalAsset = null;
   let dappRegistrationResult = null;
@@ -1681,6 +1874,10 @@ async function main() {
     const bMintNote = mintB.outputNotes[0];
     const cMintNote = mintC.outputNotes[0];
 
+    recoverWallet(participants[0]);
+    recoverWallet(participants[0]);
+    recoverWallet(participants[1]);
+    recoverWallet(participants[2]);
     const notesAfterMintA = getWalletNotes(participants[0]);
     const notesAfterMintB = getWalletNotes(participants[1]);
     const notesAfterMintC = getWalletNotes(participants[2]);
@@ -1714,6 +1911,9 @@ async function main() {
       Array.isArray(transferA.deliveredRecipients) && transferA.deliveredRecipients.length === 0,
       "transfer-notes must not write recipient inbox sidecars anymore.",
     );
+    recoverWallet(participants[0]);
+    recoverWallet(participants[1]);
+    recoverWallet(participants[2]);
     const notesAfterTransferALogScanB = getWalletNotes(participants[1]);
     const notesAfterTransferALogScanC = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterTransferALogScanB, { unusedCount: 2, spentCount: 0, unusedTotal: 4n * amountUnit, spentTotal: 0n });
@@ -1732,6 +1932,8 @@ async function main() {
       "transfer-notes must not write recipient inbox sidecars anymore.",
     );
 
+    recoverWallet(participants[1]);
+    recoverWallet(participants[2]);
     const notesAfterTransferA = getWalletNotes(participants[0]);
     const notesAfterTransferB = getWalletNotes(participants[1]);
     const notesAfterTransferC = getWalletNotes(participants[2]);
@@ -1740,7 +1942,9 @@ async function main() {
     assertWalletNoteSnapshot(notesAfterTransferC, { unusedCount: 3, spentCount: 0, unusedTotal: claimAmountBaseUnits, spentTotal: 0n });
 
     const redeemAToC = redeemNotes(participants[2], [noteAToC.commitment], { txSubmitter: txSubmitterAccount });
+    recoverWallet(participants[2]);
     const redeemBToC = redeemNotes(participants[2], [noteBToC.commitment]);
+    recoverWallet(participants[2]);
     const redeemCMint = redeemNotes(participants[2], [cMintNote.commitment]);
     assertWalletCommandUsedCurrentWorkspace(redeemBToC, "redeem transaction after a successful previous redeem");
     assertWalletCommandUsedCurrentWorkspace(redeemCMint, "redeem transaction after multiple successful redeems");
@@ -1752,12 +1956,18 @@ async function main() {
       getAddress(redeemAToC.l1WalletOwner) === getAddress(participants[2].l1Address),
       "redeem-notes --tx-submitter must not change the wallet owner.",
     );
+    recoverWallet(participants[2]);
     const notesAfterRedeemC = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
     recoverWorkspaceAfterLocalTransactions = recoverWorkspace();
     assertPostTransactionWorkspaceRecoveryIndex(
       recoverWorkspaceAfterLocalTransactions,
       "recover-workspace after local wallet transactions",
+    );
+    workspaceMirrorRecovery = await verifyWorkspaceMirrorRecovery();
+    assertPostTransactionWorkspaceRecoveryIndex(
+      workspaceMirrorRecovery.recovered,
+      "recover-workspace from workspace mirror",
     );
 
     const walletExportIncludeNotes = exportWallet(participants[2], {
@@ -1775,6 +1985,7 @@ async function main() {
       walletImportIncludeNotes.includeNotes === true,
       "wallet import must report includeNotes=true for an include-notes export.",
     );
+    recoverWallet(participants[2]);
     const notesAfterIncludeNotesImport = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterIncludeNotesImport, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
     const channelDepositAfterIncludeNotesImport = getChannelFund(participants[2]);
@@ -1803,6 +2014,7 @@ async function main() {
       recoverWorkspaceAfterDefaultWalletImport.channelName === channelName,
       "recover-workspace must rebuild channel state after default wallet import.",
     );
+    recoverWallet(participants[2]);
     const notesAfterDefaultImportRecovery = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterDefaultImportRecovery, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
     const channelDepositAfterDefaultImportRecovery = getChannelFund(participants[2]);
@@ -1901,6 +2113,7 @@ async function main() {
       createChannel: createChannelResult,
       recoverWorkspace: recoverWorkspaceResult,
       recoverWorkspaceAfterLocalTransactions,
+      workspaceMirrorRecovery,
       recoverWorkspaceAfterNotes: recoverWorkspaceAfterNotesResult,
       walletExportImport: {
         includeNotesExport: walletExportIncludeNotes,

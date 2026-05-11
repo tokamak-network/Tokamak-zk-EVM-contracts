@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.2.0 - 2026-05-08
+
+- Added optional channel workspace mirror recovery. `channel recover-workspace` now accepts
+  `--source rpc|mirror`, with `rpc` remaining the default when `--source` is omitted.
+- Added `channel set-workspace-mirror` so a channel leader can register the official workspace
+  mirror base URL stored in `BridgeCore`.
+- Added mirror checkpoint validation that checks signed checkpoint metadata before downloading
+  bundles, then validates downloaded checkpoint or delta bundle contents against on-chain channel
+  metadata before replaying the remaining RPC log delta to the latest block.
+- Documented the static server protocol for channel workspace mirrors.
+- Removed `--source auto` from `channel recover-workspace`; recovery source is now either
+  `rpc` or `mirror`.
+- Required `channel recover-workspace --from-genesis` to be paired with explicit `--source rpc`
+  so genesis replay cannot be requested accidentally through an omitted source.
+- Restored pre-command workspace refresh for commands that require current local state, but limited
+  automatic refresh to saved recovery indexes. Automatic command preflight never replays from
+  genesis and points users to explicit `channel recover-workspace` or `wallet recover-workspace`
+  when a genesis rebuild is required.
+- Restored received-note event-log refresh for `wallet get-notes`, `wallet transfer-notes`, and
+  `wallet redeem-notes`, limited to the saved wallet note recovery index.
+- Limited pre-command automatic recovery to a 10 second RPC log scan budget based on the CLI's
+  paced log query rate.
+- Reworked workspace mirror recovery around leader-signed checkpoint manifests and
+  delta bundles. When a local recovery index exists, the CLI prechecks the mirror checkpoint and
+  downloads only the matching delta bundle instead of a full workspace bundle.
+- Removed the version segment from workspace mirror URLs and kept the protocol version only in
+  manifest and bundle metadata.
+- Added `channel publish-workspace-mirror` to build static mirror files when the local workspace is
+  current and ahead of the registered mirror checkpoint.
+- Added `channel publish-workspace-mirror --force` so a channel leader can repair an unreadable or
+  invalid remote mirror manifest by publishing a full checkpoint without using that manifest as a
+  delta base.
+- Required mirror bundle `sizeBytes` and enforce it as the download limit before verifying bundle
+  contents.
+- Kept streaming checkpoint or delta bundle download progress with an estimated remaining time.
+
 ## 1.1.1 - 2026-05-08
 
 - Added bridge deployment verification support for Etherscan-compatible explorers, including

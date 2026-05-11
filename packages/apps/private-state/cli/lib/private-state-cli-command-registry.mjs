@@ -178,6 +178,13 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     hint: "Base URL for the channel workspace mirror protocol.",
     option: "--url",
   },
+  force: {
+    label: "Force",
+    type: "checkbox",
+    hint: "Ignore an unreadable or invalid existing mirror manifest and publish a full checkpoint instead of a delta.",
+    option: "--force",
+    optional: true,
+  },
   json: {
     label: "JSON Output",
     type: "checkbox",
@@ -322,10 +329,11 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "channel-publish-workspace-mirror",
     display: "channel publish-workspace-mirror",
     description: "Build static workspace mirror files for the registered mirror URL.",
-    fields: ["channelName", "network", "account", "output", "rpcUrl"],
-    usage: "--channel-name, --network, --account, --output, and optional --rpc-url",
+    fields: ["channelName", "network", "account", "output", "force", "rpcUrl"],
+    usage: "--channel-name, --network, --account, --output, optional --force, and optional --rpc-url",
     help: [
       "Requires the local channel workspace to be current and ahead of the registered mirror checkpoint",
+      "--force ignores an unreadable or invalid existing mirror manifest and publishes a full checkpoint without a delta",
       "Writes manifest.json, checkpoint.zip, and any needed delta bundle under the workspace mirror static path",
       "Does not upload files to a remote server; deploy the output directory to the registered HTTPS mirror host",
     ],

@@ -119,6 +119,9 @@ mirror-public/
 
 If the registered mirror URL contains a base path or directly points to a `.json` manifest, the CLI
 mirrors that path under `--output` so uploaded files resolve at the same locations clients fetch.
+If the existing mirror manifest is unreadable or invalid, the operator can rerun
+`publish-workspace-mirror` with `--force`; the CLI still requires a current local workspace, but it
+does not use the broken remote manifest as a delta base and writes a full checkpoint manifest.
 
 The server implementation can initially accept this directory as input. A later improvement can add
 direct CLI upload support, but the first server version should work with the generated directory.

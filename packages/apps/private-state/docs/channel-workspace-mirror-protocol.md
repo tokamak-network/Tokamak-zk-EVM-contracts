@@ -117,12 +117,29 @@ If the registered URL contains a base path or directly points to a `.json` manif
 mirrors that URL path so the generated files resolve at the same locations the CLI will fetch.
 Before writing files, the command fetches only the registered mirror manifest and compares its
 checkpoint with the local channel workspace. Publishing continues only when the local workspace is
-current relative to on-chain state and its recovery index is ahead of the registered mirror
+current relative to on-chain state and its recovery index is ahead of the valid registered mirror
 checkpoint. If the remote manifest is not found, the command treats this as the first publish.
 
-When a previous mirror checkpoint exists, the command writes a delta bundle from the previous mirror
-checkpoint to the local checkpoint and references it from the new manifest. Existing delta files in
-the output directory are left in place unless overwritten.
+When a valid previous mirror checkpoint exists, the command writes a delta bundle from the previous
+mirror checkpoint to the local checkpoint and references it from the new manifest. Existing delta
+files in the output directory are left in place unless overwritten.
+
+If the existing remote manifest is unreadable or invalid, the operator can repair the mirror by
+adding `--force`:
+
+```bash
+private-state-cli channel publish-workspace-mirror \
+  --channel-name <CHANNEL> \
+  --network mainnet \
+  --account <LEADER_ACCOUNT> \
+  --output ./mirror-public \
+  --force
+```
+
+`--force` does not bypass leader authorization, local workspace freshness checks, or local recovery
+index validation. It only tells the publisher not to trust the broken remote manifest as a delta
+base. The command then writes a full checkpoint manifest without a new delta bundle and reports the
+ignored remote manifest error in `ignoredRemoteCheckpoint`.
 
 ## Checkpoint Bundle
 

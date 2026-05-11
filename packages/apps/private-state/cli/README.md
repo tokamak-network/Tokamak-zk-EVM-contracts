@@ -126,7 +126,9 @@ Channel leaders can optionally register a workspace mirror server so users can b
 from a signed checkpoint and download only the local-to-checkpoint delta when a local recovery index
 already exists. The channel leader can build the static mirror files with
 `channel publish-workspace-mirror` and then deploy the output directory to the registered mirror
-host. The CLI protocol is documented at
+host. If the existing mirror manifest is unreadable or invalid, the leader can use
+`channel publish-workspace-mirror --force` to write a full checkpoint without trusting that remote
+manifest as a delta base. The CLI protocol is documented at
 https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/packages/apps/private-state/docs/channel-workspace-mirror-protocol.md.
 
 Back up a local wallet with:

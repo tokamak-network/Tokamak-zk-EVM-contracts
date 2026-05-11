@@ -830,6 +830,7 @@ async function handleSetChannelWorkspaceMirror({ args, network, provider }) {
 async function handlePublishChannelWorkspaceMirror({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
   const outputRoot = path.resolve(String(requireArg(args.output, "--output")));
+  const force = args.force === true;
   const signer = requireL1Signer(args, provider);
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
   const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
@@ -873,6 +874,7 @@ async function handlePublishChannelWorkspaceMirror({ args, network, provider }) 
     channelInfo,
     blockInfo: local.blockInfo,
     contractCodes: local.contractCodes,
+    force,
   });
   expect(
     !remote.exists || Number(local.recoveryLastScannedBlock) > Number(remote.recoveryLastScannedBlock),
@@ -977,6 +979,7 @@ async function handlePublishChannelWorkspaceMirror({ args, network, provider }) 
     action: "channel publish-workspace-mirror",
     channelName,
     channelId: channelId.toString(),
+    force,
     outputRoot,
     mirrorDir,
     manifestPath: publishTarget.manifestPath,
@@ -986,6 +989,12 @@ async function handlePublishChannelWorkspaceMirror({ args, network, provider }) 
       ? {
         recoveryLastScannedBlock: remote.recoveryLastScannedBlock,
         recoveryRootVectorHash: remote.recoveryRootVectorHash,
+      }
+      : null,
+    ignoredRemoteCheckpoint: remote.ignored
+      ? {
+        manifestUrl,
+        error: remote.error,
       }
       : null,
     checkpoint: {
@@ -1114,7 +1123,20 @@ async function readRemoteWorkspaceMirrorCheckpoint({
   channelInfo,
   blockInfo,
   contractCodes,
+  force = false,
 }) {
+  const ignoreRemote = (error) => {
+    if (!force) {
+      throw error;
+    }
+    return {
+      exists: false,
+      ignored: true,
+      error: error.message,
+      recoveryLastScannedBlock: null,
+      recoveryRootVectorHash: null,
+    };
+  };
   let manifest;
   try {
     manifest = await fetchJsonFromUrl(manifestUrl, { maxBytes: 1024 * 1024 });
@@ -1122,24 +1144,33 @@ async function readRemoteWorkspaceMirrorCheckpoint({
     if (/\bHTTP (404|410)\b/u.test(error.message)) {
       return {
         exists: false,
+        ignored: false,
+        error: null,
         recoveryLastScannedBlock: null,
         recoveryRootVectorHash: null,
       };
     }
-    throw new Error(`Unable to read registered workspace mirror manifest before publish: ${error.message}`);
+    return ignoreRemote(new Error(`Unable to read registered workspace mirror manifest before publish: ${error.message}`));
   }
-  const checkpoint = validateWorkspaceMirrorManifest({
-    manifest,
-    chainId,
-    channelId,
-    channelName,
-    bridgeCoreAddress,
-    channelInfo,
-    blockInfo,
-    contractCodes,
-  });
+  let checkpoint;
+  try {
+    checkpoint = validateWorkspaceMirrorManifest({
+      manifest,
+      chainId,
+      channelId,
+      channelName,
+      bridgeCoreAddress,
+      channelInfo,
+      blockInfo,
+      contractCodes,
+    });
+  } catch (error) {
+    return ignoreRemote(new Error(`Registered workspace mirror manifest is invalid before publish: ${error.message}`));
+  }
   return {
     exists: true,
+    ignored: false,
+    error: null,
     recoveryLastScannedBlock: checkpoint.recoveryLastScannedBlock,
     recoveryRootVectorHash: checkpoint.recoveryRootVectorHash,
   };
@@ -8381,6 +8412,9 @@ function assertSetWorkspaceMirrorArgs(args) {
 function assertPublishWorkspaceMirrorArgs(args) {
   assertAllowedCommandSchema(args, "channel-publish-workspace-mirror");
   requireArg(args.output, "--output");
+  if (args.force !== undefined && args.force !== true) {
+    throw new Error("channel publish-workspace-mirror option --force does not accept a value.");
+  }
 }
 
 function assertDepositBridgeArgs(args) {

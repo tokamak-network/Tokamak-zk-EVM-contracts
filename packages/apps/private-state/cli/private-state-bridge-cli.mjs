@@ -3139,6 +3139,7 @@ async function handleWalletGetMeta({ args, provider }) {
   const contextResult = await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
+    progressAction: "wallet get-meta",
   });
   const context = contextResult.context;
   const {
@@ -3169,10 +3170,11 @@ async function handleWalletGetMeta({ args, provider }) {
   });
 }
 
-async function loadWalletChannelFundState({ walletContext, provider }) {
+async function loadWalletChannelFundState({ walletContext, provider, progressAction = "wallet get-channel-fund" }) {
   const contextResult = await loadFreshWalletChannelContext({
     walletContext,
     provider,
+    progressAction,
   });
   const context = contextResult.context;
   const {
@@ -3398,6 +3400,7 @@ async function handleExitChannel({ args, provider }) {
   const { signer, context, channelFund, contextResult } = await loadWalletChannelFundState({
     walletContext,
     provider,
+    progressAction: "channel exit",
   });
   const network = contextResult.network;
   expect(
@@ -3446,6 +3449,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   const contextResult = await loadFreshWalletChannelContext({
     walletContext,
     provider,
+    progressAction: operationName,
   });
   const context = contextResult.context;
   const network = contextResult.network;
@@ -3565,7 +3569,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     gasUsed: receiptGasUsed(receipt),
     txUrl: explorerTxUrl(network, receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
-    recoveredWorkspace: false,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
   });
 }
 
@@ -3675,6 +3679,7 @@ async function handleMintNotes({ args, provider }) {
   const { channelFund, contextResult: preparedContextResult } = await loadWalletChannelFundState({
     walletContext: wallet,
     provider,
+    progressAction: "wallet mint-notes",
   });
   expect(
     totalMintAmount <= channelFund,
@@ -3719,7 +3724,7 @@ async function handleMintNotes({ args, provider }) {
     gasUsed: receiptGasUsed(execution.receipt),
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
-    recoveredWorkspace: false,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
     warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
@@ -3731,11 +3736,13 @@ async function handleRedeemNotes({ args, provider }) {
   const preparedContextResult = await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
+    progressAction: "wallet redeem-notes",
   });
-  await assertWalletNoteReceiveStateFresh({
+  await ensureWalletNoteReceiveStateCurrent({
     walletContext: wallet,
     context: preparedContextResult.context,
     provider,
+    progressAction: "wallet redeem-notes",
   });
   const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const templatePayload = buildRedeemNotesTemplatePayload({
@@ -3774,7 +3781,7 @@ async function handleRedeemNotes({ args, provider }) {
     gasUsed: receiptGasUsed(execution.receipt),
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
-    recoveredWorkspace: false,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
     warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
@@ -3790,11 +3797,13 @@ async function handleWalletGetNotes({ args, provider }) {
   const { context } = await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
+    progressAction: "wallet get-notes",
   });
-  const noteReceiveFreshness = await assertWalletNoteReceiveStateFresh({
+  const noteReceiveFreshness = await ensureWalletNoteReceiveStateCurrent({
     walletContext: wallet,
     context,
     provider,
+    progressAction: "wallet get-notes",
   });
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
@@ -3833,6 +3842,10 @@ async function handleWalletGetNotes({ args, provider }) {
     bridgeStatusMismatches: [...unusedNotes, ...spentNotes].filter((note) => !note.walletStatusMatchesBridge).length,
     noteReceiveLastScannedBlock: noteReceiveFreshness.nextBlock,
     latestBlock: noteReceiveFreshness.latestBlock,
+    recoveredWalletWorkspace: noteReceiveFreshness.recoveredWalletWorkspace,
+    recoveredFromLogs: noteReceiveFreshness.recoveredDeliveryState?.importedNotes ?? 0,
+    scannedDeliveryLogs: noteReceiveFreshness.recoveredDeliveryState?.scannedLogs ?? 0,
+    noteReceiveScanRange: noteReceiveFreshness.recoveredDeliveryState?.scanRange ?? null,
   });
 }
 
@@ -3842,9 +3855,16 @@ async function handleTransferNotes({ args, provider }) {
   const preparedContextResult = await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
+    progressAction: "wallet transfer-notes",
   });
   const context = preparedContextResult.context;
-  await assertWalletNoteReceiveStateFresh({ walletContext: wallet, context, provider });
+  await ensureWalletNoteReceiveStateCurrent({
+    walletContext: wallet,
+    context,
+    provider,
+    signer,
+    progressAction: "wallet transfer-notes",
+  });
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
   const recipients = parseRecipientVector(requireArg(args.recipients, "--recipients"));
@@ -3911,7 +3931,7 @@ async function handleTransferNotes({ args, provider }) {
     gasUsed: receiptGasUsed(execution.receipt),
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
-    recoveredWorkspace: false,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
     warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
@@ -4397,6 +4417,75 @@ async function assertWalletNoteReceiveStateFresh({ walletContext, context, provi
     latestBlock,
     nextBlock,
   };
+}
+
+async function ensureWalletNoteReceiveStateCurrent({
+  walletContext,
+  context,
+  provider,
+  signer = null,
+  progressAction = null,
+}) {
+  const latestBlock = await provider.getBlockNumber();
+  let nextBlock;
+  try {
+    nextBlock = requireUsableWalletNoteReceiveRecoveryIndex({
+      walletContext,
+      context,
+      latestBlock,
+    });
+  } catch (indexError) {
+    throw new Error([
+      `Wallet note recovery index is missing or unusable for wallet ${walletContext.walletName}.`,
+      "Automatic wallet recovery uses only the saved note recovery index and will not replay from genesis.",
+      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if a genesis rebuild is required.`,
+      `Details: ${indexError.message}`,
+    ].join(" "));
+  }
+
+  if (nextBlock === latestBlock + 1) {
+    return {
+      latestBlock,
+      nextBlock,
+      recoveredWalletWorkspace: false,
+      recoveredDeliveryState: null,
+    };
+  }
+
+  const resolvedSigner = signer ?? restoreWalletParticipant(walletContext, provider).signer;
+  let recoveredDeliveryState;
+  try {
+    ({ recoveredDeliveryState } = await recoverWalletReceivedNotes({
+      walletContext,
+      context,
+      provider,
+      signer: resolvedSigner,
+      progressAction,
+      fromGenesis: false,
+    }));
+  } catch (recoveryError) {
+    throw new Error([
+      `Wallet workspace is not current for wallet ${walletContext.walletName}.`,
+      "Automatic wallet recovery uses only the saved note recovery index and will not replay from genesis.",
+      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if a genesis rebuild is required.`,
+      `Details: ${recoveryError.message}`,
+    ].join(" "));
+  }
+  try {
+    const freshness = await assertWalletNoteReceiveStateFresh({ walletContext, context, provider });
+    return {
+      ...freshness,
+      recoveredWalletWorkspace: true,
+      recoveredDeliveryState,
+    };
+  } catch (postRecoveryError) {
+    throw new Error([
+      `Wallet workspace is still stale after recovery-index sync for wallet ${walletContext.walletName}.`,
+      "Automatic wallet recovery will not replay from genesis.",
+      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if a genesis rebuild is required.`,
+      `Details: ${postRecoveryError.message}`,
+    ].join(" "));
+  }
 }
 
 async function buildPostWalletCommandWarnings({ walletContext, context, provider, receipt }) {
@@ -4890,17 +4979,19 @@ function walletChannelWorkspaceIsReady(walletContext) {
 async function loadFreshWalletChannelContext({
   walletContext,
   provider,
+  progressAction = null,
 }) {
-  const context = await loadFreshChannelWorkspaceContext({
+  const contextResult = await loadFreshChannelWorkspaceContextResult({
     channelName: walletContext.wallet.channelName,
     networkName: walletContext.wallet.network,
     provider,
+    progressAction,
   });
   return {
-    context,
-    network: resolveCliNetwork(context.workspace.network),
-    usingWorkspaceCache: true,
-    recoveredWorkspace: false,
+    context: contextResult.context,
+    network: resolveCliNetwork(contextResult.context.workspace.network),
+    usingWorkspaceCache: !contextResult.recoveredWorkspace,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
   };
 }
 
@@ -4908,20 +4999,156 @@ async function loadFreshChannelWorkspaceContext({
   channelName,
   networkName,
   provider,
+  progressAction = null,
+}) {
+  const { context } = await loadFreshChannelWorkspaceContextResult({
+    channelName,
+    networkName,
+    provider,
+    progressAction,
+  });
+  return context;
+}
+
+async function loadFreshChannelWorkspaceContextResult({
+  channelName,
+  networkName,
+  provider,
+  progressAction = null,
 }) {
   let context;
   try {
     context = await loadWorkspaceContext(channelName, networkName, provider);
+    await assertWorkspaceAlignedWithChain(context);
+    return {
+      context,
+      recoveredWorkspace: false,
+    };
   } catch (error) {
-    throw new Error([
-      `Local channel workspace for ${channelName} on ${networkName} is missing or unreadable.`,
-      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} first.`,
-      "Use --source mirror when a registered mirror is available, or --source rpc --from-genesis when rebuilding from channel genesis.",
-      `Details: ${error.message}`,
-    ].join(" "));
+    context = await recoverChannelWorkspaceFromIndexOnly({
+      channelName,
+      networkName,
+      provider,
+      progressAction,
+      cause: error,
+    });
+    return {
+      context,
+      recoveredWorkspace: true,
+    };
   }
-  await assertWorkspaceAlignedWithChain(context);
+}
+
+async function recoverChannelWorkspaceFromIndexOnly({
+  channelName,
+  networkName,
+  provider,
+  progressAction = null,
+  cause = null,
+}) {
+  const network = resolveCliNetwork(networkName);
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const readiness = await requireChannelWorkspaceRecoveryIndexForAutoRefresh({
+    channelName,
+    networkName,
+    provider,
+    bridgeResources,
+    cause,
+  });
+  if (readiness.alreadyCurrent) {
+    return loadWorkspaceContext(channelName, networkName, provider);
+  }
+  try {
+    await syncChannelWorkspace({
+      workspaceName: channelName,
+      channelName,
+      network,
+      provider,
+      bridgeResources,
+      persist: true,
+      allowExistingWorkspaceSync: true,
+      useWorkspaceRecoveryIndex: true,
+      fromGenesis: false,
+      progressAction,
+    });
+  } catch (recoveryError) {
+    throw new Error([
+      `Channel workspace is not current for ${channelName} on ${networkName}.`,
+      "Automatic channel workspace recovery uses only the saved recovery index and will not replay from genesis.",
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis if a genesis rebuild is required.`,
+      `Details: ${recoveryError.message}`,
+      cause ? `Initial freshness failure: ${cause.message}` : null,
+    ].filter(Boolean).join(" "));
+  }
+
+  const context = await loadWorkspaceContext(channelName, networkName, provider);
+  try {
+    await assertWorkspaceAlignedWithChain(context);
+  } catch (postRecoveryError) {
+    throw new Error([
+      `Channel workspace is still stale after recovery-index sync for ${channelName} on ${networkName}.`,
+      "Automatic channel workspace recovery will not replay from genesis.",
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis if a genesis rebuild is required.`,
+      `Details: ${postRecoveryError.message}`,
+      cause ? `Initial freshness failure: ${cause.message}` : null,
+    ].filter(Boolean).join(" "));
+  }
   return context;
+}
+
+async function requireChannelWorkspaceRecoveryIndexForAutoRefresh({
+  channelName,
+  networkName,
+  provider,
+  bridgeResources,
+  cause = null,
+}) {
+  const workspaceDir = channelWorkspacePath(networkName, channelName);
+  const existingArtifacts = loadExistingWorkspaceArtifacts(workspaceDir);
+  const fail = (message) => {
+    throw new Error([
+      message,
+      "Automatic channel workspace recovery uses only the saved recovery index and will not replay from genesis.",
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis if a genesis rebuild is required.`,
+      cause ? `Initial freshness failure: ${cause.message}` : null,
+    ].filter(Boolean).join(" "));
+  };
+  if (!existingArtifacts.workspace || !existingArtifacts.stateSnapshot) {
+    fail(`Channel workspace recovery index is missing for ${channelName} on ${networkName}.`);
+  }
+
+  const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
+  const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, provider);
+  const channelId = deriveChannelIdFromName(channelName);
+  const channelInfo = await bridgeCore.getChannel(channelId);
+  if (!channelInfo.exists) {
+    fail(`Unknown channel ${channelId.toString()} in bridge core ${bridgeDeployment.bridgeCore}.`);
+  }
+  const channelManager = new Contract(
+    channelInfo.manager,
+    bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
+  const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
+  const latestBlock = await provider.getBlockNumber();
+  const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
+  const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
+  if (canReuseLocalWorkspaceSnapshot({ existingArtifacts, currentRootVectorHash, managedStorageAddresses })) {
+    return { alreadyCurrent: true };
+  }
+  const recoveryIndex = getUsableWorkspaceRecoveryIndex({
+    existingArtifacts,
+    genesisBlockNumber,
+    latestBlock,
+    managedStorageAddresses,
+  });
+  if (!recoveryIndex) {
+    fail(`Channel workspace recovery index is unusable for ${channelName} on ${networkName}.`);
+  }
+  if (Number(recoveryIndex.nextBlock) > Number(latestBlock)) {
+    fail(`Channel workspace recovery index has already scanned through block ${recoveryIndex.nextBlock - 1}, but the local snapshot is not current.`);
+  }
+  return { alreadyCurrent: false };
 }
 
 async function refreshPersistedWorkspaceAfterLocalTransaction({
@@ -5000,6 +5227,7 @@ async function executeWalletDirectTemplateCommand({
   const contextResult = preparedContextResult ?? await loadFreshWalletChannelContext({
     walletContext: wallet,
     provider,
+    progressAction: operationName,
   });
   const execution = await executeWalletTemplateSend({
     wallet,
@@ -5024,7 +5252,7 @@ async function executeWalletDirectTemplateCommand({
   return {
     execution,
     contextResult,
-    recoveredWorkspace: false,
+    recoveredWorkspace: contextResult.recoveredWorkspace,
     walletWarnings,
   };
 }
@@ -5200,6 +5428,7 @@ async function loadJoinChannelContext({ args, network, provider }) {
     channelName,
     networkName: resolvedNetworkName,
     provider,
+    progressAction: "channel join",
   });
 
   return {

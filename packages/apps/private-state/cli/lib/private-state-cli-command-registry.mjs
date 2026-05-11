@@ -361,8 +361,8 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["channelName", "network", "account", "walletSecretPath", "rpcUrl"],
     usage: "--channel-name, --network, --account, --wallet-secret-path, and optional --rpc-url",
     help: [
-      "Requires a fresh recovered channel workspace before joining",
-      "Run channel recover-workspace --source rpc --from-genesis once if no usable local recovery index exists",
+      "Refreshes the local channel workspace through the saved recovery index before joining",
+      "Fails instead of replaying from genesis; run channel recover-workspace --source rpc --from-genesis when a genesis rebuild is required",
       "--wallet-secret-path imports an existing source secret file into the protected wallet-local secret file",
       "Prints the immutable policy snapshot before first registration",
     ],
@@ -373,7 +373,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Check whether a wallet matches the on-chain channel registration.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Requires a fresh local channel workspace and does not recover or refresh it implicitly"],
+    help: ["Refreshes the local channel workspace through the saved recovery index before reading registration metadata"],
   },
   {
     id: "wallet-list",
@@ -413,6 +413,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Move bridged funds into the channel L2 accounting balance.",
     fields: ["wallet", "network", "amount"],
     usage: "--wallet, --network, and --amount",
+    help: ["Refreshes the local channel workspace through the saved recovery index before proving the deposit"],
   },
   {
     id: "wallet-withdraw-channel",
@@ -420,6 +421,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Move channel L2 balance back into the shared bridge vault.",
     fields: ["wallet", "network", "amount"],
     usage: "--wallet, --network, and --amount",
+    help: ["Refreshes the local channel workspace through the saved recovery index before proving the withdrawal"],
   },
   {
     id: "wallet-get-channel-fund",
@@ -427,7 +429,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Read the current channel L2 accounting balance.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Requires a fresh local channel workspace and does not recover or refresh it implicitly"],
+    help: ["Refreshes the local channel workspace through the saved recovery index before reading the L2 accounting balance"],
   },
   {
     id: "channel-exit",
@@ -435,6 +437,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Exit a channel. Both the CLI and bridge contract require a zero channel balance.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
+    help: ["Refreshes the local channel workspace through the saved recovery index before checking the channel balance"],
   },
   {
     id: "wallet-mint-notes",
@@ -442,7 +445,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Mint one or two private-state notes from the wallet's channel balance.",
     fields: ["wallet", "network", "amounts", "txSubmitter"],
     usage: "--wallet, --network, --amounts, and optional --tx-submitter",
-    help: ["Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy"],
+    help: [
+      "Refreshes the local channel workspace through the saved recovery index before proving the mint",
+      "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
+    ],
   },
   {
     id: "wallet-transfer-notes",
@@ -450,7 +456,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Spend input notes into the registered 1->1, 1->2, or 2->1 private transfer shapes.",
     fields: ["wallet", "network", "noteIds", "recipients", "amounts", "txSubmitter"],
     usage: "--wallet, --network, --note-ids, --recipients, --amounts, and optional --tx-submitter",
-    help: ["Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy"],
+    help: [
+      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the transfer",
+      "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
+    ],
   },
   {
     id: "wallet-redeem-notes",
@@ -458,7 +467,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Redeem one tracked note back into the wallet's channel balance.",
     fields: ["wallet", "network", "noteIds", "txSubmitter"],
     usage: "--wallet, --network, --note-ids, and optional --tx-submitter",
-    help: ["Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy"],
+    help: [
+      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the redeem",
+      "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
+    ],
   },
   {
     id: "wallet-get-notes",
@@ -467,8 +479,9 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
     help: [
-      "Requires a fresh local channel workspace",
-      "Requires the wallet note workspace to be current; run wallet recover-workspace when it is stale",
+      "Refreshes the local channel workspace through the saved recovery index before reading notes",
+      "Refreshes received-note logs through the saved wallet note recovery index",
+      "Fails instead of replaying from genesis; run wallet recover-workspace --from-genesis when a genesis rebuild is required",
     ],
   },
 ]);

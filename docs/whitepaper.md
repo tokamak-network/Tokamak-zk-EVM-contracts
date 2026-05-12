@@ -103,7 +103,7 @@ channels after reviewing the policy snapshot that will govern their participatio
 
 ## 3. Design Philosophy
 
-<img src="overview.png" alt="High-level system overview" />
+<img src="assets/overview.png" alt="High-level system overview" />
 
 The design choices below are not independent preferences. Each one answers a specific failure mode
 that would otherwise make private app channels hard to reason about: unclear custody, ambiguous proof
@@ -704,7 +704,7 @@ capacity limit, but the depth increase makes the practical limit much longer. Lo
 high-activity channels should therefore be treated as finite-life policy instances rather than
 perpetual mutable systems.
 
-![General channel lifespan leaf collision probability by operating period and depth](../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
+![General channel lifespan leaf collision probability by operating period and depth](assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 
 Direct `ChannelDeployer` calls can create orphan channel-manager contracts. This is not considered a custody risk because `L1TokenVault` and canonical bridge lookups use the `BridgeCore` registry, and `BridgeCore` validates deployed managers before accepting them. Orphan managers are therefore noise, not canonical channels.
 

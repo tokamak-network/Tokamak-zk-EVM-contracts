@@ -16,7 +16,8 @@ import {
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "../..");
-const DEFAULT_OUTPUT_ROOT = path.join(SCRIPT_DIR, "output");
+const DEFAULT_INTERNAL_OUTPUT_DIR = path.join(SCRIPT_DIR, "output");
+const PUBLIC_OUTPUT_DIR = path.join(REPO_ROOT, "docs/audit/cex-monitoring/data");
 const DEFAULT_CHAIN_ID = 1;
 const DEFAULT_DAPP = "private-state";
 const DEFAULT_CHANNEL = "the-great-first-channel";
@@ -43,10 +44,10 @@ function printHelp() {
 Generates the data-backed CEX Monitoring Packet files.
 
 Public packet output:
-  scripts/cex-monitoring-packet/output/public/
+  docs/audit/cex-monitoring/data/
 
 Internal validation output:
-  scripts/cex-monitoring-packet/output/internal/
+  scripts/cex-monitoring-packet/output/*.json
 
 Options:
   --chain-id <id>              Ethereum chain ID. Default: 1.
@@ -54,7 +55,7 @@ Options:
   --channel <name>             Channel name. Default: the-great-first-channel.
   --rpc-url <url>              Mainnet RPC URL. Defaults to RPC_URL, MAINNET_RPC_URL, ETHEREUM_RPC_URL, or Alchemy env keys.
   --drive-folder-id <id>       Google Drive root folder ID. Defaults to TOKAMAK_MPC_DRIVE_FOLDER_ID.
-  --output <dir>               Output root. Default: scripts/cex-monitoring-packet/output.
+  --output <dir>               Internal validation output directory. Default: scripts/cex-monitoring-packet/output.
   --skip-drive                 Skip Google Drive artifact metadata reads.
   --allow-missing-drive        Continue with a warning if Drive metadata cannot be read.
   --skip-etherscan             Skip source verification status reads.
@@ -68,7 +69,7 @@ function parseArgs(argv) {
     chainId: DEFAULT_CHAIN_ID,
     dapp: DEFAULT_DAPP,
     channel: DEFAULT_CHANNEL,
-    output: DEFAULT_OUTPUT_ROOT,
+    output: DEFAULT_INTERNAL_OUTPUT_DIR,
     skipDrive: false,
     allowMissingDrive: false,
     skipEtherscan: false,
@@ -1092,9 +1093,10 @@ async function main() {
     return;
   }
   loadEnv();
-  const publicDir = path.join(args.output, "public");
-  const internalDir = path.join(args.output, "internal");
-  fs.rmSync(args.output, { recursive: true, force: true });
+  const publicDir = PUBLIC_OUTPUT_DIR;
+  const internalDir = args.output;
+  fs.rmSync(publicDir, { recursive: true, force: true });
+  fs.rmSync(internalDir, { recursive: true, force: true });
   fs.mkdirSync(publicDir, { recursive: true });
   fs.mkdirSync(internalDir, { recursive: true });
 

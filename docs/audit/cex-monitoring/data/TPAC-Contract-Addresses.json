@@ -1,0 +1,382 @@
+{
+  "generatedAt": "2026-05-12T05:44:24.933Z",
+  "chainId": 1,
+  "chain": "ethereum-mainnet",
+  "canonicalTonContractAddress": "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5",
+  "bridgeCoreAddress": "0x992E2Ae206620d811832a8F697c526c4f95974b6",
+  "l1TokenVaultAddress": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
+  "channelManagerAddress": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
+  "channel": {
+    "name": "the-great-first-channel",
+    "id": "108336797649051254585401751173864353497144788660297920004548699607442466523065",
+    "creationTxHash": "0xa5f1529cd8e5c62d46eb0eca2b2de6d317569d9e2776f3feff5bba4fa27656ee",
+    "creationBlockNumber": 25018368,
+    "leader": "0x32e6EE3d9820F0843E3e596132368747d36425F0",
+    "operator": "0x32e6EE3d9820F0843E3e596132368747d36425F0"
+  },
+  "dapp": {
+    "label": "private-state",
+    "id": 1,
+    "registrationTxHash": "0xf6130ee7f1a3ec63116369086d907da6d2da27c93ef5bf2eae91400d91323daf",
+    "registrationBlockNumber": 25018081,
+    "metadataDigest": "0x24ce1b24d4b0c085b713574c3f1eb8861ac18200263a3d20da1b87ce56c2fe04",
+    "functionRoot": "0x6954ea4661cff62a888de1898b69fa5b9861bcebc33a966c7b02b65ac10f1f6e"
+  },
+  "verifierContractAddresses": {
+    "grothVerifier": "0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5",
+    "tokamakVerifier": "0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626"
+  },
+  "proxyAddresses": {
+    "bridgeCore": "0x992E2Ae206620d811832a8F697c526c4f95974b6",
+    "dAppManager": "0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA",
+    "l1TokenVault": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61"
+  },
+  "implementationAddresses": {
+    "bridgeCore": "0x1713171adc06BF82b4f05945d742FFd351a8d1bD",
+    "dAppManager": "0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5",
+    "l1TokenVault": "0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710",
+    "channelManager": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
+    "privateStateController": "0x67c6233a99d9f122fef9dc111e89948107b34c2f",
+    "l2AccountingVault": "0x9a6c9eb158269bbed8885649f95acefa8aafc3aa"
+  },
+  "proxyAdminAddresses": {
+    "bridgeCore": null,
+    "dAppManager": null,
+    "bridgeTokenVault": null
+  },
+  "proxyAdminNotes": {
+    "bridgeCore": "empty-admin-slot",
+    "dAppManager": "empty-admin-slot",
+    "bridgeTokenVault": "empty-admin-slot"
+  },
+  "ownerAdminMultisigTimelockAddresses": {
+    "owners": {
+      "bridgeCore": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7",
+      "dAppManager": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7",
+      "bridgeTokenVault": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7"
+    },
+    "deployer": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7",
+    "configuredOwner": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7",
+    "multisig": null,
+    "timelock": null,
+    "note": "Current artifacts expose a single owner address. No multisig or timelock address is recorded in the deployment artifact."
+  },
+  "treasuryOrFeeRecipientAddresses": {
+    "channelJoinTollRecipient": "0x32e6EE3d9820F0843E3e596132368747d36425F0",
+    "bridgeTreasury": null,
+    "note": "The current channel join toll is channel-local. No separate treasury or fee-recipient address is recorded in the deployment artifact."
+  },
+  "deploymentBlocks": {
+    "dappRegistrationBlockNumber": 25018081,
+    "channelCreationBlockNumber": 25018368,
+    "bridgeProxyDeploymentBlockNumber": null,
+    "note": "Plain RPC does not expose contract creation block discovery without an indexer. Channel and DApp deployment anchors are included where available."
+  },
+  "deployedGitCommitHash": "b3910b39d49cd4d13bb167999dca48c917878b56",
+  "npmPackageVersions": {
+    "privateStateCliAtDappRegistration": "0.1.9",
+    "bridgePackageVersion": null,
+    "grothVerifierCompatibleBackendVersion": "0.2",
+    "tokamakVerifierCompatibleBackendVersion": "2.1"
+  },
+  "sourceVerificationStatus": {
+    "status": "partial",
+    "entries": {
+      "bridgeCore": {
+        "address": "0x992E2Ae206620d811832a8F697c526c4f95974b6",
+        "contractName": "ERC1967Proxy",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
+        "proxy": "1",
+        "implementation": "0x1713171adc06bf82b4f05945d742ffd351a8d1bd",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x992E2Ae206620d811832a8F697c526c4f95974b6#code"
+      },
+      "bridgeCoreImplementation": {
+        "address": "0x1713171adc06BF82b4f05945d742FFd351a8d1bD",
+        "contractName": "BridgeCore",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
+        "proxy": "0",
+        "implementation": "",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x1713171adc06BF82b4f05945d742FFd351a8d1bD#code"
+      },
+      "dAppManager": {
+        "address": "0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA",
+        "contractName": "ERC1967Proxy",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
+        "proxy": "1",
+        "implementation": "0x76f0e95c0e5c9ba26289062637c68aec1199ddc5",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA#code"
+      },
+      "dAppManagerImplementation": {
+        "address": "0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5",
+        "verified": null,
+        "error": "Etherscan getsourcecode failed: NOTOK",
+        "explorerUrl": "https://etherscan.io/address/0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5#code"
+      },
+      "bridgeTokenVault": {
+        "address": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
+        "contractName": "ERC1967Proxy",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
+        "proxy": "1",
+        "implementation": "0x4c6ddcf807309d49ac9a1f6583b5a19ef6c6a710",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0xf127Aef661c815ad46c5159146078f6F1E9f5F61#code"
+      },
+      "bridgeTokenVaultImplementation": {
+        "address": "0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710",
+        "contractName": "L1TokenVault",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
+        "proxy": "0",
+        "implementation": "",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710#code"
+      },
+      "channelManager": {
+        "address": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
+        "contractName": "ChannelManager",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
+        "proxy": "0",
+        "implementation": "",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7#code"
+      },
+      "channelBridgeTokenVault": {
+        "address": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
+        "verified": null,
+        "error": "Etherscan getsourcecode failed: NOTOK",
+        "explorerUrl": "https://etherscan.io/address/0xf127Aef661c815ad46c5159146078f6F1E9f5F61#code"
+      },
+      "privateStateController": {
+        "address": "0x67C6233A99D9f122Fef9DC111e89948107b34c2F",
+        "contractName": "",
+        "compilerVersion": "",
+        "proxy": "0",
+        "implementation": "",
+        "verified": false,
+        "explorerUrl": "https://etherscan.io/address/0x67C6233A99D9f122Fef9DC111e89948107b34c2F#code"
+      },
+      "l2AccountingVault": {
+        "address": "0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA",
+        "contractName": "",
+        "compilerVersion": "",
+        "proxy": "0",
+        "implementation": "",
+        "verified": false,
+        "explorerUrl": "https://etherscan.io/address/0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA#code"
+      },
+      "grothVerifier": {
+        "address": "0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5",
+        "contractName": "Groth16Verifier",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
+        "proxy": "0",
+        "implementation": "",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5#code"
+      },
+      "tokamakVerifier": {
+        "address": "0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626",
+        "verified": null,
+        "error": "Etherscan getsourcecode failed: NOTOK",
+        "explorerUrl": "https://etherscan.io/address/0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626#code"
+      }
+    },
+    "allCheckedAddressesVerified": false,
+    "uncheckedOrFailedAddresses": [
+      {
+        "address": "0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5",
+        "verified": null,
+        "error": "Etherscan getsourcecode failed: NOTOK",
+        "explorerUrl": "https://etherscan.io/address/0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5#code"
+      },
+      {
+        "address": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
+        "verified": null,
+        "error": "Etherscan getsourcecode failed: NOTOK",
+        "explorerUrl": "https://etherscan.io/address/0xf127Aef661c815ad46c5159146078f6F1E9f5F61#code"
+      },
+      {
+        "address": "0x67C6233A99D9f122Fef9DC111e89948107b34c2F",
+        "contractName": "",
+        "compilerVersion": "",
+        "proxy": "0",
+        "implementation": "",
+        "verified": false,
+        "explorerUrl": "https://etherscan.io/address/0x67C6233A99D9f122Fef9DC111e89948107b34c2F#code"
+      },
+      {
+        "address": "0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA",
+        "contractName": "",
+        "compilerVersion": "",
+        "proxy": "0",
+        "implementation": "",
+        "verified": false,
+        "explorerUrl": "https://etherscan.io/address/0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA#code"
+      },
+      {
+        "address": "0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626",
+        "verified": null,
+        "error": "Etherscan getsourcecode failed: NOTOK",
+        "explorerUrl": "https://etherscan.io/address/0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626#code"
+      }
+    ]
+  },
+  "abiLinks": {
+    "bridgeAbiManifestLocalPath": "deployment/chain-id-1/bridge/20260511T065651Z/bridge-abi-manifest.1.json",
+    "privateStateControllerCallableAbiLocalPath": "deployment/chain-id-1/dapps/private-state/20260504T003212Z/PrivateStateController.callable-abi.json",
+    "l2AccountingVaultCallableAbiLocalPath": "deployment/chain-id-1/dapps/private-state/20260504T003212Z/L2AccountingVault.callable-abi.json"
+  },
+  "bytecodeHashes": {
+    "0x992E2Ae206620d811832a8F697c526c4f95974b6": "0xdd9a51cef324c756a15a95900a9cbe3bf3e9d280087f1a367c801c9d682f3e20",
+    "0x1713171adc06BF82b4f05945d742FFd351a8d1bD": "0x40633cd225e4ccf230177768f6d2bfff61df421a47b128250a0e125e893efb0e",
+    "0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA": "0xdd9a51cef324c756a15a95900a9cbe3bf3e9d280087f1a367c801c9d682f3e20",
+    "0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5": "0x8904e6155012c6531523fbda934bd9b7c04ea90669ed31dddcff952166045fb5",
+    "0xf127Aef661c815ad46c5159146078f6F1E9f5F61": "0xdd9a51cef324c756a15a95900a9cbe3bf3e9d280087f1a367c801c9d682f3e20",
+    "0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710": "0x3dce454312f4136ec62da7472ab1c1368cd9f917bc96ed2eac55c94d1b361a1c",
+    "0xEB8eBE0E09bb897785a3bB9A60f93cef7b1AEf78": "0x06154c95b63fc4fd1a71583979b49c1a3e69a2e89dcbd2f0032f76c41a6bb5b0",
+    "0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5": "0xc33eaeebf798180bb8c4ade42c9a80adb475f1971f4ee3134c84f02cb7dc68a0",
+    "0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626": "0x1f32149fbb82adbc55660f40217928213ef1c033594100d14efb2bc6bb442989",
+    "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7": "0x5001f76838dfa26cd326452874453f6f8861d4980d4b9155f2b25a7b80071313",
+    "0x67C6233A99D9f122Fef9DC111e89948107b34c2F": "0x9b69bbab76f74edf1eeb2fd83045b3c178ff6f6e79fbed59868300196ddd68fe",
+    "0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA": "0x6b849696e5bcecd98d0139cd899ac0ffef6eec7fd8669191187202a733cb0074"
+  },
+  "monitoredEventChecklist": [
+    {
+      "checklistItem": "bridge deposit event",
+      "observableAs": "AssetsFunded",
+      "contractAddress": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
+      "eventName": "AssetsFunded",
+      "availability": "event-present",
+      "topic0": "0x10e579a1d0967b069077dcf2e4fbe0e67fdb169a6b1a91c6b33896fff5785905"
+    },
+    {
+      "checklistItem": "bridge withdraw event",
+      "observableAs": "AssetsClaimed",
+      "contractAddress": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
+      "eventName": "AssetsClaimed",
+      "availability": "event-present",
+      "topic0": "0x4fb0c8552ec9f12a4ec6cb36fe423b7cb7350fd73b26c54d00d586660ecdb911"
+    },
+    {
+      "checklistItem": "channel created event",
+      "observableAs": "ChannelCreated",
+      "contractAddress": "0x992E2Ae206620d811832a8F697c526c4f95974b6",
+      "eventName": "ChannelCreated",
+      "availability": "event-present",
+      "topic0": "0x3e7fb576f34901258809fc5c6bc69193eaa70e531fa64719e6d6e7e02f7bf3dd"
+    },
+    {
+      "checklistItem": "channel joined event",
+      "observableAs": "ChannelTokenVaultIdentityRegistered and ChannelJoinTollPaid",
+      "contractAddress": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
+      "eventName": "ChannelTokenVaultIdentityRegistered",
+      "availability": "event-present",
+      "topic0": "0x8e7e63055dd28d2f8414f69afa7a8ab6c09974b76a879636de7d766b8bd19711"
+    },
+    {
+      "checklistItem": "L1/L2 identity registration event",
+      "observableAs": "ChannelTokenVaultIdentityRegistered",
+      "contractAddress": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
+      "eventName": "ChannelTokenVaultIdentityRegistered",
+      "availability": "event-present",
+      "topic0": "0x8e7e63055dd28d2f8414f69afa7a8ab6c09974b76a879636de7d766b8bd19711"
+    },
+    {
+      "checklistItem": "note-receive public key registration event",
+      "observableAs": "ChannelTokenVaultIdentityRegistered",
+      "contractAddress": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
+      "eventName": "ChannelTokenVaultIdentityRegistered",
+      "availability": "event-present",
+      "topic0": "0x8e7e63055dd28d2f8414f69afa7a8ab6c09974b76a879636de7d766b8bd19711"
+    },
+    {
+      "checklistItem": "deposit-channel event",
+      "observableAs": "StorageWriteObserved and CurrentRootVectorObserved",
+      "contractAddress": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
+      "eventName": "StorageWriteObserved",
+      "availability": "event-present",
+      "topic0": "0x883d11d15c951332294c71205ed02f6b2607c5d4831652f89cfb8efb30a9ba2c"
+    },
+    {
+      "checklistItem": "withdraw-channel event",
+      "observableAs": "StorageWriteObserved, ChannelExitRefunded, AssetsClaimed",
+      "contractAddress": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
+      "eventName": "ChannelExitRefunded",
+      "availability": "event-present",
+      "topic0": "0xb664a0be4ce57e7b851cec7a3d559626fab34f72cea916d545115bff97f7b4af"
+    },
+    {
+      "checklistItem": "note commitment created event",
+      "observableAs": "CurrentRootVectorObserved and StorageKeyObserved",
+      "contractAddress": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
+      "eventName": "CurrentRootVectorObserved",
+      "availability": "event-present",
+      "topic0": "0xa9c6c5f6c82ac4efda43f351fd4720d6e2733cd9d92a61220b9e2bc7d13c29b9"
+    },
+    {
+      "checklistItem": "nullifier used event",
+      "observableAs": "CurrentRootVectorObserved and StorageKeyObserved",
+      "contractAddress": "0x67c6233a99d9f122fef9dc111e89948107b34c2f",
+      "eventName": "StorageKeyObserved",
+      "availability": "event-present",
+      "topic0": "0x31fdacb9f064af42e193fb5a792739255c68dae3b03bc03067583c822620cf84"
+    },
+    {
+      "checklistItem": "encrypted note-delivery event",
+      "observableAs": "NoteValueEncrypted",
+      "contractAddress": "0x67c6233a99d9f122fef9dc111e89948107b34c2f",
+      "eventName": "NoteValueEncrypted",
+      "availability": "event-present",
+      "topic0": "0xde80c0325cd5acc848b8ff33a4b67873f059997950242c1730d4833925b23221"
+    },
+    {
+      "checklistItem": "proof accepted event",
+      "observableAs": "CurrentRootVectorObserved",
+      "contractAddress": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
+      "eventName": "CurrentRootVectorObserved",
+      "availability": "event-present",
+      "topic0": "0xa9c6c5f6c82ac4efda43f351fd4720d6e2733cd9d92a61220b9e2bc7d13c29b9"
+    },
+    {
+      "checklistItem": "storage root / commitment root update event",
+      "observableAs": "CurrentRootVectorObserved",
+      "contractAddress": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
+      "eventName": "CurrentRootVectorObserved",
+      "availability": "event-present",
+      "topic0": "0xa9c6c5f6c82ac4efda43f351fd4720d6e2733cd9d92a61220b9e2bc7d13c29b9"
+    },
+    {
+      "checklistItem": "policy snapshot event",
+      "observableAs": "ChannelCreated plus channel getter state",
+      "contractAddress": "0x992E2Ae206620d811832a8F697c526c4f95974b6",
+      "eventName": "ChannelCreated",
+      "availability": "event-present",
+      "topic0": "0x3e7fb576f34901258809fc5c6bc69193eaa70e531fa64719e6d6e7e02f7bf3dd"
+    },
+    {
+      "checklistItem": "verifier or metadata update event",
+      "observableAs": "GrothVerifierUpdated, TokamakVerifierUpdated, DAppMetadataUpdated, DAppMetadataDigestUpdated",
+      "contractAddress": "0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA",
+      "eventName": "DAppMetadataUpdated",
+      "availability": "event-present",
+      "topic0": "0xa2349f87c71a44520b4e0f11253e55822521f09fec2303f0a840b52fd35b995a"
+    },
+    {
+      "checklistItem": "proxy upgrade event",
+      "observableAs": "Upgraded",
+      "contractAddress": "0x992E2Ae206620d811832a8F697c526c4f95974b6",
+      "eventName": "Upgraded",
+      "availability": "event-present",
+      "topic0": "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b"
+    },
+    {
+      "checklistItem": "emergency pause or migration event, if exists",
+      "observableAs": "No current event",
+      "contractAddress": null,
+      "eventName": null,
+      "availability": "not-present-in-current-abi",
+      "topic0": null
+    }
+  ]
+}

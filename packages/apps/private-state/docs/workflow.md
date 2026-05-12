@@ -51,6 +51,10 @@ The normal flow is:
 chooses the initial join toll. `channel join` binds the user's L1 identity to a channel-specific L2
 identity and registers the note-receive public key for encrypted note delivery.
 
+Users should run this flow from a self-custody L1 wallet. A centralized-exchange deposit address is
+not a private-state wallet address: the exchange does not hold the user's channel workspace, wallet
+secret, L2 spending key, note-receive private key, or recovery context.
+
 Joining an existing channel requires a recovered local channel workspace. If the workspace has no
 usable recovery index, the user must explicitly run
 `channel recover-workspace --source rpc --from-genesis` once or recover from a registered workspace
@@ -93,6 +97,19 @@ not rewritten in place.
 Example: if a channel was created with the wrong function root, later fixing the DApp registry does
 not rewrite that channel. A user should move to a new channel whose policy snapshot contains the
 correct function root.
+
+For the current `private-state` DApp, the channel leader's role is limited by this policy snapshot.
+The leader can open the channel and manage exposed channel-level configuration, such as toll-related
+policy, but does not custody user TON, does not hold user wallet secrets or note keys, does not
+intermediate note transfers, and does not have a protocol backdoor for reconstructing every private
+note history. Availability services such as workspace mirrors may help users recover channel state,
+but they do not replace user-held secrets and do not become custody or viewing authorities.
+
+The public monitoring surface is also bounded. Bridge deposits, withdrawals, channel joins, accepted
+transitions, commitments, nullifiers, encrypted note events, verifier snapshots, and channel policy
+are publicly observable. Internal note provenance and sender-recipient relationships are not
+automatically reconstructed from public data alone; selective disclosure is controlled by the user
+within the limits of implemented wallet tooling.
 
 ## 4. Workspace And Wallet Artifacts
 

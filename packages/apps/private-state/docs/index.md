@@ -17,12 +17,27 @@ make all activity invisible. Observers can still see accepted bridge transitions
 commitments, nullifier usage, and encrypted note-delivery events. Recipients need local secret
 material to decide which encrypted notes are theirs.
 
+### Is it a centralized-exchange deposit network?
+
+No. TON custody and exchange-facing TON transfers remain on the transparent L1 token surface.
+`private-state` is an opt-in application channel used from a self-custody L1 wallet after the user
+has left any centralized-exchange custody path. Private-state notes are channel-local application
+state, not exchange-supported deposit assets.
+
+### Who controls disclosure in the current private-state DApp?
+
+The current `private-state` DApp uses a user-controlled disclosure model. Tokamak, the bridge
+operator, and the channel leader are not designed to hold the user's wallet secret, note-spending
+key, note-receive private key, or a master viewing key. A user may selectively disclose evidence
+from local wallet state where implemented tooling supports it, but public logs alone are not meant to
+reconstruct every private note provenance chain.
+
 ### What should users check before joining a channel?
 
 Users should review the channel's immutable policy snapshot before joining. The important fields are
 the DApp metadata digest, digest schema, function metadata root, verifier addresses, compatible
-backend versions, join toll, and refund policy. Joining a channel means accepting that policy for the
-channel lifetime.
+backend versions, join toll, refund policy, and channel operator role. Joining a channel means
+accepting that policy for the channel lifetime.
 
 ## Reading Order
 

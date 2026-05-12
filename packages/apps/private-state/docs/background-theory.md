@@ -21,6 +21,16 @@ is held by the L1 vault. The L2 accounting balance records that the user can min
 withdraw through the bridge path. It is not a separate token contract that independently owns the
 canonical asset.
 
+The DApp should therefore be described as an opt-in application-state layer, not as a change to the
+TON asset itself. TON remains a transparent L1 asset at centralized-exchange and bridge custody
+edges. A private-state note is a channel-local representation inside this DApp, and it is not a
+separate asset that a centralized exchange supports as a deposit network.
+
+Users are expected to enter a channel from a self-custody L1 wallet. A centralized-exchange deposit
+address should not be treated as a private-state wallet address because the exchange does not hold
+the user's channel-local wallet secret, L2 spending key, note-receive private key, or private-state
+workspace.
+
 ## 2. zk-L2 Assumptions
 
 The DApp is designed for the Tokamak proving environment rather than for direct public Ethereum execution.
@@ -153,6 +163,12 @@ Under the current CLI model, losing the wallet secret means losing the ability t
 This distinction is important for recovery language. A user may still be able to see that an
 encrypted output was meant for them, but that is not enough to spend the note. Spendability requires
 the L2 private key that corresponds to the note owner.
+
+The same distinction defines the DApp's disclosure model. Public observers can see bridge-edge
+activity, channel registration, accepted transitions, commitments, nullifiers, and encrypted delivery
+events. They do not automatically obtain the note plaintext or the user's complete note provenance
+chain. In the current private-state design, selective disclosure is user-controlled and depends on
+evidence the user can produce from local wallet state and implemented tooling.
 
 ## 9. Protocol Assumptions and Risks
 

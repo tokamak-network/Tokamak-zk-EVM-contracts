@@ -62,7 +62,40 @@ announce the affected channel, stop using it, redeem or withdraw through support
 a new channel with corrected policy. The existing channel's policy is not meant to be silently
 rewritten by a later bridge upgrade.
 
-## 3. Finite Leaf Projection Inherited From The Bridge
+## 3. Public Policy And Operator Authority
+
+The current `private-state` DApp adopts a user-controlled privacy and disclosure model. It should be
+presented as an opt-in application channel used from self-custody wallets, not as a private
+centralized-exchange deposit network and not as a change to TON's L1 transfer rules.
+
+The public monitoring surface includes:
+
+- L1 bridge deposits and withdrawal claims
+- channel creation and immutable policy snapshots
+- channel join and token-vault identity registration
+- accepted proof-backed transitions
+- root-vector movement and observed storage writes
+- commitments, nullifiers, and encrypted note-delivery events surfaced by the DApp
+- bridge verifier, DApp metadata, and upgrade events
+
+That monitoring surface is intentionally not the same as a complete note provenance graph. Public
+observers can see that accepted activity occurred and can inspect the bridge-visible outputs, but
+they do not automatically learn every note plaintext, sender-recipient relationship, or note
+ownership history.
+
+The channel leader's authority is limited by the bridge and DApp policy snapshot. For
+`private-state`, the leader does not custody user TON, does not hold user wallet secrets, does not
+hold note-spending keys, does not hold note-receive private keys, does not intermediate user note
+transfers, and does not have a protocol backdoor to reconstruct all private note provenance. Channel
+leaders may operate public metadata or availability services, such as a workspace mirror, but those
+services are availability aids rather than custody or viewing authorities.
+
+Selective disclosure is therefore user-controlled in the current DApp. A user may disclose selected
+wallet-derived evidence where implemented tooling supports it. Documentation and external
+communication should not imply that Tokamak, a channel leader, a centralized exchange, or an auditor
+can reconstruct every private-state transfer from public logs alone.
+
+## 4. Finite Leaf Projection Inherited From The Bridge
 
 The bridge maps storage keys into a finite Merkle leaf domain. Let:
 
@@ -117,7 +150,7 @@ channel-lifespan capacity limit. It is not a statement that any particular note 
 immediately. It is a statement that a channel with growing storage usage should not be treated as
 collision-free forever.
 
-## 4. Future Nullifier Collision Probability
+## 5. Future Nullifier Collision Probability
 
 The note-specific risk is different from the general channel collision risk.
 
@@ -221,7 +254,7 @@ The practical conclusion is that note age matters. A note that is created and re
 less exposure to future unrelated storage keys. A note held for a long time remains exposed for a
 longer period.
 
-## 5. Wallet File Encryption
+## 6. Wallet File Encryption
 
 The CLI stores a channel wallet as an encrypted local file under the workspace.
 
@@ -240,7 +273,7 @@ The wallet secret should not be treated like a temporary UI unlock code. It part
 the channel-bound L2 identity, so losing it can break spendability even if the Ethereum key remains
 available.
 
-## 6. Channel-Bound L2 Identity
+## 7. Channel-Bound L2 Identity
 
 The channel-bound L2 identity is derived by asking the Ethereum signer to sign a deterministic
 message that includes:
@@ -259,7 +292,7 @@ If the wallet secret is lost, the same `l2PrivateKey` can no longer be re-derive
 key, notes cannot be spent, transferred, or redeemed. Under the CLI's strict ownership definition,
 losing the wallet secret means losing note ownership.
 
-## 7. Note-Receive Auxiliary Keys
+## 8. Note-Receive Auxiliary Keys
 
 The note-receive key pair is different from the channel-bound L2 identity.
 
@@ -287,7 +320,7 @@ Example: Bob can use the note-receive private key to discover that an encrypted 
 him. Bob still needs the L2 private key to transfer or redeem that note. Discovery and spendability
 are deliberately separate.
 
-## 8. Recovery Model
+## 9. Recovery Model
 
 If the wallet file is lost, recovery is still possible if the user retains:
 
@@ -313,7 +346,7 @@ is that readable note plaintext is not the same as the L2 private key required t
 If the wallet file and wallet secret are both stolen, the attacker can decrypt stored key material
 and compromise channel funds.
 
-## 9. Protocol Risks And Recommendations
+## 10. Protocol Risks And Recommendations
 
 The note-receive derivation model depends on deterministic reproduction of the same typed-data
 signature bytes for the same account and typed-data payload. If that property fails for a wallet

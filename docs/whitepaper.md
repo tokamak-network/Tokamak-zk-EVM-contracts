@@ -1,19 +1,23 @@
 # Tokamak Private App Channels White Paper
 
-Last updated: 2026-05-02
+Last updated: 2026-05-12
 
 ## Abstract
 
 Tokamak Private App Channels are Ethereum-settled, validity-proven channels for bridge-coupled
 DApps. The bridge keeps canonical asset custody and proof verification on Ethereum, while each
-channel provides a dedicated execution domain for one registered DApp. This paper explains why the
-system uses DApp metadata, immutable per-channel policy snapshots, Tokamak proofs for general
-execution, and Groth16 proofs for channel-token-vault accounting.
+channel provides a dedicated execution domain for one registered DApp. The framework is intended to
+support multiple DApps and many independently opened channels per DApp, with users choosing the DApp
+and channel policy they want to join. This paper explains why the system uses DApp metadata,
+immutable per-channel policy snapshots, Tokamak proofs for general execution, and Groth16 proofs for
+channel-token-vault accounting.
 
 The practical conclusion is simple: users do not join a mutable generic rollup. They join a specific
 channel policy. That policy fixes the DApp metadata digest, function metadata root, verifier
 snapshot, compatible backend versions, join toll, refund schedule, and initial proof-context binding
-for that channel lifetime.
+for that channel lifetime. Bridge-level policy is set by the Tokamak bridge governance surface,
+DApp-level policy is set by the registered DApp design, and channel-level policy is chosen only
+within those constraints when a channel is created.
 
 ## Table of Contents
 
@@ -78,9 +82,24 @@ These parts are not arranged as one flat network. Ethereum is the top-level sett
 
 Each channel belongs to exactly one registered DApp. The bridge does not treat a channel as an open-ended programmable sandbox. A channel inherits a bounded storage surface and a bounded function surface from the DApp metadata that was registered before the channel was created.
 
+The framework is deliberately multi-tenant at the DApp and channel layers. A DApp can be added when
+its developer and Tokamak agree on a bridge-facing metadata surface, proving support, and operating
+policy. After that DApp is registered, channel creation for that DApp is permissionless at the bridge
+level: any account can open a channel that snapshots the registered DApp policy and becomes that
+channel's leader. This is the sense in which channels are autonomous. Channel leaders can operate
+under the policy that the bridge and DApp already allow, but they do not acquire authority to rewrite
+the DApp's execution grammar, verifier snapshot, custody boundary, or user secret model.
+
 This is an opinionated model. The bridge is intentionally DApp-aware at the metadata layer, but DApp-agnostic at the settlement layer. In other words, the bridge does not need to understand application semantics in full detail; it needs enough metadata to decide whether the submitted proof is speaking about an allowed function, an allowed storage surface, and the expected public-input layout.
 
 The user side of the topology is also layered. A user has one global Ethereum-facing existence, such as an L1 account and L1 asset custody relation, but that same user can participate in multiple channels through separate channel-local workspaces. Each such workspace is logically a distinct `user-in-channel` context. It carries the channel-specific registration, the channel-specific accepted commitment history, the channel-specific reconstructed application state, and any local secret material that the DApp requires for continued private activity. This means participation is not best understood as a single link between a user and the bridge. It is better understood as many links of the form `user in channel X` interacting with `channel X`, all under one shared Ethereum settlement surface.
+
+This topology also makes policy choice explicit. Different DApps may expose different privacy and
+disclosure models. One DApp may leave selective disclosure entirely under user control. Another may
+define an operator-assisted query model. Another may require channel-level compliance controls before
+certain actions are admitted. The bridge does not force every DApp to use the same disclosure model,
+and users are not forced into one global privacy regime. They choose among available DApps and
+channels after reviewing the policy snapshot that will govern their participation.
 
 ## 3. Design Philosophy
 
@@ -181,19 +200,29 @@ In other words, the bridge can help hide the original private execution payload,
 
 This is why privacy remains DApp-dependent. The bridge provides a lower-information settlement boundary than direct calldata publication, but it does not by itself guarantee semantic privacy of user behavior.
 
-The `private-state` DApp shows the intended extension of that model. There, an outside observer can still see the timing and rough shape of user activity such as mint-like, transfer-like, redeem-like, or vault-withdrawal-related transitions, and can observe that the note-related storage commitments changed. However, the observer cannot directly recover the plaintext note contents, the recipient-specific meaning of encrypted outputs, or the full semantic transaction story from those observations alone. In short:
+Different DApps can extend this model in different directions. A payment-style DApp may hide
+recipient-level note semantics. A disclosure-oriented DApp may expose audit hooks. A
+channel-operated DApp may define operator-mediated query or service rules. Those choices are DApp
+policy, not a bridge-wide default.
+
+The currently deployed `private-state` DApp is one concrete instance of the model. There, an outside
+observer can still see the timing and rough shape of user activity such as mint-like, transfer-like,
+redeem-like, or vault-withdrawal-related transitions, and can observe that the note-related storage
+commitments changed. However, the observer cannot directly recover the plaintext note contents, the
+recipient-specific meaning of encrypted outputs, or the full semantic transaction story from those
+observations alone. In short:
 
 - the bridge hides the original execution payload
 - the DApp may further hide the user-level meaning of the resulting state transition
 
 For readers who want one concrete intuition: an outside observer may be able to tell that a user participated in a transfer-shaped action and that certain commitment domains changed, while still being unable to tell which recipient actually received which note value.
 
-This layered privacy model also defines a public disclosure boundary. The system does not rely on a
-global auditor backdoor, and the bridge operator is not expected to hold a user's wallet secret,
-spending key, note-receive private key, or master viewing key. The public note-receive key material
-that a channel may register is a delivery and recovery surface, not a universal authority to decrypt
-every note. A user can voluntarily disclose selected wallet-derived evidence, but the bridge operator
-cannot disclose a user's complete private note history on that user's behalf.
+This layered privacy model also defines a policy boundary. The bridge does not create a universal
+semantic transcript for every DApp, and it does not by itself create a universal private-data
+backdoor. If a DApp requires viewing keys, operator-assisted queries, selective disclosure packages,
+or other compliance controls, those controls must be part of that DApp's documented policy and
+client workflow. Users should therefore evaluate privacy and disclosure at the DApp and channel
+policy layer, not infer one uniform rule from the bridge alone.
 
 ## 4. Architecture
 
@@ -210,7 +239,7 @@ This is another explicit design choice: shared infrastructure may need controlle
 
 ### 4.2 Per-Channel Execution Surface
 
-A new channel is created by `BridgeCore` only after the bridge verifies that the DApp metadata exists, the configured Merkle-tree depth matches the supported value, and the managed storage surface is within the bridge's supported bounds.
+A new channel is created by `BridgeCore` only after the bridge verifies that the DApp metadata exists, the configured Merkle-tree depth matches the supported value, and the managed storage surface is within the bridge's supported bounds. Once a DApp is registered, this channel creation path is permissionless at the bridge level. The creator chooses only the channel-level parameters that the bridge and DApp policy expose, such as the leader and join-toll configuration, and the resulting channel snapshots the current DApp policy.
 
 `Execution surface` means the set of storage domains and function families that the channel will
 recognize as admissible. It is not the same as every public function that exists in the DApp's
@@ -281,12 +310,12 @@ Execution information flows from channel-local off-chain environments into Ether
 Acceptance information then flows back out of Ethereum to every interested local environment. The bridge publishes the accepted commitment trail, the observed storage mutations, and the accepted event outputs that it is configured to surface. Users, relays, and external indexers can all consume that published information to reconstruct the accepted history that matters to them.
 
 That public information flow is intentionally useful for external monitoring without becoming a full
-semantic transcript of private activity. Observers can monitor bridge funding and claims, channel
-creation, channel-token-vault identity registration, accepted proof submissions, root-vector
-movement, storage-write observations, metadata changes, verifier changes, and proxy upgrades. Those
-signals can show that assets crossed the bridge boundary or that a channel accepted a proof-backed
-transition. They do not, by themselves, reveal every private note plaintext, every sender-recipient
-relationship, every private amount linkage, or a user's complete wallet history.
+semantic transcript of every DApp's internal activity. Observers can monitor bridge funding and
+claims, channel creation, channel-token-vault identity registration, accepted proof submissions,
+root-vector movement, storage-write observations, metadata changes, verifier changes, and proxy
+upgrades. Those signals can show that assets crossed the bridge boundary or that a channel accepted
+a proof-backed transition. What they reveal about application-level counterparties, private amounts,
+or user-local history depends on the DApp policy and the events that the DApp deliberately exposes.
 
 The key architectural rule is that no off-chain actor is authoritative by itself. Off-chain environments may compute, coordinate, relay, index, or assist, but accepted state exists only after Ethereum has accepted the corresponding proof-backed transition. That rule applies both to normal channel execution and to token-vault updates for deposits and withdrawals.
 
@@ -412,9 +441,10 @@ If any of those checks fail, the previous accepted root-vector hash remains auth
 
 The monitoring consequence is that accepted application activity is visible as acceptance, not as a
 full plaintext execution trace. A monitor can see that a valid proof advanced the root vector and can
-read the bridge-visible event outputs that the channel surfaced. For a privacy-oriented DApp, that is
-the intended boundary: proof acceptance and commitment movement are public, while user-level note
-semantics remain available only through user-controlled disclosure.
+read the bridge-visible event outputs that the channel surfaced. For a privacy-oriented DApp, that
+may mean proof acceptance and commitment movement are public while user-level semantics remain
+private. For a disclosure-oriented or operator-assisted DApp, the DApp policy may deliberately expose
+more. The bridge supplies the acceptance surface; the DApp defines the semantic disclosure surface.
 
 ### 6.4 Withdrawal and Safe Exit
 
@@ -556,19 +586,22 @@ Example: if a token charges a transfer fee, the vault may receive less than the 
 to deposit. Unless the bridge treats that behavior as invalid, L1 custody and L2 accounting can
 diverge. This is why exact-transfer behavior is not a cosmetic preference.
 
-Disclosure policy is user-controlled. Public monitoring covers bridge-edge events, channel policy,
-identity registration, proof acceptance, root movement, metadata changes, and upgrade events. It does
-not create a universal viewing right over private notes. If a user needs to prove a narrower fact,
-such as receipt of a particular note or linkage between a private-state action and a later withdrawal,
-that proof should be generated from the user's local wallet state and should disclose only the
-selected evidence needed for the request. This is a policy rule of the current `private-state`
-channel model, not merely a user-interface preference.
+DApp disclosure policy is DApp-specific. Public bridge monitoring covers bridge-edge events, channel
+policy, identity registration, proof acceptance, root movement, metadata changes, and upgrade events.
+It does not automatically create one universal viewing model for every DApp. A DApp may choose
+user-controlled selective disclosure, channel-operator-mediated disclosure, public-by-design state,
+or another documented policy. That choice must be clear before users join because the bridge treats
+the resulting channel as a policy snapshot, not as a mutable promise that can be silently rewritten
+after funds and local state have accumulated.
 
-Public-communication policy follows from that disclosure boundary. The system may be described as
-providing public bridge-edge monitoring and user-controlled selective disclosure paths, while
-private-state note history remains confidential unless the user voluntarily discloses selected
-evidence. It should not be described as giving an exchange, auditor, company, or channel operator a
-global ability to reconstruct every private-state transfer from public logs alone.
+The currently deployed `private-state` DApp chooses a user-controlled disclosure model. Tokamak,
+the bridge operator, and the channel leader are not designed to hold user wallet secrets, spending
+keys, note-receive private keys, or a master viewing key for that DApp. Public communication about
+`private-state` should therefore describe public bridge-edge monitoring plus user-controlled
+selective disclosure, not a global ability for an exchange, auditor, company, or channel operator to
+reconstruct every private-state note transfer from public logs alone. A future DApp may make a
+different disclosure-policy choice, but it should be registered, documented, and joined as a
+different DApp or channel policy.
 
 ### 8.3 Policy Lifecycle And Artifact Publication
 

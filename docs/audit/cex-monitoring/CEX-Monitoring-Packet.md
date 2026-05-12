@@ -1,6 +1,6 @@
 # CEX Monitoring Packet
 
-This document explains how the repository generates the data-backed CEX Monitoring Packet and where each generated output is written.
+This document explains how the repository generates the public, data-backed CEX Monitoring Packet files.
 
 The packet generator is [scripts/cex-monitoring-packet/generate.mjs](../../../scripts/cex-monitoring-packet/generate.mjs). It is a read-only script that collects current evidence from the mainnet bridge deployment artifacts, Ethereum RPC, Etherscan, and the configured Google Drive artifact folder.
 
@@ -29,13 +29,7 @@ The default public output directory is:
 docs/audit/cex-monitoring/data/
 ```
 
-The default internal validation output directory is:
-
-```text
-scripts/cex-monitoring-packet/output/
-```
-
-Passing `--output <dir>` changes only the internal validation output directory. The public packet data remains under `docs/audit/cex-monitoring/data/`.
+Passing `--output <dir>` changes only the script's internal validation output directory. The public packet data remains under `docs/audit/cex-monitoring/data/`.
 
 ## Method
 
@@ -47,7 +41,6 @@ The generator performs the following steps:
 4. Reads Google Drive artifact metadata from the configured artifact publication folder.
 5. Builds ABI-derived event monitoring coverage for the Monitoring Packet checklist.
 6. Writes public packet data to `docs/audit/cex-monitoring/data/`.
-7. Writes internal run receipts and raw validation data to `scripts/cex-monitoring-packet/output/`.
 
 ## Public Outputs
 
@@ -59,17 +52,6 @@ These files are intended to be included in the public Monitoring Packet.
 | `the-great-first-channel-Policy-Snapshot.json` | [data/the-great-first-channel-Policy-Snapshot.json](data/the-great-first-channel-Policy-Snapshot.json) | Current channel policy snapshot for `the-great-first-channel`, including channel manager, vault, leader/operator, join toll, managed storage addresses, root-vector hash, workspace mirror URL, DApp metadata digest, function root, verifier snapshot, and storage-layout source. |
 | `Private-State-Observability-Matrix.md` | [data/Private-State-Observability-Matrix.md](data/Private-State-Observability-Matrix.md) | Human-readable matrix mapping each Monitoring Packet event checklist item to the current public event surface, including event names, contract addresses, indexed fields, non-indexed fields, explorer query examples, what the event reveals, what it does not reveal, and exchange monitoring meaning. |
 | `Admin-Wallets-and-Upgrade-Policy.md` | [data/Admin-Wallets-and-Upgrade-Policy.md](data/Admin-Wallets-and-Upgrade-Policy.md) | Current owner and proxy-slot state for the monitored mainnet bridge deployment, plus notes that connect the generated data to the white paper's upgrade and channel-immutability policy. |
-
-## Internal Validation Outputs
-
-These files are generated for operator validation and audit traceability. They are not the primary public packet.
-
-| File | Path | Description |
-| --- | --- | --- |
-| `event-monitoring-map.json` | [../../../scripts/cex-monitoring-packet/output/event-monitoring-map.json](../../../scripts/cex-monitoring-packet/output/event-monitoring-map.json) | Machine-readable event coverage data used to render `Private-State-Observability-Matrix.md`. |
-| `drive-artifacts.json` | [../../../scripts/cex-monitoring-packet/output/drive-artifacts.json](../../../scripts/cex-monitoring-packet/output/drive-artifacts.json) | Google Drive artifact folder IDs, file IDs, checksums, sizes, modified times, and web links read during generation. |
-| `coverage-report.json` | [../../../scripts/cex-monitoring-packet/output/coverage-report.json](../../../scripts/cex-monitoring-packet/output/coverage-report.json) | Checklist coverage report showing which required address-pack and event-map items are covered, need review, or are not present in the current ABI. |
-| `packet-summary.json` | [../../../scripts/cex-monitoring-packet/output/packet-summary.json](../../../scripts/cex-monitoring-packet/output/packet-summary.json) | Run receipt containing generation timestamp, selected chain/DApp/channel, artifact directories, latest RPC block, Drive status, source verification status, warnings, and generated file lists. |
 
 ## Notes
 

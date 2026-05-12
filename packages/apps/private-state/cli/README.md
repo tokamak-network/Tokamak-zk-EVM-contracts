@@ -143,31 +143,29 @@ https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/packages/a
 Back up a local wallet with:
 
 ```bash
-private-state-cli wallet export --network mainnet --wallet <WALLET> --output ./wallet-backup.zip
+private-state-cli wallet export backup --network mainnet --wallet <WALLET> --output ./wallet-backup.zip
 ```
 
-The default export stores the encrypted wallet, wallet metadata, and wallet-local secret. The encrypted `wallet.json`
-contains the wallet's current key material and tracked note state. The export intentionally excludes account secrets
-because wallet commands restore the L1 signer from the encrypted `wallet.json`; account secrets are only needed for
-account-level bridge-vault commands and optional `--tx-submitter` use. After importing a default export on a new machine,
-run `channel recover-workspace` before using wallet commands that need channel state:
+The backup export stores note-tracking metadata and the channel workspace cache, but it does not include spending keys,
+viewing keys, key derivation material, or plaintext note secrets. Note records in the backup keep commitments,
+nullifiers, and encrypted note payloads only; `owner`, `value`, and `salt` are excluded.
 
 ```bash
-private-state-cli wallet import --input ./wallet-backup.zip
-private-state-cli channel recover-workspace --channel-name <CHANNEL> --network mainnet --source rpc --from-genesis
+private-state-cli wallet import backup --input ./wallet-backup.zip
 ```
 
-For a wider backup that can run wallet commands immediately when the imported channel workspace cache is still
-chain-aligned, add `--include-notes`:
+Export viewing and spending authority separately:
 
 ```bash
-private-state-cli wallet export --network mainnet --wallet <WALLET> --output ./wallet-backup.zip --include-notes
+private-state-cli wallet export viewing-key --network mainnet --wallet <WALLET> --output ./wallet-viewing.key
+private-state-cli wallet export spending-key --network mainnet --wallet <WALLET> --output ./wallet-spending.key
 ```
 
-Use `--all` to export every local mainnet wallet into one ZIP:
+Import those capabilities only when the target machine should receive them:
 
 ```bash
-private-state-cli wallet export --all --output ./mainnet-wallets.zip
+private-state-cli wallet import viewing-key --input ./wallet-viewing.key
+private-state-cli wallet import spending-key --input ./wallet-spending.key
 ```
 
 Estimate live transaction costs before sending commands with:
@@ -217,24 +215,24 @@ private-state-cli account import --account <ACCOUNT_NAME> --network sepolia --pr
 private-state-cli account get-l1-address --account <ACCOUNT_NAME> --network sepolia
 private-state-cli wallet list --network sepolia --channel-name cuda
 private-state-cli wallet get-meta --wallet <WALLET_NAME> --network sepolia
-private-state-cli wallet export --network sepolia --wallet <WALLET_NAME> --output ./wallet-backup.zip
-private-state-cli wallet import --input ./wallet-backup.zip
+private-state-cli wallet export backup --network sepolia --wallet <WALLET_NAME> --output ./wallet-backup.zip
+private-state-cli wallet import backup --input ./wallet-backup.zip
 ```
 
 `account import` is the only supported way to bring an L1 signing key into the CLI: it reads `--private-key-file` once
 and stores a protected local account secret for later `--account` use. The source file does not need `0600` permissions.
-`channel join` imports `--wallet-secret-path <PATH>` into the protected wallet-local default secret while creating the
-encrypted local wallet. `wallet list` reads only the local workspace and prints saved wallet names that can be reused with
+`channel join` reads `--wallet-secret-path <PATH>` once while creating the channel-bound spending key and then stores
+wallet backup metadata, viewing-key metadata, and spending-key metadata as separate files. `wallet list` reads only the local workspace and prints saved wallet names that can be reused with
 `--wallet`.
-`wallet get-meta` opens an encrypted local wallet and reports the stored L1/L2 identity metadata plus the current
+`wallet get-meta` opens the wallet metadata and reports the stored L1/L2 identity metadata plus the current
 on-chain channel registration match state. `account get-l1-address` is a simple offline helper that derives the L1
 address for a local account.
 
 ### Wallet Secret Source File
 
 `channel join` needs a wallet secret source file because the CLI no longer accepts raw wallet secrets on the command
-line. The source file is arbitrary high-entropy secret text that the CLI reads once and imports into the protected
-wallet-local canonical secret.
+line. The source file is arbitrary high-entropy secret text that the CLI reads once for channel-bound spending-key
+derivation. It is not persisted in the wallet workspace.
 
 Create one before joining a channel:
 
@@ -243,8 +241,10 @@ openssl rand -hex 32 > ./wallet-secret.txt
 private-state-cli channel join --channel-name <CHANNEL> --network sepolia --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
 ```
 
-The import source file does not need `0600` permissions. The canonical wallet-local secret written by the CLI remains
-protected: macOS/Linux uses `0600`, while Windows uses ACL repair and inspection when possible.
+The import source file does not need `0600` permissions. The CLI does not persist a wallet-local secret:
+it reads the source once for channel-bound L2 spending-key derivation. The derived viewing and spending keys
+are stored as separate protected key files under the CLI secret root; macOS/Linux uses `0600`, while Windows uses ACL
+repair and inspection when possible.
 
 ## Workspace
 
@@ -254,8 +254,8 @@ The CLI stores user workspaces under:
 ~/tokamak-private-channels/workspace/<network>/<channel>/
 ```
 
-Wallet data is encrypted with the wallet-local default secret file under
-`~/tokamak-private-channels/secrets/<network>/wallets/<wallet>/secret`.
+Wallet backup metadata lives under the channel workspace. Viewing and spending private keys live as separate protected
+key files under `~/tokamak-private-channels/secrets/<network>/wallets/<wallet>/`.
 
 Bridge-facing commands accept optional `--rpc-url <URL>`. When `--rpc-url` is provided, the CLI stores it in
 `~/tokamak-private-channels/secrets/<network>/.env` as `RPC_URL=<URL>` with protected canonical secret permissions.
@@ -277,7 +277,8 @@ activity or as a bridge-wide disclosure rule for every DApp.
 Operating rules:
 
 - Do not ask the user to reveal raw private keys or wallet secrets in chat. Use `account import --private-key-file`
-  once, then use `--account` for L1 signing commands. Wallet commands use wallet-local default secret files.
+  once, then use `--account` for L1 signing commands. Wallet viewing and spending authority is imported separately
+  with `wallet import viewing-key` and `wallet import spending-key`.
 - Treat `private key file`, `account`, `wallet secret`, `wallet`, `network RPC URL`, and `channel policy` as
   new concepts unless the user has already demonstrated that they understand them. Define each term before using it
   in an instruction.
@@ -287,10 +288,10 @@ Operating rules:
   - An account is the local nickname created by `account import`. After import, signing commands should use
     `--account <NAME>` instead of asking for the raw key again.
   - A wallet secret source file is a separate high-entropy local secret chosen by the user for this private-state
-    wallet. It is not the L1 private key. `channel join` imports it once and uses it to protect and recover the
-    channel-local wallet.
-  - A wallet is the encrypted local private-state wallet created during `channel join`. Its deterministic name is
-    `<channelName>-<l1Address>`.
+    wallet. It is not the L1 private key. `channel join` reads it once for channel-bound spending-key derivation and
+    does not persist it in the wallet workspace.
+  - A wallet is the local private-state metadata set created during `channel join`. Its deterministic name is
+    `<channelName>-<l1Address>`, and viewing/spending authority is stored in separate protected key files.
   - The network RPC URL is the endpoint used to read and write chain state. It can be supplied once with `--rpc-url`
     on a bridge-facing command, after which the CLI saves it under the selected network.
   - A workspace recovery index is the saved block pointer and state-root hash that lets the CLI resume log scanning
@@ -358,9 +359,9 @@ Example onboarding explanation for `channel join`:
 
 > First we need two different local secrets. Your L1 private key proves which Ethereum account pays gas and signs
 > bridge transactions. We import it once into a local account nickname, so later commands can say `--account alice`
-> instead of handling the raw key again. Separately, the wallet secret protects the encrypted private-state wallet for
-> this channel. It is not sent on-chain and it is not the same as your L1 private key. If you lose the wallet secret,
-> recovering this channel wallet can become impossible.
+> instead of handling the raw key again. Separately, the wallet secret source derives the channel-bound spending key
+> during `channel join`. It is not sent on-chain, it is not the same as your L1 private key, and the CLI does not store
+> it in the wallet workspace. Backups, viewing keys, and spending keys are exported separately.
 
 Example style: if the user says, "ADDR6 sends 10 tokens privately to ADDR8", do not assume the required note exists.
 First ask or check which channel and network to use, whether ADDR6 and ADDR8 are already joined, what the local wallet

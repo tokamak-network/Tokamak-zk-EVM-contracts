@@ -134,8 +134,10 @@ const PRIVATE_STATE_UNINSTALL_CONFIRMATION =
 const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
-const WALLET_EXPORT_FORMAT = "tokamak-private-state-wallet-export";
-const WALLET_EXPORT_FORMAT_VERSION = 1;
+const WALLET_BACKUP_EXPORT_FORMAT = "tokamak-private-state-wallet-backup-export";
+const WALLET_KEY_EXPORT_FORMAT = "tokamak-private-state-wallet-key-export";
+const WALLET_EXPORT_FORMAT_VERSION = 2;
+const WALLET_WORKSPACE_FORMAT_VERSION = 2;
 const CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION = 2;
 const CHANNEL_WORKSPACE_MIRROR_MANIFEST_PATH_PREFIX =
   ".well-known/tokamak-private-state/channel-workspace";
@@ -404,15 +406,39 @@ async function main() {
     return;
   }
 
-  if (args.command === "wallet-export") {
-    assertWalletExportArgs(args);
-    handleWalletExport({ args });
+  if (args.command === "wallet-export-backup") {
+    assertWalletExportBackupArgs(args);
+    handleWalletExportBackup({ args });
     return;
   }
 
-  if (args.command === "wallet-import") {
-    assertWalletImportArgs(args);
-    handleWalletImport({ args });
+  if (args.command === "wallet-export-viewing-key") {
+    assertWalletExportKeyArgs(args, "wallet-export-viewing-key");
+    handleWalletExportKey({ args, keyKind: "viewing" });
+    return;
+  }
+
+  if (args.command === "wallet-export-spending-key") {
+    assertWalletExportKeyArgs(args, "wallet-export-spending-key");
+    handleWalletExportKey({ args, keyKind: "spending" });
+    return;
+  }
+
+  if (args.command === "wallet-import-backup") {
+    assertWalletImportBackupArgs(args);
+    handleWalletImportBackup({ args });
+    return;
+  }
+
+  if (args.command === "wallet-import-viewing-key") {
+    assertWalletImportKeyArgs(args, "wallet-import-viewing-key");
+    handleWalletImportKey({ args, keyKind: "viewing" });
+    return;
+  }
+
+  if (args.command === "wallet-import-spending-key") {
+    assertWalletImportKeyArgs(args, "wallet-import-spending-key");
+    handleWalletImportKey({ args, keyKind: "spending" });
     return;
   }
 
@@ -2223,10 +2249,6 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
   const channelName = requireArg(args.channelName, "--channel-name");
   const signer = requireL1Signer(args, provider);
   const walletName = walletNameForChannelAndAddress(channelName, signer.address);
-  const walletSecret = resolveWalletSecretForName({
-    networkName: network.name,
-    walletName,
-  });
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
   const initialized = await syncChannelWorkspace({
     workspaceName: channelName,
@@ -2260,11 +2282,6 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       provider,
     ),
   };
-  const l2Identity = await deriveParticipantIdentityFromSigner({
-    channelName,
-    walletSecret,
-    signer,
-  });
   const noteReceiveKeyMaterial = await deriveNoteReceiveKeyMaterial({
     signer,
     chainId: network.chainId,
@@ -2272,8 +2289,6 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     channelName,
     account: signer.address,
   });
-  const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
-  const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
 
   if (!registration.exists) {
@@ -2285,15 +2300,13 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
         wallet: walletName,
         removedWalletDir: cleanup.removedWalletDir ? cleanup.walletDir : null,
         removedWalletSecretFile: cleanup.removedWalletSecret ? cleanup.walletSecretFile : null,
-        walletSecretSource: resolvedWalletSecretSource(args),
-        walletSecretFile: resolvedWalletSecretFile(network.name, walletName),
         workspace: context.workspaceName,
         channelName: context.workspace.channelName,
         channelId: context.workspace.channelId,
         l1Address: signer.address,
-        l2Address: l2Identity.l2Address,
-        l2StorageKey: storageKey,
-        leafIndex: leafIndex.toString(),
+        l2Address: null,
+        l2StorageKey: null,
+        leafIndex: null,
         reason: "The local wallet existed, but the L1 address is no longer registered in the channel.",
         nextAction: buildRecoverWalletRemovedNextAction({
           channelName,
@@ -2312,19 +2325,6 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     );
   }
   expect(
-    ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
-    "The existing channel registration L2 address does not match the derived L2 address.",
-  );
-  expect(
-    ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
-      === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
-    "The existing channel registration key does not match the derived channelTokenVault key.",
-  );
-  expect(
-    ethers.toBigInt(registration.leafIndex) === ethers.toBigInt(leafIndex),
-    "The existing channel registration leaf index does not match the derived leaf index.",
-  );
-  expect(
     ethers.toBigInt(normalizeBytes32Hex(registration.noteReceivePubKey.x))
       === ethers.toBigInt(normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x)),
     "The existing note-receive public key X does not match the derived note-receive public key.",
@@ -2333,21 +2333,21 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     Number(registration.noteReceivePubKey.yParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
     "The existing note-receive public key parity does not match the derived note-receive public key.",
   );
+  const l2Identity = {
+    l2PrivateKey: null,
+    l2PublicKey: null,
+    l2Address: getAddress(registration.l2Address),
+  };
+  const storageKey = normalizeBytes32Hex(registration.channelTokenVaultKey);
 
-  const existingWallet = tryLoadRecoverableWallet({
-    walletName,
-    walletSecret,
-    signerAddress: signer.address,
-    signerPrivateKey: signer.privateKey,
-    l2Identity,
-    storageKey,
-    leafIndex,
-    rpcUrl,
-    channelContext: context,
-    noteReceiveKeyMaterial,
-  });
+  const walletDir = walletPath(walletName, context.workspace.network);
+  const existingWallet = walletConfigExists(walletDir)
+    ? loadWallet(walletName, null, context.workspace.network)
+    : null;
 
   if (existingWallet) {
+    existingWallet.wallet.noteReceivePrivateKey = noteReceiveKeyMaterial.privateKey;
+    persistWalletKeys(existingWallet);
     const { recoveredDeliveryState } = await recoverWalletReceivedNotes({
       walletContext: existingWallet,
       context,
@@ -2362,8 +2362,6 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       status: "already-recovered",
       wallet: walletName,
       walletDir: existingWallet.walletDir,
-      walletSecretSource: resolvedWalletSecretSource(args),
-      walletSecretFile: resolvedWalletSecretFile(network.name, walletName),
       workspace: context.workspaceName,
       channelName: context.workspace.channelName,
       channelId: context.workspace.channelId,
@@ -2387,7 +2385,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     signerAddress: signer.address,
     signerPrivateKey: signer.privateKey,
     l2Identity,
-    walletSecret,
+    walletSecret: noteReceiveKeyMaterial.privateKey,
     storageKey,
     leafIndex: registration.leafIndex,
     noteReceiveKeyMaterial,
@@ -2411,8 +2409,6 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     status: "recovered",
     wallet: walletName,
     walletDir: walletContext.walletDir,
-    walletSecretSource: resolvedWalletSecretSource(args),
-    walletSecretFile: resolvedWalletSecretFile(network.name, walletName),
     workspace: context.workspaceName,
     channelName: context.workspace.channelName,
     channelId: context.workspace.channelId,
@@ -2426,135 +2422,6 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
     noteReceiveScanRange: recoveredDeliveryState.scanRange,
   });
-}
-
-function tryLoadRecoverableWallet({
-  walletName,
-  walletSecret,
-  signerAddress,
-  signerPrivateKey,
-  l2Identity,
-  storageKey,
-  leafIndex,
-  rpcUrl,
-  channelContext,
-  noteReceiveKeyMaterial,
-}) {
-  const walletDir = walletPath(walletName, channelContext.workspace.network);
-  if (!walletConfigExists(walletDir)) {
-    return null;
-  }
-
-  try {
-    const walletMetadata = loadWalletMetadata(walletName, channelContext.workspace.network);
-    const walletContext = loadWallet(walletName, walletSecret, channelContext.workspace.network);
-    assertWalletMatchesMetadata(walletContext, walletMetadata);
-    assertExistingRecoverableWallet({
-      walletContext,
-      walletMetadata,
-      signerAddress,
-      signerPrivateKey,
-      l2Identity,
-      storageKey,
-      leafIndex,
-      rpcUrl,
-      channelContext,
-      noteReceiveKeyMaterial,
-    });
-    return walletContext;
-  } catch {
-    return null;
-  }
-}
-
-function assertExistingRecoverableWallet({
-  walletContext,
-  walletMetadata,
-  signerAddress,
-  signerPrivateKey,
-  l2Identity,
-  storageKey,
-  leafIndex,
-  rpcUrl,
-  channelContext,
-  noteReceiveKeyMaterial,
-}) {
-  const wallet = walletContext.wallet;
-  expect(
-    walletMetadata.network === channelContext.workspace.network,
-    `Wallet ${walletContext.walletName} metadata network does not match the requested network.`,
-  );
-  expect(
-    walletMetadata.channelName === channelContext.workspace.channelName,
-    `Wallet ${walletContext.walletName} metadata channel does not match the requested channel.`,
-  );
-  expect(
-    walletMetadata.rpcUrl === rpcUrl,
-    `Wallet ${walletContext.walletName} metadata rpcUrl does not match the requested runtime RPC URL.`,
-  );
-  expect(
-    normalizePrivateKey(wallet.l1PrivateKey) === normalizePrivateKey(signerPrivateKey),
-    `Wallet ${walletContext.walletName} does not decrypt to the requested L1 private key.`,
-  );
-  expect(
-    ethers.toBigInt(getAddress(wallet.l1Address)) === ethers.toBigInt(getAddress(signerAddress)),
-    `Wallet ${walletContext.walletName} L1 address does not match the requested signer.`,
-  );
-  expect(
-    ethers.toBigInt(getAddress(wallet.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
-    `Wallet ${walletContext.walletName} L2 address does not match the derived channel identity.`,
-  );
-  expect(
-    ethers.toBigInt(normalizeBytes32Hex(wallet.l2StorageKey))
-      === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
-    `Wallet ${walletContext.walletName} storage key does not match the derived registration key.`,
-  );
-  expect(
-    ethers.toBigInt(wallet.leafIndex) === ethers.toBigInt(leafIndex),
-    `Wallet ${walletContext.walletName} leaf index does not match the derived registration leaf index.`,
-  );
-  expect(
-    ethers.toBigInt(wallet.channelId) === ethers.toBigInt(channelContext.workspace.channelId),
-    `Wallet ${walletContext.walletName} channel ID does not match the requested channel.`,
-  );
-  expect(
-    wallet.channelName === channelContext.workspace.channelName,
-    `Wallet ${walletContext.walletName} channel name does not match the requested channel.`,
-  );
-  expect(
-    wallet.network === channelContext.workspace.network,
-    `Wallet ${walletContext.walletName} network does not match the requested network.`,
-  );
-  expect(
-    wallet.rpcUrl === rpcUrl,
-    `Wallet ${walletContext.walletName} rpcUrl does not match the requested runtime RPC URL.`,
-  );
-  expect(
-    ethers.toBigInt(getAddress(wallet.channelManager)) === ethers.toBigInt(getAddress(channelContext.workspace.channelManager)),
-    `Wallet ${walletContext.walletName} channel manager does not match the recovered workspace.`,
-  );
-  expect(
-    ethers.toBigInt(getAddress(wallet.bridgeTokenVault)) === ethers.toBigInt(getAddress(channelContext.workspace.bridgeTokenVault)),
-    `Wallet ${walletContext.walletName} bridge token vault does not match the recovered workspace.`,
-  );
-  expect(
-    ethers.toBigInt(getAddress(wallet.controller)) === ethers.toBigInt(getAddress(channelContext.workspace.controller)),
-    `Wallet ${walletContext.walletName} controller does not match the recovered workspace.`,
-  );
-  expect(
-    ethers.toBigInt(getAddress(wallet.l2AccountingVault))
-      === ethers.toBigInt(getAddress(channelContext.workspace.l2AccountingVault)),
-    `Wallet ${walletContext.walletName} L2 accounting vault does not match the recovered workspace.`,
-  );
-  expect(
-    ethers.toBigInt(normalizeBytes32Hex(wallet.noteReceivePubKeyX))
-      === ethers.toBigInt(normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x)),
-    `Wallet ${walletContext.walletName} note-receive public key X does not match the derived key.`,
-  );
-  expect(
-    Number(wallet.noteReceivePubKeyYParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
-    `Wallet ${walletContext.walletName} note-receive public key parity does not match the derived key.`,
-  );
 }
 
 function removeLocalWalletArtifacts(walletName, networkName) {
@@ -3079,24 +2946,19 @@ function handleListLocalWallets({ args }) {
   });
 }
 
-function handleWalletExport({ args }) {
+function handleWalletExportBackup({ args }) {
   const outputPath = path.resolve(String(requireArg(args.output, "--output")));
   expect(!fs.existsSync(outputPath), `Export output already exists: ${outputPath}.`);
   ensureDir(path.dirname(outputPath));
 
-  const includeNotes = args.includeNotes === true;
-  const wallets = args.all === true
-    ? listLocalWallets({ networkFilter: "mainnet" }).filter((wallet) => wallet.hasEncryptedWallet)
-    : [resolveExportWalletInfo({
-      networkName: requireNetworkName(args),
-      walletName: requireWalletName(args),
-    })];
+  const wallets = [resolveExportWalletInfo({
+    networkName: requireNetworkName(args),
+    walletName: requireWalletName(args),
+  })];
 
   expect(
     wallets.length > 0,
-    args.all === true
-      ? "No local mainnet wallets are available to export."
-      : "No local wallet is available to export.",
+    "No local wallet is available to export.",
   );
 
   const archive = new AdmZip();
@@ -3109,7 +2971,7 @@ function handleWalletExport({ args }) {
       channelName: normalized.channelName,
       wallet: normalized.wallet,
     });
-    for (const filePath of walletExportFilePaths(normalized, { includeNotes })) {
+    for (const filePath of walletBackupExportFilePaths(normalized)) {
       const archivePath = archivePathForLocalCliFile(filePath);
       if (!files.has(archivePath)) {
         files.set(archivePath, filePath);
@@ -3118,44 +2980,65 @@ function handleWalletExport({ args }) {
   }
 
   const manifest = {
-    format: WALLET_EXPORT_FORMAT,
+    format: WALLET_BACKUP_EXPORT_FORMAT,
     formatVersion: WALLET_EXPORT_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
     cliPackage: PRIVATE_STATE_CLI_PACKAGE_NAME,
     cliVersion: privateStateCliPackageJson.version,
-    exportMode: args.all === true ? "all-mainnet" : "single-wallet",
-    includeNotes,
-    notes: includeNotes
-      ? [
-        "Includes the channel workspace cache required for immediate wallet command use when the cache is still chain-aligned.",
-      ]
-      : [
-        "Includes wallet identity, encrypted wallet state, metadata, and wallet-local secret only.",
-        "Run channel recover-workspace after import before wallet commands need channel state.",
-      ],
+    exportMode: "backup",
+    notes: [
+      "Includes wallet note-tracking metadata, public key metadata, and channel workspace cache.",
+      "Excludes spending keys, viewing keys, key derivation material, owner, value, and salt.",
+    ],
     wallets: exportedWallets,
     files: [...files.keys()].sort(),
   };
 
   archive.addFile("manifest.json", Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, "utf8"));
   for (const archivePath of manifest.files) {
-    archive.addFile(archivePath, fs.readFileSync(files.get(archivePath)));
+    const filePath = files.get(archivePath);
+    validateBackupExportFile(filePath);
+    archive.addFile(archivePath, fs.readFileSync(filePath));
   }
   archive.writeZip(outputPath);
   protectSecretFile(outputPath, "wallet export ZIP");
 
   printJson({
-    action: "wallet export",
+    action: "wallet export backup",
     output: outputPath,
     exportMode: manifest.exportMode,
-    includeNotes,
     walletCount: exportedWallets.length,
     fileCount: manifest.files.length,
     wallets: exportedWallets.map(({ network, channelName, wallet }) => ({ network, channelName, wallet })),
   });
 }
 
-function handleWalletImport({ args }) {
+function handleWalletExportKey({ args, keyKind }) {
+  const outputPath = path.resolve(String(requireArg(args.output, "--output")));
+  expect(!fs.existsSync(outputPath), `Export output already exists: ${outputPath}.`);
+  ensureDir(path.dirname(outputPath));
+  const networkName = requireNetworkName(args);
+  const walletName = requireWalletName(args);
+  const wallet = loadWallet(walletName, null, networkName);
+  const secretPath = keyKind === "spending"
+    ? walletSpendingKeySecretPath(networkName, walletName)
+    : walletViewingKeySecretPath(networkName, walletName);
+  expect(fs.existsSync(secretPath), `Wallet ${walletName} is missing its ${keyKind} key.`);
+  const payload = JSON.parse(readSecretFile(secretPath, `${keyKind} key`));
+  validateWalletKeyPayload(payload, keyKind);
+  fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
+  protectSecretFile(outputPath, `${keyKind} key export`);
+  printJson({
+    action: `wallet export ${keyKind}-key`,
+    wallet: wallet.walletName,
+    network: networkName,
+    output: outputPath,
+    keyKind,
+    metadata: payload.metadata,
+  });
+}
+
+function handleWalletImportBackup({ args }) {
   const inputPath = path.resolve(String(requireArg(args.input, "--input")));
   expect(fs.existsSync(inputPath), `Import ZIP does not exist: ${inputPath}.`);
 
@@ -3191,16 +3074,51 @@ function handleWalletImport({ args }) {
   commitWalletImportFiles({ targetRoot, plannedWrites });
 
   printJson({
-    action: "wallet import",
+    action: "wallet import backup",
     input: inputPath,
     exportMode: manifest.exportMode,
-    includeNotes: Boolean(manifest.includeNotes),
     walletCount: manifest.wallets.length,
     fileCount: plannedWrites.length,
     wallets: manifest.wallets.map(({ network, channelName, wallet }) => ({ network, channelName, wallet })),
-    nextStep: manifest.includeNotes
-      ? "Wallet commands can run immediately if the imported channel workspace cache is still chain-aligned."
-      : "Run channel recover-workspace before wallet commands need channel state.",
+    nextStep: "Import viewing-key and spending-key files separately when the wallet needs those capabilities.",
+  });
+}
+
+function handleWalletImportKey({ args, keyKind }) {
+  const inputPath = path.resolve(String(requireArg(args.input, "--input")));
+  expect(fs.existsSync(inputPath), `Key import file does not exist: ${inputPath}.`);
+  const payload = JSON.parse(readImportSecretSourceFile(inputPath, "--input"));
+  validateWalletKeyPayload(payload, keyKind);
+  const metadata = payload.metadata;
+  const networkName = requireNetworkName({ network: metadata.network });
+  const walletName = requireWalletName({ wallet: metadata.wallet });
+  const targetPath = keyKind === "spending"
+    ? walletSpendingKeySecretPath(networkName, walletName)
+    : walletViewingKeySecretPath(networkName, walletName);
+  expect(!fs.existsSync(targetPath), `Refusing to overwrite existing ${keyKind} key: ${targetPath}.`);
+  writeSecretFile(targetPath, JSON.stringify(payload, null, 2));
+  const walletDir = walletPath(walletName, networkName);
+  ensureDir(walletDir);
+  if (walletConfigExists(walletDir)) {
+    const metadataPath = keyKind === "spending"
+      ? walletSpendingKeyMetadataPath(walletDir)
+      : walletViewingKeyMetadataPath(walletDir);
+    if (fs.existsSync(metadataPath)) {
+      expect(
+        JSON.stringify(readJson(metadataPath)) === JSON.stringify(normalizeCliOutput(metadata)),
+        `Refusing to overwrite mismatched ${keyKind} key metadata: ${metadataPath}.`,
+      );
+    } else {
+      writeJson(metadataPath, metadata);
+    }
+  }
+  printJson({
+    action: `wallet import ${keyKind}-key`,
+    input: inputPath,
+    network: networkName,
+    wallet: walletName,
+    keyKind,
+    metadata,
   });
 }
 
@@ -3215,6 +3133,47 @@ function readWalletImportArchive(inputPath) {
   } catch (error) {
     throw new Error(`Failed to read wallet import ZIP ${inputPath}: ${error.message}`);
   }
+}
+
+function validateBackupExportFile(filePath) {
+  if (path.basename(filePath) !== "wallet-notes.metadata.json") {
+    return;
+  }
+  const metadata = readJson(filePath);
+  const forbidden = findForbiddenBackupMetadataPaths(metadata);
+  expect(
+    forbidden.length === 0,
+    `wallet export backup refuses to export plaintext note secrets or key material: ${forbidden.join(", ")}.`,
+  );
+}
+
+function findForbiddenBackupMetadataPaths(value, pathParts = []) {
+  const forbiddenNames = new Set([
+    "owner",
+    "value",
+    "salt",
+    "l1PrivateKey",
+    "l2PrivateKey",
+    "noteReceivePrivateKey",
+    "walletSecret",
+    "seedSignature",
+  ]);
+  if (Array.isArray(value)) {
+    return value.flatMap((entry, index) => findForbiddenBackupMetadataPaths(entry, [...pathParts, String(index)]));
+  }
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  const found = [];
+  for (const [key, entry] of Object.entries(value)) {
+    const nextPath = [...pathParts, key];
+    if (forbiddenNames.has(key) && entry !== undefined && entry !== null) {
+      found.push(nextPath.join("."));
+      continue;
+    }
+    found.push(...findForbiddenBackupMetadataPaths(entry, nextPath));
+  }
+  return found;
 }
 
 function commitWalletImportFiles({ targetRoot, plannedWrites }) {
@@ -3615,9 +3574,11 @@ async function inspectGuideWallet({ walletName, networkName, provider, artifacts
     network: networkName,
     walletDir,
     exists: walletConfigExists(walletDir),
-    metadataExists: fs.existsSync(walletMetadataPath(walletDir)),
-    secretFile: walletSecretPath(networkName, walletName),
-    secretFileExists: fs.existsSync(walletSecretPath(networkName, walletName)),
+    metadataExists: fs.existsSync(walletNotesMetadataPath(walletDir)),
+    viewingKeyFile: walletViewingKeySecretPath(networkName, walletName),
+    viewingKeyFileExists: fs.existsSync(walletViewingKeySecretPath(networkName, walletName)),
+    spendingKeyFile: walletSpendingKeySecretPath(networkName, walletName),
+    spendingKeyFileExists: fs.existsSync(walletSpendingKeySecretPath(networkName, walletName)),
     channelName: null,
     l1Address: null,
     l2Address: null,
@@ -3635,7 +3596,7 @@ async function inspectGuideWallet({ walletName, networkName, provider, artifacts
   }
 
   try {
-    const walletContext = loadWallet(walletName, resolveWalletDefaultSecret(networkName, walletName), networkName);
+    const walletContext = loadWallet(walletName, null, networkName);
     const walletMetadata = loadWalletMetadata(walletName, networkName);
     assertWalletMatchesMetadata(walletContext, walletMetadata);
     result.channelName = walletContext.wallet.channelName;
@@ -3643,10 +3604,13 @@ async function inspectGuideWallet({ walletName, networkName, provider, artifacts
     result.l2Address = getAddress(walletContext.wallet.l2Address);
     result.unusedNoteCount = Object.keys(walletContext.wallet.notes.unused).length;
     result.spentNoteCount = Object.keys(walletContext.wallet.notes.spent).length;
-    const unusedNoteBalance = Object.values(walletContext.wallet.notes.unused)
-      .reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
-    result.unusedNoteBalanceBaseUnits = unusedNoteBalance.toString();
-    result.unusedNoteBalanceTokens = ethers.formatUnits(unusedNoteBalance, Number(walletContext.wallet.canonicalAssetDecimals));
+    const unusedValues = Object.values(walletContext.wallet.notes.unused).map((note) => note.value);
+    if (unusedValues.every((value) => value !== null)) {
+      const unusedNoteBalance = Object.values(walletContext.wallet.notes.unused)
+        .reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
+      result.unusedNoteBalanceBaseUnits = unusedNoteBalance.toString();
+      result.unusedNoteBalanceTokens = ethers.formatUnits(unusedNoteBalance, Number(walletContext.wallet.canonicalAssetDecimals));
+    }
 
     if (provider && artifactsInstalled && walletChannelWorkspaceIsReady(walletContext)) {
       const context = await loadWorkspaceContext(walletContext.wallet.channelName, networkName, provider);
@@ -3930,7 +3894,8 @@ async function loadWalletChannelRegistrationState({
   provider,
   requireRegistration = false,
 }) {
-  const { signer, l2Identity } = restoreWalletParticipant(walletContext, provider);
+  const signer = requireWalletOwnerSigner(walletContext, provider);
+  const l2Identity = restoreParticipantIdentityFromWallet(walletContext.wallet);
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const matchesWallet = registration.exists
@@ -4091,8 +4056,8 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     action: "channel join",
     workspace: context.workspaceName,
     wallet: walletContext.walletName,
-    walletSecretSource: resolvedWalletSecretSource(args),
-    walletSecretFile: resolvedWalletSecretFile(network.name, walletContext.walletName),
+    walletSecretSource: "wallet-secret-path-one-time-derivation",
+    walletSecretStored: false,
     channelName: context.workspace.channelName,
     channelId: context.workspace.channelId,
     l1Address: signer.address,
@@ -4120,18 +4085,19 @@ async function handleExitChannel({ args, provider }) {
     provider,
     progressAction: "channel exit",
   });
+  const ownerSigner = requireWalletOwnerSigner(walletContext, provider);
   const network = contextResult.network;
   expect(
     channelFund === 0n,
     [
-      `The current channel fund for ${signer.address} is ${channelFund.toString()}.`,
+      `The current channel fund for ${ownerSigner.address} is ${channelFund.toString()}.`,
       "channel exit requires a zero channel balance.",
       "Run wallet withdraw-channel first, then retry channel exit.",
     ].join(" "),
   );
-  const [refundAmount, refundBps] = await context.channelManager.getExitTollRefundQuote(signer.address);
+  const [refundAmount, refundBps] = await context.channelManager.getExitTollRefundQuote(ownerSigner.address);
   const receipt = await waitForReceipt(
-    await context.bridgeTokenVault.connect(signer).exitChannel(ethers.toBigInt(context.workspace.channelId)),
+    await context.bridgeTokenVault.connect(ownerSigner).exitChannel(ethers.toBigInt(context.workspace.channelId)),
   );
   const cleanup = removeLocalWalletArtifacts(walletContext.walletName, walletMetadata.network);
 
@@ -4141,7 +4107,7 @@ async function handleExitChannel({ args, provider }) {
     network: walletMetadata.network,
     channelName: walletMetadata.channelName,
     channelId: context.workspace.channelId,
-    l1Address: signer.address,
+    l1Address: ownerSigner.address,
     currentUserValue: channelFund.toString(),
     refundAmountBaseUnits: refundAmount.toString(),
     refundAmountTokens: ethers.formatUnits(refundAmount, Number(context.workspace.canonicalAssetDecimals)),
@@ -4262,7 +4228,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   writeJson(path.join(operationDir, `${operationName}-receipt.json`), sanitizeReceipt(receipt));
   writeJson(path.join(operationDir, "state_snapshot.json"), transition.nextSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), transition.nextSnapshot);
-  sealWalletOperationDir(operationDir, walletContext.walletSecret);
+  sealWalletOperationDir(operationDir, walletOperationSealSecret(walletContext));
 
   context.currentSnapshot = transition.nextSnapshot;
   await refreshPersistedWorkspaceAfterLocalTransaction({
@@ -4377,6 +4343,7 @@ function resolveFunctionMetadataProofForExecution({
 
 async function handleMintNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
+  requireWalletSpendingCapability(wallet);
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const amountInputs = parseAmountVector(requireArg(args.amounts, "--amounts"), {
     allowZeroEntries: true,
@@ -4450,6 +4417,8 @@ async function handleMintNotes({ args, provider }) {
 
 async function handleRedeemNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
+  requireWalletViewingCapability(wallet);
+  requireWalletSpendingCapability(wallet);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
   const preparedContextResult = await loadFreshWalletChannelContext({
     walletContext: wallet,
@@ -4519,13 +4488,20 @@ async function handleWalletGetNotes({ args, provider }) {
     progressAction: "wallet get-notes",
   });
   const context = contextResult.context;
-  const noteReceiveFreshness = await ensureWalletNoteReceiveStateCurrent({
-    walletContext: wallet,
-    context,
-    provider,
-    progressAction: "wallet get-notes",
-    preConsumedBlockDelta: contextResult.autoRecoveryBlockDelta,
-  });
+  const noteReceiveFreshness = wallet.wallet.noteReceivePrivateKey
+    ? await ensureWalletNoteReceiveStateCurrent({
+      walletContext: wallet,
+      context,
+      provider,
+      progressAction: "wallet get-notes",
+      preConsumedBlockDelta: contextResult.autoRecoveryBlockDelta,
+    })
+    : {
+      nextBlock: wallet.wallet.noteReceiveLastScannedBlock,
+      latestBlock: await provider.getBlockNumber(),
+      recoveredWalletWorkspace: false,
+      recoveredDeliveryState: null,
+    };
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
     .map((commitment) => wallet.wallet.notes.unused[commitment])
@@ -4545,8 +4521,9 @@ async function handleWalletGetNotes({ args, provider }) {
     canonicalAssetDecimals,
   })));
 
-  const unusedTotal = unusedTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
-  const spentTotal = spentTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
+  const canComputeTotals = [...unusedTrackedNotes, ...spentTrackedNotes].every((note) => note.value !== null);
+  const unusedTotal = canComputeTotals ? unusedTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n) : null;
+  const spentTotal = canComputeTotals ? spentTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n) : null;
 
   printJson({
     action: "wallet get-notes",
@@ -4556,13 +4533,14 @@ async function handleWalletGetNotes({ args, provider }) {
     controller: wallet.wallet.controller,
     unusedNotes,
     spentNotes,
-    unusedTotalBaseUnits: unusedTotal.toString(),
-    unusedTotalTokens: ethers.formatUnits(unusedTotal, canonicalAssetDecimals),
-    spentTotalBaseUnits: spentTotal.toString(),
-    spentTotalTokens: ethers.formatUnits(spentTotal, canonicalAssetDecimals),
+    unusedTotalBaseUnits: unusedTotal?.toString() ?? null,
+    unusedTotalTokens: unusedTotal === null ? null : ethers.formatUnits(unusedTotal, canonicalAssetDecimals),
+    spentTotalBaseUnits: spentTotal?.toString() ?? null,
+    spentTotalTokens: spentTotal === null ? null : ethers.formatUnits(spentTotal, canonicalAssetDecimals),
     bridgeStatusMismatches: [...unusedNotes, ...spentNotes].filter((note) => !note.walletStatusMatchesBridge).length,
     noteReceiveLastScannedBlock: noteReceiveFreshness.nextBlock,
     latestBlock: noteReceiveFreshness.latestBlock,
+    viewingKeyAvailable: Boolean(wallet.wallet.noteReceivePrivateKey),
     recoveredWalletWorkspace: noteReceiveFreshness.recoveredWalletWorkspace,
     recoveredFromLogs: noteReceiveFreshness.recoveredDeliveryState?.importedNotes ?? 0,
     scannedDeliveryLogs: noteReceiveFreshness.recoveredDeliveryState?.scannedLogs ?? 0,
@@ -4572,6 +4550,8 @@ async function handleWalletGetNotes({ args, provider }) {
 
 async function handleTransferNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
+  requireWalletViewingCapability(wallet);
+  requireWalletSpendingCapability(wallet);
   const { signer } = restoreWalletParticipant(wallet, provider);
   const preparedContextResult = await loadFreshWalletChannelContext({
     walletContext: wallet,
@@ -4759,6 +4739,7 @@ function ensureWallet({
   ensureDir(path.join(walletDir, "operations"));
 
   const wallet = normalizeWallet({
+    walletFormatVersion: WALLET_WORKSPACE_FORMAT_VERSION,
     name: walletName,
     network: channelContext.workspace.network,
     rpcUrl,
@@ -4775,10 +4756,8 @@ function ensureWallet({
     l2AccountingVault: channelContext.workspace.l2AccountingVault,
     liquidBalancesSlot: channelContext.workspace.liquidBalancesSlot,
     l1Address: signerAddress,
-    l1PrivateKey: normalizePrivateKey(signerPrivateKey),
     l2Address: l2Identity.l2Address,
-    l2PrivateKey: ethers.hexlify(l2Identity.l2PrivateKey),
-    l2PublicKey: ethers.hexlify(l2Identity.l2PublicKey),
+    l2PublicKey: l2Identity.l2PublicKey ? ethers.hexlify(l2Identity.l2PublicKey) : null,
     l2DerivationMode: CHANNEL_BOUND_L2_DERIVATION_MODE,
     l2DerivationChannelName: channelContext.workspace.channelName,
     l2StorageKey: storageKey,
@@ -4794,13 +4773,18 @@ function ensureWallet({
       spent: {},
     },
   });
+  if (l2Identity.l2PrivateKey) {
+    wallet.l2PrivateKey = ethers.hexlify(l2Identity.l2PrivateKey);
+  }
+  wallet.noteReceivePrivateKey = normalizePrivateKey(noteReceiveKeyMaterial.privateKey);
 
   const context = {
     walletName,
     walletDir,
     wallet,
-    walletSecret,
+    walletSecret: wallet.l2PrivateKey,
   };
+  persistWalletKeys(context);
   persistWallet(context);
   persistWalletMetadata(context);
   return context;
@@ -4816,9 +4800,9 @@ function normalizeWallet(wallet) {
     ...wallet,
     canonicalAssetDecimals: Number(wallet.canonicalAssetDecimals),
     l2Nonce: Number(wallet.l2Nonce),
-    l1PrivateKey: normalizePrivateKey(wallet.l1PrivateKey),
-    l2PrivateKey: ethers.hexlify(wallet.l2PrivateKey),
-    l2PublicKey: ethers.hexlify(wallet.l2PublicKey),
+    l2PrivateKey: wallet.l2PrivateKey ? ethers.hexlify(wallet.l2PrivateKey) : null,
+    l2PublicKey: wallet.l2PublicKey ? ethers.hexlify(wallet.l2PublicKey) : null,
+    noteReceivePrivateKey: wallet.noteReceivePrivateKey ? normalizePrivateKey(wallet.noteReceivePrivateKey) : null,
     noteReceiveDerivationVersion: Number(wallet.noteReceiveDerivationVersion),
     noteReceiveTypedDataMethod: wallet.noteReceiveTypedDataMethod,
     noteReceivePubKeyX: normalizeBytes32Hex(wallet.noteReceivePubKeyX),
@@ -4828,18 +4812,18 @@ function normalizeWallet(wallet) {
       unused: Object.fromEntries(unusedNotes.map((note) => [note.commitment, note])),
       spent: Object.fromEntries(spentNotes.map((note) => [note.nullifier, note])),
       unusedOrder: unusedNotes.map((note) => note.commitment),
-      unusedBalance: unusedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n).toString(),
+      unusedBalance: unusedNotes.every((note) => note.value !== null)
+        ? unusedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n).toString()
+        : null,
     },
   };
 }
 
 function assertWalletHasCurrentFormat(wallet, walletName) {
   const requiredKeys = [
+    "walletFormatVersion",
     "canonicalAssetDecimals",
     "l2Nonce",
-    "l1PrivateKey",
-    "l2PrivateKey",
-    "l2PublicKey",
     "noteReceiveDerivationVersion",
     "noteReceiveTypedDataMethod",
     "noteReceivePubKeyX",
@@ -4855,15 +4839,23 @@ function assertWalletHasCurrentFormat(wallet, walletName) {
     wallet.notes && typeof wallet.notes.unused === "object" && typeof wallet.notes.spent === "object",
     `Wallet ${walletName} was not created with the current CLI notes format.`,
   );
+  expect(
+    Number(wallet.walletFormatVersion) === WALLET_WORKSPACE_FORMAT_VERSION,
+    [
+      `Wallet ${walletName} uses unsupported wallet workspace format ${wallet.walletFormatVersion ?? "legacy"}.`,
+      "Remove or archive the legacy wallet workspace and rebuild it with wallet recover-workspace.",
+    ].join(" "),
+  );
 }
 
 function normalizeTrackedNote(note) {
   return {
-    owner: getAddress(note.owner),
-    value: ethers.toBigInt(note.value).toString(),
-    salt: normalizeBytes32Hex(note.salt),
+    owner: note.owner ? getAddress(note.owner) : null,
+    value: note.value !== undefined && note.value !== null ? ethers.toBigInt(note.value).toString() : null,
+    salt: note.salt ? normalizeBytes32Hex(note.salt) : null,
     commitment: normalizeBytes32Hex(note.commitment),
     nullifier: normalizeBytes32Hex(note.nullifier),
+    encryptedNoteValue: note.encryptedNoteValue ? normalizeEncryptedNoteValueWords(note.encryptedNoteValue) : null,
     status: note.status,
     sourceFunction: note.sourceFunction ?? null,
     sourceTxHash: note.sourceTxHash ?? null,
@@ -4892,9 +4884,10 @@ async function buildWalletNoteBridgeStatus({
   return {
     owner: note.owner,
     valueBaseUnits: note.value,
-    valueTokens: ethers.formatUnits(ethers.toBigInt(note.value), canonicalAssetDecimals),
+    valueTokens: note.value === null ? null : ethers.formatUnits(ethers.toBigInt(note.value), canonicalAssetDecimals),
     commitment: note.commitment,
     nullifier: note.nullifier,
+    encryptedNoteValue: note.encryptedNoteValue,
     walletStatus: note.status,
     bridgeCommitmentExists: commitmentExists,
     bridgeNullifierUsed: nullifierUsed,
@@ -4918,8 +4911,8 @@ async function readBooleanStorageValueFromSnapshot({ snapshot, storageAddress, s
 }
 
 function compareNotesByValueDesc(left, right) {
-  const leftValue = ethers.toBigInt(left.value);
-  const rightValue = ethers.toBigInt(right.value);
+  const leftValue = left.value === null || left.value === undefined ? 0n : ethers.toBigInt(left.value);
+  const rightValue = right.value === null || right.value === undefined ? 0n : ethers.toBigInt(right.value);
   if (leftValue === rightValue) {
     return left.commitment.localeCompare(right.commitment);
   }
@@ -4932,6 +4925,7 @@ function buildTrackedNote(note, sourceFunction, sourceTxHash, bridgeKeys = {}) {
     ...normalizedNote,
     commitment: normalizeBytes32Hex(computeNoteCommitment(normalizedNote)),
     nullifier: normalizeBytes32Hex(computeNullifier(normalizedNote)),
+    encryptedNoteValue: note.encryptedNoteValue ? normalizeEncryptedNoteValueWords(note.encryptedNoteValue) : null,
     status: "unused",
     sourceFunction,
     sourceTxHash,
@@ -4964,13 +4958,11 @@ async function recoverWalletReceivedNotes({
   progressAction = null,
   fromGenesis = false,
 }) {
-  const resolvedNoteReceiveKeyMaterial = noteReceiveKeyMaterial ?? await deriveNoteReceiveKeyMaterial({
-    signer,
-    chainId: context.workspace.chainId,
-    channelId: context.workspace.channelId,
-    channelName: context.workspace.channelName,
-    account: signer.address,
-  });
+  const resolvedNoteReceiveKeyMaterial = noteReceiveKeyMaterial ?? {
+    privateKey: walletContext.wallet.noteReceivePrivateKey,
+    noteReceivePubKey: walletNoteReceivePubKey(walletContext),
+  };
+  requireWalletViewingCapability(walletContext);
   const recoveredDeliveryState = await recoverDeliveredNotesFromEventLogs({
     walletContext,
     context,
@@ -5070,10 +5062,14 @@ async function recoverDeliveredNotesFromEventLogs({
       owner: walletContext.wallet.l2Address,
       value: recoveredValue,
       salt: computeEncryptedNoteSalt(encryptedNoteValue),
+      encryptedNoteValue,
     });
     const commitment = normalizeBytes32Hex(computeNoteCommitment(plaintextNote));
     const nullifier = normalizeBytes32Hex(computeNullifier(plaintextNote));
-    const trackedNote = buildTrackedNote(plaintextNote, sourceFunction, log.transactionHash, {
+    const trackedNote = buildTrackedNote({
+      ...plaintextNote,
+      encryptedNoteValue,
+    }, sourceFunction, log.transactionHash, {
       bridgeCommitmentKey: derivePrivateStateControllerMappingStorageKey(commitment, commitmentExistsSlot),
       bridgeNullifierKey: derivePrivateStateControllerMappingStorageKey(nullifier, nullifierUsedSlot),
     });
@@ -5530,6 +5526,7 @@ function buildMintEncryptedOutputs({ wallet, values }) {
       owner: wallet.wallet.l2Address,
       value: ethers.toBigInt(value).toString(),
       salt: computeEncryptedNoteSalt(encryptedNoteValue),
+      encryptedNoteValue,
     });
   }
   return {
@@ -5587,6 +5584,7 @@ async function buildTransferNotesTemplatePayload({
       owner: recipient,
       value: ethers.toBigInt(outputAmounts[index]).toString(),
       salt,
+      encryptedNoteValue,
     });
   }
   return {
@@ -5615,6 +5613,10 @@ function loadWalletUnusedInputNotes(walletContext, noteIds) {
   return noteIds.map((noteId) => {
     const trackedNote = walletContext.wallet.notes.unused[noteId];
     expect(trackedNote, `Unknown unused note commitment: ${noteId}.`);
+    expect(
+      trackedNote.owner && trackedNote.value !== null && trackedNote.salt,
+      `Note ${noteId} is encrypted-only. Import the wallet viewing key before spending it.`,
+    );
     return normalizePlaintextNote(trackedNote);
   });
 }
@@ -5963,6 +5965,7 @@ async function executeWalletDirectTemplateCommand({
 }) {
   emitProgress(operationName, "loading");
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
+  requireWalletSpendingCapability(wallet);
   const {
     txSubmitter,
     source: txSubmitterSource,
@@ -6113,7 +6116,7 @@ async function executeWalletTemplateSend({
     receipt,
     progressAction: operationName,
   });
-  sealWalletOperationDir(operationDir, wallet.walletSecret);
+  sealWalletOperationDir(operationDir, walletOperationSealSecret(wallet));
 
   return {
     wallet,
@@ -6201,34 +6204,55 @@ async function loadJoinChannelContext({ args, network, provider }) {
   };
 }
 
-function loadWallet(walletName, walletSecret, networkName) {
+function loadWallet(walletName, _walletSecret, networkName) {
   const normalizedWalletName = requireWalletName({ wallet: walletName });
   const normalizedNetworkName = requireNetworkName({ network: networkName });
   const walletDir = walletPath(normalizedWalletName, normalizedNetworkName);
+  assertNoLegacyWalletWorkspace(walletDir, normalizedWalletName);
   if (!walletConfigExists(walletDir)) {
     throw cliError(CLI_ERROR_CODES.UNKNOWN_WALLET, `Unknown wallet: ${normalizedWalletName} on ${normalizedNetworkName}.`);
   }
-  const rawWallet = readEncryptedWalletJson(walletConfigPath(walletDir), walletSecret);
+  const rawWallet = readJson(walletNotesMetadataPath(walletDir));
+  const spendingKey = readWalletKeySecretIfExists({
+    networkName: normalizedNetworkName,
+    walletName: normalizedWalletName,
+    keyKind: "spending",
+  });
+  const viewingKey = readWalletKeySecretIfExists({
+    networkName: normalizedNetworkName,
+    walletName: normalizedWalletName,
+    keyKind: "viewing",
+  });
+  if (spendingKey) {
+    rawWallet.l2PrivateKey = spendingKey.privateKey;
+    rawWallet.l2PublicKey = spendingKey.metadata?.l2PublicKey ?? rawWallet.l2PublicKey;
+  }
+  if (viewingKey) {
+    rawWallet.noteReceivePrivateKey = viewingKey.privateKey;
+  }
   assertWalletHasRequiredKeys(rawWallet, normalizedWalletName);
   const wallet = normalizeWallet(rawWallet);
   assertWalletUsesChannelBoundDerivation(wallet, normalizedWalletName);
-  const restoredIdentity = restoreParticipantIdentityFromWallet(wallet);
-  expect(
-    wallet.l2Address === restoredIdentity.l2Address,
-    `Wallet ${normalizedWalletName} is internally inconsistent: stored keys do not match the stored L2 address.`,
-  );
+  if (wallet.l2PrivateKey) {
+    const restoredIdentity = restoreParticipantIdentityFromWallet(wallet);
+    expect(
+      wallet.l2Address === restoredIdentity.l2Address,
+      `Wallet ${normalizedWalletName} is internally inconsistent: stored keys do not match the stored L2 address.`,
+    );
+  }
+  hydrateWalletNotesWithViewingKey(wallet);
   const context = {
     walletName: normalizedWalletName,
     walletDir,
     wallet,
-    walletSecret,
+    walletSecret: wallet.l2PrivateKey ?? wallet.noteReceivePrivateKey ?? null,
   };
   return context;
 }
 
 function loadUnlockedWalletWithMetadata(args) {
   const networkName = requireNetworkName(args);
-  const wallet = loadWallet(requireWalletName(args), requireWalletSecret(args), networkName);
+  const wallet = loadWallet(requireWalletName(args), null, networkName);
   const walletMetadata = loadWalletMetadata(wallet.walletName, networkName);
   assertWalletMatchesMetadata(wallet, walletMetadata);
   expect(
@@ -6244,19 +6268,82 @@ function loadUnlockedWalletWithMetadata(args) {
   };
 }
 
+function assertNoLegacyWalletWorkspace(walletDir, walletName) {
+  if (!legacyWalletConfigExists(walletDir)) {
+    return;
+  }
+  throw new Error([
+    `Legacy wallet workspace detected for ${walletName}: ${walletConfigPath(walletDir)}.`,
+    "The CLI no longer supports the full-control wallet.json format.",
+    "Archive or remove the legacy wallet workspace and rebuild metadata with wallet recover-workspace.",
+  ].join(" "));
+}
+
+function readWalletKeySecretIfExists({ networkName, walletName, keyKind }) {
+  const secretPath = keyKind === "spending"
+    ? walletSpendingKeySecretPath(networkName, walletName)
+    : walletViewingKeySecretPath(networkName, walletName);
+  if (!fs.existsSync(secretPath)) {
+    return null;
+  }
+  const payload = JSON.parse(readSecretFile(secretPath, `${keyKind} key`));
+  validateWalletKeyPayload(payload, keyKind);
+  return payload;
+}
+
+function validateWalletKeyPayload(payload, keyKind) {
+  expect(payload?.format === WALLET_KEY_EXPORT_FORMAT, `Invalid ${keyKind} key file format.`);
+  expect(Number(payload.formatVersion) === WALLET_EXPORT_FORMAT_VERSION, `Unsupported ${keyKind} key file version.`);
+  expect(payload.keyKind === keyKind, `Expected ${keyKind} key file, received ${payload.keyKind}.`);
+  expect(typeof payload.privateKey === "string" && payload.privateKey.length > 0, `Missing ${keyKind} private key.`);
+  expect(payload.metadata && typeof payload.metadata === "object", `Missing ${keyKind} key metadata.`);
+}
+
+function hydrateWalletNotesWithViewingKey(wallet) {
+  if (!wallet.noteReceivePrivateKey) {
+    return;
+  }
+  const noteGroups = [wallet.notes?.unused ?? {}, wallet.notes?.spent ?? {}];
+  for (const notes of noteGroups) {
+    for (const note of Object.values(notes)) {
+      if (!note.encryptedNoteValue || note.value !== null) {
+        continue;
+      }
+      try {
+        const { scheme } = unpackEncryptedNoteValue(note.encryptedNoteValue);
+        let value;
+        if (scheme === ENCRYPTED_NOTE_SCHEME_TRANSFER) {
+          value = decryptEncryptedNoteValue({
+            encryptedValue: note.encryptedNoteValue,
+            noteReceivePrivateKey: wallet.noteReceivePrivateKey,
+            chainId: wallet.chainId,
+            channelId: wallet.channelId,
+            owner: wallet.l2Address,
+          });
+        } else if (scheme === ENCRYPTED_NOTE_SCHEME_SELF_MINT) {
+          value = decryptMintEncryptedNoteValue({
+            encryptedValue: note.encryptedNoteValue,
+            noteReceivePrivateKey: wallet.noteReceivePrivateKey,
+            chainId: wallet.chainId,
+            channelId: wallet.channelId,
+            owner: wallet.l2Address,
+          });
+        } else {
+          continue;
+        }
+        note.owner = wallet.l2Address;
+        note.value = ethers.toBigInt(value).toString();
+        note.salt = computeEncryptedNoteSalt(note.encryptedNoteValue);
+      } catch {
+        // Keep encrypted-only note records readable even when the local viewing key cannot decrypt them.
+      }
+    }
+  }
+  wallet.notes = normalizeWallet(wallet).notes;
+}
+
 function assertWalletHasRequiredKeys(wallet, walletName) {
-  expect(
-    typeof wallet.l1PrivateKey === "string" && wallet.l1PrivateKey.length > 0,
-    `Wallet ${walletName} is missing the stored L1 private key.`,
-  );
-  expect(
-    typeof wallet.l2PrivateKey === "string" && wallet.l2PrivateKey.length > 0,
-    `Wallet ${walletName} is missing the stored L2 private key.`,
-  );
-  expect(
-    typeof wallet.l2PublicKey === "string" && wallet.l2PublicKey.length > 0,
-    `Wallet ${walletName} is missing the stored L2 public key.`,
-  );
+  expect(wallet.walletFormatVersion !== undefined, `Wallet ${walletName} is missing walletFormatVersion.`);
 }
 
 function assertWalletUsesChannelBoundDerivation(wallet, walletName) {
@@ -6277,6 +6364,13 @@ function assertWalletUsesChannelBoundDerivation(wallet, walletName) {
 }
 
 function restoreParticipantIdentityFromWallet(wallet) {
+  if (!wallet.l2PrivateKey) {
+    return {
+      l2PrivateKey: null,
+      l2PublicKey: wallet.l2PublicKey ? Uint8Array.from(ethers.getBytes(wallet.l2PublicKey)) : null,
+      l2Address: getAddress(wallet.l2Address),
+    };
+  }
   const l2PrivateKey = Uint8Array.from(ethers.getBytes(wallet.l2PrivateKey));
   const l2PublicKey = Uint8Array.from(ethers.getBytes(wallet.l2PublicKey));
   const l2Address = getAddress(fromEdwardsToAddress(l2PublicKey).toString());
@@ -6288,7 +6382,14 @@ function restoreParticipantIdentityFromWallet(wallet) {
 }
 
 function restoreWalletSigner(walletContext, provider) {
-  return new Wallet(normalizePrivateKey(walletContext.wallet.l1PrivateKey), provider);
+  const privateKey = findAccountPrivateKeyForAddress(walletContext.wallet.network, walletContext.wallet.l1Address);
+  if (privateKey) {
+    return new Wallet(privateKey, provider);
+  }
+  return {
+    address: getAddress(walletContext.wallet.l1Address),
+    provider,
+  };
 }
 
 function restoreWalletParticipant(walletContext, provider) {
@@ -6296,6 +6397,75 @@ function restoreWalletParticipant(walletContext, provider) {
     signer: restoreWalletSigner(walletContext, provider),
     l2Identity: restoreParticipantIdentityFromWallet(walletContext.wallet),
   };
+}
+
+function requireWalletOwnerSigner(walletContext, provider) {
+  const signer = restoreWalletSigner(walletContext, provider);
+  expect(
+    typeof signer.privateKey === "string",
+    [
+      `Missing local account secret for wallet owner ${walletContext.wallet.l1Address}.`,
+      "Import the matching account secret or use a command-specific transaction submitter where supported.",
+    ].join(" "),
+  );
+  return signer;
+}
+
+function requireWalletSpendingCapability(walletContext) {
+  expect(
+    walletContext.wallet.l2PrivateKey,
+    [
+      `Wallet ${walletContext.walletName} is missing its spending key.`,
+      "Import it with wallet import spending-key before commands that spend notes or change L2 channel accounting state.",
+    ].join(" "),
+  );
+}
+
+function requireWalletViewingCapability(walletContext) {
+  expect(
+    walletContext.wallet.noteReceivePrivateKey,
+    [
+      `Wallet ${walletContext.walletName} is missing its viewing key.`,
+      "Import it with wallet import viewing-key before commands that decrypt or refresh received notes.",
+    ].join(" "),
+  );
+}
+
+function walletOperationSealSecret(walletContext) {
+  const secret = walletContext.wallet.l2PrivateKey
+    ?? walletContext.wallet.noteReceivePrivateKey
+    ?? findAccountPrivateKeyForAddress(walletContext.wallet.network, walletContext.wallet.l1Address);
+  expect(
+    secret,
+    `Wallet ${walletContext.walletName} needs a local key to seal operation artifacts.`,
+  );
+  return secret;
+}
+
+function findAccountPrivateKeyForAddress(networkName, l1Address) {
+  const accountsRoot = path.join(secretRoot, requireNetworkName({ network: networkName }), "accounts");
+  if (!fs.existsSync(accountsRoot)) {
+    return null;
+  }
+  for (const entry of fs.readdirSync(accountsRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const privateKeyPath = path.join(accountsRoot, entry.name, "private-key");
+    if (!fs.existsSync(privateKeyPath)) {
+      continue;
+    }
+    try {
+      const privateKey = normalizePrivateKey(readSecretFile(privateKeyPath, "--account"));
+      const signer = new Wallet(privateKey);
+      if (ethers.toBigInt(getAddress(signer.address)) === ethers.toBigInt(getAddress(l1Address))) {
+        return privateKey;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 function loadBridgeResources({ chainId }) {
@@ -6316,10 +6486,11 @@ function loadWalletMetadata(walletName, networkName) {
   const normalizedWalletName = requireWalletName({ wallet: walletName });
   const normalizedNetworkName = requireNetworkName({ network: networkName });
   const walletDir = walletPath(normalizedWalletName, normalizedNetworkName);
+  assertNoLegacyWalletWorkspace(walletDir, normalizedWalletName);
   if (!walletConfigExists(walletDir)) {
     throw cliError(CLI_ERROR_CODES.UNKNOWN_WALLET, `Unknown wallet: ${normalizedWalletName} on ${normalizedNetworkName}.`);
   }
-  const metadataPath = walletMetadataPath(walletDir);
+  const metadataPath = walletNotesMetadataPath(walletDir);
   if (!fs.existsSync(metadataPath)) {
     throw new Error(`Wallet ${normalizedWalletName} is missing unencrypted metadata at ${metadataPath}.`);
   }
@@ -6348,14 +6519,14 @@ function assertWalletMatchesMetadata(walletContext, walletMetadata) {
     walletContext.wallet.network === walletMetadata.network,
     [
       `Wallet ${walletContext.walletName} metadata network (${walletMetadata.network}) does not match`,
-      `the encrypted wallet network (${walletContext.wallet.network}).`,
+      `the wallet note metadata network (${walletContext.wallet.network}).`,
     ].join(" "),
   );
   expect(
     walletContext.wallet.channelName === walletMetadata.channelName,
     [
       `Wallet ${walletContext.walletName} metadata channelName (${walletMetadata.channelName}) does not match`,
-      `the encrypted wallet channel (${walletContext.wallet.channelName}).`,
+      `the wallet note metadata channel (${walletContext.wallet.channelName}).`,
     ].join(" "),
   );
 }
@@ -7750,6 +7921,13 @@ function parseArgs(argv) {
     && parsed.positional[1]
   ) {
     parsed.command = `${parsed.command}-${parsed.positional[1]}`;
+    if (
+      parsed.positional[0] === "wallet"
+      && (parsed.positional[1] === "export" || parsed.positional[1] === "import")
+      && parsed.positional[2]
+    ) {
+      parsed.command = `${parsed.command}-${parsed.positional[2]}`;
+    }
     parsed.positional = [parsed.command];
   }
   return parsed;
@@ -7777,18 +7955,6 @@ function parseTokenAmount(value, decimals) {
   } catch {
     throw new Error(`Invalid token amount ${value} for asset decimals=${decimals}.`);
   }
-}
-
-function requireWalletSecret(args) {
-  if (args.wallet !== undefined && args.network !== undefined) {
-    return resolveWalletSecretForName({
-      networkName: requireNetworkName(args),
-      walletName: requireWalletName(args),
-    });
-  }
-  throw new Error(
-    "Missing --wallet and --network. Wallet commands use the wallet-local default secret file.",
-  );
 }
 
 function requireArg(value, label) {
@@ -7855,6 +8021,13 @@ function requireL1Signer(args, provider) {
 
 function resolveTxSubmitterSigner({ args, ownerSigner, provider }) {
   if (args.txSubmitter === undefined) {
+    expect(
+      typeof ownerSigner.privateKey === "string",
+      [
+        `Missing local account secret for wallet owner ${ownerSigner.address}.`,
+        "Pass --tx-submitter <ACCOUNT> or import the matching local account secret.",
+      ].join(" "),
+    );
     return {
       txSubmitter: ownerSigner,
       source: "wallet-owner",
@@ -7889,41 +8062,14 @@ function resolveStandalonePrivateKeySource(args) {
   ));
 }
 
-function resolveWalletSecretForName({ networkName, walletName }) {
-  return resolveWalletDefaultSecret(networkName, walletName);
-}
-
-function resolvedWalletSecretSource(args) {
-  if (args.walletSecretPath !== undefined) return "wallet-secret-path";
-  return "wallet-default";
-}
-
-function resolvedWalletSecretFile(networkName, walletName) {
-  return walletSecretPath(networkName, walletName);
-}
-
-function resolveWalletDefaultSecret(networkName, walletName) {
-  const secretPath = walletSecretPath(networkName, walletName);
-  if (!fs.existsSync(secretPath)) {
-    throw cliError(
-      CLI_ERROR_CODES.MISSING_WALLET_SECRET,
-      [
-        `Missing wallet default secret file: ${secretPath}.`,
-        "Run channel join with --wallet-secret-path before wallet commands.",
-      ].join(" "),
-    );
-  }
-  return readSecretFile(secretPath, "wallet default secret file");
-}
-
 function prepareJoinWalletSecretForName({
   args,
   networkName,
   walletName,
 }) {
-  const secretPath = walletSecretPath(networkName, walletName);
   const { channelName } = parseWalletName(walletName);
   const walletDir = walletPath(walletName, networkName);
+  assertNoLegacyWalletWorkspace(walletDir, walletName);
   expect(
     !walletConfigExists(walletDir),
     [
@@ -7936,14 +8082,7 @@ function prepareJoinWalletSecretForName({
     ].join(" "),
   );
   const sourcePath = path.resolve(String(requireArg(args.walletSecretPath, "--wallet-secret-path")));
-  const canonicalPath = path.resolve(secretPath);
-  const walletSecret = sourcePath === canonicalPath
-    ? readSecretFile(sourcePath, "--wallet-secret-path")
-    : readImportSecretSourceFile(sourcePath, "--wallet-secret-path");
-  if (sourcePath !== canonicalPath) {
-    writeSecretFile(canonicalPath, walletSecret);
-  }
-  return walletSecret;
+  return readImportSecretSourceFile(sourcePath, "--wallet-secret-path");
 }
 
 function channelWorkspacePath(networkName, name) {
@@ -7989,6 +8128,24 @@ function walletSecretPath(networkName, walletName) {
     "wallets",
     slugifyPathComponent(walletName),
     "secret",
+  );
+}
+
+function walletViewingKeySecretPath(networkName, walletName) {
+  return walletKeySecretPath(networkName, walletName, "viewing");
+}
+
+function walletSpendingKeySecretPath(networkName, walletName) {
+  return walletKeySecretPath(networkName, walletName, "spending");
+}
+
+function walletKeySecretPath(networkName, walletName, keyKind) {
+  return path.join(
+    secretRoot,
+    requireNetworkName({ network: networkName }),
+    "wallets",
+    slugifyPathComponent(walletName),
+    `${keyKind}.key`,
   );
 }
 
@@ -8050,9 +8207,12 @@ function listLocalWallets({ networkFilter = null, channelFilter = null } = {}) {
           network: networkEntry.name,
           channelName: channelEntry.name,
           walletDir,
-          metadataPath: walletMetadataPath(walletDir),
-          hasMetadata: fs.existsSync(walletMetadataPath(walletDir)),
-          hasEncryptedWallet: walletConfigExists(walletDir),
+          metadataPath: walletNotesMetadataPath(walletDir),
+          hasMetadata: fs.existsSync(walletNotesMetadataPath(walletDir)),
+          hasEncryptedWallet: false,
+          hasBackupMetadata: walletConfigExists(walletDir),
+          hasViewingKey: fs.existsSync(walletViewingKeySecretPath(networkEntry.name, walletEntry.name)),
+          hasSpendingKey: fs.existsSync(walletSpendingKeySecretPath(networkEntry.name, walletEntry.name)),
         });
       }
     }
@@ -8080,8 +8240,8 @@ function resolveExportWalletInfo({ networkName, walletName }) {
     network: networkName,
     channelName: parseWalletName(walletName).channelName,
     walletDir,
-    metadataPath: walletMetadataPath(walletDir),
-    hasMetadata: fs.existsSync(walletMetadataPath(walletDir)),
+    metadataPath: walletNotesMetadataPath(walletDir),
+    hasMetadata: fs.existsSync(walletNotesMetadataPath(walletDir)),
     hasEncryptedWallet: walletConfigExists(walletDir),
   };
 }
@@ -8090,15 +8250,12 @@ function normalizeExportWalletInfo(walletInfo) {
   const wallet = requireWalletName({ wallet: walletInfo.wallet });
   const network = requireNetworkName({ network: walletInfo.network });
   const walletDir = walletInfo.walletDir ?? walletPath(wallet, network);
-  const metadataPath = walletMetadataPath(walletDir);
-  const encryptedWalletPath = walletConfigPath(walletDir);
+  assertNoLegacyWalletWorkspace(walletDir, wallet);
+  const metadataPath = walletNotesMetadataPath(walletDir);
   const metadata = readJsonIfExists(metadataPath);
   const channelName = metadata?.channelName ?? walletInfo.channelName ?? parseWalletName(wallet).channelName;
-  const walletSecret = walletSecretPath(network, wallet);
 
-  expect(fs.existsSync(encryptedWalletPath), `Wallet export cannot find encrypted wallet file: ${encryptedWalletPath}.`);
   expect(fs.existsSync(metadataPath), `Wallet export cannot find wallet metadata file: ${metadataPath}.`);
-  expect(fs.existsSync(walletSecret), `Wallet export cannot find wallet-local secret file: ${walletSecret}.`);
   expect(
     metadata.network === network,
     `Wallet export metadata network ${metadata.network} does not match ${network}.`,
@@ -8113,18 +8270,20 @@ function normalizeExportWalletInfo(walletInfo) {
     channelName,
     wallet,
     walletDir,
-    walletSecretPath: walletSecret,
   };
 }
 
-function walletExportFilePaths(walletInfo, { includeNotes }) {
+function walletBackupExportFilePaths(walletInfo) {
   const walletFiles = [
-    walletInfo.walletSecretPath,
-    walletConfigPath(walletInfo.walletDir),
-    walletMetadataPath(walletInfo.walletDir),
+    walletNotesMetadataPath(walletInfo.walletDir),
   ];
-  if (!includeNotes) {
-    return walletFiles;
+  for (const metadataPath of [
+    walletViewingKeyMetadataPath(walletInfo.walletDir),
+    walletSpendingKeyMetadataPath(walletInfo.walletDir),
+  ]) {
+    if (fs.existsSync(metadataPath)) {
+      walletFiles.push(metadataPath);
+    }
   }
 
   const workspaceDir = channelWorkspacePath(walletInfo.network, walletInfo.channelName);
@@ -8140,8 +8299,8 @@ function walletExportFilePaths(walletInfo, { includeNotes }) {
     expect(
       fs.existsSync(filePath),
       [
-        `wallet export --include-notes requires channel workspace cache file: ${filePath}.`,
-        "Run channel recover-workspace first, or export without --include-notes.",
+        `wallet export backup requires channel workspace cache file: ${filePath}.`,
+        "Run channel recover-workspace first.",
       ].join(" "),
     );
   }
@@ -8156,14 +8315,13 @@ function archivePathForLocalCliFile(filePath) {
 }
 
 function validateWalletExportManifest(manifest) {
-  expect(manifest?.format === WALLET_EXPORT_FORMAT, "Wallet import ZIP has an unsupported format.");
+  expect(manifest?.format === WALLET_BACKUP_EXPORT_FORMAT, "Wallet import ZIP has an unsupported format.");
   expect(
     Number(manifest.formatVersion) === WALLET_EXPORT_FORMAT_VERSION,
     `Wallet import ZIP format version ${manifest?.formatVersion} is not supported.`,
   );
   expect(Array.isArray(manifest.files), "Wallet import ZIP manifest is missing files[].");
   expect(Array.isArray(manifest.wallets), "Wallet import ZIP manifest is missing wallets[].");
-  expect(typeof manifest.includeNotes === "boolean", "Wallet import ZIP manifest is missing includeNotes.");
   expect(manifest.wallets.length > 0, "Wallet import ZIP manifest does not list any wallets.");
   const uniqueFiles = new Set(manifest.files);
   expect(uniqueFiles.size === manifest.files.length, "Wallet import ZIP manifest contains duplicate file paths.");
@@ -8185,8 +8343,8 @@ function validateWalletArchivePath(archivePath) {
   expect(!path.posix.isAbsolute(archivePath), `Wallet import ZIP path must be relative: ${archivePath}.`);
   expect(path.posix.normalize(archivePath) === archivePath, `Wallet import ZIP path is not normalized: ${archivePath}.`);
   expect(
-    archivePath.startsWith("secrets/") || archivePath.startsWith("workspace/"),
-    `Wallet import ZIP path must start with secrets/ or workspace/: ${archivePath}.`,
+    archivePath.startsWith("workspace/"),
+    `Wallet backup import ZIP path must start with workspace/: ${archivePath}.`,
   );
 }
 
@@ -8197,9 +8355,9 @@ function expectPathWithinRoot(targetPath, rootPath, message) {
 
 function applyImportedWalletFileMode(archivePath, targetPath) {
   if (
-    archivePath.startsWith("secrets/")
-    || archivePath.endsWith("/wallet.json")
-    || archivePath.endsWith("/wallet.metadata.json")
+    archivePath.endsWith("/wallet-notes.metadata.json")
+    || archivePath.endsWith("/wallet-viewing-key.metadata.json")
+    || archivePath.endsWith("/wallet-spending-key.metadata.json")
   ) {
     protectSecretFile(targetPath, `imported wallet file ${archivePath}`);
   }
@@ -8225,11 +8383,27 @@ function walletConfigPath(walletDir) {
   return path.join(walletDir, "wallet.json");
 }
 
+function walletNotesMetadataPath(walletDir) {
+  return path.join(walletDir, "wallet-notes.metadata.json");
+}
+
+function walletViewingKeyMetadataPath(walletDir) {
+  return path.join(walletDir, "wallet-viewing-key.metadata.json");
+}
+
+function walletSpendingKeyMetadataPath(walletDir) {
+  return path.join(walletDir, "wallet-spending-key.metadata.json");
+}
+
 function walletMetadataPath(walletDir) {
   return walletMetadataPathForDir(walletDir);
 }
 
 function walletConfigExists(walletDir) {
+  return fs.existsSync(walletNotesMetadataPath(walletDir));
+}
+
+function legacyWalletConfigExists(walletDir) {
   return fs.existsSync(walletConfigPath(walletDir));
 }
 
@@ -8453,24 +8627,26 @@ function assertListLocalWalletsArgs(args) {
   assertAllowedCommandSchema(args, "wallet-list");
 }
 
-function assertWalletExportArgs(args) {
-  assertAllowedCommandSchema(args, "wallet-export");
-  assertFlagOption(args, "all", "wallet export");
-  assertFlagOption(args, "includeNotes", "wallet export");
+function assertWalletExportBackupArgs(args) {
+  assertAllowedCommandSchema(args, "wallet-export-backup");
   requireArg(args.output, "--output");
-  if (args.all === true) {
-    expect(
-      args.network === undefined && args.wallet === undefined,
-      "wallet export --all exports every local mainnet wallet and does not accept --network or --wallet.",
-    );
-    return;
-  }
   requireNetworkName(args);
   requireWalletName(args);
 }
 
-function assertWalletImportArgs(args) {
-  assertAllowedCommandSchema(args, "wallet-import");
+function assertWalletExportKeyArgs(args, commandName) {
+  assertAllowedCommandSchema(args, commandName);
+  requireArg(args.output, "--output");
+  requireNetworkName(args);
+  requireWalletName(args);
+}
+
+function assertWalletImportBackupArgs(args) {
+  assertAllowedCommandSchema(args, "wallet-import-backup");
+}
+
+function assertWalletImportKeyArgs(args, commandName) {
+  assertAllowedCommandSchema(args, commandName);
 }
 
 function assertFlagOption(args, key, commandName) {
@@ -8503,14 +8679,114 @@ function createWalletOperationDir(walletName, networkName, suffix) {
 }
 
 function persistWallet(context) {
-  writeEncryptedWalletJson(path.join(context.walletDir, "wallet.json"), context.wallet, context.walletSecret);
+  writeJson(walletNotesMetadataPath(context.walletDir), sanitizeWalletForNotesMetadata(context.wallet));
+  if (context.wallet?.l2PrivateKey || context.wallet?.l2PublicKey || context.wallet?.l2Address) {
+    writeJson(walletSpendingKeyMetadataPath(context.walletDir), buildWalletSpendingKeyMetadata(context.wallet));
+  }
+  if (context.wallet?.noteReceivePubKeyX || context.wallet?.noteReceivePubKeyYParity !== undefined) {
+    writeJson(walletViewingKeyMetadataPath(context.walletDir), buildWalletViewingKeyMetadata(context.wallet));
+  }
+}
+
+function persistWalletKeys(context) {
+  if (context.wallet?.l2PrivateKey) {
+    writeSecretFile(
+      walletSpendingKeySecretPath(context.wallet.network, context.walletName),
+      JSON.stringify({
+        format: WALLET_KEY_EXPORT_FORMAT,
+        formatVersion: WALLET_EXPORT_FORMAT_VERSION,
+        keyKind: "spending",
+        metadata: buildWalletSpendingKeyMetadata(context.wallet),
+        privateKey: normalizePrivateKey(context.wallet.l2PrivateKey),
+      }, null, 2),
+    );
+  }
+  if (context.wallet?.noteReceivePrivateKey) {
+    writeSecretFile(
+      walletViewingKeySecretPath(context.wallet.network, context.walletName),
+      JSON.stringify({
+        format: WALLET_KEY_EXPORT_FORMAT,
+        formatVersion: WALLET_EXPORT_FORMAT_VERSION,
+        keyKind: "viewing",
+        metadata: buildWalletViewingKeyMetadata(context.wallet),
+        privateKey: normalizePrivateKey(context.wallet.noteReceivePrivateKey),
+      }, null, 2),
+    );
+  }
 }
 
 function persistWalletMetadata(context) {
-  writeJson(walletMetadataPath(context.walletDir), {
-    network: context.wallet.network,
-    rpcUrl: context.wallet.rpcUrl,
-    channelName: context.wallet.channelName,
+  persistWallet(context);
+}
+
+function sanitizeWalletForNotesMetadata(wallet) {
+  const normalized = normalizeWallet({
+    ...wallet,
+    l2PrivateKey: null,
+    noteReceivePrivateKey: null,
+  });
+  const { l2PrivateKey: _l2PrivateKey, noteReceivePrivateKey: _noteReceivePrivateKey, ...publicWallet } = normalized;
+  return {
+    ...publicWallet,
+    notes: {
+      unused: sanitizeTrackedNoteMap(normalized.notes.unused),
+      spent: sanitizeTrackedNoteMap(normalized.notes.spent),
+      unusedOrder: normalized.notes.unusedOrder,
+      unusedBalance: null,
+    },
+  };
+}
+
+function sanitizeTrackedNoteMap(notes) {
+  return Object.fromEntries(Object.entries(notes ?? {}).map(([key, note]) => [key, sanitizeTrackedNoteForPersistence(note)]));
+}
+
+function sanitizeTrackedNoteForPersistence(note) {
+  const normalized = normalizeTrackedNote(note);
+  return {
+    commitment: normalized.commitment,
+    nullifier: normalized.nullifier,
+    encryptedNoteValue: normalized.encryptedNoteValue,
+    status: normalized.status,
+    sourceFunction: normalized.sourceFunction,
+    sourceTxHash: normalized.sourceTxHash,
+    bridgeCommitmentKey: normalized.bridgeCommitmentKey,
+    bridgeNullifierKey: normalized.bridgeNullifierKey,
+  };
+}
+
+function buildWalletSpendingKeyMetadata(wallet) {
+  return normalizeCliOutput({
+    walletFormatVersion: WALLET_WORKSPACE_FORMAT_VERSION,
+    network: wallet.network,
+    wallet: wallet.name,
+    channelName: wallet.channelName,
+    channelId: wallet.channelId,
+    l1Address: wallet.l1Address,
+    l2Address: wallet.l2Address,
+    l2PublicKey: wallet.l2PublicKey,
+    l2DerivationMode: wallet.l2DerivationMode,
+    l2DerivationChannelName: wallet.l2DerivationChannelName,
+    l2StorageKey: wallet.l2StorageKey,
+    leafIndex: wallet.leafIndex,
+  });
+}
+
+function buildWalletViewingKeyMetadata(wallet) {
+  return normalizeCliOutput({
+    walletFormatVersion: WALLET_WORKSPACE_FORMAT_VERSION,
+    network: wallet.network,
+    wallet: wallet.name,
+    channelName: wallet.channelName,
+    channelId: wallet.channelId,
+    l1Address: wallet.l1Address,
+    l2Address: wallet.l2Address,
+    noteReceiveDerivationVersion: wallet.noteReceiveDerivationVersion,
+    noteReceiveTypedDataMethod: wallet.noteReceiveTypedDataMethod,
+    noteReceivePubKey: {
+      x: wallet.noteReceivePubKeyX,
+      yParity: wallet.noteReceivePubKeyYParity,
+    },
   });
 }
 
@@ -8533,7 +8809,7 @@ Secret source options:
       private-state-cli channel join --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path ./wallet-secret.txt
   Bridge-facing commands accept optional --rpc-url. When provided, it is saved to
   ~/tokamak-private-channels/secrets/<network>/.env as RPC_URL. When omitted, the CLI reads RPC_URL from that file.
-  Wallet commands use wallet-local default secret files only.
+  Wallet commands use separate protected viewing-key and spending-key files when those capabilities are needed.
   Source files passed to --private-key-file and --wallet-secret-path are not required to use 0600 permissions, but
   canonical CLI secret files remain protected. On macOS/Linux this means 0600; on Windows the CLI repairs ACLs when possible.
 
@@ -8865,23 +9141,6 @@ function getUsableWorkspaceRecoveryIndex({
     stateSnapshot,
     recoveryRootVectorHash,
   };
-}
-
-function writeEncryptedWalletJson(filePath, value, walletSecret) {
-  const normalizedValue = normalizeCliOutput(value);
-  writeEncryptedWalletFile(filePath, Buffer.from(`${JSON.stringify(normalizedValue, null, 2)}\n`, "utf8"), walletSecret);
-}
-
-function readEncryptedWalletJson(filePath, walletSecret) {
-  try {
-    return JSON.parse(readEncryptedWalletFile(filePath, walletSecret).toString("utf8"));
-  } catch (error) {
-    throw cliError(
-      CLI_ERROR_CODES.WALLET_DECRYPT_FAILED,
-      `Unable to decrypt wallet data at ${filePath}. Check the wallet-local default secret file.`,
-      { cause: error },
-    );
-  }
 }
 
 function writeEncryptedWalletFile(filePath, plaintextBytes, walletSecret) {
@@ -9363,14 +9622,13 @@ function buildRecoveryHints(error, args = {}) {
   }
 
   if (error?.code === CLI_ERROR_CODES.MISSING_WALLET_SECRET) {
-    hints.push("restore the wallet-local default secret file from backup before running wallet commands.");
+    hints.push("import the needed wallet viewing-key or spending-key file before running capability-gated wallet commands.");
     hints.push(`private-state-cli help guide --network ${networkName} --wallet ${walletName}`);
   }
 
   if (error?.code === CLI_ERROR_CODES.WALLET_DECRYPT_FAILED) {
-    hints.push("verify that the wallet-local default secret file is the same secret used when the wallet was created.");
-    hints.push("if the encrypted wallet file is corrupted but the wallet secret and L1 account secret still exist, rerun wallet recover-workspace.");
-    hints.push("if the wallet secret was lost, the local L2 key cannot be recovered from the encrypted wallet file.");
+    hints.push("legacy encrypted wallet files are no longer imported directly.");
+    hints.push("archive the legacy wallet workspace and rebuild backup metadata with wallet recover-workspace.");
   }
 
   if (

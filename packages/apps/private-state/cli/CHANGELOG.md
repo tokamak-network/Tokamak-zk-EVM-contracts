@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Split wallet export/import into `wallet export backup`, `wallet export viewing-key`,
+  `wallet export spending-key`, `wallet import backup`, `wallet import viewing-key`, and
+  `wallet import spending-key`.
+- Changed wallet backups so they exclude spending keys, viewing keys, key derivation material,
+  and plaintext note `owner`, `value`, and `salt` fields. Backups retain commitments,
+  nullifiers, encrypted note payloads, and channel workspace cache files.
+- Replaced the legacy full-control `wallet.json` workspace format with separate note-tracking,
+  spending-key metadata, and viewing-key metadata files. Legacy wallet workspaces now fail fast
+  with recovery guidance.
+
 ## 1.2.1 - 2026-05-11
 
 - Changed pre-command automatic recovery from an RPC log request time estimate to a fixed

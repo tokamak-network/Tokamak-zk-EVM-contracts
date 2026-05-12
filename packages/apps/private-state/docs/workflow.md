@@ -20,7 +20,7 @@ The private-state CLI is an off-chain protocol participant, not a thin transacti
 It:
 
 - derives channel-specific identities
-- manages encrypted wallet state
+- manages wallet metadata plus separate viewing-key and spending-key capabilities
 - reconstructs channel snapshots
 - assembles Tokamak proof inputs
 - generates proofs locally
@@ -28,8 +28,8 @@ It:
 - scans bridge-propagated logs for encrypted note delivery
 
 This role matters because the contracts do not store a complete user wallet. The CLI is responsible
-for reconstructing the user's actionable view from accepted bridge outputs, local encrypted wallet
-state, and user-held secrets.
+for reconstructing the user's actionable view from accepted bridge outputs, encrypted note payloads,
+wallet metadata, and user-held key files.
 
 ## 2. Normal Command Flow
 
@@ -117,7 +117,7 @@ within the limits of implemented wallet tooling.
 The CLI stores local state in two layers:
 
 - channel workspace
-- per-user encrypted wallet
+- per-user wallet metadata and separate key files
 
 The channel workspace contains:
 
@@ -127,33 +127,27 @@ The channel workspace contains:
 - deployment and storage-layout manifest paths
 - channel metadata
 
-The wallet contains:
+The wallet metadata contains:
 
-- encrypted L1 and L2 key material
 - note-receive registration metadata
-- tracked notes
+- spending-key public metadata
+- tracked note commitments, nullifiers, and encrypted note payloads
 - last scanned encrypted-note event block
 - wallet-local operation history
 
-The channel workspace is shared context for the channel. The encrypted wallet is user-specific
-context. Losing the workspace is recoverable if the wallet and chain data can reconstruct it. Losing
-the encrypted wallet or its wallet secret has stronger consequences because it can remove the secrets
-needed to use notes.
+The channel workspace is shared context for the channel. Wallet note metadata is user-specific
+context, but it is no longer a full-control secret bundle. Losing the workspace is recoverable if
+the wallet and chain data can reconstruct it. Losing the viewing-key or spending-key files removes
+the corresponding capability until the user reimports or rederives that key material.
 
-`wallet export` and `wallet import` are the backup boundary for this local state. A default wallet
-export contains the wallet-local secret, encrypted `wallet.json`, and wallet metadata. Because
-tracked notes are stored inside encrypted `wallet.json`, the default export preserves the wallet's
-note state while still excluding the shared channel workspace cache. That is the minimum local
-material needed to restore the wallet identity on another machine; after importing it, the user
-should run `channel recover-workspace` so the shared channel snapshot is rebuilt from bridge logs.
-The export intentionally does not include account secrets because wallet commands restore their L1
-signer from encrypted `wallet.json`.
+`wallet export backup` and `wallet import backup` are the non-authorizing backup boundary for this
+local state. A backup contains wallet note-tracking metadata and the channel workspace cache, but it
+does not contain spending keys, viewing keys, key derivation material, or plaintext note `owner`,
+`value`, and `salt` fields. It preserves commitments, nullifiers, and encrypted note payloads.
 
-`wallet export --include-notes` adds the channel workspace cache: `workspace.json`, the current state
-snapshot, block info, and managed contract codes. With those files imported, wallet commands can run
-without an immediate recovery step as long as the cached channel state is still aligned with the
-bridge. If the bridge has advanced, the normal indexed workspace refresh path resumes from the
-imported recovery index.
+`wallet export viewing-key` / `wallet import viewing-key` and `wallet export spending-key` /
+`wallet import spending-key` move those capabilities independently. Importing only the backup does
+not grant either viewing or spending authority.
 
 ## 5. Bridge Registration Model
 

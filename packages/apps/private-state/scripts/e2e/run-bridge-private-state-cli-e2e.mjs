@@ -1368,23 +1368,38 @@ function walletExportPath(participant, suffix) {
   return path.join(
     outputRoot,
     "wallet-exports",
-    `${slugifyPathComponent(participant.walletName)}-${slugifyPathComponent(suffix)}.zip`,
+    `${slugifyPathComponent(participant.walletName)}-${slugifyPathComponent(suffix)}`,
   );
 }
 
-function exportWallet(participant, { includeNotes = false, suffix = "default" } = {}) {
-  const outputPath = walletExportPath(participant, suffix);
+function exportWalletBackup(participant, { suffix = "backup" } = {}) {
+  const outputPath = `${walletExportPath(participant, suffix)}.zip`;
   fs.rmSync(outputPath, { force: true });
-  return runAnvilCliCommand("wallet export", [
+  return runAnvilCliCommand("wallet export backup", [
     ...walletCliArgs(participant),
     "--output", outputPath,
-    ...(includeNotes ? ["--include-notes"] : []),
   ]);
 }
 
-function importWallet(inputPath) {
+function exportWalletKey(participant, keyKind) {
+  const outputPath = `${walletExportPath(participant, keyKind)}.key`;
+  fs.rmSync(outputPath, { force: true });
+  return runAnvilCliCommand(`wallet export ${keyKind}-key`, [
+    ...walletCliArgs(participant),
+    "--output", outputPath,
+  ]);
+}
+
+function importWalletBackup(inputPath) {
   return runPrivateStateCli([
-    "wallet", "import",
+    "wallet", "import", "backup",
+    "--input", inputPath,
+  ]);
+}
+
+function importWalletKey(inputPath, keyKind) {
+  return runPrivateStateCli([
+    "wallet", "import", `${keyKind}-key`,
     "--input", inputPath,
   ]);
 }
@@ -1970,58 +1985,30 @@ async function main() {
       "recover-workspace from workspace mirror",
     );
 
-    const walletExportIncludeNotes = exportWallet(participants[2], {
-      includeNotes: true,
-      suffix: "include-notes",
-    });
+    const walletExportBackup = exportWalletBackup(participants[2]);
+    const walletExportViewingKey = exportWalletKey(participants[2], "viewing");
+    const walletExportSpendingKey = exportWalletKey(participants[2], "spending");
     expect(
-      walletExportIncludeNotes.includeNotes === true && walletExportIncludeNotes.fileCount >= 8,
-      "wallet export --include-notes must include the wallet files and channel workspace cache.",
+      walletExportBackup.exportMode === "backup" && walletExportBackup.fileCount >= 8,
+      "wallet export backup must include wallet backup metadata and channel workspace cache.",
     );
     deleteWorkspaceDir();
     removeAnvilWalletSecret(participants[2].walletName);
-    const walletImportIncludeNotes = importWallet(walletExportIncludeNotes.output);
+    const walletImportBackup = importWalletBackup(walletExportBackup.output);
     expect(
-      walletImportIncludeNotes.includeNotes === true,
-      "wallet import must report includeNotes=true for an include-notes export.",
+      walletImportBackup.exportMode === "backup",
+      "wallet import backup must report backup export mode.",
     );
+    importWalletKey(walletExportViewingKey.output, "viewing");
+    importWalletKey(walletExportSpendingKey.output, "spending");
     recoverWallet(participants[2]);
-    const notesAfterIncludeNotesImport = getWalletNotes(participants[2]);
-    assertWalletNoteSnapshot(notesAfterIncludeNotesImport, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
-    const channelDepositAfterIncludeNotesImport = getChannelFund(participants[2]);
+    const notesAfterBackupImport = getWalletNotes(participants[2]);
+    assertWalletNoteSnapshot(notesAfterBackupImport, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
+    const channelDepositAfterBackupImport = getChannelFund(participants[2]);
     assertBigIntEq(
-      channelDepositAfterIncludeNotesImport.channelDepositBaseUnits,
+      channelDepositAfterBackupImport.channelDepositBaseUnits,
       claimAmountBaseUnits,
-      "participant-c channel deposit after include-notes wallet import",
-    );
-
-    const walletExportDefault = exportWallet(participants[2], {
-      suffix: "default",
-    });
-    expect(
-      walletExportDefault.includeNotes === false && walletExportDefault.fileCount === 3,
-      "default wallet export must include only wallet secret, encrypted wallet, and wallet metadata.",
-    );
-    deleteWorkspaceDir();
-    removeAnvilWalletSecret(participants[2].walletName);
-    const walletImportDefault = importWallet(walletExportDefault.output);
-    expect(
-      walletImportDefault.includeNotes === false,
-      "wallet import must report includeNotes=false for a default export.",
-    );
-    const recoverWorkspaceAfterDefaultWalletImport = recoverWorkspace({ fromGenesis: true });
-    expect(
-      recoverWorkspaceAfterDefaultWalletImport.channelName === channelName,
-      "recover-workspace must rebuild channel state after default wallet import.",
-    );
-    recoverWallet(participants[2]);
-    const notesAfterDefaultImportRecovery = getWalletNotes(participants[2]);
-    assertWalletNoteSnapshot(notesAfterDefaultImportRecovery, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
-    const channelDepositAfterDefaultImportRecovery = getChannelFund(participants[2]);
-    assertBigIntEq(
-      channelDepositAfterDefaultImportRecovery.channelDepositBaseUnits,
-      claimAmountBaseUnits,
-      "participant-c channel deposit after default wallet import and workspace recovery",
+      "participant-c channel deposit after separated wallet import",
     );
 
     deleteWorkspaceDir();
@@ -2116,11 +2103,10 @@ async function main() {
       workspaceMirrorRecovery,
       recoverWorkspaceAfterNotes: recoverWorkspaceAfterNotesResult,
       walletExportImport: {
-        includeNotesExport: walletExportIncludeNotes,
-        includeNotesImport: walletImportIncludeNotes,
-        defaultExport: walletExportDefault,
-        defaultImport: walletImportDefault,
-        recoverWorkspaceAfterDefaultWalletImport,
+        backupExport: walletExportBackup,
+        backupImport: walletImportBackup,
+        viewingKeyExport: walletExportViewingKey,
+        spendingKeyExport: walletExportSpendingKey,
       },
       localWallets: localWalletList,
       participants: participants.map((participant) => ({

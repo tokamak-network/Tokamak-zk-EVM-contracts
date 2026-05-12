@@ -23,6 +23,8 @@ const DEFAULT_DAPP = "private-state";
 const DEFAULT_CHANNEL = "the-great-first-channel";
 const ETHERSCAN_BASE_URL = "https://etherscan.io";
 const ETHERSCAN_V2_API_URL = "https://api.etherscan.io/v2/api";
+const ETHERSCAN_RETRY_COUNT = 3;
+const ETHERSCAN_RETRY_DELAY_MS = 750;
 const EIP1967_IMPLEMENTATION_SLOT =
   "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
 const EIP1967_ADMIN_SLOT =
@@ -59,7 +61,7 @@ Options:
   --skip-drive                 Skip Google Drive artifact metadata reads.
   --allow-missing-drive        Continue with a warning if Drive metadata cannot be read.
   --skip-etherscan             Skip source verification status reads.
-  --allow-missing-etherscan    Continue with a warning if Etherscan cannot be read.
+  --allow-missing-etherscan    Continue with a warning if Etherscan status cannot be classified.
   --help                       Show this help.
 `);
 }
@@ -129,6 +131,10 @@ function resolveEtherscanApiKey() {
     ?? process.env.BRIDGE_ETHERSCAN_API_KEY
     ?? process.env.APPS_ETHERSCAN_API_KEY
     ?? null;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function readJson(filePath) {
@@ -435,7 +441,7 @@ async function buildOnchainSnapshot({ args, artifacts, rpcUrl }) {
   };
 }
 
-async function fetchEtherscanSource(address, { chainId, apiKey }) {
+async function fetchEtherscanApiSource(address, { chainId, apiKey }) {
   const params = new URLSearchParams({
     chainid: String(chainId),
     module: "contract",
@@ -443,25 +449,66 @@ async function fetchEtherscanSource(address, { chainId, apiKey }) {
     address,
     apikey: apiKey,
   });
-  const response = await fetch(`${ETHERSCAN_V2_API_URL}?${params.toString()}`);
-  const json = await response.json();
-  if (!response.ok || json.status === "0") {
-    return {
-      address,
-      verified: null,
-      error: `Etherscan getsourcecode failed: ${json.message ?? response.status}`,
-      explorerUrl: `${ETHERSCAN_BASE_URL}/address/${address}#code`,
-    };
+  const url = `${ETHERSCAN_V2_API_URL}?${params.toString()}`;
+  let lastError = null;
+  for (let attempt = 1; attempt <= ETHERSCAN_RETRY_COUNT; attempt += 1) {
+    try {
+      const response = await fetch(url);
+      const json = await response.json();
+      if (!response.ok || json.status === "0") {
+        const message = json.result
+          ? `${json.message ?? response.status}: ${json.result}`
+          : `${json.message ?? response.status}`;
+        lastError = new Error(`Etherscan getsourcecode failed: ${message}`);
+        if (message.includes("Missing/Invalid API Key")) break;
+      } else {
+        const result = Array.isArray(json.result) ? json.result[0] : null;
+        return {
+          address,
+          contractName: result?.ContractName ?? null,
+          compilerVersion: result?.CompilerVersion ?? null,
+          proxy: result?.Proxy ?? null,
+          implementation: result?.Implementation ?? null,
+          verified: Boolean(result?.SourceCode && String(result.SourceCode).trim().length > 0),
+          explorerUrl: `${ETHERSCAN_BASE_URL}/address/${address}#code`,
+          checkedVia: "etherscan-api",
+        };
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < ETHERSCAN_RETRY_COUNT) {
+      await sleep(ETHERSCAN_RETRY_DELAY_MS * attempt);
+    }
   }
-  const result = Array.isArray(json.result) ? json.result[0] : null;
+  throw lastError ?? new Error("Etherscan getsourcecode failed");
+}
+
+async function fetchEtherscanHtmlVerification(address, { chainId }) {
+  if (chainId !== 1) {
+    throw new Error(`Etherscan HTML fallback is only configured for Ethereum mainnet, got chain ID ${chainId}.`);
+  }
+  const explorerUrl = `${ETHERSCAN_BASE_URL}/address/${address}#code`;
+  const response = await fetch(explorerUrl);
+  const html = await response.text();
+  if (!response.ok) {
+    throw new Error(`Etherscan HTML fallback failed: ${response.status}`);
+  }
+  const verified = /Contract:\s*Verified/i.test(html) || /Source Code Verified/i.test(html);
+  const unverified = /Contract:\s*Unverified/i.test(html) || /Verify and Publish/i.test(html);
+  if (!verified && !unverified) {
+    throw new Error("Etherscan HTML fallback could not classify source verification status.");
+  }
   return {
     address,
-    contractName: result?.ContractName ?? null,
-    compilerVersion: result?.CompilerVersion ?? null,
-    proxy: result?.Proxy ?? null,
-    implementation: result?.Implementation ?? null,
-    verified: Boolean(result?.SourceCode && String(result.SourceCode).trim().length > 0),
-    explorerUrl: `${ETHERSCAN_BASE_URL}/address/${address}#code`,
+    contractName: null,
+    compilerVersion: null,
+    proxy: null,
+    implementation: null,
+    verified,
+    explorerUrl,
+    checkedVia: "etherscan-html",
+    verificationStatusSource: verified ? "html-verified" : "html-unverified",
   };
 }
 
@@ -470,10 +517,9 @@ async function buildSourceVerification({ args, artifacts, onchain }) {
     return { status: "skipped", warning: "Etherscan source verification checks skipped." };
   }
   const apiKey = resolveEtherscanApiKey();
+  const warnings = [];
   if (!apiKey) {
-    const message = "Missing Etherscan API key. Set ETHERSCAN_API_KEY, BRIDGE_ETHERSCAN_API_KEY, or APPS_ETHERSCAN_API_KEY.";
-    if (!args.allowMissingEtherscan) throw new Error(message);
-    return { status: "unavailable", warning: message };
+    warnings.push("Missing Etherscan API key; falling back to Etherscan HTML source status pages.");
   }
   const addresses = {
     bridgeCore: artifacts.bridge.bridgeCore,
@@ -489,13 +535,40 @@ async function buildSourceVerification({ args, artifacts, onchain }) {
     grothVerifier: artifacts.bridge.grothVerifier,
     tokamakVerifier: artifacts.bridge.tokamakVerifier,
   };
+  const entriesByAddress = new Map();
+  async function fetchSourceStatus(address) {
+    const normalized = ethers.getAddress(address);
+    const cacheKey = normalized.toLowerCase();
+    if (!entriesByAddress.has(cacheKey)) {
+      entriesByAddress.set(cacheKey, (async () => {
+        if (apiKey) {
+          try {
+            return await fetchEtherscanApiSource(normalized, {
+              chainId: args.chainId,
+              apiKey,
+            });
+          } catch (error) {
+            warnings.push(`${normalized}: ${error.message}; falling back to Etherscan HTML source status page.`);
+          }
+        }
+        try {
+          return await fetchEtherscanHtmlVerification(normalized, { chainId: args.chainId });
+        } catch (error) {
+          return {
+            address: normalized,
+            verified: null,
+            error: error.message,
+            explorerUrl: `${ETHERSCAN_BASE_URL}/address/${normalized}#code`,
+          };
+        }
+      })());
+    }
+    return entriesByAddress.get(cacheKey);
+  }
   const entries = {};
   for (const [name, address] of Object.entries(addresses)) {
     if (!address) continue;
-    entries[name] = await fetchEtherscanSource(ethers.getAddress(address), {
-      chainId: args.chainId,
-      apiKey,
-    });
+    entries[name] = await fetchSourceStatus(address);
   }
   const uncheckedOrFailedAddresses = Object.values(entries).filter((entry) => entry.verified !== true);
   return {
@@ -503,6 +576,8 @@ async function buildSourceVerification({ args, artifacts, onchain }) {
     entries,
     allCheckedAddressesVerified: uncheckedOrFailedAddresses.length === 0,
     uncheckedOrFailedAddresses,
+    warnings,
+    warning: warnings.length > 0 ? warnings.join(" ") : undefined,
   };
 }
 

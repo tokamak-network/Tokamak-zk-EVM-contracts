@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-12T05:44:24.933Z",
+  "generatedAt": "2026-05-12T07:23:39.917Z",
   "chainId": 1,
   "chain": "ethereum-mainnet",
   "canonicalTonContractAddress": "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5",
@@ -89,7 +89,8 @@
         "proxy": "1",
         "implementation": "0x1713171adc06bf82b4f05945d742ffd351a8d1bd",
         "verified": true,
-        "explorerUrl": "https://etherscan.io/address/0x992E2Ae206620d811832a8F697c526c4f95974b6#code"
+        "explorerUrl": "https://etherscan.io/address/0x992E2Ae206620d811832a8F697c526c4f95974b6#code",
+        "checkedVia": "etherscan-api"
       },
       "bridgeCoreImplementation": {
         "address": "0x1713171adc06BF82b4f05945d742FFd351a8d1bD",
@@ -98,7 +99,8 @@
         "proxy": "0",
         "implementation": "",
         "verified": true,
-        "explorerUrl": "https://etherscan.io/address/0x1713171adc06BF82b4f05945d742FFd351a8d1bD#code"
+        "explorerUrl": "https://etherscan.io/address/0x1713171adc06BF82b4f05945d742FFd351a8d1bD#code",
+        "checkedVia": "etherscan-api"
       },
       "dAppManager": {
         "address": "0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA",
@@ -107,13 +109,18 @@
         "proxy": "1",
         "implementation": "0x76f0e95c0e5c9ba26289062637c68aec1199ddc5",
         "verified": true,
-        "explorerUrl": "https://etherscan.io/address/0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA#code"
+        "explorerUrl": "https://etherscan.io/address/0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA#code",
+        "checkedVia": "etherscan-api"
       },
       "dAppManagerImplementation": {
         "address": "0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5",
-        "verified": null,
-        "error": "Etherscan getsourcecode failed: NOTOK",
-        "explorerUrl": "https://etherscan.io/address/0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5#code"
+        "contractName": "DAppManager",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
+        "proxy": "0",
+        "implementation": "",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5#code",
+        "checkedVia": "etherscan-api"
       },
       "bridgeTokenVault": {
         "address": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
@@ -122,7 +129,8 @@
         "proxy": "1",
         "implementation": "0x4c6ddcf807309d49ac9a1f6583b5a19ef6c6a710",
         "verified": true,
-        "explorerUrl": "https://etherscan.io/address/0xf127Aef661c815ad46c5159146078f6F1E9f5F61#code"
+        "explorerUrl": "https://etherscan.io/address/0xf127Aef661c815ad46c5159146078f6F1E9f5F61#code",
+        "checkedVia": "etherscan-api"
       },
       "bridgeTokenVaultImplementation": {
         "address": "0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710",
@@ -131,7 +139,8 @@
         "proxy": "0",
         "implementation": "",
         "verified": true,
-        "explorerUrl": "https://etherscan.io/address/0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710#code"
+        "explorerUrl": "https://etherscan.io/address/0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710#code",
+        "checkedVia": "etherscan-api"
       },
       "channelManager": {
         "address": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
@@ -140,13 +149,18 @@
         "proxy": "0",
         "implementation": "",
         "verified": true,
-        "explorerUrl": "https://etherscan.io/address/0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7#code"
+        "explorerUrl": "https://etherscan.io/address/0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7#code",
+        "checkedVia": "etherscan-api"
       },
       "channelBridgeTokenVault": {
         "address": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
-        "verified": null,
-        "error": "Etherscan getsourcecode failed: NOTOK",
-        "explorerUrl": "https://etherscan.io/address/0xf127Aef661c815ad46c5159146078f6F1E9f5F61#code"
+        "contractName": "ERC1967Proxy",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
+        "proxy": "1",
+        "implementation": "0x4c6ddcf807309d49ac9a1f6583b5a19ef6c6a710",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0xf127Aef661c815ad46c5159146078f6F1E9f5F61#code",
+        "checkedVia": "etherscan-api"
       },
       "privateStateController": {
         "address": "0x67C6233A99D9f122Fef9DC111e89948107b34c2F",
@@ -155,7 +169,8 @@
         "proxy": "0",
         "implementation": "",
         "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x67C6233A99D9f122Fef9DC111e89948107b34c2F#code"
+        "explorerUrl": "https://etherscan.io/address/0x67C6233A99D9f122Fef9DC111e89948107b34c2F#code",
+        "checkedVia": "etherscan-api"
       },
       "l2AccountingVault": {
         "address": "0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA",
@@ -164,7 +179,8 @@
         "proxy": "0",
         "implementation": "",
         "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA#code"
+        "explorerUrl": "https://etherscan.io/address/0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA#code",
+        "checkedVia": "etherscan-api"
       },
       "grothVerifier": {
         "address": "0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5",
@@ -173,29 +189,22 @@
         "proxy": "0",
         "implementation": "",
         "verified": true,
-        "explorerUrl": "https://etherscan.io/address/0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5#code"
+        "explorerUrl": "https://etherscan.io/address/0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5#code",
+        "checkedVia": "etherscan-api"
       },
       "tokamakVerifier": {
         "address": "0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626",
-        "verified": null,
-        "error": "Etherscan getsourcecode failed: NOTOK",
-        "explorerUrl": "https://etherscan.io/address/0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626#code"
+        "contractName": "TokamakVerifier",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
+        "proxy": "0",
+        "implementation": "",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626#code",
+        "checkedVia": "etherscan-api"
       }
     },
     "allCheckedAddressesVerified": false,
     "uncheckedOrFailedAddresses": [
-      {
-        "address": "0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5",
-        "verified": null,
-        "error": "Etherscan getsourcecode failed: NOTOK",
-        "explorerUrl": "https://etherscan.io/address/0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5#code"
-      },
-      {
-        "address": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
-        "verified": null,
-        "error": "Etherscan getsourcecode failed: NOTOK",
-        "explorerUrl": "https://etherscan.io/address/0xf127Aef661c815ad46c5159146078f6F1E9f5F61#code"
-      },
       {
         "address": "0x67C6233A99D9f122Fef9DC111e89948107b34c2F",
         "contractName": "",
@@ -203,7 +212,8 @@
         "proxy": "0",
         "implementation": "",
         "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x67C6233A99D9f122Fef9DC111e89948107b34c2F#code"
+        "explorerUrl": "https://etherscan.io/address/0x67C6233A99D9f122Fef9DC111e89948107b34c2F#code",
+        "checkedVia": "etherscan-api"
       },
       {
         "address": "0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA",
@@ -212,15 +222,11 @@
         "proxy": "0",
         "implementation": "",
         "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA#code"
-      },
-      {
-        "address": "0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626",
-        "verified": null,
-        "error": "Etherscan getsourcecode failed: NOTOK",
-        "explorerUrl": "https://etherscan.io/address/0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626#code"
+        "explorerUrl": "https://etherscan.io/address/0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA#code",
+        "checkedVia": "etherscan-api"
       }
-    ]
+    ],
+    "warnings": []
   },
   "abiLinks": {
     "bridgeAbiManifestLocalPath": "deployment/chain-id-1/bridge/20260511T065651Z/bridge-abi-manifest.1.json",

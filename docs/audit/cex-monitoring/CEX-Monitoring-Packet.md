@@ -37,7 +37,7 @@ The generator performs the following steps:
 
 1. Locates the latest local bridge and private-state DApp deployment artifacts for the selected chain.
 2. Reads mainnet state through RPC, including channel state, owner state, proxy implementation slots, verifier pointers, root-vector state, and bytecode hashes.
-3. Reads Etherscan source verification status when an API key is available.
+3. Reads Etherscan source verification status, using the API when available and falling back to Etherscan's public contract page status when the API cannot be read.
 4. Reads Google Drive artifact metadata from the configured artifact publication folder.
 5. Builds ABI-derived event monitoring coverage for the Monitoring Packet checklist.
 6. Writes public packet data to `docs/audit/cex-monitoring/data/`.

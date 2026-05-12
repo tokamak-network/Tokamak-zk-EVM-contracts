@@ -266,11 +266,11 @@ When `--rpc-url` is omitted, the CLI reads `RPC_URL` from that file. The `anvil`
 ## LLM Agent Guidance
 
 You may act as an interactive guide for users who do not understand this CLI or the private-state DApp. Assume the
-user only knows that the DApp is a way to send funds privately. Translate the user's intent into safe, step-by-step CLI
-actions.
+user wants to use confidential channel-local notes while keeping L1 bridge deposits and withdrawals transparent.
+Translate the user's intent into safe, step-by-step CLI actions.
 
-Primary goal: help the user privately send funds by guiding them through the required private-state CLI commands,
-explaining each step only as much as needed to proceed safely.
+Primary goal: help the user safely use private-state note workflows: self-custody L1 funding, channel-local note
+creation, note transfer, note recovery, and user-controlled disclosure where supported.
 
 Operating rules:
 
@@ -324,11 +324,11 @@ Operating rules:
   local wallet metadata and on-chain channel registration state.
 - Use `private-state-cli account get-bridge-fund` and `private-state-cli wallet get-channel-fund` to check balances before
   telling the user to move funds.
-- Explain that wallet names are local CLI identifiers, while private transfers use notes owned by L2 addresses
+- Explain that wallet names are local CLI identifiers, while confidential note transfers use notes owned by L2 addresses
   registered in the channel.
-- Explain `--tx-submitter <ACCOUNT>` when the user wants stronger privacy for `wallet mint-notes`, `wallet transfer-notes`, or
-  `wallet redeem-notes`: the wallet owner still proves note ownership, but another imported local L1 account can submit the
-  on-chain `executeChannelTransaction` and pay gas.
+- Explain `--tx-submitter <ACCOUNT>` when the user wants a separate L1 transaction submitter for `wallet mint-notes`,
+  `wallet transfer-notes`, or `wallet redeem-notes`: the wallet owner still proves note ownership, but another imported
+  local L1 account can submit the on-chain `executeChannelTransaction` and pay gas.
 - Before guiding a user through `channel create` or `channel join`, explain that channel policy is immutable after
   creation and that joining a channel means accepting its current verifier, DApp metadata, function layout, managed
   storage vector, and refund policy.
@@ -348,7 +348,7 @@ Suggested interaction flow:
 5. Run `wallet list` and relevant metadata or balance checks.
 6. If needed, guide the user through `channel create`, `account deposit-bridge`, `channel join`, `wallet deposit-channel`, and
    `wallet mint-notes`.
-7. For a private transfer, select available note IDs from `wallet get-notes`, find the recipient L2 address from
+7. For a confidential note transfer, select available note IDs from `wallet get-notes`, find the recipient L2 address from
    `wallet get-meta`, then build `wallet transfer-notes`.
 8. After transfer, guide the recipient to run `wallet get-notes`; it refreshes received notes from the saved recovery index when the delta fits the 7,200-block pre-command budget. If the index is missing or too far behind, explain `wallet recover-workspace --from-genesis`.
 

@@ -165,17 +165,19 @@ Tokamak도 홍보 전에 반드시 다음을 공개해야 한다.
 
 거래소와 FIU 관점에서 가장 중요한 문서는 이 매트릭스다. 홍보자료에는 요약본을 넣고, GitHub에는 상세본을 공개해야 한다.
 
-| 구분 | 공개/감시 가능 여부 | 거래소·감시자가 알 수 있는 것 | 알 수 없는 것 | 문서화 방식 |
-|---|---:|---|---|---|
-| CEX → 사용자 L1 지갑 TON 출금 | 가능 | 거래소 고객의 출금 주소, 금액, 시간 | 이후 사용자가 자기수탁 지갑에서 무엇을 할지 | 기존 CEX 기록 + L1 explorer |
-| 사용자 L1 지갑 → Tokamak bridge deposit | 가능 | L1 주소, bridge 주소, 금액, tx hash, 시간 | 사용자의 향후 note 상대방 | Etherscan / bridge event |
-| Channel join | 가능 | L1 account, L2 address pair, note-receive public key, channel name/id | 사용자의 향후 private note 상대방 | ChannelManager event |
-| Deposit-channel / accounting move | 가능 | bridge vault에서 channel accounting으로 들어간 금액·상태변경 | 그 금액이 향후 어떤 note transfer로 이어지는지 | bridge/channel event |
-| Note mint | 부분 가능 | commitment 생성, encrypted note-delivery event, storage update | note plaintext, owner 의미, 내부 용도 | commitment/nullifier/event explorer |
-| Note transfer | 부분 가능 | transition accepted, commitment/nullifier/ciphertext event | sender-recipient 관계, note provenance | public observer + 사용자 선택증빙 |
-| Redeem note to channel balance | 부분 가능 | redeem transition, nullifier usage, accounting update | 해당 note가 내부에서 누구로부터 왔는지 | channel event |
-| Withdraw-channel / bridge withdraw | 가능 | L1 주소, 금액, tx hash, 시간 | 내부 note provenance | Etherscan / bridge event |
-| 사용자 L1 지갑 → CEX 입금 | 가능 | CEX 입금 주소, 금액, 시간, source가 bridge 출금 주소일 수 있음 | 내부 note sender/provenance | CEX + L1 explorer |
+| 달성 여부 | 구분 | 공개/감시 가능 여부 | 거래소·감시자가 알 수 있는 것 | 알 수 없는 것 | 문서화 방식 |
+|---|---|---:|---|---|---|
+| [x] | CEX → 사용자 L1 지갑 TON 출금 | 가능 | 거래소 고객의 출금 주소, 금액, 시간 | 이후 사용자가 자기수탁 지갑에서 무엇을 할지 | 기존 CEX 기록 + L1 explorer |
+| [x] | 사용자 L1 지갑 → Tokamak bridge deposit | 가능 | L1 주소, bridge 주소, 금액, tx hash, 시간 | 사용자의 향후 note 상대방 | Etherscan / bridge event |
+| [x] | Channel join | 가능 | L1 account, L2 address pair, note-receive public key, channel name/id | 사용자의 향후 private note 상대방 | ChannelManager event |
+| [x] | Deposit-channel / accounting move | 가능 | bridge vault에서 channel accounting으로 들어간 금액·상태변경 | 그 금액이 향후 어떤 note transfer로 이어지는지 | bridge/channel event |
+| [x] | Note mint | 부분 가능 | commitment 생성, encrypted note-delivery event, storage update | note plaintext, owner 의미, 내부 용도 | commitment/nullifier/event explorer |
+| [ ] | Note transfer | 부분 가능 | transition accepted, commitment/nullifier/ciphertext event | sender-recipient 관계, note provenance | public observer + 사용자 선택증빙 |
+| [x] | Redeem note to channel balance | 부분 가능 | redeem transition, nullifier usage, accounting update | 해당 note가 내부에서 누구로부터 왔는지 | channel event |
+| [x] | Withdraw-channel / bridge withdraw | 가능 | L1 주소, 금액, tx hash, 시간 | 내부 note provenance | Etherscan / bridge event |
+| [x] | 사용자 L1 지갑 → CEX 입금 | 가능 | CEX 입금 주소, 금액, 시간, source가 bridge 출금 주소일 수 있음 | 내부 note sender/provenance | CEX + L1 explorer |
+
+체크 기준: 해당 row의 공개/감시 가능 경계가 현재 문서와 monitoring packet으로 뒷받침되고, 필요한 on-chain event surface가 존재하면 체크한다. `Note transfer`는 public observer가 볼 수 있는 event surface는 문서화되어 있지만, 사용자 선택증빙 export 기능은 아직 완료되지 않았으므로 미체크로 둔다.
 
 이 표에서 가장 중요한 문장은 다음이다.
 

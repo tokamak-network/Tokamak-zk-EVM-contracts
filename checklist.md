@@ -306,7 +306,7 @@ Tokamak 문서도 note-receive public key는 on-chain에 등록되지만, note-r
 - [x] auditor 또는 거래소에 모든 note copy가 자동 전달되는 구조를 상장유지 장치로 홍보하지 않는다.
 - [x] selective disclosure는 **사용자 통제형**이어야 한다.
 - [x] viewing key 공유는 spending key 공유와 명확히 분리해야 한다.
-- [ ] 사용자가 선택적으로 제출할 수 있는 증빙자료의 범위를 문서화한다.
+- [x] 사용자가 선택적으로 제출할 수 있는 증빙자료의 범위를 문서화한다.
 - [x] 구현되지 않은 disclosure 기능을 홍보하지 않는다.
 
 ### 6.2 사용자 선택공개 기능으로 준비할 항목

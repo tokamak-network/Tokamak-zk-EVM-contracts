@@ -4,7 +4,7 @@ This document explains how the repository generates the public, data-backed CEX 
 
 The packet generator is [scripts/cex-monitoring-packet/generate.mjs](../../../scripts/cex-monitoring-packet/generate.mjs). It is a read-only script that collects current evidence from the mainnet bridge deployment artifacts, Ethereum RPC, Etherscan, and the configured Google Drive artifact folder.
 
-The external policy model for monitoring, public disclosure boundaries, user-controlled selective disclosure, and channel policy is described in [docs/whitepaper.md](../../whitepaper.md). The generator does not create separate policy memos; it creates data files that support the white paper's policy statements.
+The external policy model for monitoring, public disclosure boundaries, user-controlled selective disclosure, and channel policy is described in [docs/whitepaper.md](../../whitepaper.md). The generator creates data files that support the white paper's policy statements. The packet may also include manually maintained companion files for narrow audit or exchange-dispute scopes.
 
 ## How To Generate
 
@@ -52,6 +52,7 @@ These files are intended to be included in the public Monitoring Packet.
 | `the-great-first-channel-Policy-Snapshot.json` | [data/the-great-first-channel-Policy-Snapshot.json](data/the-great-first-channel-Policy-Snapshot.json) | Current channel policy snapshot for `the-great-first-channel`, including channel manager, vault, leader/operator, join toll, managed storage addresses, root-vector hash, workspace mirror URL, DApp metadata digest, function root, verifier snapshot, and storage-layout source. |
 | `Private-State-Observability-Matrix.md` | [data/Private-State-Observability-Matrix.md](data/Private-State-Observability-Matrix.md) | Human-readable matrix mapping each Monitoring Packet event checklist item to the current public event surface, including event names, contract addresses, indexed fields, non-indexed fields, explorer query examples, what the event reveals, what it does not reveal, and exchange monitoring meaning. |
 | `Admin-Wallets-and-Upgrade-Policy.md` | [data/Admin-Wallets-and-Upgrade-Policy.md](data/Admin-Wallets-and-Upgrade-Policy.md) | Current owner and proxy-slot state for the monitored mainnet bridge deployment, plus notes that connect the generated data to the white paper's upgrade and channel-immutability policy. |
+| `User-Controlled-Evidence-Scope.md` | [data/User-Controlled-Evidence-Scope.md](data/User-Controlled-Evidence-Scope.md) | Manually maintained scope note for exceptional exchange disputes or compliance questions. It defines which public data and user-held local wallet facts a user may voluntarily submit, which evidence packages are not implemented, and which keys or wallet materials should not be submitted. |
 
 ## Notes
 

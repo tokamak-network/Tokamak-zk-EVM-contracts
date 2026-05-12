@@ -3879,6 +3879,12 @@ async function handleWalletGetMeta({ args, provider }) {
     registeredL2Address: registration.exists ? getAddress(registration.l2Address) : null,
     registeredL2StorageKey: registration.exists ? normalizeBytes32Hex(registration.channelTokenVaultKey) : null,
     registeredLeafIndex: registration.exists ? registration.leafIndex.toString() : null,
+    registeredNoteReceivePubKey: registration.exists
+      ? {
+        x: normalizeBytes32Hex(registration.noteReceivePubKey.x),
+        yParity: Number(registration.noteReceivePubKey.yParity),
+      }
+      : null,
   });
 }
 

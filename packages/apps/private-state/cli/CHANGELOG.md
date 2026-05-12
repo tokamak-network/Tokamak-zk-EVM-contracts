@@ -8,9 +8,9 @@
 - Changed wallet backups so they exclude spending keys, viewing keys, key derivation material,
   and plaintext note `owner`, `value`, and `salt` fields. Backups retain commitments,
   nullifiers, encrypted note payloads, and channel workspace cache files.
-- Replaced the legacy full-control `wallet.json` workspace format with separate note-tracking,
-  spending-key metadata, and viewing-key metadata files. Legacy wallet workspaces now fail fast
-  with recovery guidance.
+- Replaced the previous full-control wallet workspace format with separate note-tracking,
+  spending-key metadata, and viewing-key metadata files. The CLI now loads only the current
+  wallet metadata format.
 
 ## 1.2.1 - 2026-05-11
 

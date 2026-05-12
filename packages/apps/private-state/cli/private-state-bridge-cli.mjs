@@ -154,7 +154,6 @@ const CLI_ERROR_CODES = Object.freeze({
   MISSING_RPC_URL: "MISSING_RPC_URL",
   UNKNOWN_WALLET: "UNKNOWN_WALLET",
   MISSING_WALLET_SECRET: "MISSING_WALLET_SECRET",
-  WALLET_DECRYPT_FAILED: "WALLET_DECRYPT_FAILED",
   MISSING_DEPLOYMENT_ARTIFACTS: "MISSING_DEPLOYMENT_ARTIFACTS",
   MISSING_CHANNEL_REGISTRATION: "MISSING_CHANNEL_REGISTRATION",
   STALE_WORKSPACE: "STALE_WORKSPACE",
@@ -4842,8 +4841,8 @@ function assertWalletHasCurrentFormat(wallet, walletName) {
   expect(
     Number(wallet.walletFormatVersion) === WALLET_WORKSPACE_FORMAT_VERSION,
     [
-      `Wallet ${walletName} uses unsupported wallet workspace format ${wallet.walletFormatVersion ?? "legacy"}.`,
-      "Remove or archive the legacy wallet workspace and rebuild it with wallet recover-workspace.",
+      `Wallet ${walletName} uses unsupported wallet workspace format ${wallet.walletFormatVersion ?? "missing"}.`,
+      "Rebuild the wallet metadata with wallet recover-workspace.",
     ].join(" "),
   );
 }
@@ -6208,7 +6207,6 @@ function loadWallet(walletName, _walletSecret, networkName) {
   const normalizedWalletName = requireWalletName({ wallet: walletName });
   const normalizedNetworkName = requireNetworkName({ network: networkName });
   const walletDir = walletPath(normalizedWalletName, normalizedNetworkName);
-  assertNoLegacyWalletWorkspace(walletDir, normalizedWalletName);
   if (!walletConfigExists(walletDir)) {
     throw cliError(CLI_ERROR_CODES.UNKNOWN_WALLET, `Unknown wallet: ${normalizedWalletName} on ${normalizedNetworkName}.`);
   }
@@ -6266,17 +6264,6 @@ function loadUnlockedWalletWithMetadata(args) {
     wallet,
     walletMetadata,
   };
-}
-
-function assertNoLegacyWalletWorkspace(walletDir, walletName) {
-  if (!legacyWalletConfigExists(walletDir)) {
-    return;
-  }
-  throw new Error([
-    `Legacy wallet workspace detected for ${walletName}: ${walletConfigPath(walletDir)}.`,
-    "The CLI no longer supports the full-control wallet.json format.",
-    "Archive or remove the legacy wallet workspace and rebuild metadata with wallet recover-workspace.",
-  ].join(" "));
 }
 
 function readWalletKeySecretIfExists({ networkName, walletName, keyKind }) {
@@ -6486,7 +6473,6 @@ function loadWalletMetadata(walletName, networkName) {
   const normalizedWalletName = requireWalletName({ wallet: walletName });
   const normalizedNetworkName = requireNetworkName({ network: networkName });
   const walletDir = walletPath(normalizedWalletName, normalizedNetworkName);
-  assertNoLegacyWalletWorkspace(walletDir, normalizedWalletName);
   if (!walletConfigExists(walletDir)) {
     throw cliError(CLI_ERROR_CODES.UNKNOWN_WALLET, `Unknown wallet: ${normalizedWalletName} on ${normalizedNetworkName}.`);
   }
@@ -8069,7 +8055,6 @@ function prepareJoinWalletSecretForName({
 }) {
   const { channelName } = parseWalletName(walletName);
   const walletDir = walletPath(walletName, networkName);
-  assertNoLegacyWalletWorkspace(walletDir, walletName);
   expect(
     !walletConfigExists(walletDir),
     [
@@ -8250,7 +8235,6 @@ function normalizeExportWalletInfo(walletInfo) {
   const wallet = requireWalletName({ wallet: walletInfo.wallet });
   const network = requireNetworkName({ network: walletInfo.network });
   const walletDir = walletInfo.walletDir ?? walletPath(wallet, network);
-  assertNoLegacyWalletWorkspace(walletDir, wallet);
   const metadataPath = walletNotesMetadataPath(walletDir);
   const metadata = readJsonIfExists(metadataPath);
   const channelName = metadata?.channelName ?? walletInfo.channelName ?? parseWalletName(wallet).channelName;
@@ -8379,10 +8363,6 @@ function channelWorkspaceOperationsPath(workspaceDir) {
   return path.join(channelDataPath(workspaceDir), "operations");
 }
 
-function walletConfigPath(walletDir) {
-  return path.join(walletDir, "wallet.json");
-}
-
 function walletNotesMetadataPath(walletDir) {
   return path.join(walletDir, "wallet-notes.metadata.json");
 }
@@ -8401,10 +8381,6 @@ function walletMetadataPath(walletDir) {
 
 function walletConfigExists(walletDir) {
   return fs.existsSync(walletNotesMetadataPath(walletDir));
-}
-
-function legacyWalletConfigExists(walletDir) {
-  return fs.existsSync(walletConfigPath(walletDir));
 }
 
 const COMMAND_ARG_SCHEMAS = Object.freeze(
@@ -9624,11 +9600,6 @@ function buildRecoveryHints(error, args = {}) {
   if (error?.code === CLI_ERROR_CODES.MISSING_WALLET_SECRET) {
     hints.push("import the needed wallet viewing-key or spending-key file before running capability-gated wallet commands.");
     hints.push(`private-state-cli help guide --network ${networkName} --wallet ${walletName}`);
-  }
-
-  if (error?.code === CLI_ERROR_CODES.WALLET_DECRYPT_FAILED) {
-    hints.push("legacy encrypted wallet files are no longer imported directly.");
-    hints.push("archive the legacy wallet workspace and rebuild backup metadata with wallet recover-workspace.");
   }
 
   if (

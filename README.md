@@ -47,9 +47,9 @@ before channel creation or joining.
 ## Where To Start
 
 - Bridge overview: [bridge/README.md](./bridge/README.md)
-- Bridge white paper: [docs/whitepaper.md](./docs/whitepaper.md)
-- Bridge spec: [bridge/docs/spec.md](./bridge/docs/spec.md)
-- Verifier notes: [bridge/docs/verifier-spec.md](./bridge/docs/verifier-spec.md)
+- Bridge docs index: [bridge/docs/index.md](./bridge/docs/index.md)
+- Bridge white paper: [bridge/docs/whitepaper.md](./bridge/docs/whitepaper.md)
+- Bridge developer references: [bridge/docs/dev/](./bridge/docs/dev/)
 - App workspace guide: [packages/apps/README.md](./packages/apps/README.md)
 - Private-state DApp guide: [packages/apps/private-state/README.md](./packages/apps/private-state/README.md)
 - AI/search summary: [llms.txt](./llms.txt)
@@ -212,7 +212,7 @@ Bridge tests keep Tokamak proof fixtures under [bridge/test/fixtures/](./bridge/
 Bridge deployment and DApp registration consume `@tokamak-zk-evm/cli`,
 `@tokamak-zk-evm/subcircuit-library`, `@tokamak-zk-evm/synthesizer-node`, `tokamak-l2js`, and
 the repository Groth16 package from npm-linked packages. Current implementation details live in
-[bridge/docs/current-implementation.md](./bridge/docs/current-implementation.md).
+[bridge/docs/dev/current-implementation.md](./bridge/docs/dev/current-implementation.md).
 
 ## Notes On Scope
 

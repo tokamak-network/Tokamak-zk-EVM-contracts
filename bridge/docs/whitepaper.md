@@ -1,5 +1,7 @@
 # Tokamak Private App Channels White Paper
 
+Status: Official public bridge document.
+
 Last updated: 2026-05-12
 
 ## Abstract

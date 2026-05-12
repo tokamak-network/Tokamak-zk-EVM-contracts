@@ -1,10 +1,13 @@
 # Bridge and Private-State Mainnet Security Review
 
+Status: Archive. This is a dated mainnet review snapshot and should not be treated as the current
+public bridge documentation entrypoint.
+
 Historical notice: this document is a point-in-time review from 2026-04-10. It is retained for audit
 history and intentionally preserves the terminology, concrete limits, and findings as they existed
 at that review date. It is not maintained as the current mainnet-readiness verdict. For the
 consolidated current checklist, current statuses, and resolved/accepted risk classifications, read
-[`docs/audit/mainnet-deploy/audit-for-mainnet-deploy.md`](../../docs/audit/mainnet-deploy/audit-for-mainnet-deploy.md).
+[`docs/audit/mainnet-deploy/audit-for-mainnet-deploy.md`](../../../docs/audit/mainnet-deploy/audit-for-mainnet-deploy.md).
 
 Date: 2026-04-10
 

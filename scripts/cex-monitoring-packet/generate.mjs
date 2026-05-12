@@ -1018,7 +1018,7 @@ function buildChannelPolicySnapshot({ args, artifacts, onchain }) {
     dappFunctionRoot: onchain.dapp.functionRoot,
     verifierSnapshot: onchain.dapp.verifierSnapshot,
     storageLayoutSource: path.relative(REPO_ROOT, artifacts.paths.dappStorageLayoutPath),
-    policyExplanationSource: "docs/whitepaper.md#82-policy-surfaces",
+    policyExplanationSource: "bridge/docs/whitepaper.md#82-policy-surfaces",
   };
 }
 
@@ -1034,7 +1034,7 @@ function buildObservabilityMatrix(eventCoverage) {
   return `# Private-State Observability Matrix
 
 This file maps the Monitoring Packet event checklist to the current public event surface. The policy
-meaning of this matrix is described in \`docs/whitepaper.md\`; this file records
+meaning of this matrix is described in \`bridge/docs/whitepaper.md\`; this file records
 the current ABI-derived monitoring details.
 
 ${markdownTable([
@@ -1083,7 +1083,7 @@ function buildAdminPolicy({ pack }) {
 
 This file records the current on-chain owner and proxy-slot state for the monitored mainnet bridge
 deployment. The external policy model for upgrades and per-channel immutability is described in
-\`docs/whitepaper.md\`.
+\`bridge/docs/whitepaper.md\`.
 
 ## Owners
 

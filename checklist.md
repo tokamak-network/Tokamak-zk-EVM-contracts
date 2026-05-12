@@ -775,7 +775,7 @@ Tokamak이 외부에 내야 할 메시지는 다음 하나로 수렴해야 한�
 - Tokamak Private State security model: <https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/packages/apps/private-state/docs/security-model.md>
 - Tokamak Private State workflow: <https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/packages/apps/private-state/docs/workflow.md>
 - Tokamak private-state README: <https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/packages/apps/private-state/README.md>
-- Tokamak zk-L2 bridge whitepaper: <https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/bridge/docs/zk-l2-bridge-whitepaper.md>
+- Tokamak Private App Channels whitepaper: <https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/bridge/docs/whitepaper.md>
 - private-state CLI NPM: <https://www.npmjs.com/package/@tokamak-private-dapps/private-state-cli>
 - Tokamak zk-EVM CLI NPM: <https://www.npmjs.com/package/@tokamak-zk-evm/cli>
 - 특금법 시행령 링크: <https://www.law.go.kr/lumLsLinkPop.do?chrClsCd=010202&lspttninfSeq=82843>

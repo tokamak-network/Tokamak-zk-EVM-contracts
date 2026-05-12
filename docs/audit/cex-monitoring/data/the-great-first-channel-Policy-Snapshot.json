@@ -27,5 +27,5 @@
     "2.1"
   ],
   "storageLayoutSource": "deployment/chain-id-1/dapps/private-state/20260504T003212Z/storage-layout.1.latest.json",
-  "policyExplanationSource": "docs/whitepaper.md#82-policy-surfaces"
+  "policyExplanationSource": "bridge/docs/whitepaper.md#82-policy-surfaces"
 }

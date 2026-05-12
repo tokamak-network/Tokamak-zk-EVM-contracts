@@ -2,7 +2,7 @@
 
 This file records the current on-chain owner and proxy-slot state for the monitored mainnet bridge
 deployment. The external policy model for upgrades and per-channel immutability is described in
-`docs/whitepaper.md`.
+`bridge/docs/whitepaper.md`.
 
 ## Owners
 

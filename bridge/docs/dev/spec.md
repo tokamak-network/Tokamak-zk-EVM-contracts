@@ -1,5 +1,8 @@
 # Tokamak Private App Channels - Bridge Contract
 
+Status: Developer reference. This is a math-first abstract model for bridge constraints and
+invariants, not a public narrative document or deployment guide.
+
 This document defines the minimal mathematical constraints needed to keep the bridge
 contract secure.
 

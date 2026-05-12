@@ -147,7 +147,7 @@ $$
 
 The graph below uses `lambda = 1/minute`, so `mu(t) = 1440t` when `t` is measured in days.
 
-![General channel lifespan leaf collision probability](../../../../docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
+![General channel lifespan leaf collision probability](../../../../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 
 For the current `d = 36` setting, this model gives a materially longer but still finite
 channel-lifespan capacity limit. It is not a statement that any particular note is likely to fail

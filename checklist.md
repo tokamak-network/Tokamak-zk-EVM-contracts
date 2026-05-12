@@ -133,29 +133,29 @@ Tokamak도 홍보 전에 반드시 다음을 공개해야 한다.
 
 ### 3.1 반드시 넣어야 할 문구
 
-- [x] **TON의 중앙거래소 입출금은 기존 거래소 지원 네트워크에서 투명하게 이루어진다.**
-- [x] **Tokamak Private App Channels는 중앙거래소 입출금 네트워크가 아니다.**
+- [ ] **TON의 중앙거래소 입출금은 기존 거래소 지원 네트워크에서 투명하게 이루어진다.**
+- [ ] **Tokamak Private App Channels는 중앙거래소 입출금 네트워크가 아니다.**
 - [ ] **private-state notes는 거래소에 입금할 수 있는 별도 자산이 아니다.**
-- [x] **사용자는 먼저 자기수탁 L1 지갑으로 TON을 보유한 뒤 opt-in 방식으로 channel을 이용한다.**
-- [x] **L1 bridge deposit과 withdraw는 온체인에서 관측 가능하다.**
-- [x] **channel join, L1/L2 identity registration, note-receive public key registration 등 공개 등록 이벤트는 관측 가능하다.**
-- [x] **내부 note transfer의 상대방·provenance는 public contract state에서 기본적으로 복원되지 않는다.**
-- [x] **Tokamak 또는 channel operator는 사용자의 spending key, wallet secret, note viewing secret을 보유하지 않는다.**
-- [x] **사용자는 필요한 경우 자신이 보유한 note 또는 거래 사실을 선택적으로 증빙할 수 있다. 단, 실제 구현되어 있는 범위만 홍보한다.**
+- [ ] **사용자는 먼저 자기수탁 L1 지갑으로 TON을 보유한 뒤 opt-in 방식으로 channel을 이용한다.**
+- [ ] **L1 bridge deposit과 withdraw는 온체인에서 관측 가능하다.**
+- [ ] **channel join, L1/L2 identity registration, note-receive public key registration 등 공개 등록 이벤트는 관측 가능하다.**
+- [ ] **내부 note transfer의 상대방·provenance는 public contract state에서 기본적으로 복원되지 않는다.**
+- [ ] **Tokamak 또는 channel operator는 사용자의 spending key, wallet secret, note viewing secret을 보유하지 않는다.**
+- [ ] **사용자는 필요한 경우 자신이 보유한 note 또는 거래 사실을 선택적으로 증빙할 수 있다. 단, 실제 구현되어 있는 범위만 홍보한다.**
 - [ ] **이 시스템은 자금세탁, 테러자금조달, 제재 회피, 법규 우회, 불법도박, 범죄수익 은닉 목적으로 사용되어서는 안 된다.**
 
 ### 3.2 반드시 피해야 할 문구
 
-- [x] “TON을 익명화한다.”
-- [x] “거래소가 자금 출처를 추적할 수 없다.”
-- [x] “현금화 시 출처를 숨길 수 있다.”
-- [x] “CEX off-ramp privacy.”
-- [x] “untraceable TON.”
-- [x] “완전 익명 송금.”
-- [x] “규제기관·거래소 추적 방지.”
-- [x] “mixer보다 안전하다.”
-- [x] “다크코인 기능.”
-- [x] “상장 거래소가 인정한 프라이버시 송금.”
+- [ ] “TON을 익명화한다.”
+- [ ] “거래소가 자금 출처를 추적할 수 없다.”
+- [ ] “현금화 시 출처를 숨길 수 있다.”
+- [ ] “CEX off-ramp privacy.”
+- [ ] “untraceable TON.”
+- [ ] “완전 익명 송금.”
+- [ ] “규제기관·거래소 추적 방지.”
+- [ ] “mixer보다 안전하다.”
+- [ ] “다크코인 기능.”
+- [ ] “상장 거래소가 인정한 프라이버시 송금.”
 
 특히 마지막 표현은 위험하다. AZTEC 사례는 긍정적 비교 사례일 수는 있지만, “한국 거래소가 private-state 송금을 승인했다”는 의미가 아니다. AZTEC의 공개자료에서 확인되는 전략은 **Ethereum CEX edge + optional private state + public monitoring 자료**이지, 거래소가 내부 private history를 전부 수용·보증했다는 것이 아니다.
 
@@ -566,14 +566,14 @@ Tokamak의 security model에서 bridge owner의 upgrade 권한과 privileged own
 
 ### 11.3 금지 문구
 
-- [x] “TON을 완전히 익명화합니다.”
-- [x] “거래소 현금화 시 출처를 숨길 수 있습니다.”
-- [x] “업비트·빗썸·코인원이 추적할 수 없습니다.”
-- [x] “규제기관의 감시를 피할 수 있습니다.”
-- [x] “mixer처럼 사용할 수 있습니다.”
-- [x] “프라이버시 코인으로 진화한 TON.”
-- [x] “자금 출처를 세탁할 수 있습니다.”
-- [x] “CEX off-ramp privacy.”
+- [ ] “TON을 완전히 익명화합니다.”
+- [ ] “거래소 현금화 시 출처를 숨길 수 있습니다.”
+- [ ] “업비트·빗썸·코인원이 추적할 수 없습니다.”
+- [ ] “규제기관의 감시를 피할 수 있습니다.”
+- [ ] “mixer처럼 사용할 수 있습니다.”
+- [ ] “프라이버시 코인으로 진화한 TON.”
+- [ ] “자금 출처를 세탁할 수 있습니다.”
+- [ ] “CEX off-ramp privacy.”
 
 ---
 
@@ -703,21 +703,21 @@ P0는 아니지만, 상장유지 리스크를 크게 낮추는 항목이다.
 
 아래는 피해야 할 red flag다.
 
-- [x] 홍보자료 첫 문장에 “익명 송금”을 넣는 것
-- [x] “거래소 현금화 출처 추적 방지”를 장점으로 말하는 것
-- [x] CEX 출금 → bridge → note transfer → CEX 입금 튜토리얼을 제공하는 것
-- [x] private notes를 “TON notes”라고만 불러 TON 자체와 혼동시키는 것
+- [ ] 홍보자료 첫 문장에 “익명 송금”을 넣는 것
+- [ ] “거래소 현금화 출처 추적 방지”를 장점으로 말하는 것
+- [ ] CEX 출금 → bridge → note transfer → CEX 입금 튜토리얼을 제공하는 것
+- [ ] private notes를 “TON notes”라고만 불러 TON 자체와 혼동시키는 것
 - [x] CEX deposit address를 CLI 사용 예시에 넣는 것
 - [x] contract addresses와 admin wallets를 공개하지 않는 것
-- [x] source code verification 없이 홍보하는 것
+- [ ] source code verification 없이 홍보하는 것
 - [x] upgrade 권한을 숨기는 것
 - [x] channel operator가 무엇을 할 수 있는지 설명하지 않는 것
 - [x] 사용자 viewing key 또는 note plaintext를 서버가 보관하는데 이를 숨기는 것
-- [x] “AZTEC이 상장됐으니 문제없다”고 단정하는 것
+- [ ] “AZTEC이 상장됐으니 문제없다”고 단정하는 것
 - [x] 내부 note provenance를 복원할 수 없다는 사실을 감추는 것
-- [x] 구현되지 않은 selective disclosure 기능을 이미 있는 것처럼 홍보하는 것
-- [x] auditor backdoor를 넣고도 “완전 프라이버시”라고 홍보하는 것
-- [x] auditor backdoor가 없는데 “거래소 요청 시 모든 내부 흐름 제공 가능”이라고 홍보하는 것
+- [ ] 구현되지 않은 selective disclosure 기능을 이미 있는 것처럼 홍보하는 것
+- [ ] auditor backdoor를 넣고도 “완전 프라이버시”라고 홍보하는 것
+- [ ] auditor backdoor가 없는데 “거래소 요청 시 모든 내부 흐름 제공 가능”이라고 홍보하는 것
 
 ---
 

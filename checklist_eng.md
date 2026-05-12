@@ -133,29 +133,29 @@ The following items must be reflected in the homepage, blog, GitHub README, NPM 
 
 ### 3.1 Wording That Must Be Included
 
-- [x] **TON deposits and withdrawals on centralized exchanges are transparently performed on the existing exchange-supported network.**
-- [x] **Tokamak Private App Channels is not a centralized exchange deposit and withdrawal network.**
+- [ ] **TON deposits and withdrawals on centralized exchanges are transparently performed on the existing exchange-supported network.**
+- [ ] **Tokamak Private App Channels is not a centralized exchange deposit and withdrawal network.**
 - [ ] **private-state notes are not separate assets that can be deposited to an exchange.**
-- [x] **Users first hold TON in a self-custody L1 wallet and then use the channel on an opt-in basis.**
-- [x] **L1 bridge deposits and withdrawals are observable on-chain.**
-- [x] **Public registration events such as channel join, L1/L2 identity registration, and note-receive public key registration are observable.**
-- [x] **The counterparties and provenance of internal note transfers are not reconstructed by default from public contract state.**
-- [x] **Tokamak or the channel operator does not hold users' spending keys, wallet secrets, or note viewing secrets.**
-- [x] **Users may selectively prove notes or transaction facts they hold when needed. However, promote only the scope that is actually implemented.**
+- [ ] **Users first hold TON in a self-custody L1 wallet and then use the channel on an opt-in basis.**
+- [ ] **L1 bridge deposits and withdrawals are observable on-chain.**
+- [ ] **Public registration events such as channel join, L1/L2 identity registration, and note-receive public key registration are observable.**
+- [ ] **The counterparties and provenance of internal note transfers are not reconstructed by default from public contract state.**
+- [ ] **Tokamak or the channel operator does not hold users' spending keys, wallet secrets, or note viewing secrets.**
+- [ ] **Users may selectively prove notes or transaction facts they hold when needed. However, promote only the scope that is actually implemented.**
 - [ ] **This system must not be used for money laundering, terrorist financing, sanctions evasion, legal/regulatory circumvention, illegal gambling, or concealment of criminal proceeds.**
 
 ### 3.2 Wording That Must Be Avoided
 
-- [x] "Anonymizes TON."
-- [x] "Exchanges cannot trace the source of funds."
-- [x] "Can hide the source when cashing out."
-- [x] "CEX off-ramp privacy."
-- [x] "untraceable TON."
-- [x] "Fully anonymous transfer."
-- [x] "Prevention of regulator/exchange tracking."
-- [x] "Safer than a mixer."
-- [x] "Dark coin functionality."
-- [x] "Privacy transfer recognized by listed exchanges."
+- [ ] "Anonymizes TON."
+- [ ] "Exchanges cannot trace the source of funds."
+- [ ] "Can hide the source when cashing out."
+- [ ] "CEX off-ramp privacy."
+- [ ] "untraceable TON."
+- [ ] "Fully anonymous transfer."
+- [ ] "Prevention of regulator/exchange tracking."
+- [ ] "Safer than a mixer."
+- [ ] "Dark coin functionality."
+- [ ] "Privacy transfer recognized by listed exchanges."
 
 The last expression is especially dangerous. The AZTEC case can be a positive comparison case, but it does not mean that "Korean exchanges approved private-state transfers." The strategy confirmed from AZTEC's public materials is **Ethereum CEX edge + optional private state + public monitoring materials**, not that exchanges accepted or guaranteed all internal private history.
 
@@ -566,14 +566,14 @@ Considering the Korean Travel Rule and FIU policy environment, exchange explanat
 
 ### 11.3 Prohibited Wording
 
-- [x] "Fully anonymizes TON."
-- [x] "Can hide source when cashing out through an exchange."
-- [x] "Upbit, Bithumb, and Coinone cannot trace it."
-- [x] "Can avoid regulator monitoring."
-- [x] "Can be used like a mixer."
-- [x] "TON evolved into a privacy coin."
-- [x] "Can launder source of funds."
-- [x] "CEX off-ramp privacy."
+- [ ] "Fully anonymizes TON."
+- [ ] "Can hide source when cashing out through an exchange."
+- [ ] "Upbit, Bithumb, and Coinone cannot trace it."
+- [ ] "Can avoid regulator monitoring."
+- [ ] "Can be used like a mixer."
+- [ ] "TON evolved into a privacy coin."
+- [ ] "Can launder source of funds."
+- [ ] "CEX off-ramp privacy."
 
 ---
 
@@ -703,21 +703,21 @@ This sentence is dangerous. AZTEC is a separate token and separate network, and 
 
 The following are red flags to avoid.
 
-- [x] Putting "anonymous transfer" in the first sentence of promotional materials
-- [x] Speaking of "exchange cash-out source tracking prevention" as an advantage
-- [x] Providing a CEX withdrawal -> bridge -> note transfer -> CEX deposit tutorial
-- [x] Calling private notes only "TON notes" and confusing them with TON itself
+- [ ] Putting "anonymous transfer" in the first sentence of promotional materials
+- [ ] Speaking of "exchange cash-out source tracking prevention" as an advantage
+- [ ] Providing a CEX withdrawal -> bridge -> note transfer -> CEX deposit tutorial
+- [ ] Calling private notes only "TON notes" and confusing them with TON itself
 - [x] Putting a CEX deposit address in CLI usage examples
 - [x] Not publishing contract addresses and admin wallets
-- [x] Promoting without source code verification
+- [ ] Promoting without source code verification
 - [x] Hiding upgrade authority
 - [x] Not explaining what the channel operator can do
 - [x] Hiding that the server stores user viewing keys or note plaintext
-- [x] Concluding that "there is no problem because AZTEC was listed"
+- [ ] Concluding that "there is no problem because AZTEC was listed"
 - [x] Hiding the fact that internal note provenance cannot be reconstructed
-- [x] Promoting unimplemented selective disclosure functionality as already existing
-- [x] Adding an auditor backdoor while promoting it as "complete privacy"
-- [x] Saying "all internal flows can be provided upon exchange request" despite having no auditor backdoor
+- [ ] Promoting unimplemented selective disclosure functionality as already existing
+- [ ] Adding an auditor backdoor while promoting it as "complete privacy"
+- [ ] Saying "all internal flows can be provided upon exchange request" despite having no auditor backdoor
 
 ---
 

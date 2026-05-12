@@ -305,7 +305,7 @@ Tokamak 문서도 note-receive public key는 on-chain에 등록되지만, note-r
 - [x] Tokamak, 회사, channel operator는 모든 note plaintext를 볼 수 있는 master viewing key를 보유하지 않는다.
 - [x] auditor 또는 거래소에 모든 note copy가 자동 전달되는 구조를 상장유지 장치로 홍보하지 않는다.
 - [x] selective disclosure는 **사용자 통제형**이어야 한다.
-- [ ] viewing key 공유는 spending key 공유와 명확히 분리해야 한다.
+- [x] viewing key 공유는 spending key 공유와 명확히 분리해야 한다.
 - [ ] 사용자가 선택적으로 제출할 수 있는 증빙자료의 범위를 문서화한다.
 - [x] 구현되지 않은 disclosure 기능을 홍보하지 않는다.
 
@@ -455,7 +455,7 @@ CLI 설치 페이지와 사용 예시에 다음 경고를 넣는다.
 - [x] multisig 사용 여부 공개
 - [x] timelock 사용 여부 공개
 - [ ] owner 변경 history 공개
-- [ ] implementation upgrade history 공개
+- [x] implementation upgrade history 공개
 - [ ] emergency pause 권한 공개
 - [x] verifier 교체 권한 공개
 - [x] metadata update 권한 공개
@@ -592,7 +592,7 @@ Tokamak의 security model에서 bridge owner의 upgrade 권한과 privileged own
 - [x] bridge deposit/withdraw event query 방법 공개
 - [x] channel join / L1-L2 pair monitoring 방법 공개
 - [x] commitment/nullifier/encrypted event monitoring 방법 공개
-- [ ] admin wallet / proxy / implementation / upgrade history 공개
+- [x] admin wallet / proxy / implementation / upgrade history 공개
 - [ ] emergency notice page 공개
 
 ### 12.2 문서 정합성
@@ -602,7 +602,7 @@ Tokamak의 security model에서 bridge owner의 upgrade 권한과 privileged own
 - [x] “untraceable” 표현 제거
 - [x] “anonymous cash-out” 표현 제거
 - [x] “mixer” 표현 제거
-- [ ] `private-state note ≠ exchange-supported TON` 명시
+- [x] `private-state note ≠ exchange-supported TON` 명시
 - [x] `CEX edge remains transparent` 명시
 - [x] 내부 note provenance 비가시성을 숨기지 않고 정확히 명시
 
@@ -711,15 +711,15 @@ P0는 아니지만, 상장유지 리스크를 크게 낮추는 항목이다.
 - [ ] private notes를 “TON notes”라고만 불러 TON 자체와 혼동시키는 것
 - [x] CEX deposit address를 CLI 사용 예시에 넣는 것
 - [x] contract addresses와 admin wallets를 공개하지 않는 것
-- [ ] source code verification 없이 홍보하는 것
+- [x] source code verification 없이 홍보하는 것
 - [x] upgrade 권한을 숨기는 것
 - [x] channel operator가 무엇을 할 수 있는지 설명하지 않는 것
 - [x] 사용자 viewing key 또는 note plaintext를 서버가 보관하는데 이를 숨기는 것
 - [ ] “AZTEC이 상장됐으니 문제없다”고 단정하는 것
 - [x] 내부 note provenance를 복원할 수 없다는 사실을 감추는 것
-- [ ] 구현되지 않은 selective disclosure 기능을 이미 있는 것처럼 홍보하는 것
-- [ ] auditor backdoor를 넣고도 “완전 프라이버시”라고 홍보하는 것
-- [ ] auditor backdoor가 없는데 “거래소 요청 시 모든 내부 흐름 제공 가능”이라고 홍보하는 것
+- [x] 구현되지 않은 selective disclosure 기능을 이미 있는 것처럼 홍보하는 것
+- [x] auditor backdoor를 넣고도 “완전 프라이버시”라고 홍보하는 것
+- [x] auditor backdoor가 없는데 “거래소 요청 시 모든 내부 흐름 제공 가능”이라고 홍보하는 것
 
 ---
 

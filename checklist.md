@@ -583,7 +583,7 @@ Tokamak의 security model에서 bridge owner의 upgrade 권한과 privileged own
 
 ### 12.1 공개 모니터링
 
-- [ ] 모든 mainnet contract source가 Etherscan에 verified
+- [x] 모든 mainnet contract source가 Etherscan에 verified
 - [x] contract address table 공개
 - [x] `the-great-first-channel` public profile 공개
 - [x] public observer 또는 explorer 공개
@@ -709,7 +709,7 @@ P0는 아니지만, 상장유지 리스크를 크게 낮추는 항목이다.
 - [x] private notes를 “TON notes”라고만 불러 TON 자체와 혼동시키는 것
 - [x] CEX deposit address를 CLI 사용 예시에 넣는 것
 - [x] contract addresses와 admin wallets를 공개하지 않는 것
-- [ ] source code verification 없이 홍보하는 것
+- [x] source code verification 없이 홍보하는 것
 - [x] upgrade 권한을 숨기는 것
 - [x] channel operator가 무엇을 할 수 있는지 설명하지 않는 것
 - [x] 사용자 viewing key 또는 note plaintext를 서버가 보관하는데 이를 숨기는 것

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-12T07:23:39.917Z",
+  "generatedAt": "2026-05-12T07:48:02.779Z",
   "chainId": 1,
   "chain": "ethereum-mainnet",
   "canonicalTonContractAddress": "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5",
@@ -80,7 +80,7 @@
     "tokamakVerifierCompatibleBackendVersion": "2.1"
   },
   "sourceVerificationStatus": {
-    "status": "partial",
+    "status": "ok",
     "entries": {
       "bridgeCore": {
         "address": "0x992E2Ae206620d811832a8F697c526c4f95974b6",
@@ -164,21 +164,21 @@
       },
       "privateStateController": {
         "address": "0x67C6233A99D9f122Fef9DC111e89948107b34c2F",
-        "contractName": "",
-        "compilerVersion": "",
+        "contractName": "PrivateStateController",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
         "proxy": "0",
         "implementation": "",
-        "verified": false,
+        "verified": true,
         "explorerUrl": "https://etherscan.io/address/0x67C6233A99D9f122Fef9DC111e89948107b34c2F#code",
         "checkedVia": "etherscan-api"
       },
       "l2AccountingVault": {
         "address": "0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA",
-        "contractName": "",
-        "compilerVersion": "",
+        "contractName": "L2AccountingVault",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
         "proxy": "0",
         "implementation": "",
-        "verified": false,
+        "verified": true,
         "explorerUrl": "https://etherscan.io/address/0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA#code",
         "checkedVia": "etherscan-api"
       },
@@ -203,29 +203,8 @@
         "checkedVia": "etherscan-api"
       }
     },
-    "allCheckedAddressesVerified": false,
-    "uncheckedOrFailedAddresses": [
-      {
-        "address": "0x67C6233A99D9f122Fef9DC111e89948107b34c2F",
-        "contractName": "",
-        "compilerVersion": "",
-        "proxy": "0",
-        "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x67C6233A99D9f122Fef9DC111e89948107b34c2F#code",
-        "checkedVia": "etherscan-api"
-      },
-      {
-        "address": "0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA",
-        "contractName": "",
-        "compilerVersion": "",
-        "proxy": "0",
-        "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA#code",
-        "checkedVia": "etherscan-api"
-      }
-    ],
+    "allCheckedAddressesVerified": true,
+    "uncheckedOrFailedAddresses": [],
     "warnings": []
   },
   "abiLinks": {

@@ -1,8 +1,9 @@
 # Private State zk-note DApp
 
 private-state is a bridge-coupled zk-note payment DApp for the Tokamak Network Token.
-Canonical asset custody remains on L1. The DApp keeps accounting balances and note state on the proving-based L2 side,
-while the bridge accepts proof-backed state transitions.
+Canonical asset custody remains on L1. The DApp keeps accounting balances and note state as
+proof-backed confidential application state on the proving-based L2 side, while the bridge accepts
+proof-backed state transitions.
 
 ## Scope
 
@@ -18,8 +19,9 @@ The user-facing state machine is:
 8. move value back from the channel L2 accounting vault into the shared L1 bridge vault
 9. claim the shared L1 bridge deposit back into the user's L1 wallet
 
-This repository does not implement note-ownership privacy inside the DApp contracts themselves. Privacy depends on the
-surrounding proving-based L2 execution model.
+This repository does not implement note-ownership privacy inside the DApp contracts themselves.
+Privacy-preserving note semantics depend on the surrounding proving-based L2 execution model and
+the DApp-programmed public disclosure surface.
 
 ## Documentation
 

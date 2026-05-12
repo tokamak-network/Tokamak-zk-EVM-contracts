@@ -41,7 +41,7 @@ That choice is the core design thesis of the system:
 - application specificity is a feature, not a limitation
 - validity should be checked on Ethereum, not delegated to a trusted operator
 - custody should remain on Ethereum even when execution moves off-chain
-- privacy should be layered on top of proof-backed execution rather than assumed automatically
+- privacy should be programmed by each DApp on top of proof-backed execution rather than assumed automatically
 
 The result is a bridge architecture that tries to make proof-backed app channels operationally practical without collapsing everything into a single monolithic Layer 2. Each channel gets its own manager, its own state commitment, and its own proof-validated updates, while the bridge provides the shared control plane for DApp registration, channel creation, token custody, and verifier access.
 
@@ -80,7 +80,11 @@ The human-facing side of the system can also be understood through three princip
 
 These parts are not arranged as one flat network. Ethereum is the top-level settlement and ordering environment. The bridge control plane lives on Ethereum and is shared across all channels. Each channel then forms its own execution domain under that shared bridge surface, with its own accepted state commitment and its own user registrations. In other words, the system is not one global off-chain state machine with many applications inside it. It is one Ethereum-anchored bridge fabric with many parallel channel-scoped state machines attached to it.
 
-Each channel belongs to exactly one registered DApp. The bridge does not treat a channel as an open-ended programmable sandbox. A channel inherits a bounded storage surface and a bounded function surface from the DApp metadata that was registered before the channel was created.
+Each channel belongs to exactly one registered DApp. The bridge does not treat a channel as an
+open-ended programmable sandbox. Instead, it provides programmable privacy infrastructure at the
+DApp boundary: the DApp developer programs the storage model, public-input surface, disclosed event
+outputs, client recovery model, and optional compliance or selective-disclosure workflow before a
+channel snapshots that registered policy.
 
 The framework is deliberately multi-tenant at the DApp and channel layers. A DApp can be added when
 its developer and Tokamak agree on a bridge-facing metadata surface, proving support, and operating
@@ -187,35 +191,30 @@ The bridge treats asset custody as a conservative, settlement-facing concern. It
 
 This is why deposits and withdrawals are routed through a separate Groth16-backed vault path even when the channel also supports richer Tokamak-zkp application execution.
 
-### 3.7 Privacy Is Layered, Not Absolute
+### 3.7 Privacy Is Programmed By The DApp
 
 The current bridge hides the original transaction from Ethereum by accepting a proof and public inputs instead of the original execution trace. That is useful, but it is not the full privacy story.
 
 The design philosophy is intentionally narrower:
 
 - the bridge provides transaction-submission privacy at the settlement boundary
-- the DApp must provide state-semantic privacy if the application requires it
+- the DApp must program state-semantic privacy and disclosure if the application requires it
 
-In other words, the bridge can help hide the original private execution payload, but it does not automatically hide the observable shape of channel activity. The bridge still publishes proof-backed state transitions, accepted root-vector updates, observed storage writes, and any DApp event logs that the registered function metadata instructs it to re-emit. An outside observer can therefore still learn that activity occurred, when it occurred, which channel function family was involved, and how the accepted commitment state moved.
+In other words, the bridge can help hide the original private execution payload, but it does not
+automatically define the full disclosure boundary of channel activity. The bridge provides a
+programmable privacy substrate: it accepts proofs over an agreed public-input surface, advances the
+registered channel commitment, publishes the bridge-visible observations required by the registered
+metadata, and re-emits only the DApp event outputs that the DApp surface instructs it to surface.
+What those observations reveal is programmed by the DApp, not implied uniformly by the bridge.
 
-This is why privacy remains DApp-dependent. The bridge provides a lower-information settlement boundary than direct calldata publication, but it does not by itself guarantee semantic privacy of user behavior.
+This is why privacy remains DApp-dependent. The bridge provides a lower-information settlement
+boundary than direct calldata publication, but it does not by itself guarantee semantic privacy of
+user behavior or universal public reconstructibility of every DApp's semantic state.
 
-Different DApps can extend this model in different directions. A payment-style DApp may hide
-recipient-level note semantics. A disclosure-oriented DApp may expose audit hooks. A
-channel-operated DApp may define operator-mediated query or service rules. Those choices are DApp
-policy, not a bridge-wide default.
-
-The currently deployed `private-state` DApp is one concrete instance of the model. There, an outside
-observer can still see the timing and rough shape of user activity such as mint-like, transfer-like,
-redeem-like, or vault-withdrawal-related transitions, and can observe that the note-related storage
-commitments changed. However, the observer cannot directly recover the plaintext note contents, the
-recipient-specific meaning of encrypted outputs, or the full semantic transaction story from those
-observations alone. In short:
-
-- the bridge hides the original execution payload
-- the DApp may further hide the user-level meaning of the resulting state transition
-
-For readers who want one concrete intuition: an outside observer may be able to tell that a user participated in a transfer-shaped action and that certain commitment domains changed, while still being unable to tell which recipient actually received which note value.
+Different DApps can program this model in different directions. A payment-style DApp may hide
+recipient-level semantics. A disclosure-oriented DApp may expose audit hooks. A channel-operated
+DApp may define operator-mediated query or service rules. A public-by-design DApp may deliberately
+surface more state. Those choices are DApp policy, not a bridge-wide default.
 
 This layered privacy model also defines a policy boundary. The bridge does not create a universal
 semantic transcript for every DApp, and it does not by itself create a universal private-data
@@ -586,13 +585,16 @@ Example: if a token charges a transfer fee, the vault may receive less than the 
 to deposit. Unless the bridge treats that behavior as invalid, L1 custody and L2 accounting can
 diverge. This is why exact-transfer behavior is not a cosmetic preference.
 
-DApp disclosure policy is DApp-specific. Public bridge monitoring covers bridge-edge events, channel
-policy, identity registration, proof acceptance, root movement, metadata changes, and upgrade events.
-It does not automatically create one universal viewing model for every DApp. A DApp may choose
-user-controlled selective disclosure, channel-operator-mediated disclosure, public-by-design state,
-or another documented policy. That choice must be clear before users join because the bridge treats
-the resulting channel as a policy snapshot, not as a mutable promise that can be silently rewritten
-after funds and local state have accumulated.
+DApp disclosure policy is DApp-specific. Public bridge monitoring covers the bridge's own edge and
+control-plane facts, such as bridge-edge events, channel policy, identity registration, proof
+acceptance, root movement, metadata changes, and upgrade events. DApp-level disclosure beyond that
+is programmed by the DApp's registered public-input surface, managed storage model, emitted event
+outputs, and documented client workflow. The bridge does not automatically create one universal
+viewing model for every DApp. A DApp may choose user-controlled selective disclosure,
+channel-operator-mediated disclosure, public-by-design state, or another documented policy. That
+choice must be clear before users join because the bridge treats the resulting channel as a policy
+snapshot, not as a mutable promise that can be silently rewritten after funds and local state have
+accumulated.
 
 The currently deployed `private-state` DApp chooses a user-controlled disclosure model. Tokamak,
 the bridge operator, and the channel leader are not designed to hold user wallet secrets, spending
@@ -732,6 +734,6 @@ The current Tokamak Private App Channels bridge is best understood as a proof-fi
 - isolate channels instead of forcing one global application state machine
 - keep custody conservative and execution flexible
 - publish accepted commitments and writes even when persistent storage stays compact
-- treat privacy as a layered property that depends on both the bridge and the DApp
+- treat privacy as a DApp-programmed property built on top of the bridge's proof and settlement surface
 
 Under this model, the bridge offers a clear contract between Ethereum, the proving system, and the application developer. Ethereum decides custody and accepted validity. The bridge decides whether a proof matches an allowed channel and DApp surface. The DApp decides what application semantics live behind that proof surface. That division of responsibility is the defining architectural idea of the current implementation.

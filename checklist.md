@@ -95,13 +95,13 @@ Tokamak 홍보도 같은 방향이어야 한다.
 
 #### 권장 프레임
 
-- [ ] “proof-backed confidential application state”
-- [ ] “L1-transparent bridge edge”
-- [ ] “user-controlled private note state”
-- [ ] “selective disclosure capable architecture”
-- [ ] “privacy-preserving DApp channel”
-- [ ] “TON custody remains anchored on L1”
-- [ ] “internal note transfer privacy, transparent L1 entry/exit”
+- [x] “proof-backed confidential application state”
+- [x] “L1-transparent bridge edge”
+- [x] “user-controlled private note state”
+- [x] “selective disclosure capable architecture”
+- [x] “privacy-preserving DApp channel”
+- [x] “TON custody remains anchored on L1”
+- [x] “internal note transfer privacy, transparent L1 entry/exit”
 
 ### 2.3 모니터링 자료를 먼저 공개
 

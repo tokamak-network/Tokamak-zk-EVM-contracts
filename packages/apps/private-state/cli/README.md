@@ -270,7 +270,9 @@ user wants to use confidential channel-local notes while keeping L1 bridge depos
 Translate the user's intent into safe, step-by-step CLI actions.
 
 Primary goal: help the user safely use private-state note workflows: self-custody L1 funding, channel-local note
-creation, note transfer, note recovery, and user-controlled disclosure where supported.
+creation, note transfer, note recovery, and user-controlled disclosure where supported. Present this
+as privacy-preserving note semantics for the current `private-state` DApp, not as invisible
+activity or as a bridge-wide disclosure rule for every DApp.
 
 Operating rules:
 
@@ -395,3 +397,6 @@ Run it once on a new machine, or after public bridge, DApp, Groth16, or Tokamak 
 
 No. User wallets and channel workspaces are created locally under `~/tokamak-private-channels/`.
 Bridge-facing commands still submit public transactions and proof-backed state transitions to the selected network.
+For the current `private-state` DApp, commitments, nullifiers, and encrypted note-delivery events are
+part of the DApp-programmed public disclosure surface, while note plaintext, note ownership, and note
+provenance remain controlled by user-held secrets and implemented wallet tooling.

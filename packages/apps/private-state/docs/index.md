@@ -8,12 +8,14 @@ This directory contains the design, protocol, security, and implementation docum
 
 `private-state` is a bridge-coupled zk-note payment DApp for Tokamak Private App Channels. It keeps
 canonical token custody on L1 through the bridge, while channel-local accounting balances, note
-commitments, nullifiers, and encrypted note-delivery events live in the proof-backed DApp state.
+commitments, nullifiers, and encrypted note-delivery events live in proof-backed confidential
+application state.
 
 ### What privacy does it provide?
 
-The DApp hides note ownership and note-transfer meaning from public contract state, but it does not
-make all activity invisible. Observers can still see accepted bridge transitions, changed storage
+The DApp provides privacy-preserving note semantics, not invisible activity. It hides note ownership
+and note-transfer meaning from public contract state, but observers can still see the public
+disclosure surface that this DApp programs: accepted bridge transitions, changed storage
 commitments, nullifier usage, and encrypted note-delivery events. Recipients need local secret
 material to decide which encrypted notes are theirs.
 
@@ -31,6 +33,25 @@ operator, and the channel leader are not designed to hold the user's wallet secr
 key, note-receive private key, or a master viewing key. A user may selectively disclose evidence
 from local wallet state where implemented tooling supports it, but public logs alone are not meant to
 reconstruct every private note provenance chain.
+
+### How should this DApp be positioned?
+
+Use the following positioning terms consistently:
+
+- `proof-backed confidential application state`: private-state activity is accepted through proofs,
+  not through a trusted operator transcript.
+- `L1-transparent bridge edge`: bridge deposits, withdrawals, and custody movements remain on the
+  transparent L1 surface.
+- `user-controlled private note state`: note ownership and note recovery depend on user-held local
+  secrets.
+- `selective disclosure capable architecture`: disclosure is user-controlled where implemented
+  wallet tooling supports selected evidence export.
+- `privacy-preserving DApp channel`: this is an opt-in DApp channel, not a centralized-exchange
+  deposit network and not a change to TON's L1 transfer rules.
+- `TON custody remains anchored on L1`: the canonical token stays under the bridge's L1 custody
+  boundary while channel-local state records accounting and notes.
+- `internal note transfer privacy, transparent L1 entry/exit`: note-transfer provenance is private
+  by design, while bridge entry and exit remain public L1 events.
 
 ### What should users check before joining a channel?
 

@@ -68,7 +68,7 @@ The current `private-state` DApp adopts a user-controlled privacy and disclosure
 presented as an opt-in application channel used from self-custody wallets, not as a private
 centralized-exchange deposit network and not as a change to TON's L1 transfer rules.
 
-The public monitoring surface includes:
+For this DApp, the public monitoring surface includes:
 
 - L1 bridge deposits and withdrawal claims
 - channel creation and immutable policy snapshots
@@ -78,10 +78,11 @@ The public monitoring surface includes:
 - commitments, nullifiers, and encrypted note-delivery events surfaced by the DApp
 - bridge verifier, DApp metadata, and upgrade events
 
-That monitoring surface is intentionally not the same as a complete note provenance graph. Public
-observers can see that accepted activity occurred and can inspect the bridge-visible outputs, but
-they do not automatically learn every note plaintext, sender-recipient relationship, or note
-ownership history.
+That monitoring surface is intentionally not the same as a complete note provenance graph. It is the
+specific disclosure surface programmed by the current `private-state` DApp, not a bridge-wide rule
+for every DApp. Public observers can see that accepted activity occurred and can inspect the
+bridge-visible outputs, but they do not automatically learn every note plaintext, sender-recipient
+relationship, or note ownership history.
 
 The channel leader's authority is limited by the bridge and DApp policy snapshot. For
 `private-state`, the leader does not custody user TON, does not hold user wallet secrets, does not

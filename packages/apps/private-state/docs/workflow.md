@@ -105,9 +105,10 @@ intermediate note transfers, and does not have a protocol backdoor for reconstru
 note history. Availability services such as workspace mirrors may help users recover channel state,
 but they do not replace user-held secrets and do not become custody or viewing authorities.
 
-The public monitoring surface is also bounded. Bridge deposits, withdrawals, channel joins, accepted
-transitions, commitments, nullifiers, encrypted note events, verifier snapshots, and channel policy
-are publicly observable. Internal note provenance and sender-recipient relationships are not
+The public monitoring surface is also bounded by this DApp's programmed disclosure policy. Bridge
+deposits, withdrawals, channel joins, accepted transitions, commitments, nullifiers, encrypted note
+events, verifier snapshots, and channel policy are publicly observable for the current
+`private-state` DApp. Internal note provenance and sender-recipient relationships are not
 automatically reconstructed from public data alone; selective disclosure is controlled by the user
 within the limits of implemented wallet tooling.
 

@@ -188,6 +188,13 @@ The `private-state` DApp shows the intended extension of that model. There, an o
 
 For readers who want one concrete intuition: an outside observer may be able to tell that a user participated in a transfer-shaped action and that certain commitment domains changed, while still being unable to tell which recipient actually received which note value.
 
+This layered privacy model also defines a public disclosure boundary. The system does not rely on a
+global auditor backdoor, and the bridge operator is not expected to hold a user's wallet secret,
+spending key, note-receive private key, or master viewing key. The public note-receive key material
+that a channel may register is a delivery and recovery surface, not a universal authority to decrypt
+every note. A user can voluntarily disclose selected wallet-derived evidence, but the bridge operator
+cannot disclose a user's complete private note history on that user's behalf.
+
 ## 4. Architecture
 
 The architecture section maps the design philosophy onto concrete system boundaries. The key point
@@ -272,6 +279,14 @@ channel.
 Execution information flows from channel-local off-chain environments into Ethereum as proof-backed submissions. For general application execution, the submitted signal is a Tokamak proof payload together with the public inputs needed for the bridge to identify the channel function, the current accepted commitment, the updated commitment, and the bridge-visible outputs of that transition. For vault balance movement, the submitted signal is a Groth-backed token-vault update tied to the user's registered channel-token-vault identity.
 
 Acceptance information then flows back out of Ethereum to every interested local environment. The bridge publishes the accepted commitment trail, the observed storage mutations, and the accepted event outputs that it is configured to surface. Users, relays, and external indexers can all consume that published information to reconstruct the accepted history that matters to them.
+
+That public information flow is intentionally useful for external monitoring without becoming a full
+semantic transcript of private activity. Observers can monitor bridge funding and claims, channel
+creation, channel-token-vault identity registration, accepted proof submissions, root-vector
+movement, storage-write observations, metadata changes, verifier changes, and proxy upgrades. Those
+signals can show that assets crossed the bridge boundary or that a channel accepted a proof-backed
+transition. They do not, by themselves, reveal every private note plaintext, every sender-recipient
+relationship, every private amount linkage, or a user's complete wallet history.
 
 The key architectural rule is that no off-chain actor is authoritative by itself. Off-chain environments may compute, coordinate, relay, index, or assist, but accepted state exists only after Ethereum has accepted the corresponding proof-backed transition. That rule applies both to normal channel execution and to token-vault updates for deposits and withdrawals.
 
@@ -377,6 +392,12 @@ This flow preserves two important separations:
 - the L1 vault remains the custody boundary
 - the channel-token-vault tree remains the accounting boundary
 
+It also gives public monitors a clear bridge-edge signal. Funding the shared vault, paying a join
+toll, registering a channel-token-vault identity, and later claiming assets from the vault are all
+observable as Ethereum events. Those events are sufficient to monitor custody entry and exit at the
+bridge boundary, even though they are not sufficient to reconstruct every later private-state action
+inside the channel.
+
 ### 6.3 In-Channel Transaction Execution
 
 For a normal application transaction, the off-chain environment executes the DApp logic, assembles the public inputs, and produces the Tokamak proof. The user then submits the proof payload to the channel manager.
@@ -389,6 +410,12 @@ If the proof verifies and the bridge-side metadata checks pass:
 
 If any of those checks fail, the previous accepted root-vector hash remains authoritative.
 
+The monitoring consequence is that accepted application activity is visible as acceptance, not as a
+full plaintext execution trace. A monitor can see that a valid proof advanced the root vector and can
+read the bridge-visible event outputs that the channel surfaced. For a privacy-oriented DApp, that is
+the intended boundary: proof acceptance and commitment movement are public, while user-level note
+semantics remain available only through user-controlled disclosure.
+
 ### 6.4 Withdrawal and Safe Exit
 
 The current bridge is designed so that recovery of value that still resides in the designated `channelTokenVault` tree does not depend on replaying arbitrary application state. In that limited but important sense, safe exit is anchored in the vault path rather than in full application-state reconstruction.
@@ -400,6 +427,11 @@ That guarantee is narrower than a guarantee of universal economic exit for every
 The `private-state` DApp illustrates this boundary clearly. Its bridge-recognized token-vault storage is the liquid accounting balance in `L2AccountingVault`, while note commitments and nullifiers live in `PrivateStateController`. A user can exit liquid balance through the bridge's vault path, but value that has already been transformed into notes must first be redeemed back into liquid balance before withdrawal to L1 is possible. In other words, the bridge alone does not guarantee safe exit of all note-held value at every moment; it guarantees safe exit of value that has been brought back into the designated token-vault accounting domain.
 
 This does not mean application-state availability is solved. It means the bridge deliberately offers a narrow and robust asset-recovery path for one storage domain, while broader recovery of user position can still depend on DApp-specific state reconstruction and DApp-specific recovery flows.
+
+For external monitoring, this means a withdrawal or claim event should be interpreted as movement
+through the bridge-recognized custody boundary. It should not be interpreted as proof that an
+observer can reconstruct the complete path by which the user acquired the private-state position that
+enabled the withdrawal.
 
 ### 6.5 Data Availability and User Continuity
 
@@ -424,6 +456,12 @@ The `private-state` DApp is the clearest example. In that DApp, Ethereum-visible
 This distinction is intentional. For privacy-preserving DApps, `data availability` should be understood as the availability of enough data for the rightful user to recover their own actionable state, not necessarily enough data for every outside observer to derive the same semantic state view.
 
 The broader architectural consequence is that third-party indexers are a convenience layer, not always a protocol requirement. For DApps whose public outputs and user-held secrets are sufficient, users can remain operationally independent. For DApps whose public outputs are too sparse to reconstruct the next valid pre-state, users may still need external data services even though the bridge itself has published the accepted commitment history.
+
+Channel workspace mirrors and other assisted recovery services fit into that same availability
+layer. They can reduce the cost of catching up with a long-running channel, but they do not become a
+new custody authority and they do not give the operator a general right to decrypt user-local private
+state. A mirror is an availability convenience for reconstructing accepted channel state, not a
+replacement for the user's local secrets.
 
 ## 7. Security Posture, Advantages, and Tradeoffs
 
@@ -518,6 +556,20 @@ Example: if a token charges a transfer fee, the vault may receive less than the 
 to deposit. Unless the bridge treats that behavior as invalid, L1 custody and L2 accounting can
 diverge. This is why exact-transfer behavior is not a cosmetic preference.
 
+Disclosure policy is user-controlled. Public monitoring covers bridge-edge events, channel policy,
+identity registration, proof acceptance, root movement, metadata changes, and upgrade events. It does
+not create a universal viewing right over private notes. If a user needs to prove a narrower fact,
+such as receipt of a particular note or linkage between a private-state action and a later withdrawal,
+that proof should be generated from the user's local wallet state and should disclose only the
+selected evidence needed for the request. This is a policy rule of the current `private-state`
+channel model, not merely a user-interface preference.
+
+Public-communication policy follows from that disclosure boundary. The system may be described as
+providing public bridge-edge monitoring and user-controlled selective disclosure paths, while
+private-state note history remains confidential unless the user voluntarily discloses selected
+evidence. It should not be described as giving an exchange, auditor, company, or channel operator a
+global ability to reconstruct every private-state transfer from public logs alone.
+
 ### 8.3 Policy Lifecycle And Artifact Publication
 
 The intended DApp lifecycle is:
@@ -531,6 +583,13 @@ The intended DApp lifecycle is:
 The repository deployment scripts add an off-chain publication layer around this lifecycle. The DApp registration script writes a local manifest, uploads DApp artifacts to the configured Google Drive artifact root on public networks, and updates the artifact index with the new snapshot. This publication path is meant to give users and channel creators a reviewable artifact trail for the metadata they are about to accept.
 
 That off-chain publication layer is operational tooling, not a contract invariant. A direct owner transaction to `DAppManager.registerDApp(...)` or `updateDAppMetadata(...)` can update the on-chain registry without updating the Google Drive manifest. Mainnet operations should therefore use the repository scripts for registration and metadata updates unless there is an explicit emergency reason not to.
+
+For external review, the publication layer is paired with generated monitoring artifacts. Those
+artifacts do not define policy; they record the current on-chain addresses, proxy slots, owners,
+verifier pointers, channel snapshot, ABI-derived monitoring surface, bytecode hashes, source
+verification evidence, and artifact-publication evidence that support the policy described in this
+paper. This keeps the white paper stable while still allowing the current mainnet packet to be
+regenerated from RPC, deployment artifacts, and the artifact publication folder.
 
 ### 8.4 Per-Channel Policy Immutability
 

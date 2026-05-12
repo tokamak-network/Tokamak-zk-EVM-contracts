@@ -6,6 +6,15 @@ The full private-state DApp documentation is published with the repository:
 
 - https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/tree/main/packages/apps/private-state/docs
 
+## Tokamak-Operated Mainnet Channels
+
+The table below lists private-state mainnet channels directly opened by Tokamak Network. Dates are
+UTC.
+
+| Channel name | Channel creator / leader | Created at | Genesis block | Channel manager |
+| --- | --- | --- | ---: | --- |
+| `the-great-first-channel` | [`0x32e6EE3d9820F0843E3e596132368747d36425F0`](https://etherscan.io/address/0x32e6EE3d9820F0843E3e596132368747d36425F0) | 2026-05-04 01:30:59 UTC | `25018368` | [`0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7`](https://etherscan.io/address/0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7) |
+
 ## Install
 
 ```bash

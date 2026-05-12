@@ -67,6 +67,15 @@ keeps the source code, deployment scripts, and artifact upload tooling; generate
 metadata, registration manifests, ABI snapshots, CRS snapshots, and source snapshots should be
 looked up through the Google Drive artifact index and uploaded folders.
 
+## Mainnet Registered DApps
+
+The table below lists the DApps currently registered on the Ethereum mainnet bridge according to
+the published artifacts and mainnet `DAppManager` events. Dates are UTC.
+
+| DApp | DApp ID | Deployment manifest | Registered or last updated | Registration or update tx | Tokamak Network channels |
+| --- | ---: | --- | --- | --- | --- |
+| `private-state` | `1` | [Google Drive folder](https://drive.google.com/drive/folders/1DwjAOlryTdWnBi-c7bSlV77IhutRfYXX) | Registered on 2026-05-04 00:33:35 UTC at block `25018081`; no later metadata update event is recorded | [`0xf6130e...23daf`](https://etherscan.io/tx/0xf6130ee7f1a3ec63116369086d907da6d2da27c93ef5bf2eae91400d91323daf) | `the-great-first-channel` |
+
 ## Repository Model
 
 At a high level, the repository is organized around three layers:

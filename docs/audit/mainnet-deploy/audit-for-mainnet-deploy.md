@@ -549,7 +549,7 @@ why finite leaf projection creates a channel-lifespan capacity limit rather than
 static-set risk, even after the depth increase materially reduces the practical collision rate. The
 graph uses a logarithmic probability axis so low-probability early-lifespan regions remain visible.
 
-![General channel lifespan leaf collision probability by operating period and depth](../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
+![General channel lifespan leaf collision probability by operating period and depth](../../../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 
 Evidence:
 

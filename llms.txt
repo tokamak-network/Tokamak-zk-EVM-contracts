@@ -72,7 +72,7 @@ artifact folder is:
 - `bridge/docs/spec.md`: abstract mathematical bridge model
 - `docs/whitepaper.md`: high-level architecture and trust model
 - `bridge/docs/current-implementation.md`: current implementation notes
-- `docs/audit-for-mainnet-deploy.md`: consolidated mainnet deployment security
+- `docs/audit/mainnet-deploy/audit-for-mainnet-deploy.md`: consolidated mainnet deployment security
   audit checklist and current status
 - `packages/apps/README.md`: app workspace conventions
 - `packages/apps/private-state/README.md`: private-state DApp operator guide

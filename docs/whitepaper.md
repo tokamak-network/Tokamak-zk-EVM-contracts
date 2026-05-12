@@ -671,7 +671,7 @@ capacity limit, but the depth increase makes the practical limit much longer. Lo
 high-activity channels should therefore be treated as finite-life policy instances rather than
 perpetual mutable systems.
 
-![General channel lifespan leaf collision probability by operating period and depth](assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
+![General channel lifespan leaf collision probability by operating period and depth](../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 
 Direct `ChannelDeployer` calls can create orphan channel-manager contracts. This is not considered a custody risk because `L1TokenVault` and canonical bridge lookups use the `BridgeCore` registry, and `BridgeCore` validates deployed managers before accepting them. Orphan managers are therefore noise, not canonical channels.
 

@@ -47,7 +47,7 @@ before channel creation or joining.
 ## Where To Start
 
 - Bridge overview: [bridge/README.md](./bridge/README.md)
-- Bridge white paper: [bridge/docs/zk-l2-bridge-whitepaper.md](./bridge/docs/zk-l2-bridge-whitepaper.md)
+- Bridge white paper: [docs/whitepaper.md](./docs/whitepaper.md)
 - Bridge spec: [bridge/docs/spec.md](./bridge/docs/spec.md)
 - Verifier notes: [bridge/docs/verifier-spec.md](./bridge/docs/verifier-spec.md)
 - App workspace guide: [packages/apps/README.md](./packages/apps/README.md)

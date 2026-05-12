@@ -4,12 +4,12 @@ This folder contains a standalone bridge-contract implementation. Start with:
 
 - `bridge/CHANGELOG.md`
 - `bridge/docs/spec.md`
-- `bridge/docs/zk-l2-bridge-whitepaper.md`
+- `docs/whitepaper.md`
 - `bridge/docs/current-implementation.md`
 
 The public whitepaper URL is:
 
-- https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/bridge/docs/zk-l2-bridge-whitepaper.md
+- https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/docs/whitepaper.md
 
 The existing bridge implementation under the repository `src` directory was intentionally not referenced or reused.
 

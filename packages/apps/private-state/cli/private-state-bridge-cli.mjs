@@ -11,7 +11,6 @@ import AdmZip from "adm-zip";
 import {
   createHash,
   createCipheriv,
-  createDecipheriv,
   randomBytes,
   scryptSync,
 } from "node:crypto";
@@ -61,7 +60,6 @@ import {
   workspaceDirForName,
   workspaceWalletsDir,
   walletDirForName,
-  walletMetadataPathForDir,
   walletNameForChannelAndAddress,
 } from "./lib/private-state-cli-shared.mjs";
 import {
@@ -153,7 +151,6 @@ let activeCliArgs = {};
 const CLI_ERROR_CODES = Object.freeze({
   MISSING_RPC_URL: "MISSING_RPC_URL",
   UNKNOWN_WALLET: "UNKNOWN_WALLET",
-  MISSING_WALLET_SECRET: "MISSING_WALLET_SECRET",
   MISSING_DEPLOYMENT_ARTIFACTS: "MISSING_DEPLOYMENT_ARTIFACTS",
   MISSING_CHANNEL_REGISTRATION: "MISSING_CHANNEL_REGISTRATION",
   STALE_WORKSPACE: "STALE_WORKSPACE",
@@ -8375,10 +8372,6 @@ function walletSpendingKeyMetadataPath(walletDir) {
   return path.join(walletDir, "wallet-spending-key.metadata.json");
 }
 
-function walletMetadataPath(walletDir) {
-  return walletMetadataPathForDir(walletDir);
-}
-
 function walletConfigExists(walletDir) {
   return fs.existsSync(walletNotesMetadataPath(walletDir));
 }
@@ -8623,12 +8616,6 @@ function assertWalletImportBackupArgs(args) {
 
 function assertWalletImportKeyArgs(args, commandName) {
   assertAllowedCommandSchema(args, commandName);
-}
-
-function assertFlagOption(args, key, commandName) {
-  if (args[key] !== undefined && args[key] !== true) {
-    throw new Error(`${commandName} option --${toKebabCase(key)} does not accept a value.`);
-  }
 }
 
 function assertWithdrawBridgeArgs(args) {
@@ -9139,23 +9126,6 @@ function writeEncryptedWalletFile(filePath, plaintextBytes, walletSecret) {
   fs.writeFileSync(filePath, `${JSON.stringify(envelope, null, 2)}\n`);
 }
 
-function readEncryptedWalletFile(filePath, walletSecret) {
-  const envelope = readJson(filePath);
-  expect(
-    envelope.version === WALLET_ENCRYPTION_VERSION
-      && envelope.algorithm === WALLET_ENCRYPTION_ALGORITHM
-      && envelope.kdf === "scrypt",
-    `Unsupported wallet encryption envelope at ${filePath}.`,
-  );
-  const encryptionKey = deriveWalletEncryptionKey(walletSecret, Buffer.from(ethers.getBytes(envelope.salt)));
-  const decipher = createDecipheriv("aes-256-gcm", encryptionKey, Buffer.from(ethers.getBytes(envelope.iv)));
-  decipher.setAuthTag(Buffer.from(ethers.getBytes(envelope.tag)));
-  return Buffer.concat([
-    decipher.update(Buffer.from(ethers.getBytes(envelope.ciphertext))),
-    decipher.final(),
-  ]);
-}
-
 function deriveWalletEncryptionKey(walletSecret, salt) {
   return scryptSync(String(walletSecret), salt, 32);
 }
@@ -9594,11 +9564,6 @@ function buildRecoveryHints(error, args = {}) {
     || message.includes("The provided wallet does not belong to the selected channel")
   ) {
     hints.push(`private-state-cli wallet list --network ${networkName}`);
-    hints.push(`private-state-cli help guide --network ${networkName} --wallet ${walletName}`);
-  }
-
-  if (error?.code === CLI_ERROR_CODES.MISSING_WALLET_SECRET) {
-    hints.push("import the needed wallet viewing-key or spending-key file before running capability-gated wallet commands.");
     hints.push(`private-state-cli help guide --network ${networkName} --wallet ${walletName}`);
   }
 

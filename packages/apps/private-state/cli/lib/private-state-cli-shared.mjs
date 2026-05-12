@@ -88,7 +88,3 @@ export function workspaceWalletsDir(workspaceDir) {
 export function walletDirForName(walletsRoot, walletName) {
   return path.join(walletsRoot, slugifyPathComponent(walletName));
 }
-
-export function walletMetadataPathForDir(walletDir) {
-  return path.join(walletDir, "wallet.metadata.json");
-}

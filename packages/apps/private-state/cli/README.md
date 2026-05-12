@@ -189,8 +189,8 @@ private-state-cli wallet mint-notes --wallet <WALLET> --network mainnet --amount
 
 `--tx-submitter <ACCOUNT>` is available on `wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`. The wallet still proves
 note ownership and builds the ZK proof, but the selected local account submits `executeChannelTransaction` and pays gas.
-Use this option when you want stronger privacy by avoiding a direct on-chain link between the note owner's wallet L1
-account and the proof-submission transaction.
+Use this option when a separate imported local account should submit the L1 transaction and pay gas for a proof-backed
+note command.
 
 Channel policy warning:
 

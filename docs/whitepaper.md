@@ -597,13 +597,15 @@ snapshot, not as a mutable promise that can be silently rewritten after funds an
 accumulated.
 
 The currently deployed `private-state` DApp chooses a user-controlled disclosure model. Tokamak,
-the bridge operator, and the channel leader are not designed to hold user wallet secrets, spending
-keys, note-receive private keys, or a master viewing key for that DApp. Public communication about
-`private-state` should therefore describe public bridge-edge monitoring plus user-controlled
-selective disclosure, not a global ability for an exchange, auditor, company, or channel operator to
-reconstruct every private-state note transfer from public logs alone. A future DApp may make a
-different disclosure-policy choice, but it should be registered, documented, and joined as a
-different DApp or channel policy.
+the bridge operator, and the channel leader are not designed to hold user wallet secret source
+files, spending keys, note-receive private keys, or a master viewing key for that DApp. Its current
+CLI also separates wallet backups from key authority: backups preserve encrypted tracking state and
+channel cache data, while viewing-key and spending-key files move read access and spend authority
+independently. Public communication about `private-state` should therefore describe public
+bridge-edge monitoring plus user-controlled selective disclosure, not a global ability for an
+exchange, auditor, company, or channel operator to reconstruct every private-state note transfer
+from public logs alone. A future DApp may make a different disclosure-policy choice, but it should
+be registered, documented, and joined as a different DApp or channel policy.
 
 ### 8.3 Policy Lifecycle And Artifact Publication
 

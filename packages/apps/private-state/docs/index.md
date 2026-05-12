@@ -29,10 +29,19 @@ state, not exchange-supported deposit assets.
 ### Who controls disclosure in the current private-state DApp?
 
 The current `private-state` DApp uses a user-controlled disclosure model. Tokamak, the bridge
-operator, and the channel leader are not designed to hold the user's wallet secret, note-spending
-key, note-receive private key, or a master viewing key. A user may selectively disclose evidence
+operator, and the channel leader are not designed to hold the user's spending key, viewing key, or a
+master viewing key. A user may selectively disclose evidence
 from local wallet state where implemented tooling supports it, but public logs alone are not meant to
 reconstruct every private note provenance chain.
+
+### How are wallet backups different from wallet keys?
+
+Wallet backups are non-authorizing recovery artifacts. They contain wallet note-tracking metadata,
+commitments, nullifiers, encrypted note-delivery payloads, scan checkpoints, and channel workspace
+cache files, but they do not contain viewing keys, spending keys, derivation material, or plaintext
+note `owner`, `value`, and `salt` fields. Viewing keys and spending keys are exported and imported
+as separate protected `.key` files so read access and spend authority can be shared or restored
+independently.
 
 ### How should this DApp be positioned?
 
@@ -72,7 +81,7 @@ accepting that policy for the channel lifetime.
    Explains why the user-facing entrypoints are fixed-arity and lists the validity constraints that
    each mint, transfer, and redeem shape must satisfy.
 4. [Private-State Security Model](security-model.md)
-   Documents bridge-inherited security assumptions, finite leaf collision risk, future nullifier collision probability, wallet encryption, channel-bound L2 derivation, note-receive key derivation, and recovery behavior.
+   Documents bridge-inherited security assumptions, finite leaf collision risk, future nullifier collision probability, separated wallet capabilities, channel-bound L2 derivation, note-receive key derivation, and recovery behavior.
 5. [Private-State Workflow](workflow.md)
    Describes the CLI workflow, wallet/workspace artifacts, bridge registration metadata, proof input bundle format, event recovery flow, and bridge-DApp execution coupling.
 6. [Channel Workspace Mirror Protocol](channel-workspace-mirror-protocol.md)

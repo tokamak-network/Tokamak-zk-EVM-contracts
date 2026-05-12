@@ -152,9 +152,9 @@ containing exactly these root-level JSON files:
 - `block_info.json`
 - `contract_codes.json`
 
-The bundle must not contain wallet files, account secrets, wallet secrets, note secrets, absolute
-paths, nested paths, or duplicate file names. The CLI streams the download and displays progress
-with an estimated remaining time.
+The bundle must not contain wallet backup metadata, wallet key files, account secrets, wallet
+secret source files, note secrets, absolute paths, nested paths, or duplicate file names. The CLI
+streams the download and displays progress with an estimated remaining time.
 
 The CLI downloads the checkpoint bundle only after validating the manifest metadata and leader
 signature. It enforces the declared `sizeBytes` during download. After download, the CLI verifies the

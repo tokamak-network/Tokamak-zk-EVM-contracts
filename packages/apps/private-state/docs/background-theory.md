@@ -28,8 +28,7 @@ separate asset that a centralized exchange supports as a deposit network.
 
 Users are expected to enter a channel from a self-custody L1 wallet. A centralized-exchange deposit
 address should not be treated as a private-state wallet address because the exchange does not hold
-the user's channel-local wallet secret, L2 spending key, note-receive private key, or private-state
-workspace.
+the user's channel-local spending key, viewing key, or private-state workspace.
 
 ## 2. zk-L2 Assumptions
 
@@ -143,9 +142,14 @@ The DApp uses a second channel-scoped key family for note delivery:
 - `noteReceivePubKey`
 - `noteReceivePrivateKey`
 
-These are not separately backed up by the user. They are deterministically derived from the user's Ethereum key through a fixed EIP-712 typed-data signing flow.
+The public key is registered on-chain during channel join. The private key is the wallet's viewing
+key: it decrypts encrypted note-delivery events for that registered channel identity, but it does
+not authorize note spending.
 
-This gives the protocol a recipient-discoverable encryption target without forcing the user to manage an independent long-lived secret manually.
+The CLI can derive the viewing key from the user's Ethereum key through a fixed EIP-712 typed-data
+signing flow, and it can also export or import the viewing key as a separate protected `.key` file.
+This gives the protocol a recipient-discoverable encryption target while keeping viewing authority
+separate from spending authority.
 
 ## 8. Ownership vs Readability
 
@@ -158,7 +162,10 @@ Reading note contents depends on the note-receive key.
 
 Using a note depends on the channel-bound L2 identity, because note spending, transfer, and redemption require the wallet's derived `l2PrivateKey`.
 
-Under the current CLI model, losing the wallet secret means losing the ability to derive the channel-bound `l2PrivateKey`, which means losing note ownership in the stronger sense even if note ciphertexts can still be recognized or decrypted.
+Under the current CLI model, the wallet backup does not contain the viewing key, the spending key,
+or plaintext note `owner`, `value`, and `salt` fields. A backup restores encrypted tracking state,
+commitments, nullifiers, and channel cache data. The viewing key restores readability. The spending
+key restores spendability.
 
 This distinction is important for recovery language. A user may still be able to see that an
 encrypted output was meant for them, but that is not enough to spend the note. Spendability requires

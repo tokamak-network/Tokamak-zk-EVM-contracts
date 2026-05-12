@@ -385,20 +385,20 @@
           <div class="box">
             <ul class="guide-list">
               <li>
-                Your channel wallet is stored in your local workspace at
+                Your wallet backup metadata is stored in your local workspace at
                 <code id="workspace-path-label"></code>.
               </li>
               <li>
-                Even if you lose the channel wallet file, only your Ethereum private key, together with the correct
-                channel context, can recover your channel wallet as long as you still know the wallet secret.
+                A wallet backup does not include viewing keys, spending keys, key derivation material, or plaintext
+                note owner, value, and salt fields.
               </li>
               <li>
-                If your channel wallet file and wallet secret are both stolen, your channel funds can be stolen.
+                The viewing key decrypts encrypted note-delivery events. The spending key authorizes note use. Export
+                and import those keys only when that authority should move to the target machine.
               </li>
               <li>
-                If you lose your wallet secret, you lose the ability to derive your channel L2 private key. In that
-                case, you lose ownership of all notes because you can no longer use them, and that ownership cannot be
-                recovered.
+                If you lose the spending key and cannot recreate it from the original account, channel context, and
+                wallet secret source, you lose the ability to spend, transfer, or redeem notes.
               </li>
               <li>
                 Channel policy is immutable after creation. Joining a channel means accepting its verifier bindings,
@@ -826,7 +826,7 @@
         if (!commandNeedsWalletNotes()) {
           return;
         }
-        clearWalletNoteState("Enter note IDs manually. The CLI uses the wallet-local default secret file and the assistant does not request wallet secrets.");
+        clearWalletNoteState("Enter note IDs manually. The CLI uses local wallet metadata plus protected viewing/spending key files when commands require them.");
       }
 
       function acceptsRpcUrl(command) {

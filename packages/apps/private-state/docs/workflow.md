@@ -53,7 +53,7 @@ identity and registers the note-receive public key for encrypted note delivery.
 
 Users should run this flow from a self-custody L1 wallet. A centralized-exchange deposit address is
 not a private-state wallet address: the exchange does not hold the user's channel workspace, wallet
-secret, L2 spending key, note-receive private key, or recovery context.
+spending key, viewing key, or recovery context.
 
 Joining an existing channel requires a recovered local channel workspace. If the workspace has no
 usable recovery index, the user must explicitly run
@@ -100,10 +100,11 @@ correct function root.
 
 For the current `private-state` DApp, the channel leader's role is limited by this policy snapshot.
 The leader can open the channel and manage exposed channel-level configuration, such as toll-related
-policy, but does not custody user TON, does not hold user wallet secrets or note keys, does not
-intermediate note transfers, and does not have a protocol backdoor for reconstructing every private
-note history. Availability services such as workspace mirrors may help users recover channel state,
-but they do not replace user-held secrets and do not become custody or viewing authorities.
+policy, but does not custody user TON, does not hold user wallet secret source files, viewing keys,
+or spending keys, does not intermediate note transfers, and does not have a protocol backdoor for
+reconstructing every private note history. Availability services such as workspace mirrors may help
+users recover channel state, but they do not replace user-held secrets and do not become custody or
+viewing authorities.
 
 The public monitoring surface is also bounded by this DApp's programmed disclosure policy. Bridge
 deposits, withdrawals, channel joins, accepted transitions, commitments, nullifiers, encrypted note
@@ -127,13 +128,18 @@ The channel workspace contains:
 - deployment and storage-layout manifest paths
 - channel metadata
 
-The wallet metadata contains:
+The wallet metadata is split across non-authorizing state and authority metadata. The note-tracking
+metadata contains:
 
 - note-receive registration metadata
-- spending-key public metadata
 - tracked note commitments, nullifiers, and encrypted note payloads
 - last scanned encrypted-note event block
-- wallet-local operation history
+- local wallet operation history
+
+The viewing-key metadata and spending-key metadata are stored separately and contain public
+information derived from the corresponding secret, such as the registered note-receive public key or
+the L2 public identity. The private viewing key and private spending key live as protected key files
+outside the backup metadata.
 
 The channel workspace is shared context for the channel. Wallet note metadata is user-specific
 context, but it is no longer a full-control secret bundle. Losing the workspace is recoverable if
@@ -148,6 +154,15 @@ does not contain spending keys, viewing keys, key derivation material, or plaint
 `wallet export viewing-key` / `wallet import viewing-key` and `wallet export spending-key` /
 `wallet import spending-key` move those capabilities independently. Importing only the backup does
 not grant either viewing or spending authority.
+
+That separation affects how wallet commands behave. `wallet get-meta` and `wallet list` can inspect
+local registration metadata without decrypting notes. `wallet get-notes` can list encrypted-only
+tracked notes from backup metadata, but it needs the viewing key to refresh and decrypt received
+note events or compute note-value totals. `wallet mint-notes` needs spending authority for the
+wallet identity and uses the registered note-receive public key for self-mint delivery. Commands
+that consume existing notes, such as `wallet transfer-notes` and `wallet redeem-notes`, need both
+the viewing key and the spending key: the viewing key reconstructs the note plaintext, while the
+spending key authorizes the proof-backed note use.
 
 ## 5. Bridge Registration Model
 

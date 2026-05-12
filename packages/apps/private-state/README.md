@@ -120,6 +120,7 @@ Important rules:
 - wallet commands load viewing and spending authority from separate protected key files when those capabilities are needed
 - `channel join` requires `--wallet-secret-path <PATH>` and reads that source file once for spending-key derivation
 - `wallet export backup` backs up metadata and encrypted note payloads without exporting viewing or spending authority
+- `wallet export viewing-key` and `wallet export spending-key` are the authority-bearing wallet exports; keep them separate from backups unless a full operational restore is intended
 - channel creation commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy are fixed for that channel
 - joining a channel means accepting that channel's current policy; later fixes to policy-level bugs require a new channel or migration rather than in-place mutation of the joined channel
 - `channel join` binds the channel name, one-time wallet secret source, and local account signer to derive the channel-specific L2 identity
@@ -187,7 +188,7 @@ The commands below are ordered by the normal execution flow.
 
 - is the CLI's only interactive command
 - requires typing `I understand that the wallet secrets deleted due to this decision cannot be recovered`
-- removes `~/tokamak-private-channels/`, including local wallet secrets, channel workspaces, installed private-state artifacts, and Groth16 proof artifacts
+- removes `~/tokamak-private-channels/`, including local account secrets, wallet key files, channel workspaces, installed private-state artifacts, and Groth16 proof artifacts
 - removes the Tokamak zk-EVM runtime cache
 - attempts to remove the global `@tokamak-private-dapps/private-state-cli` npm package when npm reports that it is globally installed
 - accepts no options
@@ -292,17 +293,20 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 - includes wallet note-tracking metadata and the channel workspace cache
 - excludes spending keys, viewing keys, key derivation material, and plaintext note `owner`, `value`, and `salt`
 - preserves commitments, nullifiers, and encrypted note payloads
+- is safe to treat as a non-authorizing recovery artifact, not as a full wallet authority transfer
 
 `wallet export viewing-key` and `wallet export spending-key`
 
 - write secret `.key` files for viewing and spending authority respectively
 - include public metadata derived from the secret, but do not include additional derivation material
+- should be exported only when the target machine or custodian should receive that specific authority
 
 `wallet import backup`, `wallet import viewing-key`, and `wallet import spending-key`
 
 - restore backup metadata, viewing authority, and spending authority independently
 - refuse to overwrite existing protected key files or backup metadata files
 - validate manifests or key payloads before writing files
+- together form a full operational restore only when all three artifacts are imported
 
 ### 6. Inspect wallet-to-channel registration
 
@@ -310,6 +314,7 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 
 - checks whether the wallet's stored L2 identity matches the on-chain registration
 - returns the wallet L2 address, registered L2 address, storage key, leaf index, and match status
+- reports the on-chain registered note-receive public key when present
 - accepts `--wallet` and `--network`
 
 ### 7. Move value into the channel L2 accounting vault
@@ -333,6 +338,8 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 - builds self-mint ciphertext outputs and lets the controller derive note salts from the ciphertext hash
 - accepts `--wallet`, `--network`, and `--amounts`
 - maps the amount-vector length to the fixed-arity `mintNotes<N>` contract entrypoint
+- requires the wallet spending key because minting changes the wallet's channel-local L2 state
+- uses the registered note-receive public key to create self-mint ciphertext outputs for later recovery
 
 ### 9. Transfer notes
 
@@ -342,6 +349,7 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 - accepts `--wallet`, `--network`, `--note-ids`, `--recipients`, and `--amounts`
 - supports only `1->1`, `1->2`, and `2->1` note transfer shapes
 - updates the sender wallet immediately and relies on recipient-side event-log recovery rather than local recipient inbox files
+- requires both the viewing key and the spending key: the viewing key reconstructs the plaintext input notes, and the spending key authorizes the proof-backed spend
 
 ### 10. Recover and inspect received notes
 
@@ -352,6 +360,7 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 - merges newly discovered notes into wallet note metadata without persisting plaintext note secrets
 - reconciles the wallet's current-version notes against on-chain commitment/nullifier state to classify them into `unused` and `spent`
 - reports both unused and spent note sets plus bridge-consistency status
+- reports whether a viewing key is available; without it, the command can show encrypted-only tracked note state but cannot refresh or decrypt received-note events
 - accepts `--wallet` and `--network`
 
 ### 11. Redeem notes
@@ -360,6 +369,7 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 
 - redeems one or two tracked notes back into liquid accounting balance
 - accepts `--wallet`, `--network`, and `--note-ids`
+- requires both the viewing key and the spending key for the same reason as `wallet transfer-notes`
 
 ### 12. Move value back to the shared L1 bridge vault
 

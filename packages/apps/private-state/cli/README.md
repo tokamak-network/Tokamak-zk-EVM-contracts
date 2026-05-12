@@ -84,8 +84,8 @@ private-state-cli uninstall
 
 `uninstall` is intentionally interactive. It requires typing
 `I understand that the wallet secrets deleted due to this decision cannot be recovered` before deleting
-`~/tokamak-private-channels/`, the Tokamak zk-EVM runtime cache, and the global CLI npm package when npm reports that it
-is globally installed.
+`~/tokamak-private-channels/`, including local account secrets and wallet key files, the Tokamak zk-EVM runtime cache,
+and the global CLI npm package when npm reports that it is globally installed.
 
 ## Commands
 
@@ -149,6 +149,7 @@ private-state-cli wallet export backup --network mainnet --wallet <WALLET> --out
 The backup export stores note-tracking metadata and the channel workspace cache, but it does not include spending keys,
 viewing keys, key derivation material, or plaintext note secrets. Note records in the backup keep commitments,
 nullifiers, and encrypted note payloads only; `owner`, `value`, and `salt` are excluded.
+Importing this backup restores encrypted tracking state and channel cache files, not wallet authority.
 
 ```bash
 private-state-cli wallet import backup --input ./wallet-backup.zip
@@ -167,6 +168,11 @@ Import those capabilities only when the target machine should receive them:
 private-state-cli wallet import viewing-key --input ./wallet-viewing.key
 private-state-cli wallet import spending-key --input ./wallet-spending.key
 ```
+
+A backup plus a viewing key can reconstruct the wallet's readable note view from encrypted events, but it still cannot
+spend notes. A backup plus a spending key is still missing event-log decryption authority. A normal operational restore
+imports the backup, the viewing key, and the spending key, and still needs the relevant local L1 account secret for
+commands that submit bridge or channel-registration transactions.
 
 Estimate live transaction costs before sending commands with:
 
@@ -225,8 +231,8 @@ and stores a protected local account secret for later `--account` use. The sourc
 wallet backup metadata, viewing-key metadata, and spending-key metadata as separate files. `wallet list` reads only the local workspace and prints saved wallet names that can be reused with
 `--wallet`.
 `wallet get-meta` opens the wallet metadata and reports the stored L1/L2 identity metadata plus the current
-on-chain channel registration match state. `account get-l1-address` is a simple offline helper that derives the L1
-address for a local account.
+on-chain channel registration match state, including the registered note-receive public key when present.
+`account get-l1-address` is a simple offline helper that derives the L1 address for a local account.
 
 ### Wallet Secret Source File
 
@@ -242,9 +248,23 @@ private-state-cli channel join --channel-name <CHANNEL> --network sepolia --acco
 ```
 
 The import source file does not need `0600` permissions. The CLI does not persist a wallet-local secret:
-it reads the source once for channel-bound L2 spending-key derivation. The derived viewing and spending keys
-are stored as separate protected key files under the CLI secret root; macOS/Linux uses `0600`, while Windows uses ACL
+it reads the source once for channel-bound L2 spending-key derivation. The join flow stores the viewing key and
+spending key as separate protected key files under the CLI secret root; macOS/Linux uses `0600`, while Windows uses ACL
 repair and inspection when possible.
+
+### Wallet Backup, Viewing, And Spending Authority
+
+The wallet workspace is split so that a backup is not a full-control wallet export. Backup metadata stores the
+recoverable local view of the channel: commitments, nullifiers, encrypted note-delivery payloads, scan checkpoints,
+operation history, and the channel workspace cache. It deliberately omits plaintext note fields and key material.
+
+The viewing key is the note-receive private key. It lets `wallet get-notes` decrypt bridge-propagated encrypted
+note-delivery events and rebuild the user's readable note view. Sharing it gives read access to notes addressed to the
+registered note-receive public key, but not spending authority.
+
+The spending key is the channel-bound L2 private key. It authorizes proof-backed use of the wallet identity. Commands
+that consume existing notes, such as `wallet transfer-notes` and `wallet redeem-notes`, need both the viewing key and
+the spending key because the CLI must first reconstruct the plaintext notes and then prove authorized use of them.
 
 ## Workspace
 
@@ -291,7 +311,11 @@ Operating rules:
     wallet. It is not the L1 private key. `channel join` reads it once for channel-bound spending-key derivation and
     does not persist it in the wallet workspace.
   - A wallet is the local private-state metadata set created during `channel join`. Its deterministic name is
-    `<channelName>-<l1Address>`, and viewing/spending authority is stored in separate protected key files.
+    `<channelName>-<l1Address>`. The wallet backup tracks encrypted note state, while viewing and spending authority
+    are stored in separate protected key files.
+  - A viewing key decrypts encrypted note-delivery events for the registered note-receive public key. A spending key is
+    the channel-bound L2 private key used to authorize note use. Do not describe either key as interchangeable with the
+    other.
   - The network RPC URL is the endpoint used to read and write chain state. It can be supplied once with `--rpc-url`
     on a bridge-facing command, after which the CLI saves it under the selected network.
   - A workspace recovery index is the saved block pointer and state-root hash that lets the CLI resume log scanning
@@ -361,7 +385,8 @@ Example onboarding explanation for `channel join`:
 > bridge transactions. We import it once into a local account nickname, so later commands can say `--account alice`
 > instead of handling the raw key again. Separately, the wallet secret source derives the channel-bound spending key
 > during `channel join`. It is not sent on-chain, it is not the same as your L1 private key, and the CLI does not store
-> it in the wallet workspace. Backups, viewing keys, and spending keys are exported separately.
+> it in the wallet workspace. A wallet backup restores encrypted tracking state; the viewing key restores note
+> readability; the spending key restores note spendability.
 
 Example style: if the user says, "ADDR6 sends 10 tokens privately to ADDR8", do not assume the required note exists.
 First ask or check which channel and network to use, whether ADDR6 and ADDR8 are already joined, what the local wallet

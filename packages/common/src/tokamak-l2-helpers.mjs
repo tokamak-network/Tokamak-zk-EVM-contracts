@@ -10,15 +10,12 @@ import {
 } from "tokamak-l2js";
 import {
   addHexPrefix,
-  bytesToBigInt,
-  bytesToHex,
   createAddressFromString,
-  hexToBigInt,
   hexToBytes,
 } from "@ethereumjs/util";
 import {
   resolveTokamakBlockInputConfig,
-} from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
+} from "./tokamak-runtime-paths.mjs";
 
 const { previousBlockHashCount: tokamakPrevBlockHashCount } = resolveTokamakBlockInputConfig();
 
@@ -26,36 +23,23 @@ export function normalizeBytesHex(value, byteLength) {
   if (!Number.isInteger(byteLength) || byteLength <= 0) {
     throw new Error("normalizeBytesHex requires a positive byte length.");
   }
-  const targetHexLength = byteLength * 2;
-  let hex;
+  let normalizedValue = value;
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!/^0x[0-9a-fA-F]*$/.test(trimmed)) {
       throw new Error(`Expected a hex string, received ${value}.`);
     }
-    hex = trimmed.replace(/^0x/i, "");
-    if (hex.length % 2 !== 0) {
-      hex = `0${hex}`;
-    }
-  } else {
-    hex = ethers.hexlify(value).replace(/^0x/i, "");
+    normalizedValue = trimmed === "0x" ? 0n : trimmed;
   }
-  if (hex.length > targetHexLength) {
-    throw new Error(`Expected at most ${byteLength} bytes, received ${Math.ceil(hex.length / 2)} bytes.`);
-  }
-  return `0x${hex.padStart(targetHexLength, "0").toLowerCase()}`;
+  return ethers.toBeHex(ethers.toBigInt(normalizedValue), byteLength).toLowerCase();
 }
 
-export function normalizeBytes32Hex(hexValue) {
-  return normalizeBytesHex(hexValue, 32);
-}
-
-export function bytes32FromHex(hexValue) {
-  return normalizeBytes32Hex(hexValue);
+export function normalizeBytes32Hex(value) {
+  return normalizeBytesHex(value, 32);
 }
 
 export function bigintToHex32(value) {
-  return normalizeBytes32Hex(ethers.toBeHex(value));
+  return ethers.toBeHex(value, 32).toLowerCase();
 }
 
 export function poseidonHexFromBytes(bytesLike) {
@@ -101,7 +85,7 @@ export async function buildStateManager(snapshot, contractCodes) {
   return createTokamakL2StateManagerFromStateSnapshot(snapshot, {
     contractCodes: contractCodes.map((entry) => ({
       address: createAddressFromString(entry.address),
-      code: addHexPrefix(entry.code),
+      code: ethers.hexlify(ethers.getBytes(entry.code ?? "0x")),
     })),
   });
 }
@@ -109,19 +93,19 @@ export async function buildStateManager(snapshot, contractCodes) {
 export async function currentStorageBigInt(stateManager, address, keyHex) {
   const valueBytes = await stateManager.getStorage(
     createAddressFromString(address),
-    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
+    ethers.getBytes(normalizeBytes32Hex(keyHex)),
   );
   if (valueBytes.length === 0) {
     return 0n;
   }
-  return bytesToBigInt(valueBytes);
+  return ethers.toBigInt(valueBytes);
 }
 
 export async function putStorageValue(stateManager, address, keyHex, nextValue) {
   await stateManager.putStorage(
     createAddressFromString(address),
-    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
-    hexToBytes(addHexPrefix(String(bigintToHex32(nextValue) ?? "").replace(/^0x/i, ""))),
+    ethers.getBytes(normalizeBytes32Hex(keyHex)),
+    ethers.getBytes(bigintToHex32(nextValue)),
   );
 }
 
@@ -171,14 +155,14 @@ export async function getBlockInfoAt(provider, blockNumber, { send = (method, pa
 export async function getFixedBlockInfo(provider, options = {}) {
   const send = options.send ?? ((method, params) => provider.send(method, params));
   const latestNumberHex = await send("eth_blockNumber", []);
-  const latestNumber = Number(hexToBigInt(addHexPrefix(String(latestNumberHex ?? "").replace(/^0x/i, ""))));
+  const latestNumber = Number(ethers.toBigInt(latestNumberHex));
   return getBlockInfoAt(provider, latestNumber, { send });
 }
 
 export function deriveLiquidBalanceStorageKey(l2Address, slot) {
-  return normalizeBytes32Hex(bytesToHex(getUserStorageKey([l2Address, ethers.toBigInt(slot)], "TokamakL2")));
+  return normalizeBytes32Hex(ethers.hexlify(getUserStorageKey([l2Address, ethers.toBigInt(slot)], "TokamakL2")));
 }
 
 export function deriveChannelTokenVaultLeafIndex(storageKey) {
-  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % ethers.toBigInt(MAX_MT_LEAVES);
+  return ethers.toBigInt(storageKey) % ethers.toBigInt(MAX_MT_LEAVES);
 }

@@ -16,13 +16,13 @@ export {
   normalizeBytes32Hex,
   putStorageAndCapture,
   putStorageValue,
-} from "../../cli/lib/private-state-tokamak-helpers.mjs";
+} from "@tokamak-private-dapps/common-library/tokamak-l2-helpers";
 import {
   deriveChannelTokenVaultLeafIndex,
   deriveLiquidBalanceStorageKey,
   normalizeBytes32Hex,
   poseidonHexFromBytes,
-} from "../../cli/lib/private-state-tokamak-helpers.mjs";
+} from "@tokamak-private-dapps/common-library/tokamak-l2-helpers";
 
 export function buildMintInterface(outputCount) {
   return new Interface([

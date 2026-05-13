@@ -45,6 +45,18 @@ import {
   requireExactSemverVersion,
 } from "@tokamak-private-dapps/common-library/proof-backend-versioning";
 import {
+  bigintToHex32,
+  buildStateManager,
+  buildTokamakTxSnapshot,
+  currentStorageBigInt,
+  deriveChannelTokenVaultLeafIndex,
+  deriveLiquidBalanceStorageKey,
+  fetchContractCodes,
+  normalizeBytesHex,
+  normalizeBytes32Hex,
+  serializeBigInts,
+} from "@tokamak-private-dapps/common-library/tokamak-l2-helpers";
+import {
   resolveTokamakBlockInputConfig,
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
 import { toGroth16SolidityProof } from "@tokamak-private-dapps/common-library/groth16-solidity-proof";
@@ -107,20 +119,6 @@ import {
   normalizeEncryptedNoteValueWords,
   unpackEncryptedNoteValue,
 } from "./lib/private-state-note-delivery.mjs";
-import {
-  bigintToHex32,
-  buildStateManager,
-  buildTokamakTxSnapshot,
-  bytes32FromHex,
-  currentStorageBigInt,
-  deriveChannelTokenVaultLeafIndex,
-  deriveLiquidBalanceStorageKey,
-  fetchContractCodes,
-  normalizeBytesHex,
-  normalizeBytes32Hex,
-  serializeBigInts,
-} from "./lib/private-state-tokamak-helpers.mjs";
-
 const require = createRequire(import.meta.url);
 const defaultCommandCwd = process.cwd();
 const privateStateCliPackageJson = require("./package.json");
@@ -3033,7 +3031,6 @@ function handleInvestigator() {
 function resolveInvestigatorIndexPath() {
   const candidates = [
     path.join(privateStateCliPackageRoot, "investigator", "index.html"),
-    path.resolve(privateStateCliPackageRoot, "..", "investigator", "index.html"),
   ];
   const htmlPath = candidates.find((candidate) => fs.existsSync(candidate));
   if (!htmlPath) {
@@ -8119,9 +8116,9 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
     update: {
       currentRootVector: normalizedRootVector(currentSnapshot.stateRoots),
       updatedRoot: bigintToHex32(updatedRoot),
-      currentUserKey: bytes32FromHex(keyHex),
+      currentUserKey: normalizeBytes32Hex(keyHex),
       currentUserValue: currentValue,
-      updatedUserKey: bytes32FromHex(keyHex),
+      updatedUserKey: normalizeBytes32Hex(keyHex),
       updatedUserValue: nextValue,
     },
     nextSnapshot,
@@ -8310,10 +8307,6 @@ function normalizedAddressVector(addresses) {
 
 function normalizeBytes12Hex(value) {
   return normalizeBytesHex(value, 12);
-}
-
-function normalizeBytes16Hex(value) {
-  return normalizeBytesHex(value, 16);
 }
 
 function hashTokamakPublicInputs(values) {
@@ -10736,9 +10729,9 @@ function writeEncryptedWalletFile(filePath, plaintextBytes, walletSecret) {
     version: WALLET_ENCRYPTION_VERSION,
     algorithm: WALLET_ENCRYPTION_ALGORITHM,
     kdf: "scrypt",
-    salt: normalizeBytes16Hex(salt),
+    salt: normalizeBytesHex(salt, 16),
     iv: normalizeBytes12Hex(iv),
-    tag: normalizeBytes16Hex(tag),
+    tag: normalizeBytesHex(tag, 16),
     ciphertext: ethers.hexlify(ciphertext),
   };
   fs.writeFileSync(filePath, `${JSON.stringify(envelope, null, 2)}\n`);

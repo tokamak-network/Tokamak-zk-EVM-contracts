@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.1.1 - 2026-05-14
+
 - Changed `channel recover-workspace --from-genesis` to move any existing local channel workspace
   to `workspace-rebuild-backups/` before writing the current-format workspace. The clean rebuild
   path is limited to workspace files and preserves local account and wallet key secrets under

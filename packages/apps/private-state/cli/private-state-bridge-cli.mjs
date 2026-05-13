@@ -2554,7 +2554,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
 
   const walletDir = walletPath(walletName, context.workspace.network);
   const existingWallet = walletConfigExists(walletDir)
-    ? loadWallet(walletName, null, context.workspace.network)
+    ? loadWallet(walletName, context.workspace.network)
     : null;
 
   if (existingWallet) {
@@ -3293,7 +3293,7 @@ function handleWalletExportKey({ args, keyKind }) {
   ensureDir(path.dirname(outputPath));
   const networkName = requireNetworkName(args);
   const walletName = requireWalletName(args);
-  const wallet = loadWallet(walletName, null, networkName);
+  const wallet = loadWallet(walletName, networkName);
   const secretPath = keyKind === "spending"
     ? walletSpendingKeySecretPath(networkName, walletName)
     : walletViewingKeySecretPath(networkName, walletName);
@@ -3843,16 +3843,18 @@ async function inspectGuideAccount({ account, networkName, network, provider, ar
 
 async function inspectGuideWallet({ walletName, networkName, provider, artifactsInstalled }) {
   const walletDir = walletPath(walletName, networkName);
+  const viewingKeyFile = walletViewingKeySecretPath(networkName, walletName);
+  const spendingKeyFile = walletSpendingKeySecretPath(networkName, walletName);
   const result = {
     wallet: walletName,
     network: networkName,
     walletDir,
     exists: walletConfigExists(walletDir),
     metadataExists: fs.existsSync(walletNotesMetadataPath(walletDir)),
-    viewingKeyFile: walletViewingKeySecretPath(networkName, walletName),
-    viewingKeyFileExists: fs.existsSync(walletViewingKeySecretPath(networkName, walletName)),
-    spendingKeyFile: walletSpendingKeySecretPath(networkName, walletName),
-    spendingKeyFileExists: fs.existsSync(walletSpendingKeySecretPath(networkName, walletName)),
+    viewingKeyFile,
+    viewingKeyFileExists: fs.existsSync(viewingKeyFile),
+    spendingKeyFile,
+    spendingKeyFileExists: fs.existsSync(spendingKeyFile),
     channelName: null,
     l1Address: null,
     l2Address: null,
@@ -3870,7 +3872,7 @@ async function inspectGuideWallet({ walletName, networkName, provider, artifacts
   }
 
   try {
-    const walletContext = loadWallet(walletName, null, networkName);
+    const walletContext = loadWallet(walletName, networkName);
     const walletMetadata = loadWalletMetadata(walletName, networkName);
     assertWalletMatchesMetadata(walletContext, walletMetadata);
     result.channelName = walletContext.wallet.channelName;
@@ -4270,13 +4272,9 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
 
-  const resolvedLeafIndex = leafIndex;
   let approveReceipt = null;
   let receipt = null;
-  let joinToll = 0n;
-  let status = null;
-
-  joinToll = ethers.toBigInt(await context.channelManager.joinToll());
+  const joinToll = ethers.toBigInt(await context.channelManager.joinToll());
   const asset = new Contract(
     context.workspace.canonicalAsset,
     context.bridgeAbiManifest.contracts.erc20.abi,
@@ -4313,8 +4311,6 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       { nonce: nextNonce++ },
     ),
   );
-  status = "joined";
-
   await refreshPersistedWorkspaceAfterLocalTransaction({
     context,
     provider,
@@ -4329,7 +4325,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     l2Identity,
     walletSecret,
     storageKey,
-    leafIndex: resolvedLeafIndex,
+    leafIndex,
     noteReceiveKeyMaterial,
     rpcUrl,
   });
@@ -4346,7 +4342,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
-    leafIndex: resolvedLeafIndex.toString(),
+    leafIndex: leafIndex.toString(),
     joinTollBaseUnits: joinToll.toString(),
     joinTollTokens: ethers.formatUnits(joinToll, Number(context.workspace.canonicalAssetDecimals)),
     noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
@@ -4357,7 +4353,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     txUrl: receipt ? explorerTxUrl(network, receipt.hash) : null,
     approveReceipt: approveReceipt ? sanitizeReceipt(approveReceipt) : null,
     receipt: receipt ? sanitizeReceipt(receipt) : null,
-    status,
+    status: "joined",
   });
 }
 
@@ -7063,7 +7059,7 @@ async function loadJoinChannelContext({ args, network, provider }) {
   };
 }
 
-function loadWallet(walletName, _walletSecret, networkName) {
+function loadWallet(walletName, networkName) {
   const normalizedWalletName = requireWalletName({ wallet: walletName });
   const normalizedNetworkName = requireNetworkName({ network: networkName });
   const walletDir = walletPath(normalizedWalletName, normalizedNetworkName);
@@ -7110,7 +7106,7 @@ function loadWallet(walletName, _walletSecret, networkName) {
 
 function loadUnlockedWalletWithMetadata(args) {
   const networkName = requireNetworkName(args);
-  const wallet = loadWallet(requireWalletName(args), null, networkName);
+  const wallet = loadWallet(requireWalletName(args), networkName);
   const walletMetadata = loadWalletMetadata(wallet.walletName, networkName);
   assertWalletMatchesMetadata(wallet, walletMetadata);
   expect(

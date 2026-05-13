@@ -61,11 +61,7 @@ async function loadEvidenceBundle(bytes) {
     throw new Error(`Unsupported evidence format: ${manifest.format ?? "missing"}.`);
   }
   if (Number(manifest.formatVersion) !== 2) {
-    throw new Error("Unsupported legacy evidence bundle version. Run wallet recover-workspace, then run wallet get-notes --export-evidence again.");
-  }
-  const legacyNotePaths = [...files.keys()].filter((path) => path.startsWith("notes/") && path.endsWith(".json"));
-  if (legacyNotePaths.length > 0) {
-    throw new Error("Unsupported legacy evidence bundle layout. Run wallet recover-workspace, then run wallet get-notes --export-evidence again.");
+    throw new Error("Current evidence bundle formatVersion 2 is required. Run wallet recover-workspace, then run wallet get-notes --export-evidence again.");
   }
   const notes = [...files.entries()]
     .filter(([path]) => isEvidenceNotePath(path))
@@ -76,7 +72,7 @@ async function loadEvidenceBundle(bytes) {
     .sort((left, right) =>
       String(left.record?.derived?.commitment ?? "").localeCompare(String(right.record?.derived?.commitment ?? "")));
   if (notes.length === 0) {
-    throw new Error("The evidence bundle does not contain note records.");
+    throw new Error("The evidence bundle does not contain current epoch-aware note records.");
   }
   state.files = files;
   state.manifest = manifest;

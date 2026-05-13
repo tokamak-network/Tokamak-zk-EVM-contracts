@@ -5841,7 +5841,7 @@ function walletLifecycleMetadata(wallet) {
 
 function normalizeWallet(wallet) {
   assertWalletHasCurrentFormat(wallet, wallet.name ?? "unknown");
-  expect(wallet.walletEpochId, "Unsupported legacy wallet workspace layout. Run wallet recover-workspace to rebuild this wallet in the current epoch-aware format.");
+  expect(wallet.walletEpochId, "Current wallet metadata requires walletEpochId. Run wallet recover-workspace to rebuild this wallet.");
   const unusedNotes = Object.values(wallet.notes.unused).map(normalizeTrackedNote);
   unusedNotes.sort(compareNotesByValueDesc);
   const spentNotes = Object.values(wallet.notes.spent).map(normalizeTrackedNote);
@@ -9295,7 +9295,7 @@ function readWalletIndexIfExists(walletRoot) {
 
 function requireWalletIndex({ walletRoot, walletName, networkName }) {
   const index = readWalletIndexIfExists(walletRoot);
-  expect(index, unsupportedWalletWorkspaceLayoutMessage({ walletName, networkName, walletRoot }));
+  expect(index, currentWalletIndexRequiredMessage({ walletName, networkName, walletRoot }));
   return index;
 }
 
@@ -9308,11 +9308,10 @@ function selectedWalletEpoch(index, walletName, networkName) {
   return selected;
 }
 
-function unsupportedWalletWorkspaceLayoutMessage({ walletName, networkName, walletRoot }) {
+function currentWalletIndexRequiredMessage({ walletName, networkName, walletRoot }) {
   const channelName = parseWalletName(walletName).channelName;
   return [
-    `Unsupported legacy wallet workspace layout for ${walletName} on ${networkName}: ${walletRoot}.`,
-    "The CLI supports only the current epoch-aware wallet workspace format.",
+    `Current wallet index is required for ${walletName} on ${networkName}: ${walletRoot}.`,
     `Run wallet recover-workspace --channel-name ${channelName} --network ${networkName} --account <ACCOUNT> to rebuild the workspace.`,
   ].join(" ");
 }
@@ -9606,7 +9605,7 @@ function validateWalletExportManifest(manifest) {
     expect(
       uniqueFiles.has(expectedIndexPath),
       [
-        "Wallet import ZIP uses a legacy wallet workspace layout.",
+        "Wallet import ZIP must include the current wallet index metadata.",
         "Run wallet recover-workspace with the current CLI, then export a new backup.",
       ].join(" "),
     );
@@ -9711,21 +9710,8 @@ function assertAllowedCommandKeys(args, commandName, allowedKeys, acceptedUsage)
   );
 }
 
-function assertWalletSecretArgs(args, commandName, extraOptionKeys = [], acceptedUsage = "--wallet and --network") {
-  if (COMMAND_ARG_SCHEMAS[commandName]) {
-    assertAllowedCommandSchema(args, commandName);
-    return;
-  }
-  assertAllowedCommandKeys(
-    args,
-    commandName,
-    new Set(["command", "positional", "wallet", "network", ...extraOptionKeys]),
-    acceptedUsage,
-  );
-}
-
 function assertWalletChannelMoveArgs(args, commandName) {
-  assertWalletSecretArgs(args, commandName, ["amount"], "--wallet, --network, and --amount");
+  assertAllowedCommandSchema(args, commandName);
   assertActionImpactArg(args, COMMAND_ARG_SCHEMAS[commandName]?.label ?? commandName);
 }
 
@@ -9839,7 +9825,7 @@ function assertActionImpactArg(args, commandName) {
 }
 
 function assertWalletGetNotesArgs(args) {
-  assertWalletSecretArgs(args, "wallet-get-notes");
+  assertAllowedCommandSchema(args, "wallet-get-notes");
   if (args.exportEvidence !== undefined) {
     requireArg(args.exportEvidence, "--export-evidence");
     if (args.acknowledgeFullNotePlaintextExport !== true) {
@@ -9894,12 +9880,8 @@ function assertAccountGetBridgeFundArgs(args) {
   assertAllowedCommandSchema(args, "account-get-bridge-fund");
 }
 
-function assertExplicitSignerCommandArgs(args, commandName) {
-  assertAllowedCommandSchema(args, commandName);
-}
-
 function assertRecoverWalletArgs(args) {
-  assertExplicitSignerCommandArgs(args, "wallet-recover-workspace");
+  assertAllowedCommandSchema(args, "wallet-recover-workspace");
   if (args.fromGenesis !== undefined && args.fromGenesis !== true) {
     throw new Error("wallet recover-workspace option --from-genesis does not accept a value.");
   }
@@ -9911,7 +9893,7 @@ function assertJoinChannelArgs(args) {
 }
 
 function assertWalletGetMetaArgs(args) {
-  assertWalletSecretArgs(args, "wallet-get-meta");
+  assertAllowedCommandSchema(args, "wallet-get-meta");
 }
 
 function assertAccountGetL1AddressArgs(args) {
@@ -9956,11 +9938,11 @@ function assertWithdrawBridgeArgs(args) {
 }
 
 function assertWalletGetChannelFundArgs(args) {
-  assertWalletSecretArgs(args, "wallet-get-channel-fund");
+  assertAllowedCommandSchema(args, "wallet-get-channel-fund");
 }
 
 function assertExitChannelArgs(args) {
-  assertWalletSecretArgs(args, "channel-exit");
+  assertAllowedCommandSchema(args, "channel-exit");
 }
 
 function createWalletOperationDir(walletName, networkName, suffix) {

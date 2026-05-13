@@ -52,7 +52,7 @@ A user may voluntarily generate wallet-derived facts that they can inspect local
 evidence bundle export. When the selected wallet has retained exited epochs, those local epochs are
 included so the user can still inspect historical notes after channel exit. This raw bundle is not
 the final exchange submission package. The local investigator opened by `private-state-cli
-investigator`, or directly at `packages/apps/private-state/investigator/index.html`, filters the raw
+investigator`, or directly at `packages/apps/private-state/cli/investigator/index.html`, filters the raw
 bundle into a narrower user-consent package for the specific request.
 
 Examples of user-held facts include:
@@ -100,7 +100,7 @@ submitted as-is unless full wallet-history disclosure is intended.
 ## Selective Disclosure Investigator
 
 The repository provides a static HTML investigator under
-`packages/apps/private-state/investigator/`. It runs in the user's browser and does not require a
+`packages/apps/private-state/cli/investigator/`. It runs in the user's browser and does not require a
 server. The user loads a local raw evidence ZIP, selects a filter scope, and exports a new
 user-consent disclosure ZIP.
 

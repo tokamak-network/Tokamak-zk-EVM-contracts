@@ -321,18 +321,18 @@ Tokamak 문서도 note-receive public key는 on-chain에 등록되지만, note-r
 
 - [x] 사용자가 보유한 note를 로컬에서 복호화한다.
 - [x] 사용자가 특정 note의 commitment, creation tx, amount, channel id를 확인한다.
-- [x] 사용자가 특정 note가 자신에게 전달되었음을 증명할 수 있는 자료를 export한다.
-- [x] 사용자가 특정 redeem 또는 withdraw와 자신의 note 사용을 연결해 설명할 수 있는 자료를 export한다.
+- [ ] 사용자가 특정 note가 자신에게 전달되었음을 증명할 수 있는 자료를 export한다.
+- [ ] 사용자가 특정 redeem 또는 withdraw와 자신의 note 사용을 연결해 설명할 수 있는 자료를 export한다.
 - [x] 이 export는 spending key를 포함하지 않는다.
-- [x] 이 export는 전체 wallet history를 강제로 공개하지 않는다.
+- [ ] 이 export는 전체 wallet history를 강제로 공개하지 않는다.
 
 아직 구현 전이라면 “roadmap”으로만 표현할 항목:
 
-- [x] 특정 기간의 note receipt proof
-- [x] 특정 counterparty와의 거래만 선택 공개
-- [x] 특정 bridge deposit과 note mint 간 사용자 주도 linkage proof
-- [x] 특정 redeem과 note ownership 간 linkage proof
-- [x] 거래소 요청 대응용 user consent disclosure package
+- [ ] 특정 기간의 note receipt proof
+- [ ] 특정 counterparty와의 거래만 선택 공개
+- [ ] 특정 bridge deposit과 note mint 간 사용자 주도 linkage proof
+- [ ] 특정 redeem과 note ownership 간 linkage proof
+- [ ] 거래소 요청 대응용 user consent disclosure package
 
 CLI 문서에 넣을 권장 문구:
 

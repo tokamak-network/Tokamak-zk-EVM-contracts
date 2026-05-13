@@ -174,6 +174,18 @@ spend notes. A backup plus a spending key is still missing event-log decryption 
 imports the backup, the viewing key, and the spending key, and still needs the relevant local L1 account secret for
 commands that submit bridge or channel-registration transactions.
 
+Export a local full-note evidence bundle with:
+
+```bash
+private-state-cli wallet get-notes --network mainnet --wallet <WALLET> --export-evidence ./wallet-evidence.zip --acknowledge-full-note-plaintext-export
+```
+
+This ZIP is an input for a separate selective-disclosure filter program. It contains plaintext for all locally known
+notes, derived commitments and nullifiers, creation and spend transaction references, transaction calldata, receipts,
+events, and indexes for filtering by note, nullifier, transaction, block range, or available counterparty metadata. It
+does not include viewing keys, spending keys, wallet secret material, account private keys, or `.key` files. Do not
+submit the raw ZIP as an exchange or auditor package unless full wallet-history disclosure is intended.
+
 Estimate live transaction costs before sending commands with:
 
 ```bash
@@ -265,6 +277,10 @@ registered note-receive public key, but not spending authority.
 The spending key is the channel-bound L2 private key. It authorizes proof-backed use of the wallet identity. Commands
 that consume existing notes, such as `wallet transfer-notes` and `wallet redeem-notes`, need both the viewing key and
 the spending key because the CLI must first reconstruct the plaintext notes and then prove authorized use of them.
+
+`wallet get-notes --export-evidence <PATH> --acknowledge-full-note-plaintext-export` writes a local raw evidence ZIP.
+The bundle is not a key export. It includes plaintext note facts for locally known notes so that a separate filter
+program can create narrower consent-disclosure packages without requiring viewing-key or spending-key sharing.
 
 ## Workspace
 

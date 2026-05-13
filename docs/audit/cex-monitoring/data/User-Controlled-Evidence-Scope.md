@@ -47,9 +47,11 @@ channel contracts." They do not, by themselves, prove the full private note path
 
 ## User-Held Evidence A User May Voluntarily Submit
 
-A user may voluntarily submit wallet-derived facts that they can inspect locally. The current CLI
-does not package these facts into a standardized selective-disclosure export, so the user should
-treat any submission as an ad hoc explanation rather than a protocol-defined evidence package.
+A user may voluntarily generate wallet-derived facts that they can inspect locally. The CLI provides
+`wallet get-notes --export-evidence <PATH> --acknowledge-full-note-plaintext-export` as a local raw
+evidence bundle export. This raw bundle is not the final exchange submission package. It is intended
+as input for a separate selective-disclosure filter program that prepares a narrower user-consent
+package for the specific request.
 
 Examples of user-held facts include:
 
@@ -58,30 +60,53 @@ Examples of user-held facts include:
 - locally tracked note commitment and nullifier values
 - locally decrypted note amount and status for notes addressed to the user's registered
   note-receive public key
-- local note source metadata available in the wallet's read-only output, such as the source
-  transaction hash when present
+- local note source metadata, such as creation transaction hash, spend transaction hash, block
+  number, log index when available, and accepted transition transaction calldata
 - the user's explanation connecting their own L1 bridge entry or exit to their own local note view
 
 The user controls whether to disclose these facts. Tokamak should not claim that it can generate
 them for the user from public logs alone.
 
+## Local Raw Evidence Bundle
+
+The raw evidence bundle is a ZIP file. It contains:
+
+- `manifest.json` with network, channel, wallet scope, warning, and excluded-secret declarations
+- one `notes/<commitment>.json` record per locally known note
+- indexes by commitment, nullifier, creation transaction, spend transaction, block range, and
+  available counterparty metadata
+- transaction calldata, receipts, and event logs for referenced note creation or note spend
+  transactions when available from the configured RPC endpoint
+
+Each note record includes the selected note plaintext fields `owner`, `value`, and `salt`, the
+derived commitment and nullifier, encrypted note payload, creation metadata, spend metadata when the
+note is spent, and relationship hints when the CLI has direct local metadata. This lets a separate
+filter program produce narrower packages for:
+
+- a specific note receipt
+- a specific redeem or withdraw explanation linked to a note nullifier
+- a specific block or time range
+- a specific counterparty when direct local metadata exists
+- a bridge deposit to note mint explanation when the user provides the bridge transaction context
+- an exchange request package that contains only user-approved records
+
+The raw evidence bundle does not include viewing keys, spending keys, wallet secret material, L1
+private keys, protected `.key` files, or machine-local secret directories. The bundle should not be
+submitted as-is unless full wallet-history disclosure is intended.
+
 ## Evidence Not Available In The Current Tooling
 
-The current repository does not provide a standardized selective-disclosure export command or a
-cryptographic dispute package for exchanges.
+The current repository does not provide a new zero-knowledge disclosure circuit that proves
+decryption or counterparty linkage without revealing selected note plaintext. The implemented path
+is selected note plaintext disclosure backed by accepted on-chain proof transactions and public
+events.
 
-The following items are not implemented and should not be represented as available evidence:
+The following items should not be represented as available without the user's local raw evidence
+bundle and a separate filtering step:
 
-- a standard note receipt proof export
-- a counterparty-specific disclosure package
-- a bridge-deposit-to-note-mint linkage proof
-- a redeem-to-withdraw provenance proof package
-- an exchange-ready user-consent disclosure package
 - an operator-generated report that reconstructs every private note provenance path from public data
-
-If any of these capabilities are added later, they should be documented as a separate versioned
-evidence format and reviewed independently before this checklist item is treated as stronger than
-scope documentation.
+- a keyless cryptographic decryption proof for "I decrypted this note"
+- a universal counterparty graph reconstructed from public logs alone
 
 ## Materials A User Should Not Submit
 
@@ -103,14 +128,15 @@ key should be sent to an exchange or third party as routine evidence.
 
 ## Interpretation
 
-This document satisfies only the evidence-scope documentation requirement. It does not mean that a
-selective-disclosure export feature exists, that all note provenance is publicly reconstructible, or
-that Tokamak can disclose private note history on behalf of users.
+This document describes the current evidence-scope documentation and the local raw evidence export.
+It does not mean that all note provenance is publicly reconstructible, that Tokamak can disclose
+private note history on behalf of users, or that the raw evidence ZIP is itself an exchange-ready
+submission package.
 
 The correct monitoring posture remains:
 
 - CEX-facing TON transfers and L1 bridge edges are public and monitorable.
 - Private-state note provenance is not reconstructed from public data alone.
-- A user may voluntarily provide selected local evidence in exceptional dispute or compliance
-  contexts.
+- A user may voluntarily generate a local raw evidence bundle and then provide a selected subset in
+  exceptional dispute or compliance contexts.
 - User-held keys and full wallet history remain outside the normal evidence scope.

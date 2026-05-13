@@ -75,6 +75,22 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     valueLabel: "<PATH>",
     option: "--output",
   },
+  exportEvidence: {
+    label: "Evidence ZIP",
+    type: "text",
+    placeholder: "/path/to/evidence.zip",
+    valueLabel: "<PATH>",
+    hint: "Optional. Export a local full-note evidence bundle as a ZIP for later selective filtering.",
+    option: "--export-evidence",
+    optional: true,
+  },
+  acknowledgeFullNotePlaintextExport: {
+    label: "Acknowledge Note Plaintext Export",
+    type: "checkbox",
+    hint: "Required with --export-evidence. Confirms that all locally known note plaintext will be written to the ZIP.",
+    option: "--acknowledge-full-note-plaintext-export",
+    optional: true,
+  },
   input: {
     label: "Input File",
     type: "text",
@@ -508,12 +524,13 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "wallet-get-notes",
     display: "wallet get-notes",
     description: "Refresh received notes when the saved recovery index is recent, then show tracked note state.",
-    fields: ["wallet", "network"],
-    usage: "--wallet and --network",
+    fields: ["wallet", "network", "exportEvidence", "acknowledgeFullNotePlaintextExport"],
+    usage: "--wallet, --network, optional --export-evidence, and optional --acknowledge-full-note-plaintext-export",
     help: [
       "Refreshes the local channel workspace through the saved recovery index before reading notes when the scan fits the 10 second pre-command budget",
       "Refreshes received-note logs through the saved wallet note recovery index when the scan fits the 10 second pre-command budget",
       "Fails instead of replaying from genesis; run wallet recover-workspace --from-genesis when a genesis rebuild is required",
+      "Use --export-evidence <PATH> with --acknowledge-full-note-plaintext-export to write a local full-note evidence ZIP for a separate selective-disclosure filter program",
     ],
   },
 ]);

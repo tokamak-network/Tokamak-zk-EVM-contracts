@@ -22,6 +22,7 @@ import {
   resolveTokamakCliResourceDir,
   resolveTokamakCliSetupOutputDir,
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
+import AdmZip from "adm-zip";
 import {
   deriveNoteReceiveKeyMaterial,
 } from "../../cli/lib/private-state-note-delivery.mjs";
@@ -1470,6 +1471,49 @@ function getWalletNotes(participant) {
   return runAnvilCliCommand("wallet get-notes", walletCliArgs(participant));
 }
 
+function exportWalletEvidence(participant) {
+  const outputPath = path.join(
+    outputRoot,
+    "wallet-exports",
+    `${slugifyPathComponent(participant.walletName)}-evidence.zip`,
+  );
+  return runAnvilCliCommand("wallet get-notes", [
+    ...walletCliArgs(participant),
+    "--export-evidence", outputPath,
+    "--acknowledge-full-note-plaintext-export",
+  ]);
+}
+
+function assertWalletEvidenceExport(result, { expectedNoteCount }) {
+  expect(result.evidenceExport, "wallet get-notes evidence export result is missing.");
+  expect(fs.existsSync(result.evidenceExport.output), `Evidence ZIP was not written: ${result.evidenceExport.output}.`);
+  expect(Number(result.evidenceExport.noteCount) === Number(expectedNoteCount), "Evidence ZIP note count mismatch.");
+  expect(result.evidenceExport.containsSpendingKey === false, "Evidence ZIP must not report spending-key inclusion.");
+  expect(result.evidenceExport.containsViewingKey === false, "Evidence ZIP must not report viewing-key inclusion.");
+  const zip = new AdmZip(result.evidenceExport.output);
+  const entries = new Set(zip.getEntries().map((entry) => entry.entryName));
+  for (const requiredEntry of [
+    "manifest.json",
+    "indexes/by-commitment.json",
+    "indexes/by-nullifier.json",
+    "indexes/by-creation-tx.json",
+    "indexes/by-spend-tx.json",
+    "indexes/by-block-range.json",
+    "indexes/by-counterparty.json",
+  ]) {
+    expect(entries.has(requiredEntry), `Evidence ZIP is missing ${requiredEntry}.`);
+  }
+  const manifest = JSON.parse(zip.readAsText("manifest.json"));
+  expect(manifest.containsNotePlaintext === true, "Evidence manifest must declare note plaintext inclusion.");
+  expect(manifest.excludedSecrets?.spendingKey === true, "Evidence manifest must exclude spending keys.");
+  const noteEntries = [...entries].filter((entry) => entry.startsWith("notes/") && entry.endsWith(".json"));
+  expect(noteEntries.length === Number(expectedNoteCount), "Evidence ZIP note entry count mismatch.");
+  const serializedZip = zip.getEntries().map((entry) => zip.readAsText(entry)).join("\n");
+  for (const forbidden of ["l2PrivateKey", "noteReceivePrivateKey"]) {
+    expect(!serializedZip.includes(forbidden), `Evidence ZIP contains forbidden secret field ${forbidden}.`);
+  }
+}
+
 function transferNotes(participant, noteIds, recipients, amounts, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("wallet transfer-notes", [
     ...walletCliArgs(participant),
@@ -1974,6 +2018,8 @@ async function main() {
     recoverWallet(participants[2]);
     const notesAfterRedeemC = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
+    const walletEvidenceExport = exportWalletEvidence(participants[2]);
+    assertWalletEvidenceExport(walletEvidenceExport, { expectedNoteCount: 3 });
     recoverWorkspaceAfterLocalTransactions = recoverWorkspace();
     assertPostTransactionWorkspaceRecoveryIndex(
       recoverWorkspaceAfterLocalTransactions,
@@ -2107,6 +2153,7 @@ async function main() {
         backupImport: walletImportBackup,
         viewingKeyExport: walletExportViewingKey,
         spendingKeyExport: walletExportSpendingKey,
+        evidenceExport: walletEvidenceExport.evidenceExport,
       },
       localWallets: localWalletList,
       participants: participants.map((participant) => ({

@@ -4340,6 +4340,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     wallet: walletContext.walletName,
     walletSecretSource: "wallet-secret-path-one-time-derivation",
     walletSecretStored: false,
+    walletSecretRecoveryWarning: "Keep the wallet secret source backed up. If the spending-key file is lost and this wallet secret source is also lost, the CLI cannot rederive the spending key; notes for this wallet cannot be spent, transferred, or redeemed through the normal note flow.",
     channelName: context.workspace.channelName,
     channelId: context.workspace.channelId,
     l1Address: signer.address,

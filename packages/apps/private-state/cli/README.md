@@ -319,6 +319,12 @@ it reads the source once for channel-bound L2 spending-key derivation. The join 
 spending key as separate protected key files under the CLI secret root; macOS/Linux uses `0600`, while Windows uses ACL
 repair and inspection when possible.
 
+Keep the wallet secret source separately backed up if you expect to rederive the spending key later. The viewing key can
+be rederived from the same L1 private key and channel context because it comes from the note-receive typed-data signing
+flow. The spending key needs the same L1 private key, the same channel context, and the same wallet secret source. If the
+spending-key file is lost and the wallet secret source is also lost, the CLI cannot reconstruct the spending key and the
+notes for that wallet cannot be spent, transferred, or redeemed through the normal note flow.
+
 ### Wallet Backup, Viewing, And Spending Authority
 
 The wallet workspace is split so that a backup is not a full-control wallet export. Backup metadata stores the
@@ -332,6 +338,11 @@ registered note-receive public key, but not spending authority.
 The spending key is the channel-bound L2 private key. It authorizes proof-backed use of the wallet identity. Commands
 that consume existing notes, such as `wallet transfer-notes` and `wallet redeem-notes`, need both the viewing key and
 the spending key because the CLI must first reconstruct the plaintext notes and then prove authorized use of them.
+
+Key recovery is intentionally split. Recreating the viewing key requires the original L1 private key and the same channel
+context. Recreating the spending key requires the original L1 private key, the same channel context, and the same wallet
+secret source used at `channel join`. Importing `wallet-viewing.key` or `wallet-spending.key` restores the corresponding
+capability without rerunning derivation, but a backup ZIP alone never restores either capability.
 
 `wallet get-notes --export-evidence <PATH> --acknowledge-full-note-plaintext-export` writes a local raw evidence ZIP.
 The bundle is not a key export. It includes plaintext note facts for locally known notes so that

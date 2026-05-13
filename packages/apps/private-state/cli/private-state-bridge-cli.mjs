@@ -129,6 +129,8 @@ const secretRoot = path.resolve(os.homedir(), "tokamak-private-channels", "secre
 const flatDeploymentArtifactPathsByChainId = new Map();
 const PRIVATE_STATE_UNINSTALL_CONFIRMATION =
   "I understand that the wallet secrets deleted due to this decision cannot be recovered";
+const ACTION_IMPACT_CONFIRMATION =
+  "I understand the public and private impact of this action";
 const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
@@ -245,6 +247,206 @@ function printImmutableChannelPolicyWarning({
     );
   }
   console.error(details.join("\n"));
+}
+
+const ACTION_IMPACT_SUMMARIES = Object.freeze({
+  "account-deposit-bridge": {
+    display: "account deposit-bridge",
+    l1PublicEvent: "Yes. ERC-20 approval and bridge vault funding transactions are public L1 events.",
+    privateNoteState: "No. This action only moves canonical tokens into the shared bridge vault.",
+    publicFields: ({ l1Address, amountInput, bridgeTokenVault }) => [
+      `L1 account: ${l1Address}`,
+      `Bridge token vault: ${bridgeTokenVault}`,
+      `Amount: ${amountInput}`,
+      "Approval and funding transaction hashes, block numbers, and event logs.",
+    ],
+    notPublic: [
+      "No private note owner, value, salt, counterparty, or note provenance is created by this action.",
+    ],
+    noteProvenance: "Not applicable for this bridge-edge action.",
+    cexWarning: "Do not use a centralized-exchange controlled address as a self-custody bridge source.",
+    policy: "No channel policy is accepted by this action.",
+  },
+  "account-withdraw-bridge": {
+    display: "account withdraw-bridge",
+    l1PublicEvent: "Yes. The bridge withdrawal transaction and claim event are public L1 data.",
+    privateNoteState: "No. This action claims shared bridge-vault balance to the local L1 account.",
+    publicFields: ({ l1Address, amountInput, bridgeTokenVault }) => [
+      `L1 recipient/account: ${l1Address}`,
+      `Bridge token vault: ${bridgeTokenVault}`,
+      `Amount: ${amountInput}`,
+      "Withdrawal transaction hash, block number, and event log.",
+    ],
+    notPublic: [
+      "The private note path that produced any prior channel balance is not reconstructed from this event alone.",
+    ],
+    noteProvenance: "Public observers cannot reconstruct prior internal note provenance from this withdrawal alone.",
+    cexWarning: "Do not use a centralized-exchange deposit address as the direct bridge withdrawal target unless the user has explicitly accepted the compliance implications. Prefer a self-custody L1 wallet.",
+    policy: "No channel policy is accepted by this action.",
+  },
+  "channel-join": {
+    display: "channel join",
+    l1PublicEvent: "Yes. Channel join and token-vault registration transactions are public L1 data.",
+    privateNoteState: "No. This action registers identity and note-receive metadata; it does not create or spend notes.",
+    publicFields: ({ l1Address, l2Address, noteReceivePubKey, joinToll, channelName, channelId }) => [
+      `Channel: ${channelName} (${channelId})`,
+      `L1 account: ${l1Address}`,
+      `L2 address: ${l2Address}`,
+      `Note-receive public key: ${noteReceivePubKey}`,
+      `Join toll: ${joinToll}`,
+    ],
+    notPublic: [
+      "Wallet secret, L2 spending private key, note-receive private key, and future note plaintext.",
+    ],
+    noteProvenance: "Future note provenance is not made public by joining.",
+    policy: "Joining accepts the displayed immutable channel policy snapshot.",
+  },
+  "wallet-deposit-channel": {
+    display: "wallet deposit-channel",
+    l1PublicEvent: "Yes. The proof-backed channel accounting transaction is public L1 data.",
+    privateNoteState: "No. This action increases liquid channel accounting balance; it does not create notes.",
+    publicFields: ({ l1Address, l2Address, amountInput, channelName, channelId }) => [
+      `Channel: ${channelName} (${channelId})`,
+      `L1 submitter/account: ${l1Address}`,
+      `Registered L2 address: ${l2Address}`,
+      `Amount: ${amountInput}`,
+      "Transaction hash, accepted proof surface, and accounting root update.",
+    ],
+    notPublic: [
+      "No note owner, value, salt, counterparty, or note provenance is created by this action.",
+    ],
+    noteProvenance: "Not applicable; this action does not transfer note ownership.",
+    policy: "This action uses the channel policy snapshot accepted by the registered wallet.",
+  },
+  "wallet-withdraw-channel": {
+    display: "wallet withdraw-channel",
+    l1PublicEvent: "Yes. The proof-backed channel accounting transaction is public L1 data.",
+    privateNoteState: "No. This action decreases liquid channel accounting balance; it does not spend notes directly.",
+    publicFields: ({ l1Address, l2Address, amountInput, channelName, channelId }) => [
+      `Channel: ${channelName} (${channelId})`,
+      `L1 submitter/account: ${l1Address}`,
+      `Registered L2 address: ${l2Address}`,
+      `Amount: ${amountInput}`,
+      "Transaction hash, accepted proof surface, and accounting root update.",
+    ],
+    notPublic: [
+      "Any prior private note path that produced the liquid balance is not reconstructed from this action alone.",
+    ],
+    noteProvenance: "Public observers cannot reconstruct prior internal note provenance from this withdrawal-channel action alone.",
+    policy: "This action uses the channel policy snapshot accepted by the registered wallet.",
+  },
+  "wallet-mint-notes": {
+    display: "wallet mint-notes",
+    l1PublicEvent: "Yes. executeChannelTransaction, accepted transition, commitments, encrypted note events, and root updates are public L1 data.",
+    privateNoteState: "Yes. This action creates private-state notes tracked by the local wallet.",
+    publicFields: ({ l1Address, l2Address, amounts, channelName, channelId }) => [
+      `Channel: ${channelName} (${channelId})`,
+      `L1 submitter/account: ${l1Address}`,
+      `Registered L2 address: ${l2Address}`,
+      `Requested note amounts: ${amounts}`,
+      "New commitments, encrypted note-delivery events, transaction hash, and root updates.",
+    ],
+    notPublic: [
+      "Note owner, value, salt, plaintext note contents, and later note provenance are not public by default.",
+    ],
+    noteProvenance: "Public observers cannot reconstruct later note provenance without user-controlled disclosure.",
+    policy: "This action uses the channel policy snapshot accepted by the registered wallet.",
+  },
+  "wallet-transfer-notes": {
+    display: "wallet transfer-notes",
+    l1PublicEvent: "Yes. executeChannelTransaction, nullifiers, output commitments, encrypted note events, and root updates are public L1 data.",
+    privateNoteState: "Yes. This action spends selected input notes and creates output notes.",
+    publicFields: ({ l1Address, l2Address, noteIds, amounts, channelName, channelId }) => [
+      `Channel: ${channelName} (${channelId})`,
+      `L1 submitter/account: ${l1Address}`,
+      `Registered L2 address: ${l2Address}`,
+      `Input note commitments: ${noteIds}`,
+      `Output amounts supplied to the CLI: ${amounts}`,
+      "Input nullifiers, output commitments, encrypted note-delivery events, transaction hash, and root updates.",
+    ],
+    notPublic: [
+      "Sender-recipient relationship, recipient note plaintext, and note provenance are not public by default.",
+    ],
+    noteProvenance: "Public observers cannot reconstruct private note counterparty relationships or provenance from public contract state alone.",
+    policy: "This action uses the channel policy snapshot accepted by the registered wallet.",
+  },
+  "wallet-redeem-notes": {
+    display: "wallet redeem-notes",
+    l1PublicEvent: "Yes. executeChannelTransaction, nullifier usage, accounting update, and root updates are public L1 data.",
+    privateNoteState: "Yes. This action consumes selected notes and credits liquid channel accounting balance.",
+    publicFields: ({ l1Address, l2Address, noteIds, channelName, channelId }) => [
+      `Channel: ${channelName} (${channelId})`,
+      `L1 submitter/account: ${l1Address}`,
+      `Registered L2 address: ${l2Address}`,
+      `Input note commitments: ${noteIds}`,
+      "Input nullifiers, accounting update, transaction hash, and root updates.",
+    ],
+    notPublic: [
+      "The prior path by which the redeemed note was received is not public by default.",
+    ],
+    noteProvenance: "Public observers cannot reconstruct prior internal note provenance from this redeem action alone.",
+    policy: "This action uses the channel policy snapshot accepted by the registered wallet.",
+  },
+});
+
+async function requireActionImpactAcknowledgement(commandId, args, details = {}) {
+  const summary = ACTION_IMPACT_SUMMARIES[commandId];
+  if (!summary) {
+    throw new Error(`Missing action-impact summary for ${commandId}.`);
+  }
+  printActionImpactSummary(summary, details);
+  if (args.acknowledgeActionImpact === true) {
+    return;
+  }
+  if (args.acknowledgeActionImpact !== undefined) {
+    throw new Error(`${summary.display} option --acknowledge-action-impact does not accept a value.`);
+  }
+  if (!process.stdin.isTTY) {
+    throw new Error(`${summary.display} requires --acknowledge-action-impact after reviewing the action-impact warning.`);
+  }
+  const prompt = [
+    `Type exactly: ${ACTION_IMPACT_CONFIRMATION}`,
+    "> ",
+  ].join("\n");
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stderr,
+    terminal: process.stdin.isTTY && process.stderr.isTTY,
+  });
+  try {
+    const answer = await rl.question(prompt);
+    if (answer !== ACTION_IMPACT_CONFIRMATION) {
+      throw new Error(`${summary.display} action-impact confirmation did not match. No transaction was submitted.`);
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+function printActionImpactSummary(summary, details) {
+  const lines = [
+    `ACTION IMPACT SUMMARY: ${summary.display}`,
+    `- L1 public event: ${summary.l1PublicEvent}`,
+    `- Private note state change: ${summary.privateNoteState}`,
+    "- Public addresses and amounts:",
+    ...normalizeImpactLines(summary.publicFields, details).map((line) => `  - ${line}`),
+    "- Not public by default:",
+    ...normalizeImpactLines(summary.notPublic, details).map((line) => `  - ${line}`),
+    `- Note provenance: ${summary.noteProvenance}`,
+    `- Illegal-use prohibition: Do not use this command for money laundering, sanctions evasion, terrorist financing, illegal gambling, criminal-proceeds concealment, or regulatory evasion.`,
+    `- Secret recovery: Losing wallet secrets, viewing keys, or spending keys can prevent note discovery or note use. The CLI cannot recover lost secrets.`,
+    `- Channel policy: ${summary.policy}`,
+  ];
+  if (summary.cexWarning) {
+    lines.push(`- CEX address warning: ${summary.cexWarning}`);
+  }
+  lines.push(`- Confirmation: pass --acknowledge-action-impact or type the exact confirmation phrase when prompted.`);
+  console.error(lines.join("\n"));
+}
+
+function normalizeImpactLines(value, details) {
+  const resolved = typeof value === "function" ? value(details) : value;
+  return Array.isArray(resolved) ? resolved : [resolved];
 }
 
 function normalizeDAppPolicySnapshot({
@@ -2185,6 +2387,11 @@ async function handleDepositBridge({ args, network, provider }) {
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
+  await requireActionImpactAcknowledgement("account-deposit-bridge", args, {
+    l1Address: signer.address,
+    amountInput,
+    bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
+  });
   const bridgeTokenVault = new Contract(
     bridgeVaultContext.bridgeTokenVaultAddress,
     bridgeVaultContext.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
@@ -2445,7 +2652,7 @@ function removeLocalWalletArtifacts(walletName, networkName) {
 
 function buildRecoverWalletRemovedNextAction({ channelName, networkName, accountName }) {
   const account = accountName ? String(accountName) : "<ACCOUNT>";
-  return `channel join --channel-name ${channelName} --network ${networkName} --account ${account} --wallet-secret-path <PATH>`;
+  return `channel join --channel-name ${channelName} --network ${networkName} --account ${account} --wallet-secret-path <PATH> --acknowledge-action-impact`;
 }
 
 async function handleInstallZkEvm({ args }) {
@@ -3679,7 +3886,7 @@ function applyGuideNextAction(guide) {
     const channelName = guide.selectors.channelName ?? guide.state.channel?.channelName ?? "<CHANNEL>";
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
-      command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH>`,
+      command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH> --acknowledge-action-impact`,
       why: "The selected local wallet does not exist. Join the channel to create the wallet and register the channel L2 identity.",
     });
     return;
@@ -3688,7 +3895,7 @@ function applyGuideNextAction(guide) {
     const channelName = guide.state.wallet.channelName ?? guide.selectors.channelName ?? "<CHANNEL>";
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
-      command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH>`,
+      command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH> --acknowledge-action-impact`,
       why: "The local wallet exists, but the corresponding L1 address is not registered in the channel.",
     });
     return;
@@ -3705,32 +3912,32 @@ function applyGuideNextAction(guide) {
   if (guide.state.wallet?.exists && bridgeBalance === 0n && (channelBalance === null || channelBalance === 0n) && unusedNotes === 0) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
-      command: `account deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account}`,
+      command: `account deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account} --acknowledge-action-impact`,
       why: "The wallet is joined, but there is no bridge balance, channel balance, or local unused note to spend.",
     });
     return;
   }
   if (guide.state.wallet?.exists && bridgeBalance !== null && bridgeBalance > 0n && channelBalance === 0n) {
     setGuideNextAction(guide, {
-      command: `wallet deposit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amount <TOKENS>`,
+      command: `wallet deposit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amount <TOKENS> --acknowledge-action-impact`,
       why: "The account has funds in the shared bridge vault, but the wallet has no channel L2 accounting balance.",
     });
     return;
   }
   if (guide.state.wallet?.exists && channelBalance !== null && channelBalance > 0n && unusedNotes === 0) {
     setGuideNextAction(guide, {
-      command: `wallet mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <A,B> [--tx-submitter <ACCOUNT>]`,
+      command: `wallet mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <A,B> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
       why: "The wallet has channel L2 balance and no unused private notes yet. Use --tx-submitter for stronger transaction-submission privacy.",
     });
     return;
   }
   if (guide.state.wallet?.exists && unusedNotes !== null && unusedNotes > 0) {
     setGuideNextAction(guide, {
-      command: `wallet transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID,ID> --recipients <ADDR,ADDR> --amounts <A,B> [--tx-submitter <ACCOUNT>]`,
+      command: `wallet transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID,ID> --recipients <ADDR,ADDR> --amounts <A,B> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
       why: "The wallet has unused private notes. It can transfer or redeem those notes. Use --tx-submitter for stronger transaction-submission privacy.",
       candidates: [
         `wallet get-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
-        `wallet redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID> [--tx-submitter <ACCOUNT>]`,
+        `wallet redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
       ],
     });
     return;
@@ -4014,6 +4221,14 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     channelManager: context.workspace.channelManager,
     policySnapshot: context.workspace.policySnapshot,
   });
+  await requireActionImpactAcknowledgement("channel-join", args, {
+    l1Address: signer.address,
+    l2Address: l2Identity.l2Address,
+    noteReceivePubKey: JSON.stringify(noteReceiveKeyMaterial.noteReceivePubKey),
+    joinToll: ethers.formatUnits(joinToll, Number(context.workspace.canonicalAssetDecimals)),
+    channelName: context.workspace.channelName,
+    channelId: context.workspace.channelId,
+  });
   if (joinToll !== 0n) {
     approveReceipt = await waitForReceipt(
       await asset.approve(context.workspace.bridgeTokenVault, joinToll, { nonce: nextNonce++ }),
@@ -4144,6 +4359,13 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   const { signer, l2Identity } = restoreWalletParticipant(walletContext, provider);
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
+  await requireActionImpactAcknowledgement(args.command, args, {
+    l1Address: signer.address,
+    l2Address: l2Identity.l2Address,
+    amountInput,
+    channelName: context.workspace.channelName,
+    channelId: context.workspace.channelId,
+  });
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const bridgeTokenVault = new Contract(
     context.workspace.bridgeTokenVault,
@@ -4261,6 +4483,11 @@ async function handleWithdrawBridge({ args, network, provider }) {
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
+  await requireActionImpactAcknowledgement("account-withdraw-bridge", args, {
+    l1Address: signer.address,
+    amountInput,
+    bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
+  });
   const bridgeTokenVault = new Contract(
     bridgeVaultContext.bridgeTokenVaultAddress,
     bridgeVaultContext.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
@@ -4371,6 +4598,19 @@ async function handleMintNotes({ args, provider }) {
       `${channelFund.toString()}. Run wallet get-channel-fund to inspect the available balance.`,
     ].join(" "),
   );
+  const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
+  const { txSubmitter } = resolveTxSubmitterSigner({
+    args,
+    ownerSigner: signer,
+    provider,
+  });
+  await requireActionImpactAcknowledgement("wallet-mint-notes", args, {
+    l1Address: txSubmitter.address,
+    l2Address: l2Identity.l2Address,
+    amounts: baseUnitAmounts.map(({ amountInput }) => amountInput).join(", "),
+    channelName: wallet.wallet.channelName,
+    channelId: wallet.wallet.channelId,
+  });
   const templatePayload = buildMintNotesTemplatePayload({
     wallet,
     baseUnitAmounts: baseUnitAmounts.map(({ amountBaseUnits }) => amountBaseUnits),
@@ -4432,6 +4672,19 @@ async function handleRedeemNotes({ args, provider }) {
     preConsumedBlockDelta: preparedContextResult.autoRecoveryBlockDelta,
   });
   const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
+  const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
+  const { txSubmitter } = resolveTxSubmitterSigner({
+    args,
+    ownerSigner: signer,
+    provider,
+  });
+  await requireActionImpactAcknowledgement("wallet-redeem-notes", args, {
+    l1Address: txSubmitter.address,
+    l2Address: l2Identity.l2Address,
+    noteIds: noteIds.join(", "),
+    channelName: wallet.wallet.channelName,
+    channelId: wallet.wallet.channelId,
+  });
   const templatePayload = buildRedeemNotesTemplatePayload({
     wallet,
     inputNotes,
@@ -5021,6 +5274,19 @@ async function handleTransferNotes({ args, provider }) {
     "The sum of --amounts must equal the sum of the selected input note values.",
   );
 
+  const { txSubmitter } = resolveTxSubmitterSigner({
+    args,
+    ownerSigner: signer,
+    provider,
+  });
+  await requireActionImpactAcknowledgement("wallet-transfer-notes", args, {
+    l1Address: txSubmitter.address,
+    l2Address: wallet.wallet.l2Address,
+    noteIds: noteIds.join(", "),
+    amounts: amountInputs.join(", "),
+    channelName: context.workspace.channelName,
+    channelId: context.workspace.channelId,
+  });
   const templatePayload = await buildTransferNotesTemplatePayload({
     context,
     signer,
@@ -8959,6 +9225,7 @@ function assertWalletSecretArgs(args, commandName, extraOptionKeys = [], accepte
 
 function assertWalletChannelMoveArgs(args, commandName) {
   assertWalletSecretArgs(args, commandName, ["amount"], "--wallet, --network, and --amount");
+  assertActionImpactArg(args, COMMAND_ARG_SCHEMAS[commandName]?.label ?? commandName);
 }
 
 function assertInstallZkEvmArgs(args) {
@@ -9016,6 +9283,7 @@ function assertAccountImportArgs(args) {
 
 function assertMintNotesArgs(args) {
   assertAllowedCommandSchema(args, "wallet-mint-notes");
+  assertActionImpactArg(args, "wallet mint-notes");
   assertTxSubmitterArg(args);
   parseAmountVector(args.amounts, {
     allowZeroEntries: true,
@@ -9025,12 +9293,14 @@ function assertMintNotesArgs(args) {
 
 function assertRedeemNotesArgs(args) {
   assertAllowedCommandSchema(args, "wallet-redeem-notes");
+  assertActionImpactArg(args, "wallet redeem-notes");
   assertTxSubmitterArg(args);
   selectRedeemNotesMethod(parseNoteIdVector(args.noteIds).length);
 }
 
 function assertTransferNotesArgs(args) {
   assertAllowedCommandSchema(args, "wallet-transfer-notes");
+  assertActionImpactArg(args, "wallet transfer-notes");
   assertTxSubmitterArg(args);
   const noteIds = parseNoteIdVector(args.noteIds);
   const recipients = parseRecipientVector(args.recipients);
@@ -9048,6 +9318,18 @@ function assertTxSubmitterArg(args) {
   }
   if (args.txSubmitter === true || String(args.txSubmitter).trim() === "") {
     throw new Error("--tx-submitter requires a local account name.");
+  }
+}
+
+function assertActionImpactArg(args, commandName) {
+  if (
+    args.acknowledgeActionImpact !== undefined
+    && args.acknowledgeActionImpact !== true
+  ) {
+    throw new Error(`${commandName} option --acknowledge-action-impact does not accept a value.`);
+  }
+  if (args.acknowledgeActionImpact !== true && !process.stdin.isTTY) {
+    throw new Error(`${commandName} requires --acknowledge-action-impact after reviewing the action-impact warning.`);
   }
 }
 
@@ -9100,6 +9382,7 @@ function assertPublishWorkspaceMirrorArgs(args) {
 
 function assertDepositBridgeArgs(args) {
   assertAllowedCommandSchema(args, "account-deposit-bridge");
+  assertActionImpactArg(args, "account deposit-bridge");
 }
 
 function assertAccountGetBridgeFundArgs(args) {
@@ -9119,6 +9402,7 @@ function assertRecoverWalletArgs(args) {
 
 function assertJoinChannelArgs(args) {
   assertAllowedCommandSchema(args, "channel-join");
+  assertActionImpactArg(args, "channel join");
 }
 
 function assertWalletGetMetaArgs(args) {
@@ -9163,6 +9447,7 @@ function assertWalletImportKeyArgs(args, commandName) {
 
 function assertWithdrawBridgeArgs(args) {
   assertAllowedCommandSchema(args, "account-withdraw-bridge");
+  assertActionImpactArg(args, "account withdraw-bridge");
 }
 
 function assertWalletGetChannelFundArgs(args) {
@@ -9324,7 +9609,7 @@ Secret source options:
   A wallet secret source file is arbitrary high-entropy secret text read once by channel join.
   Create one before joining a channel, for example:
       openssl rand -hex 32 > ./wallet-secret.txt
-      private-state-cli channel join --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path ./wallet-secret.txt
+      private-state-cli channel join --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
   Bridge-facing commands accept optional --rpc-url. When provided, it is saved to
   ~/tokamak-private-channels/secrets/<network>/.env as RPC_URL. When omitted, the CLI reads RPC_URL from that file.
   Wallet commands use separate protected viewing-key and spending-key files when those capabilities are needed.
@@ -10139,7 +10424,7 @@ function buildRecoveryHints(error, args = {}) {
   }
 
   if (error?.code === CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION) {
-    hints.push(`private-state-cli channel join --channel-name ${channelName} --network ${networkName} --account ${accountName} --wallet-secret-path <PATH>`);
+    hints.push(`private-state-cli channel join --channel-name ${channelName} --network ${networkName} --account ${accountName} --wallet-secret-path <PATH> --acknowledge-action-impact`);
     hints.push(`private-state-cli help guide --network ${networkName} --channel-name ${channelName} --account ${accountName}`);
   }
 

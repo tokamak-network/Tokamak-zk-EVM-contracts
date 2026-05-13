@@ -485,6 +485,7 @@
         transferAmount1: "",
         transferRecipient2: "",
         transferAmount2: "",
+        acknowledgeActionImpact: false,
         docker: false,
         includeLocalArtifacts: false,
         groth16CliVersion: "",
@@ -843,8 +844,12 @@
           : null;
         const optionalFields = new Set(command.optionalFields ?? []);
         return command.fields.filter((fieldKey) => {
-          if (fieldCatalog[fieldKey]?.optional || optionalFields.has(fieldKey)) {
+          const fieldConfig = fieldCatalog[fieldKey];
+          if (fieldConfig?.optional || optionalFields.has(fieldKey)) {
             return false;
+          }
+          if (fieldConfig?.type === "checkbox") {
+            return state[fieldKey] !== true;
           }
           if (fieldKey === "amounts" && command.id === "wallet-mint-notes") {
             return currentMintAmounts().length === 0;

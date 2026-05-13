@@ -106,6 +106,31 @@ A common private-state flow is:
 Use `private-state-cli help commands` for the full command list and required options. `private-state-cli --help`
 continues to print the same command list for shell compatibility.
 
+### Action-impact acknowledgement
+
+Transaction-sending bridge, channel, and note commands require `--acknowledge-action-impact`. Before submitting any
+transaction, the CLI prints a static action-impact summary covering whether the command emits public L1 events, whether
+it changes private note state, which addresses or amounts become public, which note facts are not public by default,
+illegal-use prohibition, secret-recovery limits, and channel policy acceptance. In non-interactive contexts, such as
+scripts and LLM-assisted execution, the command fails unless the flag is present.
+
+Static warning scope:
+
+| Command | Public surface | Private note state | Not public by default |
+|---|---|---|---|
+| `account deposit-bridge` | L1 account, bridge vault, amount, approval/funding txs | No note change | No note plaintext or provenance is created |
+| `account withdraw-bridge` | L1 recipient/account, bridge vault, amount, withdrawal tx | No note change | Prior private note path is not reconstructed |
+| `channel join` | L1 account, L2 address, note-receive public key, join toll, channel id | No note change | Wallet secret, spending key, viewing key, and note plaintext |
+| `wallet deposit-channel` | L1 submitter, registered L2 address, amount, channel id, accounting update | No note change | No note provenance is created |
+| `wallet mint-notes` | L1 submitter, registered L2 address, commitments, encrypted note events, root update | Creates notes | Note owner, value, salt, and later provenance |
+| `wallet transfer-notes` | L1 submitter, input nullifiers, output commitments, encrypted note events, root update | Spends and creates notes | Sender-recipient relationship, note plaintext, and provenance |
+| `wallet redeem-notes` | L1 submitter, input nullifier, accounting update, root update | Consumes notes | Prior path by which the note was received |
+| `wallet withdraw-channel` | L1 submitter, registered L2 address, amount, channel id, accounting update | No direct note spend | Prior private note path behind the liquid balance |
+
+`account deposit-bridge` and `account withdraw-bridge` also print a centralized-exchange address warning. Do not use a
+centralized-exchange controlled address as a self-custody bridge source or as the direct bridge withdrawal target
+unless the user explicitly understands the compliance implications. Prefer a self-custody L1 wallet.
+
 Workspace recovery commands use the saved recovery index by default. If the local workspace is missing, corrupted, or
 does not contain a usable index, `channel recover-workspace` and `wallet recover-workspace` stop with an explicit error instead of
 silently replaying logs from channel genesis. Use `--source rpc --from-genesis` only when you intentionally want to
@@ -200,7 +225,7 @@ data.
 Proof-backed note commands can use a separate L1 transaction submitter:
 
 ```bash
-private-state-cli wallet mint-notes --wallet <WALLET> --network mainnet --amounts '[1]' --tx-submitter <ACCOUNT>
+private-state-cli wallet mint-notes --wallet <WALLET> --network mainnet --amounts '[1]' --acknowledge-action-impact --tx-submitter <ACCOUNT>
 ```
 
 `--tx-submitter <ACCOUNT>` is available on `wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`. The wallet still proves
@@ -256,7 +281,7 @@ Create one before joining a channel:
 
 ```bash
 openssl rand -hex 32 > ./wallet-secret.txt
-private-state-cli channel join --channel-name <CHANNEL> --network sepolia --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
+private-state-cli channel join --channel-name <CHANNEL> --network sepolia --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
 ```
 
 The import source file does not need `0600` permissions. The CLI does not persist a wallet-local secret:
@@ -353,7 +378,13 @@ Operating rules:
   8. inspect the channel with `channel get-meta` if it already exists, or create it with `channel create` if the user is
      the channel creator
   9. explain the immutable policy warning printed by the CLI
-  10. run `channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path <PATH>`
+  10. run `channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path <PATH> --acknowledge-action-impact`
+- Before executing any command for a user that requires an `--acknowledge-*` option, strongly warn the user in plain
+  language about what that acknowledgement means and ask for explicit confirmation. Do not add
+  `--acknowledge-action-impact` or `--acknowledge-full-note-plaintext-export` on the user's behalf until they confirm.
+  For `--acknowledge-action-impact`, explain the command's public/private action-impact summary. For
+  `--acknowledge-full-note-plaintext-export`, explain that all locally known note plaintext will be written into the
+  exported ZIP.
 - Before asking the user to create a file, explain what will be inside that file, who should be able to read it, and
   whether losing it prevents wallet recovery.
 - Prefer testnet examples unless the user explicitly asks for mainnet.

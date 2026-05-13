@@ -1290,6 +1290,10 @@ function signerCliArgs(participant) {
   ];
 }
 
+function acknowledgeActionImpactArgs() {
+  return ["--acknowledge-action-impact"];
+}
+
 function createChannel() {
   return runAnvilBridgeCliCommand("channel create", [
     "--channel-name", channelName,
@@ -1302,6 +1306,7 @@ function depositBridge(participant) {
   return runAnvilBridgeCliCommand("account deposit-bridge", [
     ...signerCliArgs(participant),
     "--amount", depositAmountTokens,
+    ...acknowledgeActionImpactArgs(),
   ]);
 }
 
@@ -1310,6 +1315,7 @@ function joinChannel(participant) {
     "--channel-name", channelName,
     ...signerCliArgs(participant),
     "--wallet-secret-path", participant.walletSecretPath,
+    ...acknowledgeActionImpactArgs(),
   ]);
   participant.walletName = result.wallet;
   participant.l2Address = result.l2Address;
@@ -1358,6 +1364,7 @@ function depositChannel(participant) {
   return runAnvilCliCommand("wallet deposit-channel", [
     ...walletCliArgs(participant),
     "--amount", depositAmountTokens,
+    ...acknowledgeActionImpactArgs(),
   ]);
 }
 
@@ -1463,6 +1470,7 @@ function mintNotes(participant, amounts, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("wallet mint-notes", [
     ...walletCliArgs(participant),
     "--amounts", JSON.stringify(amounts),
+    ...acknowledgeActionImpactArgs(),
     ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
@@ -1520,6 +1528,7 @@ function transferNotes(participant, noteIds, recipients, amounts, { txSubmitter 
     "--note-ids", JSON.stringify(noteIds),
     "--recipients", JSON.stringify(recipients),
     "--amounts", JSON.stringify(amounts),
+    ...acknowledgeActionImpactArgs(),
     ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
@@ -1528,6 +1537,7 @@ function redeemNotes(participant, noteIds, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("wallet redeem-notes", [
     ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
+    ...acknowledgeActionImpactArgs(),
     ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
@@ -1536,6 +1546,7 @@ function withdrawChannel(participant, amount) {
   return runAnvilCliCommand("wallet withdraw-channel", [
     ...walletCliArgs(participant),
     "--amount", amount,
+    ...acknowledgeActionImpactArgs(),
   ]);
 }
 
@@ -1543,6 +1554,7 @@ function withdrawBridge(participant, amount) {
   return runAnvilBridgeCliCommand("account withdraw-bridge", [
     ...signerCliArgs(participant),
     "--amount", amount,
+    ...acknowledgeActionImpactArgs(),
   ]);
 }
 

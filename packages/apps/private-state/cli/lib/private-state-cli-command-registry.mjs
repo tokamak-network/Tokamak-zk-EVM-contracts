@@ -411,12 +411,11 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Rebuilds backup metadata from channel state without recreating the spending key",
       "Derives and stores the viewing key when the local account signer can reproduce the registered viewing public key",
-      "By default, resumes RPC log scanning from the workspace recovery index when available",
-      "Fails instead of falling back to genesis when no usable recovery index exists",
-      "Use --from-genesis to ignore the recovery index and replay channel logs from channel genesis",
-      "--from-genesis moves the existing local channel workspace to workspace-rebuild-backups before writing the current-format workspace; local secrets are preserved",
-      "Received-note recovery checkpoints after each RPC log chunk during ordinary recovery; --from-genesis still starts from channel genesis",
-      "Prints RPC log scan progress while rebuilding channel state and received-note state",
+      "Before wallet recovery, refreshes stale channel workspace state only when the saved recovery index delta fits the pre-command budget",
+      "Fails and asks for channel recover-workspace first when the channel workspace is missing, unusable, or too stale for automatic recovery",
+      "Use --from-genesis to restart received-note scanning from channel genesis; it does not rebuild the channel workspace from genesis",
+      "Received-note recovery checkpoints after each RPC log chunk during ordinary recovery; --from-genesis still starts received-note scanning from channel genesis",
+      "Prints RPC log scan progress while refreshing channel state and rebuilding received-note state",
     ],
   },
   {
@@ -622,7 +621,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Refreshes the local channel workspace through the saved recovery index before reading notes when the scan fits the 10 second pre-command budget",
       "Refreshes received-note logs through the saved wallet note recovery index when the scan fits the 10 second pre-command budget",
-      "Fails instead of replaying from genesis; run wallet recover-workspace --from-genesis when a genesis rebuild is required",
+      "Fails instead of replaying from genesis; run wallet recover-workspace first when explicit wallet recovery is required",
       "Use --export-evidence <PATH> with --acknowledge-full-note-plaintext-export to write a local full-note evidence ZIP for private-state-cli investigator",
       "Evidence export includes all local epochs for the selected wallet, including exited epochs retained for dispute evidence",
     ],

@@ -2,10 +2,13 @@
 
 ## Unreleased
 
-- Changed `channel recover-workspace --from-genesis` and `wallet recover-workspace --from-genesis`
-  to move any existing local channel workspace to `workspace-rebuild-backups/` before writing the
-  current-format workspace. The clean rebuild path is limited to workspace files and preserves
-  local account and wallet key secrets under `secrets/`.
+- Changed `channel recover-workspace --from-genesis` to move any existing local channel workspace
+  to `workspace-rebuild-backups/` before writing the current-format workspace. The clean rebuild
+  path is limited to workspace files and preserves local account and wallet key secrets under
+  `secrets/`.
+- Changed `wallet recover-workspace` to use the same bounded channel-workspace freshness preflight
+  as other wallet commands. `wallet recover-workspace --from-genesis` now restarts received-note
+  scanning from channel genesis but does not rebuild the channel workspace from genesis.
 - Added received-note recovery checkpointing at the existing RPC log chunk boundary so ordinary
   `wallet recover-workspace` resumes from the last completed chunk after an interruption.
 

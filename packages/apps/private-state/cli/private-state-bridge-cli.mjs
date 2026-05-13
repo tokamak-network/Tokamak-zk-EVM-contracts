@@ -2293,7 +2293,7 @@ async function syncChannelWorkspace({
     throw new Error([
       `Workspace recovery index is missing or unusable for channel ${channelName} on ${networkNameFromChainId(network.chainId)}.`,
       "The CLI will not fall back to replaying channel logs from genesis unless explicitly requested.",
-      "Run channel recover-workspace --source rpc --from-genesis or wallet recover-workspace --from-genesis to rebuild from channel genesis.",
+      "Run channel recover-workspace first to refresh the local channel workspace.",
     ].join(" "));
   }
   const reconstruction = localSnapshotReusable
@@ -2478,39 +2478,13 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
   const channelName = requireArg(args.channelName, "--channel-name");
   const signer = requireL1Signer(args, provider);
   const walletName = walletNameForChannelAndAddress(channelName, signer.address);
-  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
-  const initialized = await syncChannelWorkspace({
-    workspaceName: channelName,
+  const channelContextResult = await loadFreshChannelWorkspaceContextResult({
     channelName,
-    network,
+    networkName: requireNetworkName(args),
     provider,
-    bridgeResources,
-    persist: true,
-    allowExistingWorkspaceSync: true,
-    useWorkspaceRecoveryIndex: true,
-    fromGenesis: args.fromGenesis === true,
     progressAction: "wallet recover-workspace",
   });
-  const context = {
-    workspaceName: channelName,
-    workspaceDir: initialized.workspaceDir,
-    persistChannelWorkspace: true,
-    workspace: initialized.workspace,
-    bridgeAbiManifest: bridgeResources.bridgeAbiManifest,
-    currentSnapshot: initialized.currentSnapshot,
-    blockInfo: initialized.blockInfo,
-    contractCodes: initialized.contractCodes,
-    channelManager: new Contract(
-      initialized.workspace.channelManager,
-      bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
-      provider,
-    ),
-    bridgeTokenVault: new Contract(
-      initialized.workspace.bridgeTokenVault,
-      bridgeResources.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
-      provider,
-    ),
-  };
+  const context = channelContextResult.context;
   const noteReceiveKeyMaterial = await deriveNoteReceiveKeyMaterial({
     signer,
     chainId: network.chainId,
@@ -2578,7 +2552,8 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       status: "already-recovered",
       wallet: walletName,
       walletDir: existingWallet.walletDir,
-      cleanRebuildBackup: initialized.cleanRebuildBackup ?? null,
+      recoveredChannelWorkspace: channelContextResult.recoveredWorkspace,
+      channelAutoRecoveryBlockDelta: channelContextResult.autoRecoveryBlockDelta,
       workspace: context.workspaceName,
       channelName: context.workspace.channelName,
       channelId: context.workspace.channelId,
@@ -2628,7 +2603,8 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     status: "recovered",
     wallet: walletName,
     walletDir: walletContext.walletDir,
-    cleanRebuildBackup: initialized.cleanRebuildBackup ?? null,
+    recoveredChannelWorkspace: channelContextResult.recoveredWorkspace,
+    channelAutoRecoveryBlockDelta: channelContextResult.autoRecoveryBlockDelta,
     workspace: context.workspaceName,
     channelName: context.workspace.channelName,
     channelId: context.workspace.channelId,
@@ -6330,7 +6306,7 @@ function requireUsableWalletNoteReceiveRecoveryIndex({ walletContext, context, l
     throw new Error([
       `Wallet note recovery index is missing or unusable for wallet ${walletContext.walletName}.`,
       `Expected noteReceiveLastScannedBlock to be an integer between ${genesisBlockNumber} and ${Number(latestBlock) + 1}.`,
-      "Run wallet recover-workspace --from-genesis to rebuild wallet note state from channel genesis.",
+      "Run wallet recover-workspace --from-genesis to restart received-note scanning from channel genesis.",
     ].join(" "));
   }
   return nextBlock;
@@ -6376,7 +6352,7 @@ async function ensureWalletNoteReceiveStateCurrent({
     throw new Error([
       `Wallet note recovery index is missing or unusable for wallet ${walletContext.walletName}.`,
       "Automatic wallet recovery uses only the saved note recovery index and will not replay from genesis.",
-      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if a genesis rebuild is required.`,
+      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if received-note scanning must restart from channel genesis.`,
       `Details: ${indexError.message}`,
     ].join(" "));
   }
@@ -6414,7 +6390,7 @@ async function ensureWalletNoteReceiveStateCurrent({
     throw new Error([
       `Wallet workspace is not current for wallet ${walletContext.walletName}.`,
       "Automatic wallet recovery uses only the saved note recovery index and will not replay from genesis.",
-      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if a genesis rebuild is required.`,
+      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if received-note scanning must restart from channel genesis.`,
       `Details: ${recoveryError.message}`,
     ].join(" "));
   }
@@ -6430,7 +6406,7 @@ async function ensureWalletNoteReceiveStateCurrent({
     throw new Error([
       `Wallet workspace is still stale after recovery-index sync for wallet ${walletContext.walletName}.`,
       "Automatic wallet recovery will not replay from genesis.",
-      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if a genesis rebuild is required.`,
+      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if received-note scanning must restart from channel genesis.`,
       `Details: ${postRecoveryError.message}`,
     ].join(" "));
   }
@@ -7050,7 +7026,7 @@ async function recoverChannelWorkspaceFromIndexOnly({
     throw new Error([
       `Channel workspace is not current for ${channelName} on ${networkName}.`,
       "Automatic channel workspace recovery uses only the saved recovery index and will not replay from genesis.",
-      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis if a genesis rebuild is required.`,
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} first.`,
       `Details: ${recoveryError.message}`,
       cause ? `Initial freshness failure: ${cause.message}` : null,
     ].filter(Boolean).join(" "));
@@ -7063,7 +7039,7 @@ async function recoverChannelWorkspaceFromIndexOnly({
     throw new Error([
       `Channel workspace is still stale after recovery-index sync for ${channelName} on ${networkName}.`,
       "Automatic channel workspace recovery will not replay from genesis.",
-      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis if a genesis rebuild is required.`,
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} first.`,
       `Details: ${postRecoveryError.message}`,
       cause ? `Initial freshness failure: ${cause.message}` : null,
     ].filter(Boolean).join(" "));
@@ -7087,7 +7063,7 @@ async function requireChannelWorkspaceRecoveryIndexForAutoRefresh({
     throw new Error([
       message,
       "Automatic channel workspace recovery uses only the saved recovery index and will not replay from genesis.",
-      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis if a genesis rebuild is required.`,
+      `Run channel recover-workspace --channel-name ${channelName} --network ${networkName} first.`,
       cause ? `Initial freshness failure: ${cause.message}` : null,
     ].filter(Boolean).join(" "));
   };
@@ -8902,7 +8878,7 @@ function assertAutoRecoveryBlockBudget({
     `Automatic recovery for ${label} would exceed the ${AUTO_RECOVERY_BLOCK_BUDGET}-block pre-command budget.`,
     `Recovery delta is ${blockDelta} blocks from ${normalizedFromBlock} to ${normalizedToBlock}.`,
     `Remaining automatic recovery budget is ${normalizedBudget} blocks.`,
-    `Run ${recoveryCommand} first; add --from-genesis only if the saved recovery index is unusable.`,
+    `Run ${recoveryCommand} first.`,
   ].join(" "));
 }
 
@@ -11134,8 +11110,7 @@ function buildRecoveryHints(error, args = {}) {
   }
 
   if (message.includes("Workspace recovery index is missing or unusable")) {
-    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis`);
-    hints.push(`private-state-cli wallet recover-workspace --channel-name ${channelName} --network ${networkName} --account ${accountName} --from-genesis`);
+    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName}`);
   }
 
   if (message.includes("Wallet note recovery index is missing or unusable")) {

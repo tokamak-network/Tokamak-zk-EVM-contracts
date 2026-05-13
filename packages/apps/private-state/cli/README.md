@@ -151,17 +151,16 @@ Static warning scope:
 centralized-exchange controlled address as a self-custody bridge source or as the direct bridge withdrawal target
 unless the user explicitly understands the compliance implications. Prefer a self-custody L1 wallet.
 
-Workspace recovery commands use the saved recovery index by default. If the local workspace is missing, corrupted, or
-does not contain a usable index, `channel recover-workspace` and `wallet recover-workspace` stop with an explicit error instead of
-silently replaying logs from channel genesis. Use `--source rpc --from-genesis` only when you intentionally want to
-rebuild channel workspace state from the channel creation block:
+Workspace recovery commands use saved recovery indexes by default. If the local channel workspace is missing,
+corrupted, or does not contain a usable index, `channel recover-workspace` stops with an explicit error instead of
+silently replaying logs from channel genesis. Use `channel recover-workspace --source rpc --from-genesis` only when
+you intentionally want to rebuild channel workspace state from the channel creation block:
 
 ```bash
 private-state-cli channel recover-workspace --channel-name <CHANNEL> --network mainnet --source rpc --from-genesis
-private-state-cli wallet recover-workspace --channel-name <CHANNEL> --network mainnet --account <ACCOUNT> --from-genesis
 ```
 
-When `--from-genesis` is used, the CLI treats the local channel workspace as a clean rebuild target.
+When `channel recover-workspace --from-genesis` is used, the CLI treats the local channel workspace as a clean rebuild target.
 If `~/tokamak-private-channels/workspace/<network>/<channel>` already exists, it is moved under
 `~/tokamak-private-channels/workspace-rebuild-backups/` before the current-format workspace is
 created. This backup step is workspace-only; files under `~/tokamak-private-channels/secrets/`,
@@ -175,17 +174,18 @@ registration transaction. For a channel that was created elsewhere, run `channel
 once before joining, or recover from a registered workspace mirror; later joins and wallet commands resume from the
 saved index instead of silently replaying from genesis.
 
-Wallet getter commands that need channel state, including `wallet get-meta`, `wallet get-channel-fund`, and
-`wallet get-notes`, refresh stale local workspaces through saved recovery indexes before reading state. `wallet get-notes`
-also refreshes received-note logs through the saved wallet note recovery index. Automatic refresh never replays from
-channel genesis and only runs when the recovery delta fits within the 7,200-block pre-command budget. If a saved index
-is missing, unusable, or too far behind, the command stops and asks the user to run the appropriate recovery command
-with `--from-genesis` explicitly when needed.
+Wallet commands that need channel state, including `wallet recover-workspace`, `wallet get-meta`,
+`wallet get-channel-fund`, and `wallet get-notes`, refresh stale local channel workspaces through saved recovery
+indexes before reading state. `wallet get-notes` and `wallet recover-workspace` also refresh received-note logs
+through the saved wallet note recovery index. Automatic refresh never replays from channel genesis and only runs when
+the recovery delta fits within the 7,200-block pre-command budget. If a saved index is missing, unusable, or too far
+behind, the command stops and asks the user to run the appropriate recovery command first.
 
 Wallet note-delivery recovery checkpoints after each RPC log chunk by updating
 `noteReceiveLastScannedBlock`. If an ordinary `wallet recover-workspace` run is interrupted during note recovery, the
 next run resumes from the last completed chunk. This does not add a special resume path for
-`wallet recover-workspace --from-genesis`; that command intentionally starts from channel genesis.
+`wallet recover-workspace --from-genesis`; that command intentionally starts received-note scanning from channel
+genesis after the channel workspace has passed the same freshness preflight used by other wallet commands.
 
 Local wallet workspaces are epoch-aware. Each successful channel registration creates a wallet epoch under the
 canonical wallet directory. `channel exit` does not delete the local wallet workspace; it marks the active epoch as
@@ -492,7 +492,7 @@ Suggested interaction flow:
    `wallet mint-notes`.
 7. For a confidential note transfer, select available note IDs from `wallet get-notes`, find the recipient L2 address from
    `wallet get-meta`, then build `wallet transfer-notes`.
-8. After transfer, guide the recipient to run `wallet get-notes`; it refreshes received notes from the saved recovery index when the delta fits the 7,200-block pre-command budget. If the index is missing or too far behind, explain `wallet recover-workspace --from-genesis`.
+8. After transfer, guide the recipient to run `wallet get-notes`; it refreshes received notes from the saved recovery index when the delta fits the 7,200-block pre-command budget. If the index is missing or too far behind, explain `wallet recover-workspace`.
 
 Example onboarding explanation for `channel join`:
 

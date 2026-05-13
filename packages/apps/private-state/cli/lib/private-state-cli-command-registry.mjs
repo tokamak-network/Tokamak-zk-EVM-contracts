@@ -441,7 +441,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Check whether a wallet matches the on-chain channel registration.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Refreshes the local channel workspace through the saved recovery index before reading registration metadata when the scan fits the 10 second pre-command budget"],
+    help: [
+      "Refreshes the local channel workspace through the saved recovery index before reading registration metadata when the scan fits the 10 second pre-command budget",
+      "Reports the selected local wallet epoch and lifecycle status when the workspace uses the epoch-aware wallet format",
+    ],
   },
   {
     id: "wallet-list",
@@ -548,7 +551,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Exit a channel. Both the CLI and bridge contract require a zero channel balance.",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Refreshes the local channel workspace through the saved recovery index before checking the channel balance when the scan fits the 10 second pre-command budget"],
+    help: [
+      "Refreshes the local channel workspace through the saved recovery index before checking the channel balance when the scan fits the 10 second pre-command budget",
+      "Marks the current local wallet epoch as exited and keeps its note metadata available for historical evidence export",
+    ],
   },
   {
     id: "wallet-mint-notes",
@@ -615,6 +621,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "Refreshes received-note logs through the saved wallet note recovery index when the scan fits the 10 second pre-command budget",
       "Fails instead of replaying from genesis; run wallet recover-workspace --from-genesis when a genesis rebuild is required",
       "Use --export-evidence <PATH> with --acknowledge-full-note-plaintext-export to write a local full-note evidence ZIP for private-state-cli investigator",
+      "Evidence export includes all local epochs for the selected wallet, including exited epochs retained for dispute evidence",
     ],
   },
 ]);

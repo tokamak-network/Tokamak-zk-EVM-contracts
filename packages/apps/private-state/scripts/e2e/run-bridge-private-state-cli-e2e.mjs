@@ -1496,6 +1496,7 @@ function assertWalletEvidenceExport(result, { expectedNoteCount }) {
   expect(result.evidenceExport, "wallet get-notes evidence export result is missing.");
   expect(fs.existsSync(result.evidenceExport.output), `Evidence ZIP was not written: ${result.evidenceExport.output}.`);
   expect(Number(result.evidenceExport.noteCount) === Number(expectedNoteCount), "Evidence ZIP note count mismatch.");
+  expect(Number(result.evidenceExport.walletEpochCount ?? 1) >= 1, "Evidence ZIP must report wallet epoch count.");
   expect(result.evidenceExport.containsSpendingKey === false, "Evidence ZIP must not report spending-key inclusion.");
   expect(result.evidenceExport.containsViewingKey === false, "Evidence ZIP must not report viewing-key inclusion.");
   const zip = new AdmZip(result.evidenceExport.output);
@@ -1514,7 +1515,9 @@ function assertWalletEvidenceExport(result, { expectedNoteCount }) {
   const manifest = JSON.parse(zip.readAsText("manifest.json"));
   expect(manifest.containsNotePlaintext === true, "Evidence manifest must declare note plaintext inclusion.");
   expect(manifest.excludedSecrets?.spendingKey === true, "Evidence manifest must exclude spending keys.");
-  const noteEntries = [...entries].filter((entry) => entry.startsWith("notes/") && entry.endsWith(".json"));
+  expect(Array.isArray(manifest.wallets), "Evidence manifest must include wallet epoch metadata.");
+  const noteEntries = [...entries].filter((entry) =>
+    entry.endsWith(".json") && (entry.startsWith("notes/") || entry.includes("/notes/")));
   expect(noteEntries.length === Number(expectedNoteCount), "Evidence ZIP note entry count mismatch.");
   const serializedZip = zip.getEntries().map((entry) => zip.readAsText(entry)).join("\n");
   for (const forbidden of ["l2PrivateKey", "noteReceivePrivateKey"]) {
@@ -1560,6 +1563,24 @@ function withdrawBridge(participant, amount) {
 
 function exitChannel(participant) {
   return runAnvilCliCommand("channel exit", walletCliArgs(participant));
+}
+
+function assertExitedWalletWorkspace(result, participant) {
+  expect(result.lifecycleStatus === "exited", "channel exit must mark the wallet epoch as exited.");
+  expect(result.archivedWalletDir, "channel exit must report the retained exited wallet directory.");
+  expect(fs.existsSync(result.archivedWalletDir), `Exited wallet directory is missing: ${result.archivedWalletDir}.`);
+  const walletMetadata = readJson(path.join(result.archivedWalletDir, "wallet-notes.metadata.json"));
+  expect(walletMetadata.lifecycleStatus === "exited", "Exited wallet metadata must record lifecycleStatus=exited.");
+  expect(
+    walletMetadata.exitedAtTxHash === result.exitedAtTxHash,
+    "Exited wallet metadata must record the exit transaction.",
+  );
+  const walletIndex = readJson(path.join(walletDirForName(participant.walletName), "wallet-index.metadata.json"));
+  expect(walletIndex.activeEpochId === null, "Wallet index must not keep an active epoch after channel exit.");
+  expect(
+    walletIndex.epochs.some((epoch) => epoch.epochId === result.epochId && epoch.lifecycleStatus === "exited"),
+    "Wallet index must retain the exited epoch.",
+  );
 }
 
 function assertResolvedWalletIdentity(result, participant, label) {
@@ -2125,6 +2146,14 @@ async function main() {
       Number(exitChannelResult.refundBps) === 7500,
       `participant-c exit-channel refundBps mismatch: ${exitChannelResult.refundBps}.`,
     );
+    assertExitedWalletWorkspace(exitChannelResult, participants[2]);
+    const exitedWalletNotes = getWalletNotes(participants[2]);
+    expect(
+      exitedWalletNotes.wallet === participants[2].walletName,
+      "wallet get-notes must remain available for an exited wallet epoch.",
+    );
+    const exitedEvidence = exportWalletEvidence(participants[2]);
+    assertWalletEvidenceExport(exitedEvidence, { expectedNoteCount: 3 });
 
     const withdrawBridgeResult = withdrawBridge(participants[2], claimAmountTokens);
     const bridgeDepositAfterClaim = getBridgeFund(participants[2]);

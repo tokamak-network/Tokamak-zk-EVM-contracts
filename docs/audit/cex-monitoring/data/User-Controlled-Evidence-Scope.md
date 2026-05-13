@@ -49,9 +49,11 @@ channel contracts." They do not, by themselves, prove the full private note path
 
 A user may voluntarily generate wallet-derived facts that they can inspect locally. The CLI provides
 `wallet get-notes --export-evidence <PATH> --acknowledge-full-note-plaintext-export` as a local raw
-evidence bundle export. This raw bundle is not the final exchange submission package. The static
-investigator at `packages/apps/private-state/investigator/index.html` filters the raw bundle into a
-narrower user-consent package for the specific request.
+evidence bundle export. When the selected wallet has retained exited epochs, those local epochs are
+included so the user can still inspect historical notes after channel exit. This raw bundle is not
+the final exchange submission package. The local investigator opened by `private-state-cli
+investigator`, or directly at `packages/apps/private-state/investigator/index.html`, filters the raw
+bundle into a narrower user-consent package for the specific request.
 
 Examples of user-held facts include:
 
@@ -72,7 +74,8 @@ them for the user from public logs alone.
 The raw evidence bundle is a ZIP file. It contains:
 
 - `manifest.json` with network, channel, wallet scope, warning, and excluded-secret declarations
-- one `notes/<commitment>.json` record per locally known note
+- one note record per locally known note; epoch-aware bundles store records under
+  `wallets/<wallet>/epochs/<epoch>/notes/<commitment>.json`
 - indexes by commitment, nullifier, creation transaction, spend transaction, block range, and
   available counterparty metadata
 - transaction calldata, receipts, and event logs for referenced note creation or note spend

@@ -334,9 +334,9 @@ Tokamak의 권장 정책은 다음이다.
 
 - [x] `the-great-first-channel` 기본 정책에 global auditor note-copy를 넣지 않는다.
 - [x] 모든 note를 회사 또는 거래소가 볼 수 있게 만드는 master auditor를 두지 않는다.
-- [ ] auditor 기능을 넣는다면 별도 channel 또는 별도 DApp policy로 분리한다.
-- [ ] auditor 기능이 있는 channel은 명확히 “audited channel”이라고 표시한다.
-- [ ] unaudited/private channel과 audited channel을 혼동시키지 않는다.
+- [x] auditor 기능을 넣는다면 별도 channel 또는 별도 DApp policy로 분리한다.
+- [x] auditor 기능이 있는 channel은 명확히 “audited channel”이라고 표시한다.
+- [x] unaudited/private channel과 audited channel을 혼동시키지 않는다.
 - [x] 거래소에는 “global backdoor는 없지만, 사용자 선택공개와 public edge monitoring을 제공한다”고 설명한다.
 
 ---
@@ -423,15 +423,15 @@ CLI 설치 페이지와 사용 예시에 다음 경고를 넣는다.
 
 특히 `join`, `deposit-channel`, `mint`, `transfer`, `redeem`, `withdraw-channel` 전에 다음 정보를 표시해야 한다.
 
-- [ ] 이 action이 L1에서 public event를 발생시키는지
-- [ ] 이 action이 private note state를 변경하는지
-- [ ] 어떤 주소와 금액이 public인지
-- [ ] 어떤 정보가 public이 아닌지
-- [ ] note provenance가 public observer에게 복원되지 않는다는 점
-- [ ] 불법 목적 사용 금지
+- [x] 이 action이 L1에서 public event를 발생시키는지
+- [x] 이 action이 private note state를 변경하는지
+- [x] 어떤 주소와 금액이 public인지
+- [x] 어떤 정보가 public이 아닌지
+- [x] note provenance가 public observer에게 복원되지 않는다는 점
+- [x] 불법 목적 사용 금지
 - [ ] CEX deposit address 사용 금지
-- [ ] wallet secret 분실 시 recovery 한계
-- [ ] 사용자가 policy snapshot을 확인했다는 체크
+- [x] wallet secret 분실 시 recovery 한계
+- [x] 사용자가 policy snapshot을 확인했다는 체크
 
 ---
 
@@ -598,14 +598,14 @@ Tokamak의 security model에서 bridge owner의 upgrade 권한과 privileged own
 
 ### 12.3 사용자 보호
 
-- [ ] CLI에서 CEX deposit address 사용 금지 경고
+- [x] CLI에서 CEX deposit address 사용 금지 경고
 - [x] CLI에서 self-custody wallet 사용 안내
-- [ ] CLI에서 bridge deposit/withdraw public visibility 표시
-- [ ] CLI에서 note transfer privacy scope 표시
+- [x] CLI에서 bridge deposit/withdraw public visibility 표시
+- [x] CLI에서 note transfer privacy scope 표시
 - [x] wallet secret / spending key / viewing key 보관 경고
 - [x] lost secret recovery 한계 표시
-- [ ] illegal-use prohibition 표시
-- [ ] channel policy review confirmation
+- [x] illegal-use prohibition 표시
+- [x] channel policy review confirmation
 
 ### 12.4 운영자 리스크
 
@@ -614,7 +614,7 @@ Tokamak의 security model에서 bridge owner의 upgrade 권한과 privileged own
 - [x] Tokamak이 사용자 간 transfer를 중개하지 않음 명시
 - [x] Tokamak이 private provenance를 임의 복원할 수 없음 명시
 - [x] 운영 서버가 없어도 사용자가 L1과 직접 interaction 가능함 명시
-- [ ] 실제로 relayer/prover/indexer 서비스를 운영한다면 그 범위와 로그 보관 정책 공개
+- [x] 실제로 relayer/prover/indexer 서비스를 운영한다면 그 범위와 로그 보관 정책 공개
 - [x] 운영자 수수료가 있다면 수취 주소와 과금 근거 공개
 - [x] channel leader/operator 권한 공개
 

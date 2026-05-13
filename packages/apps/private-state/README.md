@@ -126,7 +126,8 @@ Important rules:
 - `channel join` binds the channel name, one-time wallet secret source, and local account signer to derive the channel-specific L2 identity
 - `channel join` is the first-time wallet setup command for a channel; `wallet recover-workspace`
   can later rebuild backup metadata from on-chain channel data
-- wallet folder names are fixed to `<channelName>-<l1Address>`
+- canonical wallet folder names are fixed to `<channelName>-<l1Address>`, with per-registration
+  wallet epochs stored below that canonical folder
 - recipient note delivery is recovered from bridge-propagated Ethereum event logs through `wallet recover-workspace`
 - `anvil` support exists only for command-driven local end-to-end testing
 - proof-backed commands print four progress phases, `loading`, `proving`, `submitting`, and `persisting`, followed by `done`
@@ -273,9 +274,10 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 
 - rebuilds wallet backup metadata from the current channel workspace, channel registration, and bridge-propagated encrypted note logs
 - can recreate the viewing key when the local account signer reproduces the registered viewing public key
+- can recover an exited registration epoch from historical channel registration and exit events for read-only note inspection and disclosure
 - reclassifies every recovered current-version note into `unused` or `spent` by checking the on-chain commitment and nullifier state
 - resets `l2Nonce` to `0`
-- stops early if the target wallet folder already exists with current-version metadata for the requested channel
+- stops early if the target wallet epoch already exists with current-version metadata for the requested channel
 - accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
 - resumes channel workspace scanning from the saved recovery index by default
 - fails instead of silently replaying from channel genesis when no usable recovery index exists
@@ -383,6 +385,7 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 `channel exit`
 
 - deletes the wallet's channel registration after the channel L2 accounting balance is zero
+- marks the local wallet epoch as exited and keeps it read-only for historical note inspection and evidence export
 - frees the reserved token-vault leaf binding, L2 address binding, storage-key binding, and note-receive key binding
 - applies the channel's time-decayed join-toll refund schedule
 - accepts `--wallet` and `--network`

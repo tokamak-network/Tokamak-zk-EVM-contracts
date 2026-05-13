@@ -61,7 +61,7 @@ async function loadEvidenceBundle(bytes) {
     throw new Error(`Unsupported evidence format: ${manifest.format ?? "missing"}.`);
   }
   const notes = [...files.entries()]
-    .filter(([path]) => path.startsWith("notes/") && path.endsWith(".json"))
+    .filter(([path]) => isEvidenceNotePath(path))
     .map(([path, content]) => ({
       path,
       record: JSON.parse(content),
@@ -79,7 +79,21 @@ async function loadEvidenceBundle(bytes) {
   els.buildPackage.disabled = false;
   els.selectAll.disabled = false;
   els.selectNone.disabled = false;
-  setStatus(`Loaded ${notes.length} note records from ${manifest.wallet ?? "wallet"} on ${manifest.network ?? "network"}.`);
+  setStatus(
+    `Loaded ${notes.length} note records from ${evidenceWalletLabel(manifest)} on ${manifest.network ?? "network"}.`,
+  );
+}
+
+function isEvidenceNotePath(entryPath) {
+  return entryPath.endsWith(".json")
+    && (entryPath.startsWith("notes/") || entryPath.includes("/notes/"));
+}
+
+function evidenceWalletLabel(manifest) {
+  if (manifest.wallets?.length) {
+    return `${manifest.wallets[0].wallet ?? manifest.wallet ?? "wallet"} (${manifest.wallets.length} epochs)`;
+  }
+  return manifest.wallet ?? "wallet";
 }
 
 function resetBundle() {
@@ -324,6 +338,7 @@ function buildDisclosureManifest({ selectedNotes, selectedPaths, packageMetadata
       channelName: state.manifest.channelName,
       channelId: state.manifest.channelId,
       wallet: state.manifest.wallet,
+      wallets: state.manifest.wallets ?? null,
       walletL1Address: state.manifest.walletL1Address,
       walletL2Address: state.manifest.walletL2Address,
     },

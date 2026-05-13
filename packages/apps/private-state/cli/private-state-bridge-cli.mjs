@@ -137,9 +137,11 @@ const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const WALLET_BACKUP_EXPORT_FORMAT = "tokamak-private-state-wallet-backup-export";
 const WALLET_KEY_EXPORT_FORMAT = "tokamak-private-state-wallet-key-export";
+const WALLET_INDEX_FORMAT = "tokamak-private-state-wallet-index";
 const WALLET_EVIDENCE_BUNDLE_FORMAT = "tokamak-private-state-raw-evidence-bundle";
 const WALLET_EXPORT_FORMAT_VERSION = 2;
-const WALLET_EVIDENCE_BUNDLE_FORMAT_VERSION = 1;
+const WALLET_INDEX_FORMAT_VERSION = 1;
+const WALLET_EVIDENCE_BUNDLE_FORMAT_VERSION = 2;
 const WALLET_WORKSPACE_FORMAT_VERSION = 2;
 const CHANNEL_WORKSPACE_MIRROR_PROTOCOL_VERSION = 2;
 const CHANNEL_WORKSPACE_MIRROR_MANIFEST_PATH_PREFIX =
@@ -2502,64 +2504,51 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     account: signer.address,
   });
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
-
-  if (!registration.exists) {
-    const cleanup = removeLocalWalletArtifacts(walletName, context.workspace.network);
-    if (cleanup.removed) {
-      printJson({
-        action: "wallet recover-workspace",
-        status: "stale-wallet-removed",
-        wallet: walletName,
-        removedWalletDir: cleanup.removedWalletDir ? cleanup.walletDir : null,
-        removedWalletSecretFile: cleanup.removedWalletSecret ? cleanup.walletSecretFile : null,
-        workspace: context.workspaceName,
-        channelName: context.workspace.channelName,
-        channelId: context.workspace.channelId,
-        l1Address: signer.address,
-        l2Address: null,
-        l2StorageKey: null,
-        leafIndex: null,
-        reason: "The local wallet existed, but the L1 address is no longer registered in the channel.",
-        nextAction: buildRecoverWalletRemovedNextAction({
-          channelName,
-          networkName: network.name,
-          accountName: args.account,
-        }),
-      });
-      return;
-    }
-    expect(
-      false,
-      cliError(
-        CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
-        `No channelTokenVault registration exists for ${signer.address}. Run channel join first.`,
-      ),
-    );
-  }
+  const lifecycleEpoch = await resolveWalletLifecycleEpoch({
+    context,
+    provider,
+    l1Address: signer.address,
+    registration,
+  });
   expect(
-    ethers.toBigInt(normalizeBytes32Hex(registration.noteReceivePubKey.x))
+    lifecycleEpoch,
+    cliError(
+      CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION,
+      `No channelTokenVault registration history exists for ${signer.address}. Run channel join first.`,
+    ),
+  );
+  const registeredNoteReceivePubKey = lifecycleEpoch.noteReceivePubKey;
+  expect(
+    ethers.toBigInt(normalizeBytes32Hex(registeredNoteReceivePubKey.x))
       === ethers.toBigInt(normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x)),
     "The existing note-receive public key X does not match the derived note-receive public key.",
   );
   expect(
-    Number(registration.noteReceivePubKey.yParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
+    Number(registeredNoteReceivePubKey.yParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
     "The existing note-receive public key parity does not match the derived note-receive public key.",
   );
   const l2Identity = {
     l2PrivateKey: null,
     l2PublicKey: null,
-    l2Address: getAddress(registration.l2Address),
+    l2Address: getAddress(lifecycleEpoch.l2Address),
   };
-  const storageKey = normalizeBytes32Hex(registration.channelTokenVaultKey);
+  const storageKey = normalizeBytes32Hex(lifecycleEpoch.channelTokenVaultKey);
 
-  const walletDir = walletPath(walletName, context.workspace.network);
+  const walletDir = walletEpochPath(walletName, context.workspace.network, lifecycleEpoch.epochId);
   const existingWallet = walletConfigExists(walletDir)
-    ? loadWallet(walletName, context.workspace.network)
+    ? loadWalletFromDir({
+      walletName,
+      networkName: context.workspace.network,
+      walletDir,
+    })
     : null;
 
   if (existingWallet) {
     existingWallet.wallet.noteReceivePrivateKey = noteReceiveKeyMaterial.privateKey;
+    applyWalletLifecycleEpoch(existingWallet.wallet, lifecycleEpoch);
     persistWalletKeys(existingWallet);
+    persistWallet(existingWallet);
+    persistWalletIndexForContext(existingWallet);
     const { recoveredDeliveryState } = await recoverWalletReceivedNotes({
       walletContext: existingWallet,
       context,
@@ -2580,7 +2569,10 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       l1Address: signer.address,
       l2Address: l2Identity.l2Address,
       l2StorageKey: storageKey,
-      leafIndex: registration.leafIndex.toString(),
+      leafIndex: lifecycleEpoch.leafIndex.toString(),
+      epochId: lifecycleEpoch.epochId,
+      lifecycleStatus: lifecycleEpoch.lifecycleStatus,
+      exitedAtTxHash: lifecycleEpoch.exitedAtTxHash,
       noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
       l2Nonce: existingWallet.wallet.l2Nonce,
       recoveredFromLogs: recoveredDeliveryState.importedNotes,
@@ -2590,8 +2582,6 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     return;
   }
 
-  fs.rmSync(walletPath(walletName, context.workspace.network), { recursive: true, force: true });
-
   const walletContext = ensureWallet({
     channelContext: context,
     signerAddress: signer.address,
@@ -2599,8 +2589,9 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     l2Identity,
     walletSecret: noteReceiveKeyMaterial.privateKey,
     storageKey,
-    leafIndex: registration.leafIndex,
+    leafIndex: lifecycleEpoch.leafIndex,
     noteReceiveKeyMaterial,
+    lifecycleEpoch,
     rpcUrl,
   });
   walletContext.wallet.l2Nonce = 0;
@@ -2627,39 +2618,16 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
-    leafIndex: registration.leafIndex.toString(),
+    leafIndex: lifecycleEpoch.leafIndex.toString(),
+    epochId: lifecycleEpoch.epochId,
+    lifecycleStatus: lifecycleEpoch.lifecycleStatus,
+    exitedAtTxHash: lifecycleEpoch.exitedAtTxHash,
     noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
     l2Nonce: walletContext.wallet.l2Nonce,
     recoveredFromLogs: recoveredDeliveryState.importedNotes,
     scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
     noteReceiveScanRange: recoveredDeliveryState.scanRange,
   });
-}
-
-function removeLocalWalletArtifacts(walletName, networkName) {
-  const walletDir = walletPath(walletName, networkName);
-  const walletSecretFile = walletSecretPath(networkName, walletName);
-  const walletSecretDir = path.dirname(walletSecretFile);
-  const removedWalletDir = fs.existsSync(walletDir);
-  const removedWalletSecret = fs.existsSync(walletSecretFile) || fs.existsSync(walletSecretDir);
-  if (removedWalletDir) {
-    fs.rmSync(walletDir, { recursive: true, force: true });
-  }
-  if (removedWalletSecret) {
-    fs.rmSync(walletSecretDir, { recursive: true, force: true });
-  }
-  return {
-    walletDir,
-    walletSecretFile,
-    removed: removedWalletDir || removedWalletSecret,
-    removedWalletDir,
-    removedWalletSecret,
-  };
-}
-
-function buildRecoverWalletRemovedNextAction({ channelName, networkName, accountName }) {
-  const account = accountName ? String(accountName) : "<ACCOUNT>";
-  return `channel join --channel-name ${channelName} --network ${networkName} --account ${account} --wallet-secret-path <PATH> --acknowledge-action-impact`;
 }
 
 async function handleInstallZkEvm({ args }) {
@@ -4109,6 +4077,12 @@ async function handleWalletGetMeta({ args, provider }) {
   printJson({
     action: "wallet get-meta",
     wallet: wallet.walletName,
+    epochId: wallet.wallet.walletEpochId ?? null,
+    lifecycleStatus: wallet.wallet.lifecycleStatus ?? "active",
+    joinedAtTxHash: wallet.wallet.joinedAtTxHash ?? null,
+    joinedAtBlockNumber: wallet.wallet.joinedAtBlockNumber ?? null,
+    exitedAtTxHash: wallet.wallet.exitedAtTxHash ?? null,
+    exitedAtBlockNumber: wallet.wallet.exitedAtBlockNumber ?? null,
     network: walletMetadata.network,
     channelName: walletMetadata.channelName,
     l1Address: signer.address,
@@ -4200,6 +4174,156 @@ async function loadWalletChannelRegistrationState({
     expectedStorageKey,
     matchesWallet,
   };
+}
+
+async function resolveWalletLifecycleEpoch({
+  context,
+  provider,
+  l1Address,
+  registration = null,
+}) {
+  const epochs = await readWalletLifecycleEpochs({
+    context,
+    provider,
+    l1Address,
+  });
+  if (epochs.length === 0 && registration?.exists) {
+    const block = await provider.getBlock("latest").catch(() => null);
+    return {
+      epochId: `join-registered-${String(registration.joinedAt)}-${String(registration.leafIndex)}`,
+      lifecycleStatus: "active",
+      joinedAtTxHash: null,
+      joinedAtBlockNumber: null,
+      joinedAtLogIndex: null,
+      joinedAtBlockTimestamp: Number(registration.joinedAt),
+      joinedAtBlockTimestampIso: Number(registration.joinedAt) > 0
+        ? new Date(Number(registration.joinedAt) * 1000).toISOString()
+        : null,
+      exitedAtTxHash: null,
+      exitedAtBlockNumber: null,
+      exitedAtLogIndex: null,
+      exitedAtBlockTimestamp: null,
+      exitedAtBlockTimestampIso: null,
+      l2Address: getAddress(registration.l2Address),
+      channelTokenVaultKey: normalizeBytes32Hex(registration.channelTokenVaultKey),
+      leafIndex: registration.leafIndex,
+      noteReceivePubKey: {
+        x: normalizeBytes32Hex(registration.noteReceivePubKey.x),
+        yParity: Number(registration.noteReceivePubKey.yParity),
+      },
+      observedAtBlockNumber: block?.number ?? null,
+    };
+  }
+  if (registration?.exists) {
+    const active = [...epochs].reverse().find((epoch) => (
+      epoch.lifecycleStatus === "active"
+      && ethers.toBigInt(getAddress(epoch.l2Address)) === ethers.toBigInt(getAddress(registration.l2Address))
+      && ethers.toBigInt(normalizeBytes32Hex(epoch.channelTokenVaultKey))
+        === ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+    ));
+    if (active) {
+      return active;
+    }
+  }
+  return epochs[epochs.length - 1] ?? null;
+}
+
+async function readWalletLifecycleEpochs({ context, provider, l1Address }) {
+  const fromBlock = Number(context.workspace.genesisBlockNumber ?? 0);
+  const [registeredLogs, exitedLogs] = await Promise.all([
+    context.channelManager.queryFilter(
+      context.channelManager.filters.ChannelTokenVaultIdentityRegistered(l1Address),
+      fromBlock,
+      "latest",
+    ),
+    context.channelManager.queryFilter(
+      context.channelManager.filters.ChannelTokenVaultIdentityExited(l1Address),
+      fromBlock,
+      "latest",
+    ),
+  ]);
+  const exits = await Promise.all(exitedLogs.map((log) => walletExitFromLog({ log, provider })));
+  const epochs = [];
+  for (const log of registeredLogs.sort(compareLogsByPosition)) {
+    const registered = await walletEpochFromRegisteredLog({ log, provider });
+    const exit = exits.find((entry) => (
+      compareLogPosition(entry, registered) > 0
+      && ethers.toBigInt(entry.leafIndex) === ethers.toBigInt(registered.leafIndex)
+      && !epochs.some((epoch) => epoch.exitedAtTxHash === entry.exitedAtTxHash)
+    ));
+    if (exit) {
+      epochs.push({
+        ...registered,
+        lifecycleStatus: "exited",
+        exitedAtTxHash: exit.exitedAtTxHash,
+        exitedAtBlockNumber: exit.exitedAtBlockNumber,
+        exitedAtLogIndex: exit.exitedAtLogIndex,
+        exitedAtBlockTimestamp: exit.exitedAtBlockTimestamp,
+        exitedAtBlockTimestampIso: exit.exitedAtBlockTimestampIso,
+      });
+    } else {
+      epochs.push(registered);
+    }
+  }
+  return epochs.sort(compareWalletEpochs);
+}
+
+async function walletEpochFromRegisteredLog({ log, provider }) {
+  const block = await provider.getBlock(log.blockNumber).catch(() => null);
+  const args = log.args;
+  return {
+    epochId: walletEpochIdFromLog(log),
+    lifecycleStatus: "active",
+    joinedAtTxHash: log.transactionHash,
+    joinedAtBlockNumber: log.blockNumber,
+    joinedAtLogIndex: log.index ?? log.logIndex ?? null,
+    joinedAtBlockTimestamp: block?.timestamp ?? Number(args.joinedAt ?? 0) ?? null,
+    joinedAtBlockTimestampIso: block?.timestamp
+      ? new Date(Number(block.timestamp) * 1000).toISOString()
+      : Number(args.joinedAt ?? 0) > 0
+        ? new Date(Number(args.joinedAt) * 1000).toISOString()
+        : null,
+    exitedAtTxHash: null,
+    exitedAtBlockNumber: null,
+    exitedAtLogIndex: null,
+    exitedAtBlockTimestamp: null,
+    exitedAtBlockTimestampIso: null,
+    l2Address: getAddress(args.l2Address),
+    channelTokenVaultKey: normalizeBytes32Hex(args.channelTokenVaultKey),
+    leafIndex: args.leafIndex,
+    noteReceivePubKey: {
+      x: normalizeBytes32Hex(args.noteReceivePubKeyX),
+      yParity: Number(args.noteReceivePubKeyYParity),
+    },
+  };
+}
+
+async function walletExitFromLog({ log, provider }) {
+  const block = await provider.getBlock(log.blockNumber).catch(() => null);
+  return {
+    exitedAtTxHash: log.transactionHash,
+    exitedAtBlockNumber: log.blockNumber,
+    exitedAtLogIndex: log.index ?? log.logIndex ?? null,
+    exitedAtBlockTimestamp: block?.timestamp ?? null,
+    exitedAtBlockTimestampIso: block?.timestamp ? new Date(Number(block.timestamp) * 1000).toISOString() : null,
+    leafIndex: log.args.leafIndex,
+  };
+}
+
+function walletEpochIdFromLog(log) {
+  return `join-${String(log.transactionHash).toLowerCase()}-${Number(log.index ?? log.logIndex ?? 0)}`;
+}
+
+function compareLogPosition(left, right) {
+  return Number(left.exitedAtBlockNumber ?? left.blockNumber ?? 0) - Number(right.joinedAtBlockNumber ?? right.blockNumber ?? 0)
+    || Number((left.exitedAtLogIndex ?? left.index ?? left.logIndex) ?? 0)
+      - Number((right.joinedAtLogIndex ?? right.index ?? right.logIndex) ?? 0);
+}
+
+function compareWalletEpochs(left, right) {
+  return Number(left.joinedAtBlockNumber ?? 0) - Number(right.joinedAtBlockNumber ?? 0)
+    || Number(left.joinedAtLogIndex ?? 0) - Number(right.joinedAtLogIndex ?? 0)
+    || String(left.epochId).localeCompare(String(right.epochId));
 }
 
 async function handleWalletGetChannelFund({ args, provider }) {
@@ -4311,6 +4435,14 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       { nonce: nextNonce++ },
     ),
   );
+  const registered = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
+  const lifecycleEpoch = await resolveWalletLifecycleEpoch({
+    context,
+    provider,
+    l1Address: signer.address,
+    registration: registered,
+  });
+  expect(lifecycleEpoch, "Unable to resolve the channel join epoch from emitted registration logs.");
   await refreshPersistedWorkspaceAfterLocalTransaction({
     context,
     provider,
@@ -4327,6 +4459,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     storageKey,
     leafIndex,
     noteReceiveKeyMaterial,
+    lifecycleEpoch,
     rpcUrl,
   });
 
@@ -4343,6 +4476,10 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
     leafIndex: leafIndex.toString(),
+    epochId: lifecycleEpoch.epochId,
+    lifecycleStatus: lifecycleEpoch.lifecycleStatus,
+    joinedAtTxHash: lifecycleEpoch.joinedAtTxHash,
+    joinedAtBlockNumber: lifecycleEpoch.joinedAtBlockNumber,
     joinTollBaseUnits: joinToll.toString(),
     joinTollTokens: ethers.formatUnits(joinToll, Number(context.workspace.canonicalAssetDecimals)),
     noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
@@ -4359,6 +4496,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
 
 async function handleExitChannel({ args, provider }) {
   const { wallet: walletContext, walletMetadata } = loadUnlockedWalletWithMetadata(args);
+  requireActiveWalletLifecycle(walletContext, "channel exit");
   const { signer, context, channelFund, contextResult } = await loadWalletChannelFundState({
     walletContext,
     provider,
@@ -4378,7 +4516,11 @@ async function handleExitChannel({ args, provider }) {
   const receipt = await waitForReceipt(
     await context.bridgeTokenVault.connect(ownerSigner).exitChannel(ethers.toBigInt(context.workspace.channelId)),
   );
-  const cleanup = removeLocalWalletArtifacts(walletContext.walletName, walletMetadata.network);
+  const lifecycleEpoch = await markWalletEpochExited({
+    walletContext,
+    receipt,
+    provider,
+  });
 
   printJson({
     action: "channel exit",
@@ -4396,8 +4538,12 @@ async function handleExitChannel({ args, provider }) {
     gasUsed: receiptGasUsed(receipt),
     txUrl: explorerTxUrl(network, receipt.hash),
     receipt: sanitizeReceipt(receipt),
-    removedWalletDir: cleanup.removedWalletDir ? cleanup.walletDir : null,
-    removedWalletSecretFile: cleanup.removedWalletSecret ? cleanup.walletSecretFile : null,
+    epochId: lifecycleEpoch.epochId,
+    lifecycleStatus: lifecycleEpoch.lifecycleStatus,
+    exitedAtTxHash: lifecycleEpoch.exitedAtTxHash,
+    exitedAtBlockNumber: lifecycleEpoch.exitedAtBlockNumber,
+    exitedAtBlockTimestampIso: lifecycleEpoch.exitedAtBlockTimestampIso,
+    archivedWalletDir: walletContext.walletDir,
   });
 }
 
@@ -4409,6 +4555,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
       : "wallet withdraw-channel";
   emitProgress(operationName, "loading");
   const { wallet: walletContext } = loadUnlockedWalletWithMetadata(args);
+  requireActiveWalletLifecycle(walletContext, operationName);
   const contextResult = await loadFreshWalletChannelContext({
     walletContext,
     provider,
@@ -4634,6 +4781,7 @@ function resolveFunctionMetadataProofForExecution({
 
 async function handleMintNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
+  requireActiveWalletLifecycle(wallet, "wallet mint-notes");
   requireWalletSpendingCapability(wallet);
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const amountInputs = parseAmountVector(requireArg(args.amounts, "--amounts"), {
@@ -4722,6 +4870,7 @@ async function handleMintNotes({ args, provider }) {
 
 async function handleRedeemNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
+  requireActiveWalletLifecycle(wallet, "wallet redeem-notes");
   requireWalletViewingCapability(wallet);
   requireWalletSpendingCapability(wallet);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
@@ -4890,24 +5039,39 @@ async function exportWalletGetNotesEvidenceBundle({
   const outputPath = path.resolve(String(requireArg(args.exportEvidence, "--export-evidence")));
   ensureDir(path.dirname(outputPath));
 
-  const notes = [
-    ...unusedTrackedNotes.map(normalizeTrackedNote),
-    ...spentTrackedNotes.map(normalizeTrackedNote),
-  ].sort((left, right) => left.commitment.localeCompare(right.commitment));
-
-  for (const note of notes) {
-    validateEvidenceNotePlaintext(note, walletContext.wallet);
+  const evidenceWalletContexts = loadWalletEpochContextsForEvidence({
+    baseWalletContext: walletContext,
+    networkName: walletMetadata.network,
+  });
+  const noteInputs = [];
+  for (const candidateWalletContext of evidenceWalletContexts) {
+    const notes = candidateWalletContext === walletContext
+      ? [
+        ...unusedTrackedNotes.map(normalizeTrackedNote),
+        ...spentTrackedNotes.map(normalizeTrackedNote),
+      ]
+      : [
+        ...Object.values(candidateWalletContext.wallet.notes.unused).map(normalizeTrackedNote),
+        ...Object.values(candidateWalletContext.wallet.notes.spent).map(normalizeTrackedNote),
+      ];
+    for (const note of notes) {
+      validateEvidenceNotePlaintext(note, candidateWalletContext.wallet);
+      noteInputs.push({ note, walletContext: candidateWalletContext });
+    }
   }
+  noteInputs.sort((left, right) =>
+    String(left.walletContext.wallet.walletEpochId ?? "").localeCompare(String(right.walletContext.wallet.walletEpochId ?? ""))
+    || left.note.commitment.localeCompare(right.note.commitment));
 
   const txHashes = uniqueNonNull([
-    ...notes.map((note) => note.createdAtTxHash),
-    ...notes.map((note) => note.spentAtTxHash),
+    ...noteInputs.map(({ note }) => note.createdAtTxHash),
+    ...noteInputs.map(({ note }) => note.spentAtTxHash),
   ]);
   const transactionEvidence = await buildTransactionEvidenceMap({ provider, txHashes });
   const blockTimestampCache = buildBlockTimestampCache(transactionEvidence);
-  const noteRecords = notes.map((note) => buildEvidenceNoteRecord({
+  const noteRecords = noteInputs.map(({ note, walletContext: noteWalletContext }) => buildEvidenceNoteRecord({
     note,
-    walletContext,
+    walletContext: noteWalletContext,
     walletMetadata,
     context,
     transactionEvidence,
@@ -4917,6 +5081,7 @@ async function exportWalletGetNotesEvidenceBundle({
   const manifest = buildEvidenceManifest({
     outputPath,
     walletContext,
+    walletContexts: evidenceWalletContexts,
     walletMetadata,
     context,
     noteRecords,
@@ -4932,7 +5097,7 @@ async function exportWalletGetNotesEvidenceBundle({
   addEvidenceJson(archive, "indexes/by-block-range.json", indexes.byBlockRange);
   addEvidenceJson(archive, "indexes/by-counterparty.json", indexes.byCounterparty);
   for (const record of noteRecords) {
-    addEvidenceJson(archive, `notes/${record.derived.commitment}.json`, record);
+    addEvidenceJson(archive, evidenceNotePath(record), record);
   }
   for (const [txHash, txRecord] of Object.entries(transactionEvidence)) {
     addEvidenceJson(archive, `transactions/${txHash}.json`, txRecord.transaction);
@@ -4941,7 +5106,7 @@ async function exportWalletGetNotesEvidenceBundle({
   }
 
   assertEvidenceBundleDoesNotContainSecrets({
-    wallet: walletContext.wallet,
+    wallets: evidenceWalletContexts.map((entry) => entry.wallet),
     payload: {
       manifest,
       indexes,
@@ -4958,6 +5123,7 @@ async function exportWalletGetNotesEvidenceBundle({
     format: WALLET_EVIDENCE_BUNDLE_FORMAT,
     formatVersion: WALLET_EVIDENCE_BUNDLE_FORMAT_VERSION,
     noteCount: noteRecords.length,
+    walletEpochCount: evidenceWalletContexts.length,
     transactionCount: txHashes.length,
     containsNotePlaintext: true,
     containsSpendingKey: false,
@@ -4965,6 +5131,28 @@ async function exportWalletGetNotesEvidenceBundle({
     containsWalletSecret: false,
     warning: "Local full-note evidence bundle. Do not submit as-is unless full wallet-history disclosure is intended.",
   };
+}
+
+function loadWalletEpochContextsForEvidence({ baseWalletContext, networkName }) {
+  const walletRoot = walletRootPath(baseWalletContext.walletName, networkName);
+  const index = readWalletIndexIfExists(walletRoot);
+  if (!index) {
+    return [baseWalletContext];
+  }
+  const contexts = [];
+  for (const epoch of index.epochs) {
+    const walletDir = walletEpochPathFromRoot(walletRoot, epoch.epochId);
+    if (!walletConfigExists(walletDir)) {
+      continue;
+    }
+    const context = loadWalletFromDir({
+      walletName: baseWalletContext.walletName,
+      networkName,
+      walletDir,
+    });
+    contexts.push(context);
+  }
+  return contexts.length > 0 ? contexts : [baseWalletContext];
 }
 
 function validateEvidenceNotePlaintext(note, wallet) {
@@ -5084,6 +5272,15 @@ function buildEvidenceNoteRecord({
       channelName: walletMetadata.channelName,
       channelId: walletContext.wallet.channelId,
       wallet: walletContext.walletName,
+      canonicalWalletName: walletContext.wallet.canonicalWalletName ?? walletContext.walletName,
+      epochId: walletContext.wallet.walletEpochId ?? null,
+      lifecycleStatus: walletContext.wallet.lifecycleStatus ?? "active",
+      joinedAtTxHash: walletContext.wallet.joinedAtTxHash ?? null,
+      joinedAtBlockNumber: walletContext.wallet.joinedAtBlockNumber ?? null,
+      joinedAtBlockTimestampIso: walletContext.wallet.joinedAtBlockTimestampIso ?? null,
+      exitedAtTxHash: walletContext.wallet.exitedAtTxHash ?? null,
+      exitedAtBlockNumber: walletContext.wallet.exitedAtBlockNumber ?? null,
+      exitedAtBlockTimestampIso: walletContext.wallet.exitedAtBlockTimestampIso ?? null,
       walletL1Address: walletContext.wallet.l1Address,
       walletL2Address: walletContext.wallet.l2Address,
       controller: context.workspace.controller,
@@ -5198,7 +5395,7 @@ function buildEvidenceIndexes(noteRecords) {
     },
   };
   for (const record of noteRecords) {
-    const pathName = `notes/${record.derived.commitment}.json`;
+    const pathName = evidenceNotePath(record);
     indexes.byCommitment[record.derived.commitment] = pathName;
     indexes.byNullifier[record.derived.nullifier] = pathName;
     pushIndexEntry(indexes.byCreationTx, record.creation.txHash, pathName);
@@ -5227,6 +5424,17 @@ function buildEvidenceIndexes(noteRecords) {
   return indexes;
 }
 
+function evidenceNotePath(record) {
+  return [
+    "wallets",
+    slugifyPathComponent(record.walletScope?.canonicalWalletName ?? record.walletScope?.wallet ?? "wallet"),
+    "epochs",
+    slugifyPathComponent(record.walletScope?.epochId ?? "legacy-active"),
+    "notes",
+    `${record.derived.commitment}.json`,
+  ].join("/");
+}
+
 function pushIndexEntry(index, key, value) {
   if (!key) {
     return;
@@ -5240,6 +5448,7 @@ function pushIndexEntry(index, key, value) {
 function buildEvidenceManifest({
   outputPath,
   walletContext,
+  walletContexts = [walletContext],
   walletMetadata,
   context,
   noteRecords,
@@ -5258,10 +5467,25 @@ function buildEvidenceManifest({
     wallet: walletContext.walletName,
     walletL1Address: walletContext.wallet.l1Address,
     walletL2Address: walletContext.wallet.l2Address,
+    wallets: walletContexts.map((entry) => ({
+      wallet: entry.walletName,
+      canonicalWalletName: entry.wallet.canonicalWalletName ?? entry.walletName,
+      epochId: entry.wallet.walletEpochId ?? null,
+      lifecycleStatus: entry.wallet.lifecycleStatus ?? "active",
+      joinedAtTxHash: entry.wallet.joinedAtTxHash ?? null,
+      joinedAtBlockNumber: entry.wallet.joinedAtBlockNumber ?? null,
+      joinedAtBlockTimestampIso: entry.wallet.joinedAtBlockTimestampIso ?? null,
+      exitedAtTxHash: entry.wallet.exitedAtTxHash ?? null,
+      exitedAtBlockNumber: entry.wallet.exitedAtBlockNumber ?? null,
+      exitedAtBlockTimestampIso: entry.wallet.exitedAtBlockTimestampIso ?? null,
+      walletL1Address: entry.wallet.l1Address,
+      walletL2Address: entry.wallet.l2Address,
+    })),
     controller: context.workspace.controller,
     channelManager: context.workspace.channelManager,
     bridgeTokenVault: context.workspace.bridgeTokenVault,
     containsAllLocallyKnownNotes: true,
+    containsAllLocalWalletEpochs: true,
     containsNotePlaintext: true,
     noteCount: noteRecords.length,
     transactionCount: txHashes.length,
@@ -5281,12 +5505,13 @@ function addEvidenceJson(archive, archivePath, value) {
   archive.addFile(archivePath, Buffer.from(`${JSON.stringify(normalizeCliOutput(value), null, 2)}\n`, "utf8"));
 }
 
-function assertEvidenceBundleDoesNotContainSecrets({ wallet, payload }) {
+function assertEvidenceBundleDoesNotContainSecrets({ wallet = null, wallets = null, payload }) {
   const serialized = JSON.stringify(payload);
-  const forbiddenValues = [
-    wallet.l2PrivateKey,
-    wallet.noteReceivePrivateKey,
-  ].filter((value) => typeof value === "string" && value.length > 0);
+  const walletList = wallets ?? (wallet ? [wallet] : []);
+  const forbiddenValues = walletList.flatMap((entry) => [
+    entry.l2PrivateKey,
+    entry.noteReceivePrivateKey,
+  ]).filter((value) => typeof value === "string" && value.length > 0);
   for (const value of forbiddenValues) {
     expect(
       !serialized.includes(value),
@@ -5301,6 +5526,7 @@ function uniqueNonNull(values) {
 
 async function handleTransferNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
+  requireActiveWalletLifecycle(wallet, "wallet transfer-notes");
   requireWalletViewingCapability(wallet);
   requireWalletSpendingCapability(wallet);
   const { signer } = restoreWalletParticipant(wallet, provider);
@@ -5497,10 +5723,17 @@ function ensureWallet({
   storageKey,
   leafIndex,
   noteReceiveKeyMaterial,
+  lifecycleEpoch,
   rpcUrl,
 }) {
   const walletName = walletNameForChannelAndAddress(channelContext.workspace.channelName, signerAddress);
-  const walletDir = walletPath(walletName, channelContext.workspace.network);
+  const epoch = lifecycleEpoch ?? buildSyntheticActiveWalletEpoch({
+    l2Identity,
+    storageKey,
+    leafIndex,
+    noteReceiveKeyMaterial,
+  });
+  const walletDir = walletEpochPath(walletName, channelContext.workspace.network, epoch.epochId);
   expect(!walletConfigExists(walletDir), `Wallet ${walletName} already exists on ${channelContext.workspace.network}.`);
   ensureDir(walletDir);
   ensureDir(path.join(walletDir, "operations"));
@@ -5508,6 +5741,19 @@ function ensureWallet({
   const wallet = normalizeWallet({
     walletFormatVersion: WALLET_WORKSPACE_FORMAT_VERSION,
     name: walletName,
+    canonicalWalletName: walletName,
+    walletEpochId: epoch.epochId,
+    lifecycleStatus: epoch.lifecycleStatus,
+    joinedAtTxHash: epoch.joinedAtTxHash,
+    joinedAtBlockNumber: epoch.joinedAtBlockNumber,
+    joinedAtLogIndex: epoch.joinedAtLogIndex,
+    joinedAtBlockTimestamp: epoch.joinedAtBlockTimestamp,
+    joinedAtBlockTimestampIso: epoch.joinedAtBlockTimestampIso,
+    exitedAtTxHash: epoch.exitedAtTxHash,
+    exitedAtBlockNumber: epoch.exitedAtBlockNumber,
+    exitedAtLogIndex: epoch.exitedAtLogIndex,
+    exitedAtBlockTimestamp: epoch.exitedAtBlockTimestamp,
+    exitedAtBlockTimestampIso: epoch.exitedAtBlockTimestampIso,
     network: channelContext.workspace.network,
     rpcUrl,
     chainId: channelContext.workspace.chainId,
@@ -5553,8 +5799,52 @@ function ensureWallet({
   };
   persistWalletKeys(context);
   persistWallet(context);
+  persistWalletIndexForContext(context);
   persistWalletMetadata(context);
   return context;
+}
+
+function buildSyntheticActiveWalletEpoch({
+  l2Identity,
+  storageKey,
+  leafIndex,
+  noteReceiveKeyMaterial,
+}) {
+  const now = new Date();
+  return {
+    epochId: `join-local-${now.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z")}`,
+    lifecycleStatus: "active",
+    joinedAtTxHash: null,
+    joinedAtBlockNumber: null,
+    joinedAtLogIndex: null,
+    joinedAtBlockTimestamp: Math.floor(now.getTime() / 1000),
+    joinedAtBlockTimestampIso: now.toISOString(),
+    exitedAtTxHash: null,
+    exitedAtBlockNumber: null,
+    exitedAtLogIndex: null,
+    exitedAtBlockTimestamp: null,
+    exitedAtBlockTimestampIso: null,
+    l2Address: l2Identity.l2Address,
+    channelTokenVaultKey: storageKey,
+    leafIndex,
+    noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
+  };
+}
+
+function applyWalletLifecycleEpoch(wallet, epoch) {
+  wallet.canonicalWalletName = wallet.name;
+  wallet.walletEpochId = epoch.epochId;
+  wallet.lifecycleStatus = epoch.lifecycleStatus;
+  wallet.joinedAtTxHash = epoch.joinedAtTxHash;
+  wallet.joinedAtBlockNumber = epoch.joinedAtBlockNumber;
+  wallet.joinedAtLogIndex = epoch.joinedAtLogIndex;
+  wallet.joinedAtBlockTimestamp = epoch.joinedAtBlockTimestamp;
+  wallet.joinedAtBlockTimestampIso = epoch.joinedAtBlockTimestampIso;
+  wallet.exitedAtTxHash = epoch.exitedAtTxHash;
+  wallet.exitedAtBlockNumber = epoch.exitedAtBlockNumber;
+  wallet.exitedAtLogIndex = epoch.exitedAtLogIndex;
+  wallet.exitedAtBlockTimestamp = epoch.exitedAtBlockTimestamp;
+  wallet.exitedAtBlockTimestampIso = epoch.exitedAtBlockTimestampIso;
 }
 
 function normalizeWallet(wallet) {
@@ -5565,6 +5855,9 @@ function normalizeWallet(wallet) {
 
   return {
     ...wallet,
+    canonicalWalletName: wallet.canonicalWalletName ?? wallet.name,
+    walletEpochId: wallet.walletEpochId ?? "legacy-active",
+    lifecycleStatus: wallet.lifecycleStatus ?? "active",
     canonicalAssetDecimals: Number(wallet.canonicalAssetDecimals),
     l2Nonce: Number(wallet.l2Nonce),
     l2PrivateKey: wallet.l2PrivateKey ? ethers.hexlify(wallet.l2PrivateKey) : null,
@@ -7063,6 +7356,16 @@ function loadWallet(walletName, networkName) {
   const normalizedWalletName = requireWalletName({ wallet: walletName });
   const normalizedNetworkName = requireNetworkName({ network: networkName });
   const walletDir = walletPath(normalizedWalletName, normalizedNetworkName);
+  return loadWalletFromDir({
+    walletName: normalizedWalletName,
+    networkName: normalizedNetworkName,
+    walletDir,
+  });
+}
+
+function loadWalletFromDir({ walletName, networkName, walletDir }) {
+  const normalizedWalletName = requireWalletName({ wallet: walletName });
+  const normalizedNetworkName = requireNetworkName({ network: networkName });
   if (!walletConfigExists(walletDir)) {
     throw cliError(CLI_ERROR_CODES.UNKNOWN_WALLET, `Unknown wallet: ${normalizedWalletName} on ${normalizedNetworkName}.`);
   }
@@ -7077,11 +7380,11 @@ function loadWallet(walletName, networkName) {
     walletName: normalizedWalletName,
     keyKind: "viewing",
   });
-  if (spendingKey) {
+  if (spendingKey && walletSpendingKeyMatchesWallet(spendingKey.metadata, rawWallet)) {
     rawWallet.l2PrivateKey = spendingKey.privateKey;
     rawWallet.l2PublicKey = spendingKey.metadata?.l2PublicKey ?? rawWallet.l2PublicKey;
   }
-  if (viewingKey) {
+  if (viewingKey && walletViewingKeyMatchesWallet(viewingKey.metadata, rawWallet)) {
     rawWallet.noteReceivePrivateKey = viewingKey.privateKey;
   }
   assertWalletHasRequiredKeys(rawWallet, normalizedWalletName);
@@ -7102,6 +7405,18 @@ function loadWallet(walletName, networkName) {
     walletSecret: wallet.l2PrivateKey ?? wallet.noteReceivePrivateKey ?? null,
   };
   return context;
+}
+
+function walletSpendingKeyMatchesWallet(metadata, wallet) {
+  return metadata?.l2Address
+    && ethers.toBigInt(getAddress(metadata.l2Address)) === ethers.toBigInt(getAddress(wallet.l2Address));
+}
+
+function walletViewingKeyMatchesWallet(metadata, wallet) {
+  return metadata?.noteReceivePubKey?.x
+    && ethers.toBigInt(normalizeBytes32Hex(metadata.noteReceivePubKey.x))
+      === ethers.toBigInt(normalizeBytes32Hex(wallet.noteReceivePubKeyX))
+    && Number(metadata.noteReceivePubKey.yParity) === Number(wallet.noteReceivePubKeyYParity);
 }
 
 function loadUnlockedWalletWithMetadata(args) {
@@ -7270,6 +7585,16 @@ function requireWalletViewingCapability(walletContext) {
     [
       `Wallet ${walletContext.walletName} is missing its viewing key.`,
       "Import it with wallet import viewing-key before commands that decrypt or refresh received notes.",
+    ].join(" "),
+  );
+}
+
+function requireActiveWalletLifecycle(walletContext, commandName) {
+  expect(
+    walletContext.wallet.lifecycleStatus !== "exited",
+    [
+      `${commandName} cannot operate on exited wallet epoch ${walletContext.wallet.walletEpochId ?? "unknown"}.`,
+      "Exited wallet epochs are read-only. Use wallet get-notes or wallet get-notes --export-evidence for historical disclosure.",
     ].join(" "),
   );
 }
@@ -8912,16 +9237,16 @@ function prepareJoinWalletSecretForName({
   walletName,
 }) {
   const { channelName } = parseWalletName(walletName);
-  const walletDir = walletPath(walletName, networkName);
+  const walletRoot = walletRootPath(walletName, networkName);
+  const walletIndex = readWalletIndexIfExists(walletRoot);
+  const activeEpoch = walletIndex ? activeWalletEpoch(walletIndex) : null;
   expect(
-    !walletConfigExists(walletDir),
+    !activeEpoch && !walletConfigExists(walletRoot),
     [
       `Wallet ${walletName} already exists on ${networkName}.`,
-      "channel join always creates a new local wallet.",
-      "If this wallet was previously exited on-chain, run",
-      `wallet recover-workspace --channel-name ${channelName} --network ${networkName} --account ${args.account ?? "<ACCOUNT>"}`,
-      "once to remove the stale local wallet, then retry channel join.",
+      "channel join creates a new active wallet epoch.",
       "Use normal wallet commands for an existing active local wallet.",
+      `For exited history, keep using wallet recover-workspace --channel-name ${channelName} --network ${networkName} --account ${args.account ?? "<ACCOUNT>"}.`,
     ].join(" "),
   );
   const sourcePath = path.resolve(String(requireArg(args.walletSecretPath, "--wallet-secret-path")));
@@ -8932,12 +9257,75 @@ function channelWorkspacePath(networkName, name) {
   return workspaceDirForName(workspaceRoot, networkName, name);
 }
 
-function walletPath(name, networkName) {
+function walletRootPath(name, networkName) {
   const walletName = String(name);
   const { channelName } = parseWalletName(walletName);
   const normalizedNetworkName = requireNetworkName({ network: networkName });
   const workspaceDir = channelWorkspacePath(normalizedNetworkName, channelName);
   return walletDirForName(workspaceWalletsDir(workspaceDir), walletName);
+}
+
+function walletPath(name, networkName) {
+  const root = walletRootPath(name, networkName);
+  const index = readWalletIndexIfExists(root);
+  if (!index) {
+    return root;
+  }
+  const selected = activeWalletEpoch(index) ?? latestWalletEpoch(index);
+  return selected ? walletEpochPathFromRoot(root, selected.epochId) : root;
+}
+
+function walletEpochPath(walletName, networkName, epochId) {
+  return walletEpochPathFromRoot(walletRootPath(walletName, networkName), epochId);
+}
+
+function walletEpochPathFromRoot(walletRoot, epochId) {
+  return path.join(walletRoot, "epochs", slugifyPathComponent(epochId));
+}
+
+function walletEpochsDir(walletRoot) {
+  return path.join(walletRoot, "epochs");
+}
+
+function walletIndexMetadataPath(walletRoot) {
+  return path.join(walletRoot, "wallet-index.metadata.json");
+}
+
+function readWalletIndexIfExists(walletRoot) {
+  const indexPath = walletIndexMetadataPath(walletRoot);
+  if (!fs.existsSync(indexPath)) {
+    return null;
+  }
+  return normalizeWalletIndex(readJson(indexPath));
+}
+
+function activeWalletEpoch(index) {
+  const activeEpochId = index?.activeEpochId ?? null;
+  return activeEpochId
+    ? (index.epochs ?? []).find((epoch) => epoch.epochId === activeEpochId && epoch.lifecycleStatus === "active") ?? null
+    : null;
+}
+
+function latestWalletEpoch(index) {
+  const epochs = [...(index?.epochs ?? [])];
+  epochs.sort((left, right) =>
+    Number(right.joinedAtBlockNumber ?? 0) - Number(left.joinedAtBlockNumber ?? 0)
+    || String(right.epochId).localeCompare(String(left.epochId)));
+  return epochs[0] ?? null;
+}
+
+function normalizeWalletIndex(index) {
+  expect(index?.format === WALLET_INDEX_FORMAT, "Invalid wallet index format.");
+  expect(Number(index.formatVersion) === WALLET_INDEX_FORMAT_VERSION, "Unsupported wallet index format version.");
+  expect(Array.isArray(index.epochs), "Wallet index is missing epochs[].");
+  return {
+    ...index,
+    epochs: index.epochs.map((epoch) => ({
+      ...epoch,
+      epochId: String(epoch.epochId),
+      lifecycleStatus: epoch.lifecycleStatus === "active" ? "active" : "exited",
+    })),
+  };
 }
 
 function accountPrivateKeyPath(networkName, accountName) {
@@ -9013,7 +9401,7 @@ function resolveWalletPathCandidates(walletName) {
       "wallets",
       walletSlug,
     );
-    if (walletConfigExists(candidate)) {
+    if (walletConfigExists(candidate) || readWalletIndexIfExists(candidate)) {
       candidates.push(candidate);
     }
   }
@@ -9044,12 +9432,20 @@ function listLocalWallets({ networkFilter = null, channelFilter = null } = {}) {
         if (!walletEntry.isDirectory()) {
           continue;
         }
-        const walletDir = path.join(walletsDir, walletEntry.name);
+        const walletRoot = path.join(walletsDir, walletEntry.name);
+        const walletIndex = readWalletIndexIfExists(walletRoot);
+        const selectedEpoch = walletIndex ? (activeWalletEpoch(walletIndex) ?? latestWalletEpoch(walletIndex)) : null;
+        const walletDir = selectedEpoch ? walletEpochPathFromRoot(walletRoot, selectedEpoch.epochId) : walletRoot;
         wallets.push({
           wallet: walletEntry.name,
           network: networkEntry.name,
           channelName: channelEntry.name,
           walletDir,
+          walletRoot,
+          activeEpochId: walletIndex?.activeEpochId ?? null,
+          selectedEpochId: selectedEpoch?.epochId ?? null,
+          lifecycleStatus: selectedEpoch?.lifecycleStatus ?? (walletConfigExists(walletDir) ? "active" : null),
+          epochs: walletIndex?.epochs ?? [],
           metadataPath: walletNotesMetadataPath(walletDir),
           hasMetadata: fs.existsSync(walletNotesMetadataPath(walletDir)),
           hasEncryptedWallet: false,
@@ -9119,6 +9515,10 @@ function walletBackupExportFilePaths(walletInfo) {
   const walletFiles = [
     walletNotesMetadataPath(walletInfo.walletDir),
   ];
+  const indexPath = walletIndexMetadataPath(walletRootPath(walletInfo.wallet, walletInfo.network));
+  if (fs.existsSync(indexPath)) {
+    walletFiles.push(indexPath);
+  }
   for (const metadataPath of [
     walletViewingKeyMetadataPath(walletInfo.walletDir),
     walletSpendingKeyMetadataPath(walletInfo.walletDir),
@@ -9580,6 +9980,85 @@ function persistWalletMetadata(context) {
   persistWallet(context);
 }
 
+function persistWalletIndexForContext(context) {
+  const walletRoot = walletRootPath(context.walletName, context.wallet.network);
+  ensureDir(walletRoot);
+  const currentIndex = readWalletIndexIfExists(walletRoot) ?? {
+    format: WALLET_INDEX_FORMAT,
+    formatVersion: WALLET_INDEX_FORMAT_VERSION,
+    canonicalWalletName: context.walletName,
+    network: context.wallet.network,
+    channelName: context.wallet.channelName,
+    channelId: context.wallet.channelId,
+    l1Address: context.wallet.l1Address,
+    activeEpochId: null,
+    epochs: [],
+  };
+  const epoch = walletEpochSummaryFromWallet(context.wallet);
+  const epochs = [
+    ...currentIndex.epochs.filter((entry) => entry.epochId !== epoch.epochId),
+    epoch,
+  ].sort((left, right) =>
+    Number(left.joinedAtBlockNumber ?? 0) - Number(right.joinedAtBlockNumber ?? 0)
+    || String(left.epochId).localeCompare(String(right.epochId)));
+  const activeEpoch = epochs.find((entry) => entry.lifecycleStatus === "active") ?? null;
+  const nextIndex = {
+    ...currentIndex,
+    canonicalWalletName: context.walletName,
+    network: context.wallet.network,
+    channelName: context.wallet.channelName,
+    channelId: context.wallet.channelId,
+    l1Address: context.wallet.l1Address,
+    activeEpochId: activeEpoch?.epochId ?? null,
+    epochs,
+  };
+  writeJson(walletIndexMetadataPath(walletRoot), nextIndex);
+}
+
+async function markWalletEpochExited({ walletContext, receipt, provider }) {
+  const block = receipt?.blockNumber === null || receipt?.blockNumber === undefined
+    ? null
+    : await provider.getBlock(receipt.blockNumber).catch(() => null);
+  const exitedAtBlockTimestamp = block?.timestamp ?? null;
+  walletContext.wallet.lifecycleStatus = "exited";
+  walletContext.wallet.exitedAtTxHash = receipt?.hash ?? null;
+  walletContext.wallet.exitedAtBlockNumber = receipt?.blockNumber ?? null;
+  walletContext.wallet.exitedAtLogIndex = firstReceiptLogIndex(receipt);
+  walletContext.wallet.exitedAtBlockTimestamp = exitedAtBlockTimestamp;
+  walletContext.wallet.exitedAtBlockTimestampIso = exitedAtBlockTimestamp === null
+    ? null
+    : new Date(Number(exitedAtBlockTimestamp) * 1000).toISOString();
+  persistWallet(walletContext);
+  persistWalletIndexForContext(walletContext);
+  return walletEpochSummaryFromWallet(walletContext.wallet);
+}
+
+function firstReceiptLogIndex(receipt) {
+  const first = receipt?.logs?.[0] ?? null;
+  return first?.index ?? first?.logIndex ?? null;
+}
+
+function walletEpochSummaryFromWallet(wallet) {
+  return {
+    epochId: wallet.walletEpochId,
+    lifecycleStatus: wallet.lifecycleStatus ?? "active",
+    walletDirName: slugifyPathComponent(wallet.walletEpochId),
+    joinedAtTxHash: wallet.joinedAtTxHash ?? null,
+    joinedAtBlockNumber: wallet.joinedAtBlockNumber ?? null,
+    joinedAtLogIndex: wallet.joinedAtLogIndex ?? null,
+    joinedAtBlockTimestamp: wallet.joinedAtBlockTimestamp ?? null,
+    joinedAtBlockTimestampIso: wallet.joinedAtBlockTimestampIso ?? null,
+    exitedAtTxHash: wallet.exitedAtTxHash ?? null,
+    exitedAtBlockNumber: wallet.exitedAtBlockNumber ?? null,
+    exitedAtLogIndex: wallet.exitedAtLogIndex ?? null,
+    exitedAtBlockTimestamp: wallet.exitedAtBlockTimestamp ?? null,
+    exitedAtBlockTimestampIso: wallet.exitedAtBlockTimestampIso ?? null,
+    l2Address: wallet.l2Address,
+    l2StorageKey: wallet.l2StorageKey,
+    leafIndex: wallet.leafIndex,
+  };
+}
+
 function sanitizeWalletForNotesMetadata(wallet) {
   const normalized = normalizeWallet({
     ...wallet,
@@ -9633,6 +10112,9 @@ function buildWalletSpendingKeyMetadata(wallet) {
     walletFormatVersion: WALLET_WORKSPACE_FORMAT_VERSION,
     network: wallet.network,
     wallet: wallet.name,
+    canonicalWalletName: wallet.canonicalWalletName ?? wallet.name,
+    epochId: wallet.walletEpochId ?? null,
+    lifecycleStatus: wallet.lifecycleStatus ?? "active",
     channelName: wallet.channelName,
     channelId: wallet.channelId,
     l1Address: wallet.l1Address,
@@ -9650,6 +10132,9 @@ function buildWalletViewingKeyMetadata(wallet) {
     walletFormatVersion: WALLET_WORKSPACE_FORMAT_VERSION,
     network: wallet.network,
     wallet: wallet.name,
+    canonicalWalletName: wallet.canonicalWalletName ?? wallet.name,
+    epochId: wallet.walletEpochId ?? null,
+    lifecycleStatus: wallet.lifecycleStatus ?? "active",
     channelName: wallet.channelName,
     channelId: wallet.channelId,
     l1Address: wallet.l1Address,

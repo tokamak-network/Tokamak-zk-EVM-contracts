@@ -22,6 +22,10 @@
   commitments and nullifiers, creation/spend transaction references, receipts, events, calldata, and
   filtering indexes, while excluding viewing keys, spending keys, wallet secrets, account private
   keys, and `.key` files.
+- Made local wallet workspaces epoch-aware. `channel exit` now marks the active wallet epoch as
+  exited and retains its local note metadata instead of deleting the wallet workspace, while
+  `wallet recover-workspace` and `wallet get-notes --export-evidence` can still use retained exited
+  epochs for historical disclosure.
 - Added a local static evidence investigator GUI and bundled it with the NPM package. The new
   top-level `private-state-cli investigator` command prints the bundled HTML path, prints the file
   URL, and opens the GUI in the default browser.

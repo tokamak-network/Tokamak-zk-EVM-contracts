@@ -176,6 +176,12 @@ channel genesis and only runs when the recovery delta fits within the 7,200-bloc
 is missing, unusable, or too far behind, the command stops and asks the user to run the appropriate recovery command
 with `--from-genesis` explicitly when needed.
 
+Local wallet workspaces are epoch-aware. Each successful channel registration creates a wallet epoch under the
+canonical wallet directory. `channel exit` does not delete the local wallet workspace; it marks the active epoch as
+exited with the exit transaction, block, and timestamp, then keeps that epoch read-only for historical note inspection
+and evidence export. If the same account later joins the same channel again, the new registration is a separate active
+epoch under the same canonical wallet name.
+
 Channel leaders can optionally register a workspace mirror server so users can bootstrap recovery
 from a signed checkpoint and download only the local-to-checkpoint delta when a local recovery index
 already exists. The channel leader can build the static mirror files with
@@ -228,8 +234,9 @@ private-state-cli wallet get-notes --network mainnet --wallet <WALLET> --export-
 This ZIP is an input for `private-state-cli investigator`. It contains plaintext for all locally known
 notes, derived commitments and nullifiers, creation and spend transaction references, transaction calldata, receipts,
 events, and indexes for filtering by note, nullifier, transaction, block range, or available counterparty metadata. It
-does not include viewing keys, spending keys, wallet secret material, account private keys, or `.key` files. Do not
-submit the raw ZIP as an exchange or auditor package unless full wallet-history disclosure is intended.
+includes all local epochs for the selected wallet, including exited epochs retained after `channel exit`. It does not
+include viewing keys, spending keys, wallet secret material, account private keys, or `.key` files. Do not submit the
+raw ZIP as an exchange or auditor package unless full wallet-history disclosure is intended.
 
 Open the local evidence investigator with:
 
@@ -298,7 +305,8 @@ and stores a protected local account secret for later `--account` use. The sourc
 wallet backup metadata, viewing-key metadata, and spending-key metadata as separate files. `wallet list` reads only the local workspace and prints saved wallet names that can be reused with
 `--wallet`.
 `wallet get-meta` opens the wallet metadata and reports the stored L1/L2 identity metadata plus the current
-on-chain channel registration match state, including the registered note-receive public key when present.
+on-chain channel registration match state, including the registered note-receive public key when present. On
+epoch-aware wallet workspaces it also reports the selected wallet epoch and whether that epoch is active or exited.
 `account get-l1-address` is a simple offline helper that derives the L1 address for a local account.
 
 ### Wallet Secret Source File

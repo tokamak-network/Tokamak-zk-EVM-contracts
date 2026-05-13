@@ -6,6 +6,10 @@
   to `workspace-rebuild-backups/` before writing the current-format workspace. The clean rebuild
   path is limited to workspace files and preserves local account and wallet key secrets under
   `secrets/`.
+- Added channel workspace recovery checkpointing at the existing RPC log chunk boundary so
+  interrupted RPC recovery can resume from the last completed chunk.
+- Changed mirror recovery to fall back to a newer verified full mirror checkpoint when no matching
+  delta bundle exists for the local recovery index.
 - Changed `wallet recover-workspace` to use the same bounded channel-workspace freshness preflight
   as other wallet commands. `wallet recover-workspace --from-genesis` now restarts received-note
   scanning from channel genesis but does not rebuild the channel workspace from genesis.

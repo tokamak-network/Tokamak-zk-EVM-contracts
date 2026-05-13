@@ -337,6 +337,8 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "By default, --source rpc resumes RPC log scanning from the workspace recovery index when available",
       "--source mirror validates the channel leader's registered checkpoint manifest, downloads only the needed checkpoint or delta bundle, and then replays RPC logs to latest",
+      "RPC recovery writes a usable channel workspace checkpoint after each RPC log chunk, so interrupted runs can resume from the last completed chunk",
+      "Mirror recovery uses a matching delta bundle when available; otherwise a newer verified full checkpoint replaces the local checkpoint before RPC catch-up",
       "Fails instead of falling back to genesis when no usable recovery index exists",
       "Use --source rpc --from-genesis to ignore the recovery index and replay logs from channel genesis",
       "--from-genesis moves the existing local channel workspace to workspace-rebuild-backups before writing the current-format workspace; local secrets are preserved",

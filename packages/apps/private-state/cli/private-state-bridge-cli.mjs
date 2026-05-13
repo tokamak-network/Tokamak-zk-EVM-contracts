@@ -1655,10 +1655,18 @@ async function fetchChannelWorkspaceMirror({
 
   const mirrorAheadOfLocal = localRecoveryIndex
     && Number(manifestPrecheck.recoveryLastScannedBlock) > Number(localRecoveryIndex.nextBlock);
-  const bundleResult = mirrorAheadOfLocal
+  const deltaBundleDescriptor = mirrorAheadOfLocal
+    ? selectWorkspaceMirrorDeltaBundle({
+      manifest,
+      fromBlock: Number(localRecoveryIndex.nextBlock),
+      toBlock: Number(manifest.checkpoint.recoveryLastScannedBlock) - 1,
+    })
+    : null;
+  const bundleResult = mirrorAheadOfLocal && deltaBundleDescriptor
     ? await fetchAndApplyWorkspaceMirrorDelta({
       manifest,
       manifestUrl,
+      bundleDescriptor: deltaBundleDescriptor,
       localRecoveryIndex,
       chainId,
       channelId,
@@ -2060,6 +2068,7 @@ function validateWorkspaceMirrorCheckpointArchive({
 async function fetchAndApplyWorkspaceMirrorDelta({
   manifest,
   manifestUrl,
+  bundleDescriptor,
   localRecoveryIndex,
   chainId,
   channelId,
@@ -2073,7 +2082,6 @@ async function fetchAndApplyWorkspaceMirrorDelta({
 }) {
   const fromBlock = Number(localRecoveryIndex.nextBlock);
   const toBlock = Number(manifest.checkpoint.recoveryLastScannedBlock) - 1;
-  const bundleDescriptor = selectWorkspaceMirrorDeltaBundle({ manifest, fromBlock, toBlock });
   expect(
     bundleDescriptor,
     `Workspace mirror does not provide a delta bundle for local recovery index ${fromBlock} to checkpoint block ${toBlock}.`,
@@ -2171,6 +2179,7 @@ async function syncChannelWorkspace({
 }) {
   const workspaceDir = channelWorkspacePath(networkNameFromChainId(network.chainId), workspaceName);
   const channelDir = channelDataPath(workspaceDir);
+  let cleanRebuildBackup = null;
   const hasPersistedChannelData = fs.existsSync(channelWorkspaceConfigPath(workspaceDir))
     || fs.existsSync(channelWorkspaceCurrentPath(workspaceDir))
     || fs.existsSync(channelWorkspaceOperationsPath(workspaceDir));
@@ -2182,6 +2191,13 @@ async function syncChannelWorkspace({
   const existingArtifacts = persist && hasPersistedChannelData
     ? loadExistingWorkspaceArtifacts(workspaceDir)
     : null;
+  if (persist && useWorkspaceRecoveryIndex && fromGenesis) {
+    cleanRebuildBackup = backupWorkspaceForCleanRebuild({
+      workspaceDir,
+      networkName: networkNameFromChainId(network.chainId),
+      channelName,
+    });
+  }
 
   const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
   const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, provider);
@@ -2296,6 +2312,54 @@ async function syncChannelWorkspace({
       "Run channel recover-workspace first to refresh the local channel workspace.",
     ].join(" "));
   }
+  const workspaceBase = {
+    name: workspaceName,
+    network: networkNameFromChainId(network.chainId),
+    chainId: network.chainId,
+    appDeploymentPath: deploymentManifestPath,
+    storageLayoutPath: storageLayoutManifestPath,
+    channelId: channelId.toString(),
+    channelName,
+    dappId: Number(channelInfo.dappId),
+    genesisBlockNumber,
+    bridgeCore: getAddress(bridgeDeployment.bridgeCore),
+    channelManager: getAddress(channelInfo.manager),
+    bridgeTokenVault: getAddress(channelInfo.bridgeTokenVault),
+    canonicalAsset,
+    canonicalAssetDecimals,
+    controller: controllerAddress,
+    l2AccountingVault: l2AccountingVaultAddress,
+    aPubBlockHash: normalizeBytes32Hex(channelInfo.aPubBlockHash),
+    dappMetadataDigestSchema: policySnapshot.dappMetadataDigestSchema,
+    dappMetadataDigest: policySnapshot.dappMetadataDigest,
+    functionRoot: policySnapshot.functionRoot,
+    policySnapshot,
+    managedStorageAddresses,
+    liquidBalancesSlot: liquidBalancesSlot.toString(),
+    recoverySource,
+    workspaceMirror: mirrorRecovery.workspaceMirror,
+  };
+  const buildWorkspaceForSnapshot = ({ currentSnapshot, scanRange }) => {
+    const recoveryRootVectorHash = normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots));
+    return {
+      ...workspaceBase,
+      recoveryLastScannedBlock: Number(scanRange.toBlock) + 1,
+      recoveryRootVectorHash,
+      recoveryScanRange: scanRange,
+    };
+  };
+  const persistWorkspaceCheckpoint = persist
+    ? ({ currentSnapshot, scanRange }) => {
+      persistChannelWorkspaceFiles({
+        workspaceDir,
+        channelDir,
+        workspace: buildWorkspaceForSnapshot({ currentSnapshot, scanRange }),
+        currentSnapshot,
+        blockInfo,
+        contractCodes,
+      });
+    }
+    : null;
   const reconstruction = localSnapshotReusable
     ? {
       currentSnapshot: existingArtifacts.stateSnapshot,
@@ -2331,64 +2395,23 @@ async function syncChannelWorkspace({
       fromBlock: selectedRecoveryIndex?.nextBlock ?? genesisBlockNumber,
       toBlock: latestBlock,
       progressAction,
+      onCheckpoint: persistWorkspaceCheckpoint,
     });
   const currentSnapshot = reconstruction.currentSnapshot;
-  const recoveryRootVectorHash = normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots));
-  const recoveryLastScannedBlock = Number(reconstruction.scanRange.toBlock) + 1;
-  let cleanRebuildBackup = null;
-
-  const workspace = {
-    name: workspaceName,
-    network: networkNameFromChainId(network.chainId),
-    chainId: network.chainId,
-    appDeploymentPath: deploymentManifestPath,
-    storageLayoutPath: storageLayoutManifestPath,
-    channelId: channelId.toString(),
-    channelName,
-    dappId: Number(channelInfo.dappId),
-    genesisBlockNumber,
-    bridgeCore: getAddress(bridgeDeployment.bridgeCore),
-    channelManager: getAddress(channelInfo.manager),
-    bridgeTokenVault: getAddress(channelInfo.bridgeTokenVault),
-    canonicalAsset,
-    canonicalAssetDecimals,
-    controller: controllerAddress,
-    l2AccountingVault: l2AccountingVaultAddress,
-    aPubBlockHash: normalizeBytes32Hex(channelInfo.aPubBlockHash),
-    dappMetadataDigestSchema: policySnapshot.dappMetadataDigestSchema,
-    dappMetadataDigest: policySnapshot.dappMetadataDigest,
-    functionRoot: policySnapshot.functionRoot,
-    policySnapshot,
-    managedStorageAddresses,
-    liquidBalancesSlot: liquidBalancesSlot.toString(),
-    recoverySource,
-    workspaceMirror: mirrorRecovery.workspaceMirror,
-    recoveryLastScannedBlock,
-    recoveryRootVectorHash,
-    recoveryScanRange: reconstruction.scanRange,
-  };
+  const workspace = buildWorkspaceForSnapshot({
+    currentSnapshot,
+    scanRange: reconstruction.scanRange,
+  });
 
   if (persist) {
-    if (useWorkspaceRecoveryIndex && fromGenesis) {
-      cleanRebuildBackup = backupWorkspaceForCleanRebuild({
-        workspaceDir,
-        networkName: networkNameFromChainId(network.chainId),
-        channelName,
-      });
-    }
-    ensureDir(channelDir);
-    ensureDir(channelWorkspaceCurrentPath(workspaceDir));
-    ensureDir(channelWorkspaceOperationsPath(workspaceDir));
-    ensureDir(workspaceWalletsDir(workspaceDir));
-
-    writeJsonIfChanged(channelWorkspaceConfigPath(workspaceDir), workspace);
-    writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"), currentSnapshot);
-    writeJsonIfChanged(
-      path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.normalized.json"),
+    persistChannelWorkspaceFiles({
+      workspaceDir,
+      channelDir,
+      workspace,
       currentSnapshot,
-    );
-    writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"), blockInfo);
-    writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"), contractCodes);
+      blockInfo,
+      contractCodes,
+    });
   }
 
   return {
@@ -2752,6 +2775,29 @@ function backupWorkspaceForCleanRebuild({ workspaceDir, networkName, channelName
     backupPath,
     secretsPreserved: true,
   };
+}
+
+function persistChannelWorkspaceFiles({
+  workspaceDir,
+  channelDir,
+  workspace,
+  currentSnapshot,
+  blockInfo,
+  contractCodes,
+}) {
+  ensureDir(channelDir);
+  ensureDir(channelWorkspaceCurrentPath(workspaceDir));
+  ensureDir(channelWorkspaceOperationsPath(workspaceDir));
+  ensureDir(workspaceWalletsDir(workspaceDir));
+
+  writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"), currentSnapshot);
+  writeJsonIfChanged(
+    path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.normalized.json"),
+    currentSnapshot,
+  );
+  writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"), blockInfo);
+  writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"), contractCodes);
+  writeJsonIfChanged(channelWorkspaceConfigPath(workspaceDir), workspace);
 }
 
 function nextAvailablePath(basePath) {
@@ -8397,6 +8443,67 @@ async function fetchChannelRecoveryLogs({
   };
 }
 
+async function fetchChannelRecoveryEventGroupsChunked({
+  provider,
+  bridgeAbiManifest,
+  channelInfo,
+  channelManager = null,
+  fromBlock,
+  toBlock,
+  progressAction = null,
+  onChunk,
+}) {
+  const resolvedChannelManager = channelManager ?? new Contract(
+    channelInfo.manager,
+    bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
+  const currentRootVectorObservedTopic =
+    normalizeBytes32Hex(resolvedChannelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
+  const bridgeTokenVault = new Contract(
+    channelInfo.bridgeTokenVault,
+    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+    provider,
+  );
+  const bridgeVaultTopic = bridgeTokenVault.interface.getEvent("StorageWriteObserved").topicHash;
+
+  await fetchLogsChunked(provider, {
+    address: channelInfo.manager,
+    topics: [[
+      currentRootVectorObservedTopic,
+      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
+      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
+    ]],
+    fromBlock,
+    toBlock,
+    collectLogs: false,
+    onProgress: progressAction
+      ? createRpcLogScanProgress({ action: progressAction, label: "channel-recovery chunks" })
+      : null,
+    onChunk: async ({ logs: channelManagerLogs, chunkFromBlock, chunkToBlock }) => {
+      await throttleLogRequest();
+      const bridgeVaultLogs = await provider.getLogs({
+        address: channelInfo.bridgeTokenVault,
+        topics: [bridgeVaultTopic],
+        fromBlock: chunkFromBlock,
+        toBlock: chunkToBlock,
+      });
+      const groupedValues = normalizeWorkspaceMirrorDeltaEventGroups({
+        logs: [...channelManagerLogs, ...bridgeVaultLogs],
+        channelInfo,
+        bridgeAbiManifest,
+        fromBlock: chunkFromBlock,
+        toBlock: chunkToBlock,
+      });
+      await onChunk?.({
+        groupedValues,
+        chunkFromBlock,
+        chunkToBlock,
+      });
+    },
+  });
+}
+
 async function reconstructChannelSnapshot({
   provider,
   bridgeAbiManifest,
@@ -8414,6 +8521,7 @@ async function reconstructChannelSnapshot({
   fromBlock = genesisBlockNumber,
   toBlock = null,
   progressAction = null,
+  onCheckpoint = null,
 }) {
   let startingSnapshot = baseSnapshot;
   if (!startingSnapshot) {
@@ -8429,11 +8537,20 @@ async function reconstructChannelSnapshot({
 
   const latestBlock = toBlock === null ? await provider.getBlockNumber() : Number(toBlock);
   const scanFromBlock = Math.max(Number(genesisBlockNumber), Number(fromBlock));
-  const {
-    currentRootVectorObservedTopic,
-    channelManagerLogs,
-    bridgeVaultLogs,
-  } = await fetchChannelRecoveryLogs({
+  let currentSnapshot = startingSnapshot;
+  if (onCheckpoint && scanFromBlock <= latestBlock) {
+    await onCheckpoint({
+      currentSnapshot,
+      scanRange: {
+        fromBlock: scanFromBlock,
+        toBlock: scanFromBlock - 1,
+        mode: baseSnapshot ? "recovery-index-initial" : "genesis-initial",
+      },
+    });
+  }
+  const stateManager = await buildStateManager(currentSnapshot, contractCodes);
+
+  await fetchChannelRecoveryEventGroupsChunked({
     provider,
     bridgeAbiManifest,
     channelInfo,
@@ -8441,37 +8558,27 @@ async function reconstructChannelSnapshot({
     fromBlock: scanFromBlock,
     toBlock: latestBlock,
     progressAction,
-  });
-  const channelManagerEvents = channelManagerLogs.map((log) => {
-    const topic0 = log.topics[0] ? normalizeBytes32Hex(log.topics[0]) : null;
-    if (topic0 !== null && ethers.toBigInt(topic0) === ethers.toBigInt(currentRootVectorObservedTopic)) {
-      const parsed = channelManager.interface.parseLog(log);
-      return {
-        ...log,
-        args: parsed.args,
-        fragment: parsed.fragment,
-      };
-    }
-    return log;
-  });
-
-  const groupedEvents = new Map();
-  for (const event of [...channelManagerEvents, ...bridgeVaultLogs]) {
-    const key = event.transactionHash;
-    const group = groupedEvents.get(key) ?? [];
-    group.push(event);
-    groupedEvents.set(key, group);
-  }
-
-  const groupedValues = [...groupedEvents.values()].sort((left, right) => compareLogsByPosition(left[0], right[0]));
-  const currentSnapshot = await applyChannelRecoveryEventGroups({
-    startingSnapshot,
-    groupedValues,
-    contractCodes,
-    channelInfo,
-    controllerAddress,
-    l2AccountingVaultAddress,
-    liquidBalancesSlot,
+    onChunk: async ({ groupedValues, chunkFromBlock, chunkToBlock }) => {
+      currentSnapshot = await applyChannelRecoveryEventGroupsToStateManager({
+        stateManager,
+        fallbackSnapshot: currentSnapshot,
+        groupedValues,
+        channelInfo,
+        controllerAddress,
+        l2AccountingVaultAddress,
+        liquidBalancesSlot,
+      });
+      await onCheckpoint?.({
+        currentSnapshot,
+        scanRange: {
+          fromBlock: scanFromBlock,
+          toBlock: chunkToBlock,
+          chunkFromBlock,
+          chunkToBlock,
+          mode: baseSnapshot ? "recovery-index" : "genesis",
+        },
+      });
+    },
   });
 
   expect(
@@ -8499,9 +8606,28 @@ async function applyChannelRecoveryEventGroups({
   l2AccountingVaultAddress,
   liquidBalancesSlot,
 }) {
-  let currentSnapshot = startingSnapshot;
-  const stateManager = await buildStateManager(currentSnapshot, contractCodes);
+  const stateManager = await buildStateManager(startingSnapshot, contractCodes);
+  return applyChannelRecoveryEventGroupsToStateManager({
+    stateManager,
+    fallbackSnapshot: startingSnapshot,
+    groupedValues,
+    channelInfo,
+    controllerAddress,
+    l2AccountingVaultAddress,
+    liquidBalancesSlot,
+  });
+}
 
+async function applyChannelRecoveryEventGroupsToStateManager({
+  stateManager,
+  fallbackSnapshot,
+  groupedValues,
+  channelInfo,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
+}) {
+  let currentSnapshot = fallbackSnapshot;
   for (const group of groupedValues) {
     const orderedGroup = [...group].sort(compareLogsByPosition);
     const rootEvent = orderedGroup.find(

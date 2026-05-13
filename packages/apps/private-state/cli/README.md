@@ -165,6 +165,10 @@ If `~/tokamak-private-channels/workspace/<network>/<channel>` already exists, it
 `~/tokamak-private-channels/workspace-rebuild-backups/` before the current-format workspace is
 created. This backup step is workspace-only; files under `~/tokamak-private-channels/secrets/`,
 including account private keys and wallet viewing/spending key files, are not removed.
+During RPC recovery, the CLI writes a usable channel workspace checkpoint after each RPC log chunk. If an RPC recovery
+run is interrupted, the next non-`--from-genesis` RPC recovery resumes from the last completed chunk. Mirror recovery
+can also start from that local checkpoint: it uses a matching delta bundle when one is available, otherwise a newer
+verified full mirror checkpoint replaces the local checkpoint before RPC catch-up.
 
 `channel create` is the exception: after the channel is created on-chain, the CLI initializes that new local workspace
 by replaying from the channel's genesis block because no prior recovery index can exist for a new channel.

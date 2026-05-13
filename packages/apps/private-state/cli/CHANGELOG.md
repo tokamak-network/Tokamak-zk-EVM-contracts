@@ -4,6 +4,9 @@
 
 - Fixed wallet lifecycle recovery log lookups so account-specific registration and exit event scans
   use the same chunked `eth_getLogs` path as the rest of RPC workspace recovery.
+- Removed synthetic wallet lifecycle epoch fallback creation; wallet recovery now requires
+  lifecycle registration events to be found in RPC log history instead of fabricating epochs from
+  current registration state.
 
 ## 2.1.1 - 2026-05-14
 

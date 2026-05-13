@@ -4272,33 +4272,6 @@ async function resolveWalletLifecycleEpoch({
     provider,
     l1Address,
   });
-  if (epochs.length === 0 && registration?.exists) {
-    const block = await provider.getBlock("latest").catch(() => null);
-    return {
-      epochId: `join-registered-${String(registration.joinedAt)}-${String(registration.leafIndex)}`,
-      lifecycleStatus: "active",
-      joinedAtTxHash: null,
-      joinedAtBlockNumber: null,
-      joinedAtLogIndex: null,
-      joinedAtBlockTimestamp: Number(registration.joinedAt),
-      joinedAtBlockTimestampIso: Number(registration.joinedAt) > 0
-        ? new Date(Number(registration.joinedAt) * 1000).toISOString()
-        : null,
-      exitedAtTxHash: null,
-      exitedAtBlockNumber: null,
-      exitedAtLogIndex: null,
-      exitedAtBlockTimestamp: null,
-      exitedAtBlockTimestampIso: null,
-      l2Address: getAddress(registration.l2Address),
-      channelTokenVaultKey: normalizeBytes32Hex(registration.channelTokenVaultKey),
-      leafIndex: registration.leafIndex,
-      noteReceivePubKey: {
-        x: normalizeBytes32Hex(registration.noteReceivePubKey.x),
-        yParity: Number(registration.noteReceivePubKey.yParity),
-      },
-      observedAtBlockNumber: block?.number ?? null,
-    };
-  }
   if (registration?.exists) {
     const active = [...epochs].reverse().find((epoch) => (
       epoch.lifecycleStatus === "active"
@@ -8972,14 +8945,8 @@ async function fetchLogsChunked(provider, {
 }
 
 async function fetchFreshBlockNumber(provider) {
-  if (typeof provider?.send === "function") {
-    try {
-      return Number(ethers.toBigInt(await provider.send("eth_blockNumber", [])));
-    } catch {
-      // Fall through to the provider abstraction below.
-    }
-  }
-  return Number(await provider.getBlockNumber());
+  expect(typeof provider?.send === "function", "Provider does not support fresh eth_blockNumber RPC calls.");
+  return Number(ethers.toBigInt(await provider.send("eth_blockNumber", [])));
 }
 
 function recoveryBlockDelta({ fromBlock, toBlock }) {

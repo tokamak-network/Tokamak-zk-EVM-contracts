@@ -22,6 +22,10 @@ The raw evidence bundle contains plaintext for all locally known notes. Do not s
 as an exchange or auditor package unless full wallet-history disclosure is intended. Use the
 investigator output package for scoped disclosure.
 
+The investigator accepts current epoch-aware evidence bundles only. Supported note records live under
+`wallets/<wallet>/epochs/<epoch-id>/notes/` inside the ZIP. If a bundle uses an older layout, rebuild the local wallet
+workspace with `wallet recover-workspace` and export a new evidence ZIP with `wallet get-notes --export-evidence`.
+
 ## Supported Filtering
 
 - note commitment or nullifier

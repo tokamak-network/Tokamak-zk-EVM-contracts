@@ -1517,7 +1517,7 @@ function assertWalletEvidenceExport(result, { expectedNoteCount }) {
   expect(manifest.excludedSecrets?.spendingKey === true, "Evidence manifest must exclude spending keys.");
   expect(Array.isArray(manifest.wallets), "Evidence manifest must include wallet epoch metadata.");
   const noteEntries = [...entries].filter((entry) =>
-    entry.endsWith(".json") && (entry.startsWith("notes/") || entry.includes("/notes/")));
+    /^wallets\/[^/]+\/epochs\/[^/]+\/notes\/[^/]+\.json$/u.test(entry));
   expect(noteEntries.length === Number(expectedNoteCount), "Evidence ZIP note entry count mismatch.");
   const serializedZip = zip.getEntries().map((entry) => zip.readAsText(entry)).join("\n");
   for (const forbidden of ["l2PrivateKey", "noteReceivePrivateKey"]) {

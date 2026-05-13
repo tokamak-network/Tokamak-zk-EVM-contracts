@@ -108,6 +108,7 @@ The CLI:
 - binds every channel to the canonical Tokamak Network Token for the selected network
 - stores channel state under `~/tokamak-private-channels/workspace/<network>/<channel>/channel/`
 - stores per-user wallets under `~/tokamak-private-channels/workspace/<network>/<channel>/wallets/<wallet>/`
+  with a wallet index and per-registration epochs under `epochs/<epoch-id>/`
 - uses the fixed Groth16 runtime workspace under `~/tokamak-private-channels/groth16/` for channel balance proofs
 - may rebuild the local `updateTree` circuit before proof generation, but never reruns trusted setup during normal proof-backed commands
 - refreshes small stale channel and wallet workspaces from saved recovery indexes before commands that require current local state
@@ -128,6 +129,8 @@ Important rules:
   can later rebuild backup metadata from on-chain channel data
 - canonical wallet folder names are fixed to `<channelName>-<l1Address>`, with per-registration
   wallet epochs stored below that canonical folder
+- current wallet commands require this epoch-aware workspace layout; rebuild older local wallet directories with
+  `wallet recover-workspace`
 - recipient note delivery is recovered from bridge-propagated Ethereum event logs through `wallet recover-workspace`
 - `anvil` support exists only for command-driven local end-to-end testing
 - proof-backed commands print four progress phases, `loading`, `proving`, `submitting`, and `persisting`, followed by `done`

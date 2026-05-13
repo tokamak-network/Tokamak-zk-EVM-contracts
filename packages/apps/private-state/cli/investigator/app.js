@@ -60,6 +60,13 @@ async function loadEvidenceBundle(bytes) {
   if (manifest.format !== "tokamak-private-state-raw-evidence-bundle") {
     throw new Error(`Unsupported evidence format: ${manifest.format ?? "missing"}.`);
   }
+  if (Number(manifest.formatVersion) !== 2) {
+    throw new Error("Unsupported legacy evidence bundle version. Run wallet recover-workspace, then run wallet get-notes --export-evidence again.");
+  }
+  const legacyNotePaths = [...files.keys()].filter((path) => path.startsWith("notes/") && path.endsWith(".json"));
+  if (legacyNotePaths.length > 0) {
+    throw new Error("Unsupported legacy evidence bundle layout. Run wallet recover-workspace, then run wallet get-notes --export-evidence again.");
+  }
   const notes = [...files.entries()]
     .filter(([path]) => isEvidenceNotePath(path))
     .map(([path, content]) => ({
@@ -85,8 +92,7 @@ async function loadEvidenceBundle(bytes) {
 }
 
 function isEvidenceNotePath(entryPath) {
-  return entryPath.endsWith(".json")
-    && (entryPath.startsWith("notes/") || entryPath.includes("/notes/"));
+  return /^wallets\/[^/]+\/epochs\/[^/]+\/notes\/[^/]+\.json$/u.test(entryPath);
 }
 
 function evidenceWalletLabel(manifest) {

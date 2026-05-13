@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Changed `channel recover-workspace --from-genesis` and `wallet recover-workspace --from-genesis`
+  to move any existing local channel workspace to `workspace-rebuild-backups/` before writing the
+  current-format workspace. The clean rebuild path is limited to workspace files and preserves
+  local account and wallet key secrets under `secrets/`.
+
 ## 2.1.0 - 2026-05-14
 
 - Required current epoch-aware wallet workspaces for wallet commands and backup imports. Local

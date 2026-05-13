@@ -920,7 +920,12 @@ async function handleWorkspaceInit({ args, network, provider }) {
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
   const recoverySource = resolveWorkspaceRecoverySource(args);
 
-  const { workspaceDir, workspace, currentSnapshot } = await syncChannelWorkspace({
+  const {
+    workspaceDir,
+    workspace,
+    currentSnapshot,
+    cleanRebuildBackup,
+  } = await syncChannelWorkspace({
     workspaceName,
     channelName,
     network,
@@ -939,6 +944,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     source: workspace.recoverySource ?? recoverySource,
     workspace: workspaceName,
     workspaceDir,
+    cleanRebuildBackup: cleanRebuildBackup ?? null,
     channelName,
     channelId: workspace.channelId,
     channelManager: workspace.channelManager,
@@ -2329,6 +2335,7 @@ async function syncChannelWorkspace({
   const currentSnapshot = reconstruction.currentSnapshot;
   const recoveryRootVectorHash = normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots));
   const recoveryLastScannedBlock = Number(reconstruction.scanRange.toBlock) + 1;
+  let cleanRebuildBackup = null;
 
   const workspace = {
     name: workspaceName,
@@ -2362,6 +2369,13 @@ async function syncChannelWorkspace({
   };
 
   if (persist) {
+    if (useWorkspaceRecoveryIndex && fromGenesis) {
+      cleanRebuildBackup = backupWorkspaceForCleanRebuild({
+        workspaceDir,
+        networkName: networkNameFromChainId(network.chainId),
+        channelName,
+      });
+    }
     ensureDir(channelDir);
     ensureDir(channelWorkspaceCurrentPath(workspaceDir));
     ensureDir(channelWorkspaceOperationsPath(workspaceDir));
@@ -2383,6 +2397,7 @@ async function syncChannelWorkspace({
     currentSnapshot,
     blockInfo,
     contractCodes,
+    cleanRebuildBackup,
   };
 }
 
@@ -2563,6 +2578,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       status: "already-recovered",
       wallet: walletName,
       walletDir: existingWallet.walletDir,
+      cleanRebuildBackup: initialized.cleanRebuildBackup ?? null,
       workspace: context.workspaceName,
       channelName: context.workspace.channelName,
       channelId: context.workspace.channelId,
@@ -2612,6 +2628,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     status: "recovered",
     wallet: walletName,
     walletDir: walletContext.walletDir,
+    cleanRebuildBackup: initialized.cleanRebuildBackup ?? null,
     workspace: context.workspaceName,
     channelName: context.workspace.channelName,
     channelId: context.workspace.channelId,
@@ -2728,6 +2745,50 @@ async function requireUninstallConfirmation() {
 
 function uniquePaths(paths) {
   return [...new Set(paths.map((entry) => path.resolve(entry)))];
+}
+
+function backupWorkspaceForCleanRebuild({ workspaceDir, networkName, channelName }) {
+  const resolvedWorkspaceDir = path.resolve(workspaceDir);
+  if (!fs.existsSync(resolvedWorkspaceDir)) {
+    return null;
+  }
+  expectPathWithinRoot(
+    resolvedWorkspaceDir,
+    workspaceRoot,
+    `Clean rebuild refuses to move a path outside the private-state workspace root: ${resolvedWorkspaceDir}.`,
+  );
+
+  const backupRoot = path.join(
+    privateStateCliDataRoot(),
+    "workspace-rebuild-backups",
+    slugifyPathComponent(networkName),
+  );
+  ensureDir(backupRoot);
+  const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  const backupBasePath = path.join(
+    backupRoot,
+    `${slugifyPathComponent(channelName)}-${timestamp}`,
+  );
+  const backupPath = nextAvailablePath(backupBasePath);
+  fs.renameSync(resolvedWorkspaceDir, backupPath);
+  return {
+    workspaceDir: resolvedWorkspaceDir,
+    backupPath,
+    secretsPreserved: true,
+  };
+}
+
+function nextAvailablePath(basePath) {
+  if (!fs.existsSync(basePath)) {
+    return basePath;
+  }
+  for (let index = 1; index <= 1000; index += 1) {
+    const candidate = `${basePath}-${index}`;
+    if (!fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error(`Unable to allocate a clean rebuild backup path for ${basePath}.`);
 }
 
 function removeManagedRoot({ label, rootPath }) {

@@ -161,6 +161,12 @@ private-state-cli channel recover-workspace --channel-name <CHANNEL> --network m
 private-state-cli wallet recover-workspace --channel-name <CHANNEL> --network mainnet --account <ACCOUNT> --from-genesis
 ```
 
+When `--from-genesis` is used, the CLI treats the local channel workspace as a clean rebuild target.
+If `~/tokamak-private-channels/workspace/<network>/<channel>` already exists, it is moved under
+`~/tokamak-private-channels/workspace-rebuild-backups/` before the current-format workspace is
+created. This backup step is workspace-only; files under `~/tokamak-private-channels/secrets/`,
+including account private keys and wallet viewing/spending key files, are not removed.
+
 `channel create` is the exception: after the channel is created on-chain, the CLI initializes that new local workspace
 by replaying from the channel's genesis block because no prior recovery index can exist for a new channel.
 

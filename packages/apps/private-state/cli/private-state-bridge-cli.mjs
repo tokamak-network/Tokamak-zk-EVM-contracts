@@ -6171,10 +6171,16 @@ async function recoverDeliveredNotesFromEventLogs({
   };
 
   if (scanStartBlock > latestBlock) {
+    const reconciledState = await reconcileWalletNotesWithBridgeState({
+      walletContext,
+      currentSnapshot: context.currentSnapshot,
+      controllerAddress: context.workspace.controller,
+    });
     walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
     persistWallet(walletContext);
     return {
       importedNotes: [],
+      reconciledState,
       scannedLogs: 0,
       scanRange,
     };
@@ -6185,18 +6191,67 @@ async function recoverDeliveredNotesFromEventLogs({
   );
   const commitmentExistsSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "commitmentExists"));
   const nullifierUsedSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "nullifierUsed"));
-  const observedLogs = await fetchLogsChunked(provider, {
+  const importedNotes = [];
+  let reconciledState = null;
+  let scannedLogs = 0;
+
+  await fetchLogsChunked(provider, {
     address: context.workspace.channelManager,
     topics: [NOTE_VALUE_ENCRYPTED_TOPIC],
     fromBlock: scanStartBlock,
     toBlock: latestBlock,
+    collectLogs: false,
     onProgress: progressAction
       ? createRpcLogScanProgress({ action: progressAction, label: "note-delivery events" })
       : null,
+    onChunk: async ({ logs, chunkToBlock }) => {
+      scannedLogs += logs.length;
+      const importedCandidates = await recoverDeliveredNoteCandidatesFromLogs({
+        logs,
+        walletContext,
+        context,
+        noteReceivePrivateKey,
+        commitmentExistsSlot,
+        nullifierUsedSlot,
+      });
+      if (importedCandidates.length > 0) {
+        importedNotes.push(...mergeTrackedNotesIntoWallet(walletContext, importedCandidates));
+        reconciledState = await reconcileWalletNotesWithBridgeState({
+          walletContext,
+          currentSnapshot: context.currentSnapshot,
+          controllerAddress: context.workspace.controller,
+        });
+      }
+      walletContext.wallet.noteReceiveLastScannedBlock = Number(chunkToBlock) + 1;
+      persistWallet(walletContext);
+    },
   });
 
+  reconciledState = await reconcileWalletNotesWithBridgeState({
+    walletContext,
+    currentSnapshot: context.currentSnapshot,
+    controllerAddress: context.workspace.controller,
+  });
+  walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
+  persistWallet(walletContext);
+  return {
+    importedNotes,
+    reconciledState,
+    scannedLogs,
+    scanRange,
+  };
+}
+
+async function recoverDeliveredNoteCandidatesFromLogs({
+  logs,
+  walletContext,
+  context,
+  noteReceivePrivateKey,
+  commitmentExistsSlot,
+  nullifierUsedSlot,
+}) {
   const importedCandidates = [];
-  for (const log of observedLogs) {
+  for (const log of logs) {
     const encryptedNoteValue = extractEncryptedNoteValueFromBridgeLog(log);
     if (!encryptedNoteValue) {
       continue;
@@ -6261,21 +6316,7 @@ async function recoverDeliveredNotesFromEventLogs({
     }
     importedCandidates.push(trackedNote);
   }
-
-  const importedNotes = mergeTrackedNotesIntoWallet(walletContext, importedCandidates);
-  const reconciledState = await reconcileWalletNotesWithBridgeState({
-    walletContext,
-    currentSnapshot: context.currentSnapshot,
-    controllerAddress: context.workspace.controller,
-  });
-  walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
-  persistWallet(walletContext);
-  return {
-    importedNotes,
-    reconciledState,
-    scannedLogs: observedLogs.length,
-    scanRange,
-  };
+  return importedCandidates;
 }
 
 function requireUsableWalletNoteReceiveRecoveryIndex({ walletContext, context, latestBlock }) {
@@ -8731,11 +8772,14 @@ async function fetchLogsChunked(provider, {
   fromBlock,
   toBlock,
   initialChunkSize = DEFAULT_LOG_CHUNK_SIZE,
+  collectLogs = true,
   onProgress = null,
+  onChunk = null,
 }) {
   const normalizedFromBlock = Number(fromBlock);
   const resolvedToBlock = toBlock === "latest" ? await provider.getBlockNumber() : Number(toBlock);
   const aggregatedLogs = [];
+  let logsFound = 0;
 
   if (normalizedFromBlock > resolvedToBlock) {
     onProgress?.({
@@ -8763,27 +8807,15 @@ async function fetchLogsChunked(provider, {
   let cursor = normalizedFromBlock;
   while (cursor <= resolvedToBlock) {
     const chunkToBlock = Math.min(resolvedToBlock, cursor + chunkSize - 1);
+    let logs;
     try {
       await throttleLogRequest();
-      const logs = await provider.getLogs({
+      logs = await provider.getLogs({
         address,
         topics,
         fromBlock: cursor,
         toBlock: chunkToBlock,
       });
-      aggregatedLogs.push(...logs);
-      onProgress?.({
-        status: "progress",
-        fromBlock: normalizedFromBlock,
-        toBlock: resolvedToBlock,
-        chunkFromBlock: cursor,
-        chunkToBlock,
-        scannedBlocks: chunkToBlock - normalizedFromBlock + 1,
-        totalBlocks,
-        logsFound: aggregatedLogs.length,
-        chunkLogs: logs.length,
-      });
-      cursor = chunkToBlock + 1;
     } catch (error) {
       if (isRateLimitError(error)) {
         throw new Error(
@@ -8796,7 +8828,36 @@ async function fetchLogsChunked(provider, {
         throw error;
       }
       chunkSize = suggestedChunkSize;
+      continue;
     }
+    logsFound += logs.length;
+    if (collectLogs) {
+      aggregatedLogs.push(...logs);
+    }
+    onProgress?.({
+      status: "progress",
+      fromBlock: normalizedFromBlock,
+      toBlock: resolvedToBlock,
+      chunkFromBlock: cursor,
+      chunkToBlock,
+      scannedBlocks: chunkToBlock - normalizedFromBlock + 1,
+      totalBlocks,
+      logsFound,
+      chunkLogs: logs.length,
+    });
+    await onChunk?.({
+      status: "progress",
+      fromBlock: normalizedFromBlock,
+      toBlock: resolvedToBlock,
+      chunkFromBlock: cursor,
+      chunkToBlock,
+      scannedBlocks: chunkToBlock - normalizedFromBlock + 1,
+      totalBlocks,
+      logsFound,
+      chunkLogs: logs.length,
+      logs,
+    });
+    cursor = chunkToBlock + 1;
   }
 
   onProgress?.({
@@ -8805,7 +8866,7 @@ async function fetchLogsChunked(provider, {
     toBlock: resolvedToBlock,
     scannedBlocks: totalBlocks,
     totalBlocks,
-    logsFound: aggregatedLogs.length,
+    logsFound,
   });
 
   return aggregatedLogs;

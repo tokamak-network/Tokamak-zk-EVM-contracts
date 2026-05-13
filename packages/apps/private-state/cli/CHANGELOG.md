@@ -6,6 +6,8 @@
   to move any existing local channel workspace to `workspace-rebuild-backups/` before writing the
   current-format workspace. The clean rebuild path is limited to workspace files and preserves
   local account and wallet key secrets under `secrets/`.
+- Added received-note recovery checkpointing at the existing RPC log chunk boundary so ordinary
+  `wallet recover-workspace` resumes from the last completed chunk after an interruption.
 
 ## 2.1.0 - 2026-05-14
 

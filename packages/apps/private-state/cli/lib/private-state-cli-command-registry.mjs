@@ -415,6 +415,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "Fails instead of falling back to genesis when no usable recovery index exists",
       "Use --from-genesis to ignore the recovery index and replay channel logs from channel genesis",
       "--from-genesis moves the existing local channel workspace to workspace-rebuild-backups before writing the current-format workspace; local secrets are preserved",
+      "Received-note recovery checkpoints after each RPC log chunk during ordinary recovery; --from-genesis still starts from channel genesis",
       "Prints RPC log scan progress while rebuilding channel state and received-note state",
     ],
   },

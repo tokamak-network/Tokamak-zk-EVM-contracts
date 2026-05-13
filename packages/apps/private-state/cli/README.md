@@ -182,6 +182,11 @@ channel genesis and only runs when the recovery delta fits within the 7,200-bloc
 is missing, unusable, or too far behind, the command stops and asks the user to run the appropriate recovery command
 with `--from-genesis` explicitly when needed.
 
+Wallet note-delivery recovery checkpoints after each RPC log chunk by updating
+`noteReceiveLastScannedBlock`. If an ordinary `wallet recover-workspace` run is interrupted during note recovery, the
+next run resumes from the last completed chunk. This does not add a special resume path for
+`wallet recover-workspace --from-genesis`; that command intentionally starts from channel genesis.
+
 Local wallet workspaces are epoch-aware. Each successful channel registration creates a wallet epoch under the
 canonical wallet directory. `channel exit` does not delete the local wallet workspace; it marks the active epoch as
 exited with the exit transaction, block, and timestamp, then keeps that epoch read-only for historical note inspection

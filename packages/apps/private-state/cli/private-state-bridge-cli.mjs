@@ -4316,16 +4316,20 @@ async function resolveWalletLifecycleEpoch({
 async function readWalletLifecycleEpochs({ context, provider, l1Address }) {
   const fromBlock = Number(context.workspace.genesisBlockNumber ?? 0);
   const [registeredLogs, exitedLogs] = await Promise.all([
-    context.channelManager.queryFilter(
-      context.channelManager.filters.ChannelTokenVaultIdentityRegistered(l1Address),
+    queryContractEventsChunked({
+      contract: context.channelManager,
+      eventName: "ChannelTokenVaultIdentityRegistered",
+      eventArgs: [l1Address],
       fromBlock,
-      "latest",
-    ),
-    context.channelManager.queryFilter(
-      context.channelManager.filters.ChannelTokenVaultIdentityExited(l1Address),
+      toBlock: "latest",
+    }),
+    queryContractEventsChunked({
+      contract: context.channelManager,
+      eventName: "ChannelTokenVaultIdentityExited",
+      eventArgs: [l1Address],
       fromBlock,
-      "latest",
-    ),
+      toBlock: "latest",
+    }),
   ]);
   const exits = await Promise.all(exitedLogs.map((log) => walletExitFromLog({ log, provider })));
   const epochs = [];
@@ -8872,7 +8876,7 @@ async function fetchLogsChunked(provider, {
   onChunk = null,
 }) {
   const normalizedFromBlock = Number(fromBlock);
-  const resolvedToBlock = toBlock === "latest" ? await provider.getBlockNumber() : Number(toBlock);
+  const resolvedToBlock = toBlock === "latest" ? await fetchFreshBlockNumber(provider) : Number(toBlock);
   const aggregatedLogs = [];
   let logsFound = 0;
 
@@ -8967,6 +8971,17 @@ async function fetchLogsChunked(provider, {
   return aggregatedLogs;
 }
 
+async function fetchFreshBlockNumber(provider) {
+  if (typeof provider?.send === "function") {
+    try {
+      return Number(ethers.toBigInt(await provider.send("eth_blockNumber", [])));
+    } catch {
+      // Fall through to the provider abstraction below.
+    }
+  }
+  return Number(await provider.getBlockNumber());
+}
+
 function recoveryBlockDelta({ fromBlock, toBlock }) {
   const normalizedFromBlock = Number(fromBlock);
   const normalizedToBlock = Number(toBlock);
@@ -9053,18 +9068,20 @@ function deriveRecommendedLogChunkSize(error, currentChunkSize) {
 async function queryContractEventsChunked({
   contract,
   eventName,
+  eventArgs = [],
   fromBlock,
   toBlock,
   onProgress = null,
 }) {
   const eventFragment = contract.interface.getEvent(eventName);
-  const eventTopic = contract.interface.getEvent(eventName).topicHash;
   const contractAddress = getAddress(await contract.getAddress());
   const provider = contract.runner?.provider ?? contract.runner;
   expect(provider, `Contract runner is missing a provider for event ${eventName}.`);
+  const eventFilter = contract.filters[eventName](...eventArgs);
+  const topics = await eventFilter.getTopicFilter();
   const logs = await fetchLogsChunked(provider, {
     address: contractAddress,
-    topics: [eventTopic],
+    topics,
     fromBlock,
     toBlock,
     onProgress,

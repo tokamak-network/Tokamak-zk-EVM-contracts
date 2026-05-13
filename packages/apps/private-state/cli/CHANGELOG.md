@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed wallet lifecycle recovery log lookups so account-specific registration and exit event scans
+  use the same chunked `eth_getLogs` path as the rest of RPC workspace recovery.
+
 ## 2.1.1 - 2026-05-14
 
 - Changed `channel recover-workspace --from-genesis` to move any existing local channel workspace

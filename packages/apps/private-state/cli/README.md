@@ -434,6 +434,8 @@ Operating rules:
   recovery can be very slow because it scans channel logs from the creation block. If a channel workspace mirror is
   available, try mirror-based recovery first, and use RPC genesis replay only when mirror recovery is unavailable or
   unsuitable.
+- When a CLI command fails, read the error message and any printed `Try:` hints first. Prefer the corrective action
+  suggested by the CLI before inventing a different recovery sequence.
 - When the user does not have a network RPC URL yet, explain that they need an Ethereum JSON-RPC endpoint for the
   selected network. They can obtain one from an infrastructure provider such as Alchemy, Infura, QuickNode, or from
   their own node. Ask the user to create or select the endpoint in that provider's UI, then paste only the endpoint URL

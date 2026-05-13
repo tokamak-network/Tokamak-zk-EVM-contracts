@@ -286,6 +286,17 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     ],
   },
   {
+    id: "investigator",
+    description: "Open the local evidence investigator GUI in the default browser.",
+    fields: [],
+    usage: "no options",
+    help: [
+      "Prints the local investigator HTML path and opens it in the default browser",
+      "Use wallet get-notes --export-evidence first, then load the raw ZIP in the investigator GUI",
+      "The raw evidence ZIP contains full locally known note plaintext and should not be submitted as-is unless full wallet-history disclosure is intended",
+    ],
+  },
+  {
     id: "account-import",
     display: "account import",
     description: "Import a private-key source file into a protected local L1 account secret for later --account use.",
@@ -603,7 +614,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "Refreshes the local channel workspace through the saved recovery index before reading notes when the scan fits the 10 second pre-command budget",
       "Refreshes received-note logs through the saved wallet note recovery index when the scan fits the 10 second pre-command budget",
       "Fails instead of replaying from genesis; run wallet recover-workspace --from-genesis when a genesis rebuild is required",
-      "Use --export-evidence <PATH> with --acknowledge-full-note-plaintext-export to write a local full-note evidence ZIP for a separate selective-disclosure filter program",
+      "Use --export-evidence <PATH> with --acknowledge-full-note-plaintext-export to write a local full-note evidence ZIP for private-state-cli investigator",
     ],
   },
 ]);

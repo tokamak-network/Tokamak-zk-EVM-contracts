@@ -7,6 +7,7 @@ import process from "node:process";
 import readline from "node:readline/promises";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import AdmZip from "adm-zip";
 import {
   createHash,
@@ -585,6 +586,12 @@ async function main() {
     assertTransactionFeesArgs(args);
     const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args);
     await handleTransactionFees({ network, provider, rpcUrl });
+    return;
+  }
+
+  if (args.command === "investigator") {
+    assertInvestigatorArgs(args);
+    handleInvestigator();
     return;
   }
 
@@ -2952,6 +2959,68 @@ async function handleDoctor({ args }) {
   }
 }
 
+function handleInvestigator() {
+  const htmlPath = resolveInvestigatorIndexPath();
+  const fileUrl = pathToFileURL(htmlPath).href;
+  const browser = openFileInDefaultBrowser(fileUrl);
+  printJson({
+    action: "investigator",
+    htmlPath,
+    fileUrl,
+    browserOpened: browser.opened,
+    browserOpenCommand: browser.command,
+    browserOpenError: browser.error,
+    nextSteps: [
+      "Create a raw evidence ZIP with wallet get-notes --export-evidence and --acknowledge-full-note-plaintext-export.",
+      "Load the raw evidence ZIP in the browser investigator.",
+      "Filter the raw bundle and export a user-consent disclosure ZIP.",
+      "Do not submit the raw evidence ZIP unless full wallet-history disclosure is intended.",
+    ],
+  });
+}
+
+function resolveInvestigatorIndexPath() {
+  const candidates = [
+    path.join(privateStateCliPackageRoot, "investigator", "index.html"),
+    path.resolve(privateStateCliPackageRoot, "..", "investigator", "index.html"),
+  ];
+  const htmlPath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!htmlPath) {
+    throw new Error(
+      [
+        "Missing investigator HTML asset.",
+        `Checked: ${candidates.join(", ")}`,
+        "Reinstall the private-state CLI package or run from a complete repository checkout.",
+      ].join(" "),
+    );
+  }
+  return htmlPath;
+}
+
+function openFileInDefaultBrowser(fileUrl) {
+  const opener = defaultBrowserOpenCommand(fileUrl);
+  const result = spawnSync(opener.command, opener.args, {
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  return {
+    command: [opener.command, ...opener.args].join(" "),
+    opened: result.status === 0,
+    status: result.status,
+    error: result.error?.message ?? null,
+  };
+}
+
+function defaultBrowserOpenCommand(fileUrl) {
+  if (process.platform === "darwin") {
+    return { command: "open", args: [fileUrl] };
+  }
+  if (process.platform === "win32") {
+    return { command: "cmd", args: ["/c", "start", "", fileUrl] };
+  }
+  return { command: "xdg-open", args: [fileUrl] };
+}
+
 async function handleTransactionFees({ network, provider, rpcUrl }) {
   const feeAsset = loadTransactionFeeAsset();
   const feeData = await provider.getFeeData();
@@ -5199,7 +5268,7 @@ function buildEvidenceManifest({
     containsNotePlaintext: true,
     noteCount: noteRecords.length,
     transactionCount: txHashes.length,
-    intendedUse: "Input for a separate selective-disclosure filter program; not a default exchange submission package.",
+    intendedUse: "Input for private-state-cli investigator; not a default exchange submission package.",
     warning: "DO_NOT_SUBMIT_AS_IS unless full wallet-history disclosure is intended.",
     excludedSecrets: {
       spendingKey: true,
@@ -9277,6 +9346,10 @@ function assertTransactionFeesArgs(args) {
   assertAllowedCommandSchema(args, "help-transaction-fees");
 }
 
+function assertInvestigatorArgs(args) {
+  assertAllowedCommandSchema(args, "investigator");
+}
+
 function assertAccountImportArgs(args) {
   assertAllowedCommandSchema(args, "account-import");
 }
@@ -10014,6 +10087,7 @@ function loadWalletCommandRuntime(args) {
 
 const HUMAN_RESULT_RENDERERS = Object.freeze({
   guide: printGuideHumanResult,
+  investigator: printInvestigatorHumanResult,
   "transaction-fees": printTransactionFeesHumanResult,
   update: printUpdateHumanResult,
 });
@@ -10070,6 +10144,29 @@ function printGuideHumanResult(guide) {
     "Privacy Tip",
     formatHumanValue(guide.privacyTip),
   );
+  console.log(lines.join("\n"));
+}
+
+function printInvestigatorHumanResult(result) {
+  const lines = [
+    "Private-State Evidence Investigator",
+    `HTML path: ${formatHumanValue(result.htmlPath)}`,
+    `File URL: ${formatHumanValue(result.fileUrl)}`,
+    `Browser opened: ${result.browserOpened ? "yes" : "no"}`,
+  ];
+  if (!result.browserOpened) {
+    lines.push(
+      `Open command: ${formatHumanValue(result.browserOpenCommand)}`,
+      `Open error: ${formatHumanValue(result.browserOpenError ?? "none")}`,
+    );
+  }
+  if (Array.isArray(result.nextSteps) && result.nextSteps.length > 0) {
+    lines.push(
+      "",
+      "Next Steps",
+      ...result.nextSteps.map((step) => `- ${step}`),
+    );
+  }
   console.log(lines.join("\n"));
 }
 

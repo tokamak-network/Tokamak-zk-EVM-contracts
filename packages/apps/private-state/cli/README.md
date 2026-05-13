@@ -225,11 +225,21 @@ Export a local full-note evidence bundle with:
 private-state-cli wallet get-notes --network mainnet --wallet <WALLET> --export-evidence ./wallet-evidence.zip --acknowledge-full-note-plaintext-export
 ```
 
-This ZIP is an input for a separate selective-disclosure filter program. It contains plaintext for all locally known
+This ZIP is an input for `private-state-cli investigator`. It contains plaintext for all locally known
 notes, derived commitments and nullifiers, creation and spend transaction references, transaction calldata, receipts,
 events, and indexes for filtering by note, nullifier, transaction, block range, or available counterparty metadata. It
 does not include viewing keys, spending keys, wallet secret material, account private keys, or `.key` files. Do not
 submit the raw ZIP as an exchange or auditor package unless full wallet-history disclosure is intended.
+
+Open the local evidence investigator with:
+
+```bash
+private-state-cli investigator
+```
+
+The command prints the bundled investigator HTML path and file URL, then opens the static browser GUI. Load the raw
+evidence ZIP in that GUI, apply the requested filters, and export a narrower user-consent disclosure ZIP. The GUI runs
+locally in the browser and does not send files over the network.
 
 Estimate live transaction costs before sending commands with:
 
@@ -324,8 +334,9 @@ that consume existing notes, such as `wallet transfer-notes` and `wallet redeem-
 the spending key because the CLI must first reconstruct the plaintext notes and then prove authorized use of them.
 
 `wallet get-notes --export-evidence <PATH> --acknowledge-full-note-plaintext-export` writes a local raw evidence ZIP.
-The bundle is not a key export. It includes plaintext note facts for locally known notes so that a separate filter
-program can create narrower consent-disclosure packages without requiring viewing-key or spending-key sharing.
+The bundle is not a key export. It includes plaintext note facts for locally known notes so that
+`private-state-cli investigator` can create narrower consent-disclosure packages without requiring viewing-key or
+spending-key sharing.
 
 ## Workspace
 

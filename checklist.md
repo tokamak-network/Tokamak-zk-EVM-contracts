@@ -587,7 +587,7 @@ Tokamak의 security model에서 bridge owner의 upgrade 권한과 privileged own
 
 ### 12.2 문서 정합성
 
-- [ ] GitHub README와 NPM README에서 같은 용어 사용
+- [x] GitHub README와 NPM README에서 같은 용어 사용
 - [x] “TON 자체가 private asset이 된다”는 표현 제거
 - [x] “untraceable” 표현 제거
 - [x] “anonymous cash-out” 표현 제거

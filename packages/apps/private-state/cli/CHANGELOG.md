@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 2.1.0 - 2026-05-14
+
+- Required current epoch-aware wallet workspaces for wallet commands and backup imports. Local
+  wallet metadata must include the wallet index and epoch metadata; users with older local
+  workspaces should rebuild them with `wallet recover-workspace`.
+- Required current epoch-aware evidence bundle note paths in the investigator and removed the
+  special-case legacy evidence layout branch.
+- Consolidated the static evidence investigator into the CLI package under `cli/investigator/`
+  and removed the duplicate top-level investigator copy.
+- Simplified wallet command argument validation by removing unused schema fallback wrappers.
+
 ## 2.0.0 - 2026-05-13
 
 - Split wallet export/import into `wallet export backup`, `wallet export viewing-key`,

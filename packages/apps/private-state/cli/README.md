@@ -430,6 +430,10 @@ Operating rules:
   - A workspace recovery index is the saved block pointer and state-root hash that lets the CLI resume log scanning
     without replaying the channel from its creation block. If it is missing, explain `--from-genesis` before using it
     because genesis replay can take much longer.
+- Before guiding a user to run `channel recover-workspace --source rpc --from-genesis`, explain that RPC genesis
+  recovery can be very slow because it scans channel logs from the creation block. If a channel workspace mirror is
+  available, try mirror-based recovery first, and use RPC genesis replay only when mirror recovery is unavailable or
+  unsuitable.
 - When the user does not have a network RPC URL yet, explain that they need an Ethereum JSON-RPC endpoint for the
   selected network. They can obtain one from an infrastructure provider such as Alchemy, Infura, QuickNode, or from
   their own node. Ask the user to create or select the endpoint in that provider's UI, then paste only the endpoint URL

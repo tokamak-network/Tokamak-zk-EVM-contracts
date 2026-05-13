@@ -172,7 +172,7 @@ Tokamak도 홍보 전에 반드시 다음을 공개해야 한다.
 | [x] | Channel join | 가능 | L1 account, L2 address pair, note-receive public key, channel name/id | 사용자의 향후 private note 상대방 | ChannelManager event |
 | [x] | Deposit-channel / accounting move | 가능 | bridge vault에서 channel accounting으로 들어간 금액·상태변경 | 그 금액이 향후 어떤 note transfer로 이어지는지 | bridge/channel event |
 | [x] | Note mint | 부분 가능 | commitment 생성, encrypted note-delivery event, storage update | note plaintext, owner 의미, 내부 용도 | commitment/nullifier/event explorer |
-| [ ] | Note transfer | 부분 가능 | transition accepted, commitment/nullifier/ciphertext event | sender-recipient 관계, note provenance | public observer + 사용자 선택증빙 |
+| [x] | Note transfer | 부분 가능 | transition accepted, commitment/nullifier/ciphertext event | sender-recipient 관계, note provenance | public observer + 사용자 선택증빙 |
 | [x] | Redeem note to channel balance | 부분 가능 | redeem transition, nullifier usage, accounting update | 해당 note가 내부에서 누구로부터 왔는지 | channel event |
 | [x] | Withdraw-channel / bridge withdraw | 가능 | L1 주소, 금액, tx hash, 시간 | 내부 note provenance | Etherscan / bridge event |
 | [x] | 사용자 L1 지갑 → CEX 입금 | 가능 | CEX 입금 주소, 금액, 시간, source가 bridge 출금 주소일 수 있음 | 내부 note sender/provenance | CEX + L1 explorer |
@@ -321,18 +321,18 @@ Tokamak 문서도 note-receive public key는 on-chain에 등록되지만, note-r
 
 - [x] 사용자가 보유한 note를 로컬에서 복호화한다.
 - [x] 사용자가 특정 note의 commitment, creation tx, amount, channel id를 확인한다.
-- [ ] 사용자가 특정 note가 자신에게 전달되었음을 증명할 수 있는 자료를 export한다.
-- [ ] 사용자가 특정 redeem 또는 withdraw와 자신의 note 사용을 연결해 설명할 수 있는 자료를 export한다.
+- [x] 사용자가 특정 note가 자신에게 전달되었음을 증명할 수 있는 자료를 export한다.
+- [x] 사용자가 특정 redeem 또는 withdraw와 자신의 note 사용을 연결해 설명할 수 있는 자료를 export한다.
 - [x] 이 export는 spending key를 포함하지 않는다.
-- [ ] 이 export는 전체 wallet history를 강제로 공개하지 않는다.
+- [x] 이 export는 전체 wallet history를 강제로 공개하지 않는다.
 
 아직 구현 전이라면 “roadmap”으로만 표현할 항목:
 
-- [ ] 특정 기간의 note receipt proof
-- [ ] 특정 counterparty와의 거래만 선택 공개
-- [ ] 특정 bridge deposit과 note mint 간 사용자 주도 linkage proof
-- [ ] 특정 redeem과 note ownership 간 linkage proof
-- [ ] 거래소 요청 대응용 user consent disclosure package
+- [x] 특정 기간의 note receipt proof
+- [x] 특정 counterparty와의 거래만 선택 공개
+- [x] 특정 bridge deposit과 note mint 간 사용자 주도 linkage proof
+- [x] 특정 redeem과 note ownership 간 linkage proof
+- [x] 거래소 요청 대응용 user consent disclosure package
 
 CLI 문서에 넣을 권장 문구:
 
@@ -639,8 +639,8 @@ Tokamak의 security model에서 bridge owner의 upgrade 권한과 privileged own
 - [ ] DAXA 모범사례 기준 대응표 준비
 - [ ] Travel Rule 영향 검토
 - [ ] 불법사용 대응정책 준비
-- [ ] 수사기관·거래소 요청 시 제공 가능한 public data 범위 정의
-- [ ] 사용자 선택공개 요청 절차 정의
+- [x] 수사기관·거래소 요청 시 제공 가능한 public data 범위 정의
+- [x] 사용자 선택공개 요청 절차 정의
 
 ---
 
@@ -656,8 +656,8 @@ P0는 아니지만, 상장유지 리스크를 크게 낮추는 항목이다.
 - [ ] large bridge deposit/withdraw alert
 - [ ] suspicious L1 address interaction policy
 - [ ] sanctions-screening 대상은 최소한 L1 bridge edge에서 검토하는 정책 수립
-- [ ] optional user disclosure export command
-- [ ] note evidence export format 표준화
+- [x] optional user disclosure export command
+- [x] note evidence export format 표준화
 - [ ] third-party security audit
 - [ ] bug bounty
 - [ ] reproducible build documentation

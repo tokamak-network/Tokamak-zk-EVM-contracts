@@ -2096,15 +2096,15 @@ async function main() {
       recoverWorkspaceAfterNotesResult.channelName === channelName,
       "recover-workspace must rebuild the deleted workspace after note activity.",
     );
-    deleteWorkspaceDir();
-    const recoverWalletFromGenesisAfterWorkspaceReset = recoverWallet(participants[2], { fromGenesis: true });
+    deleteWalletDir(participants[2]);
+    const recoverWalletFromGenesisAfterWalletReset = recoverWallet(participants[2], { fromGenesis: true });
     expect(
-      recoverWalletFromGenesisAfterWorkspaceReset.wallet === participants[2].walletName,
-      "recover-wallet --from-genesis must restore participant-c after workspace deletion.",
+      recoverWalletFromGenesisAfterWalletReset.wallet === participants[2].walletName,
+      "recover-wallet --from-genesis must restore participant-c after wallet workspace deletion.",
     );
-    const recoverWalletAfterWorkspaceReset = recoverWallet(participants[2]);
+    const recoverWalletAfterWalletReset = recoverWallet(participants[2]);
     expect(
-      recoverWalletAfterWorkspaceReset.wallet === participants[2].walletName,
+      recoverWalletAfterWalletReset.wallet === participants[2].walletName,
       "recover-wallet must restore participant-c from the refreshed recovery index.",
     );
 

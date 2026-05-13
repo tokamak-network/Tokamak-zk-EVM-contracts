@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.0.0 - 2026-05-13
+
 - Split wallet export/import into `wallet export backup`, `wallet export viewing-key`,
   `wallet export spending-key`, `wallet import backup`, `wallet import viewing-key`, and
   `wallet import spending-key`.
@@ -11,6 +13,30 @@
 - Replaced the previous full-control wallet workspace format with separate note-tracking,
   spending-key metadata, and viewing-key metadata files. The CLI now loads only the current
   wallet metadata format.
+- Added action-impact acknowledgements for bridge-facing, channel, and note-mutating commands.
+  The warning output covers public event exposure, private note-state impact, note provenance
+  boundaries, illegal-use prohibition, CEX deposit-address warnings, secret-recovery limits, and
+  channel policy acceptance.
+- Added full-note raw evidence export through `wallet get-notes --export-evidence` with an explicit
+  plaintext-export acknowledgement. Evidence bundles include note plaintext facts, derived
+  commitments and nullifiers, creation/spend transaction references, receipts, events, calldata, and
+  filtering indexes, while excluding viewing keys, spending keys, wallet secrets, account private
+  keys, and `.key` files.
+- Added a local static evidence investigator GUI and bundled it with the NPM package. The new
+  top-level `private-state-cli investigator` command prints the bundled HTML path, prints the file
+  URL, and opens the GUI in the default browser.
+- Clarified wallet authority recovery in the NPM README: viewing-key rederivation needs the original
+  L1 private key and channel context, while spending-key rederivation additionally needs the same
+  wallet secret source used at `channel join`.
+- Added a `channel join` success warning that losing both the spending-key file and wallet secret
+  source prevents spending-key rederivation.
+- Aligned README terminology around `private-state DApp`, `private-state CLI`, `viewing key`,
+  `spending key`, `wallet secret source`, `user-controlled selective disclosure`, and
+  `privacy-preserving note semantics`.
+- Added LLM-assistant guidance requiring strong user warnings and explicit confirmation before an
+  assistant runs commands that require `--acknowledge-*` options on a user's behalf.
+- Simplified internal CLI code paths by removing a dead `loadWallet` parameter and redundant
+  `channel join` result aliases.
 
 ## 1.2.1 - 2026-05-11
 

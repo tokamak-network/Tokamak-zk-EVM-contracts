@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Private-State Evidence Investigator</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <header class="toolbar">
+        <div>
+          <h1>Private-State Evidence Investigator</h1>
+          <p>Filter a local raw evidence ZIP into a narrower user-consent disclosure package.</p>
+        </div>
+        <label class="file-button">
+          <input id="bundleFile" type="file" accept=".zip,application/zip">
+          Load evidence ZIP
+        </label>
+      </header>
+
+      <section class="warning">
+        <strong>Raw evidence bundles are not submission packages.</strong>
+        This tool runs entirely in the browser. It reads a full-note evidence bundle, lets the user
+        select a limited disclosure scope, and writes a new ZIP containing only selected records and
+        directly referenced transaction evidence. It does not request or include viewing keys,
+        spending keys, wallet secrets, or account private keys.
+      </section>
+
+      <section class="grid">
+        <form id="filters" class="panel">
+          <h2>Filter Scope</h2>
+          <label>
+            Commitment contains
+            <input name="commitment" autocomplete="off" placeholder="0x...">
+          </label>
+          <label>
+            Nullifier contains
+            <input name="nullifier" autocomplete="off" placeholder="0x...">
+          </label>
+          <label>
+            Creation tx
+            <input name="creationTx" autocomplete="off" placeholder="0x...">
+          </label>
+          <label>
+            Spend tx
+            <input name="spendTx" autocomplete="off" placeholder="0x...">
+          </label>
+          <div class="two-col">
+            <label>
+              Created from block
+              <input name="createdFrom" inputmode="numeric" autocomplete="off">
+            </label>
+            <label>
+              Created to block
+              <input name="createdTo" inputmode="numeric" autocomplete="off">
+            </label>
+          </div>
+          <div class="two-col">
+            <label>
+              Spent from block
+              <input name="spentFrom" inputmode="numeric" autocomplete="off">
+            </label>
+            <label>
+              Spent to block
+              <input name="spentTo" inputmode="numeric" autocomplete="off">
+            </label>
+          </div>
+          <div class="two-col">
+            <label>
+              Status
+              <select name="status">
+                <option value="">Any</option>
+                <option value="unused">Unused</option>
+                <option value="spent">Spent</option>
+              </select>
+            </label>
+            <label>
+              Direction
+              <select name="direction">
+                <option value="">Any</option>
+                <option value="self-mint">Self mint</option>
+                <option value="sent">Sent</option>
+                <option value="received">Received</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            </label>
+          </div>
+          <label>
+            Counterparty L2 address
+            <input name="counterparty" autocomplete="off" placeholder="0x...">
+          </label>
+          <button id="applyFilters" type="button">Apply filters</button>
+        </form>
+
+        <form id="packageForm" class="panel">
+          <h2>Package Metadata</h2>
+          <label>
+            Case ID
+            <input name="caseId" autocomplete="off" placeholder="exchange-case-001">
+          </label>
+          <label>
+            Requesting party
+            <input name="requestingParty" autocomplete="off" placeholder="Exchange or investigator name">
+          </label>
+          <label>
+            Bridge deposit tx
+            <input name="bridgeDepositTx" autocomplete="off" placeholder="0x...">
+          </label>
+          <label>
+            Withdraw or claim tx
+            <input name="withdrawTx" autocomplete="off" placeholder="0x...">
+          </label>
+          <fieldset>
+            <legend>Disclosure intents</legend>
+            <label><input name="intent" type="checkbox" value="note-receipt" checked> Note receipt</label>
+            <label><input name="intent" type="checkbox" value="note-use" checked> Redeem or note use linkage</label>
+            <label><input name="intent" type="checkbox" value="period-receipts"> Period receipts</label>
+            <label><input name="intent" type="checkbox" value="counterparty-disclosure"> Counterparty subset</label>
+            <label><input name="intent" type="checkbox" value="deposit-mint-linkage"> Deposit to note mint linkage</label>
+            <label><input name="intent" type="checkbox" value="exchange-consent-package" checked> Exchange consent package</label>
+          </fieldset>
+          <label>
+            User statement
+            <textarea name="statement" rows="5" placeholder="Optional explanation included in the disclosure package."></textarea>
+          </label>
+          <button id="buildPackage" type="button" disabled>Build disclosure ZIP</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="table-header">
+          <h2>Matched Notes</h2>
+          <div class="actions">
+            <button id="selectAll" type="button" disabled>Select all</button>
+            <button id="selectNone" type="button" disabled>Select none</button>
+          </div>
+        </div>
+        <div id="status" class="status">Load a raw evidence ZIP to begin.</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Use</th>
+                <th>Commitment</th>
+                <th>Value</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Spent</th>
+                <th>Direction</th>
+                <th>Counterparty</th>
+              </tr>
+            </thead>
+            <tbody id="noteRows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>

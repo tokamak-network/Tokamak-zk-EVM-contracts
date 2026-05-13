@@ -49,9 +49,9 @@ channel contracts." They do not, by themselves, prove the full private note path
 
 A user may voluntarily generate wallet-derived facts that they can inspect locally. The CLI provides
 `wallet get-notes --export-evidence <PATH> --acknowledge-full-note-plaintext-export` as a local raw
-evidence bundle export. This raw bundle is not the final exchange submission package. It is intended
-as input for a separate selective-disclosure filter program that prepares a narrower user-consent
-package for the specific request.
+evidence bundle export. This raw bundle is not the final exchange submission package. The static
+investigator at `packages/apps/private-state/investigator/index.html` filters the raw bundle into a
+narrower user-consent package for the specific request.
 
 Examples of user-held facts include:
 
@@ -94,6 +94,36 @@ The raw evidence bundle does not include viewing keys, spending keys, wallet sec
 private keys, protected `.key` files, or machine-local secret directories. The bundle should not be
 submitted as-is unless full wallet-history disclosure is intended.
 
+## Selective Disclosure Investigator
+
+The repository provides a static HTML investigator under
+`packages/apps/private-state/investigator/`. It runs in the user's browser and does not require a
+server. The user loads a local raw evidence ZIP, selects a filter scope, and exports a new
+user-consent disclosure ZIP.
+
+The investigator can filter by:
+
+- specific note commitment or nullifier
+- note creation transaction or note spend transaction
+- creation or spend block range
+- current note status
+- relationship direction and available counterparty L2 address metadata
+- user-provided bridge deposit or withdraw transaction context
+
+The output package contains only the selected note records, directly referenced transaction calldata,
+receipts, event files, a scope manifest, and optional user statement. It does not include viewing
+keys, spending keys, wallet secret material, L1 private keys, protected `.key` files, or unrelated
+note records.
+
+This investigator is the intended filtering step for producing:
+
+- a specific note receipt package
+- a specific redeem or withdraw explanation linked to note use
+- a period-scoped note receipt package
+- a counterparty-scoped package when direct local metadata exists
+- a bridge-deposit-to-note-mint explanation with user-provided bridge transaction context
+- an exchange request package with a user-selected disclosure scope
+
 ## Evidence Not Available In The Current Tooling
 
 The current repository does not provide a new zero-knowledge disclosure circuit that proves
@@ -101,8 +131,8 @@ decryption or counterparty linkage without revealing selected note plaintext. Th
 is selected note plaintext disclosure backed by accepted on-chain proof transactions and public
 events.
 
-The following items should not be represented as available without the user's local raw evidence
-bundle and a separate filtering step:
+The following items should not be represented as available from public data alone or without the
+user's local raw evidence bundle and investigator filtering step:
 
 - an operator-generated report that reconstructs every private note provenance path from public data
 - a keyless cryptographic decryption proof for "I decrypted this note"

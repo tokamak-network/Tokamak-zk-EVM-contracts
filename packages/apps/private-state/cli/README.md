@@ -397,9 +397,10 @@ private-state-cli set rpc --network mainnet --rpc-url <RPC_URL> --provider alche
 ```
 
 The CLI writes `~/tokamak-private-channels/workspace/<network>/rpc-config.env` and later commands read `RPC_URL`,
-`LOG_CHUNK_SIZE`, `LOG_REQUESTS_PER_SECOND`, and `RPC_BLOCK_RANGE_CAP` from that file. Built-in provider limits are:
-Ankr `30 calls/s, 3000 blocks`; Chainstack `25 calls/s, 100 blocks`; Chainnodes `25 calls/s, 20000 blocks`;
-QuickNode `15 calls/s, 5 blocks`; Alchemy `8.33 calls/s, 10 blocks`. If the provider is not listed, use
+`LOG_CHUNK_SIZE`, `LOG_REQUESTS_PER_SECOND`, and `RPC_BLOCK_RANGE_CAP` from that file. Built-in provider limits are
+set to 90% of the provider reference values: Ankr `27 calls/s, 3000 blocks`; Chainstack `22.5 calls/s, 100 blocks`;
+Chainnodes `22.5 calls/s, 20000 blocks`; QuickNode `13.5 calls/s, 5 blocks`; Alchemy `7.497 calls/s, 10 blocks`.
+If the provider is not listed, use
 `--log-requests-per-second <N>` and `--block-range-cap <N>` instead of `--provider`.
 
 Canonical CLI secrets are checked on read: macOS/Linux uses `0600`, while Windows uses ACL repair and inspection when

@@ -33,7 +33,7 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
   logRequestsPerSecond: {
     label: "Log Requests Per Second",
     type: "text",
-    placeholder: "8.33",
+    placeholder: "7.497",
     valueLabel: "<N>",
     hint: "Optional for set rpc. Required with --block-range-cap when --provider is not used.",
     option: "--log-requests-per-second",
@@ -270,7 +270,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     usage: "--network, --rpc-url, and either --provider or both --log-requests-per-second and --block-range-cap",
     help: [
       "Writes ~/tokamak-private-channels/workspace/<network>/rpc-config.env",
-      "Built-in provider limits: ankr=30 calls/s and 3000 blocks, chainstack=25 calls/s and 100 blocks, chainnodes=25 calls/s and 20000 blocks, quicknode=15 calls/s and 5 blocks, alchemy=8.33 calls/s and 10 blocks",
+      "Built-in provider limits: ankr=27 calls/s and 3000 blocks, chainstack=22.5 calls/s and 100 blocks, chainnodes=22.5 calls/s and 20000 blocks, quicknode=13.5 calls/s and 5 blocks, alchemy=7.497 calls/s and 10 blocks",
       "All bridge-facing and wallet commands read RPC settings from this file and do not accept --rpc-url",
     ],
   },

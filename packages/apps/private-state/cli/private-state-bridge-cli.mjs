@@ -212,27 +212,27 @@ const AUTO_RECOVERY_BLOCK_BUDGET = 7200;
 const RPC_PROVIDER_LOG_LIMITS = Object.freeze({
   ankr: {
     provider: "ankr",
-    logRequestsPerSecond: 30,
+    logRequestsPerSecond: 27,
     blockRangeCap: 3000,
   },
   chainstack: {
     provider: "chainstack",
-    logRequestsPerSecond: 25,
+    logRequestsPerSecond: 22.5,
     blockRangeCap: 100,
   },
   chainnodes: {
     provider: "chainnodes",
-    logRequestsPerSecond: 25,
+    logRequestsPerSecond: 22.5,
     blockRangeCap: 20000,
   },
   quicknode: {
     provider: "quicknode",
-    logRequestsPerSecond: 15,
+    logRequestsPerSecond: 13.5,
     blockRangeCap: 5,
   },
   alchemy: {
     provider: "alchemy",
-    logRequestsPerSecond: 8.33,
+    logRequestsPerSecond: 7.497,
     blockRangeCap: 10,
   },
 });

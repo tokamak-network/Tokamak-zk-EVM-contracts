@@ -20,6 +20,8 @@
 - Extended wallet recovery to persist public creation/spend linkage from commitment and
   nullifier storage observations so raw evidence export can package stored metadata without
   running its own log scan.
+- Fixed raw evidence spend linkage so nullifier observation transactions are used as the spend
+  transition references and included with their transaction, receipt, and event evidence.
 
 ## 2.1.1 - 2026-05-14
 

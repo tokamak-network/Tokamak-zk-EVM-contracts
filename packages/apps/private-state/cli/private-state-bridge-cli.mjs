@@ -5297,6 +5297,7 @@ async function exportWalletGetNotesEvidenceBundle({
 
   const txHashes = uniqueNonNull([
     ...noteInputs.map(({ note }) => note.createdAtTxHash),
+    ...noteInputs.map(({ note }) => note.nullifierObservedAtTxHash),
     ...noteInputs.map(({ note }) => note.spentAtTxHash),
   ]);
   const transactionEvidence = await buildTransactionEvidenceMap({ provider, txHashes });
@@ -5499,6 +5500,10 @@ function applyEvidencePublicLinkage(note, linkage) {
   }
   const commitmentObservation = linkage.commitment?.observation ?? null;
   const nullifierObservation = linkage.nullifier?.observation ?? null;
+  const observedSpendTxHash = note.status === "spent" ? nullifierObservation?.txHash ?? null : null;
+  const observedSpendReplacesExisting =
+    observedSpendTxHash
+    && (!note.spentAtTxHash || ethers.toBigInt(note.spentAtTxHash) !== ethers.toBigInt(observedSpendTxHash));
   return {
     ...note,
     bridgeCommitmentKey: note.bridgeCommitmentKey ?? linkage.commitment?.storageKey ?? null,
@@ -5512,9 +5517,10 @@ function applyEvidencePublicLinkage(note, linkage) {
     createdAtTxHash: note.createdAtTxHash ?? commitmentObservation?.txHash ?? null,
     createdAtBlockNumber: note.createdAtBlockNumber ?? commitmentObservation?.blockNumber ?? null,
     createdAtLogIndex: note.createdAtLogIndex ?? commitmentObservation?.logIndex ?? null,
-    spentAtTxHash: note.spentAtTxHash ?? (note.status === "spent" ? nullifierObservation?.txHash ?? null : null),
-    spentAtBlockNumber: note.spentAtBlockNumber ?? (note.status === "spent" ? nullifierObservation?.blockNumber ?? null : null),
-    spentAtLogIndex: note.spentAtLogIndex ?? (note.status === "spent" ? nullifierObservation?.logIndex ?? null : null),
+    spentAtTxHash: observedSpendTxHash ?? note.spentAtTxHash ?? null,
+    spentAtBlockNumber: observedSpendTxHash ? nullifierObservation?.blockNumber ?? null : note.spentAtBlockNumber ?? null,
+    spentAtLogIndex: observedSpendTxHash ? nullifierObservation?.logIndex ?? null : note.spentAtLogIndex ?? null,
+    spentByFunction: observedSpendReplacesExisting ? null : note.spentByFunction ?? null,
     commitmentObservation,
     nullifierObservation,
   };
@@ -5634,13 +5640,16 @@ function buildEvidenceNoteRecord({
   const creationBlockNumber = note.createdAtBlockNumber
     ?? transactionEvidence[note.createdAtTxHash]?.transaction?.blockNumber
     ?? null;
-  const spentBlockNumber = note.spentAtBlockNumber
-    ?? transactionEvidence[note.spentAtTxHash]?.transaction?.blockNumber
+  const spentTxHash = note.nullifierObservedAtTxHash ?? note.spentAtTxHash ?? null;
+  const spentBlockNumber = note.nullifierObservedAtBlockNumber
+    ?? note.spentAtBlockNumber
+    ?? transactionEvidence[spentTxHash]?.transaction?.blockNumber
     ?? null;
   const commitmentObservationTxHash = note.commitmentObservedAtTxHash ?? note.createdAtTxHash ?? null;
   const commitmentObservationBlockNumber = note.commitmentObservedAtBlockNumber ?? creationBlockNumber;
-  const nullifierObservationTxHash = note.nullifierObservedAtTxHash ?? note.spentAtTxHash ?? null;
+  const nullifierObservationTxHash = note.nullifierObservedAtTxHash ?? spentTxHash;
   const nullifierObservationBlockNumber = note.nullifierObservedAtBlockNumber ?? spentBlockNumber;
+  const spentLogIndex = note.nullifierObservedAtLogIndex ?? note.spentAtLogIndex ?? null;
   const commitmentObservation = commitmentObservationTxHash ? {
     txHash: commitmentObservationTxHash,
     blockNumber: commitmentObservationBlockNumber,
@@ -5651,7 +5660,7 @@ function buildEvidenceNoteRecord({
   const nullifierObservation = nullifierObservationTxHash ? {
     txHash: nullifierObservationTxHash,
     blockNumber: nullifierObservationBlockNumber,
-    logIndex: note.nullifierObservedAtLogIndex ?? note.spentAtLogIndex,
+    logIndex: spentLogIndex,
     contract: context.workspace.channelManager,
     storageKey: note.bridgeNullifierKey,
   } : null;
@@ -5711,14 +5720,14 @@ function buildEvidenceNoteRecord({
     },
     spend: {
       status: note.status,
-      txHash: note.spentAtTxHash,
+      txHash: spentTxHash,
       blockNumber: spentBlockNumber,
       blockTimestamp: blockTimestampCache[Number(spentBlockNumber)]?.timestamp ?? null,
       blockTimestampIso: blockTimestampCache[Number(spentBlockNumber)]?.iso ?? null,
-      logIndex: note.spentAtLogIndex,
+      logIndex: spentLogIndex,
       function: note.spentByFunction,
       inputIndex: note.spentInputIndex,
-      acceptedTransition: note.spentAtTxHash ? acceptedTransitionReference(note.spentAtTxHash) : null,
+      acceptedTransition: spentTxHash ? acceptedTransitionReference(spentTxHash) : null,
       storageObservation: nullifierObservation,
     },
     relationshipHints: {
@@ -6293,6 +6302,32 @@ function assertWalletHasCurrentFormat(wallet, walletName) {
 }
 
 function normalizeTrackedNote(note) {
+  const nullifierObservedAtTxHash = note.nullifierObservedAtTxHash ? normalizeBytes32Hex(note.nullifierObservedAtTxHash) : null;
+  const nullifierObservedAtBlockNumber = note.nullifierObservedAtBlockNumber !== undefined && note.nullifierObservedAtBlockNumber !== null
+    ? Number(note.nullifierObservedAtBlockNumber)
+    : null;
+  const nullifierObservedAtLogIndex = note.nullifierObservedAtLogIndex !== undefined && note.nullifierObservedAtLogIndex !== null
+    ? Number(note.nullifierObservedAtLogIndex)
+    : null;
+  const explicitSpentAtTxHash = note.spentAtTxHash ? normalizeBytes32Hex(note.spentAtTxHash) : null;
+  const spentAtTxHash = note.status === "spent"
+    ? nullifierObservedAtTxHash ?? explicitSpentAtTxHash
+    : explicitSpentAtTxHash;
+  const spentTxReplacedByNullifierObservation =
+    note.status === "spent"
+    && nullifierObservedAtTxHash
+    && explicitSpentAtTxHash
+    && ethers.toBigInt(nullifierObservedAtTxHash) !== ethers.toBigInt(explicitSpentAtTxHash);
+  const spentAtBlockNumber = note.status === "spent" && nullifierObservedAtBlockNumber !== null
+    ? nullifierObservedAtBlockNumber
+    : note.spentAtBlockNumber !== undefined && note.spentAtBlockNumber !== null
+      ? Number(note.spentAtBlockNumber)
+      : null;
+  const spentAtLogIndex = note.status === "spent" && nullifierObservedAtLogIndex !== null
+    ? nullifierObservedAtLogIndex
+    : note.spentAtLogIndex !== undefined && note.spentAtLogIndex !== null
+      ? Number(note.spentAtLogIndex)
+      : null;
   return {
     owner: note.owner ? getAddress(note.owner) : null,
     value: note.value !== undefined && note.value !== null ? ethers.toBigInt(note.value).toString() : null,
@@ -6314,14 +6349,10 @@ function normalizeTrackedNote(note) {
     createdOutputIndex: note.createdOutputIndex !== undefined && note.createdOutputIndex !== null
       ? Number(note.createdOutputIndex)
       : null,
-    spentAtTxHash: note.spentAtTxHash ?? (note.status === "spent" ? note.sourceTxHash ?? null : null),
-    spentAtBlockNumber: note.spentAtBlockNumber !== undefined && note.spentAtBlockNumber !== null
-      ? Number(note.spentAtBlockNumber)
-      : null,
-    spentAtLogIndex: note.spentAtLogIndex !== undefined && note.spentAtLogIndex !== null
-      ? Number(note.spentAtLogIndex)
-      : null,
-    spentByFunction: note.spentByFunction ?? (note.status === "spent" ? note.sourceFunction ?? null : null),
+    spentAtTxHash,
+    spentAtBlockNumber,
+    spentAtLogIndex,
+    spentByFunction: spentTxReplacedByNullifierObservation ? null : note.spentByFunction ?? null,
     spentInputIndex: note.spentInputIndex !== undefined && note.spentInputIndex !== null
       ? Number(note.spentInputIndex)
       : null,
@@ -6337,13 +6368,9 @@ function normalizeTrackedNote(note) {
     commitmentObservedAtLogIndex: note.commitmentObservedAtLogIndex !== undefined && note.commitmentObservedAtLogIndex !== null
       ? Number(note.commitmentObservedAtLogIndex)
       : null,
-    nullifierObservedAtTxHash: note.nullifierObservedAtTxHash ? normalizeBytes32Hex(note.nullifierObservedAtTxHash) : null,
-    nullifierObservedAtBlockNumber: note.nullifierObservedAtBlockNumber !== undefined && note.nullifierObservedAtBlockNumber !== null
-      ? Number(note.nullifierObservedAtBlockNumber)
-      : null,
-    nullifierObservedAtLogIndex: note.nullifierObservedAtLogIndex !== undefined && note.nullifierObservedAtLogIndex !== null
-      ? Number(note.nullifierObservedAtLogIndex)
-      : null,
+    nullifierObservedAtTxHash,
+    nullifierObservedAtBlockNumber,
+    nullifierObservedAtLogIndex,
   };
 }
 

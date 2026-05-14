@@ -9,6 +9,8 @@
   current registration state.
 - Fixed RPC log request pacing so every `eth_getLogs` call passes through a shared async limiter
   instead of relying on a race-prone timestamp throttle during concurrent scans.
+- Added progress output for the wallet lifecycle registered/exited event scans that run before
+  note-delivery recovery in `wallet recover-workspace`.
 
 ## 2.1.1 - 2026-05-14
 

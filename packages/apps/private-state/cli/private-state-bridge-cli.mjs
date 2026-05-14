@@ -2520,6 +2520,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     provider,
     l1Address: signer.address,
     registration,
+    progressAction: "wallet recover-workspace",
   });
   expect(
     lifecycleEpoch,
@@ -4267,11 +4268,13 @@ async function resolveWalletLifecycleEpoch({
   provider,
   l1Address,
   registration = null,
+  progressAction = null,
 }) {
   const epochs = await readWalletLifecycleEpochs({
     context,
     provider,
     l1Address,
+    progressAction,
   });
   if (registration?.exists) {
     const active = [...epochs].reverse().find((epoch) => (
@@ -4287,7 +4290,7 @@ async function resolveWalletLifecycleEpoch({
   return epochs[epochs.length - 1] ?? null;
 }
 
-async function readWalletLifecycleEpochs({ context, provider, l1Address }) {
+async function readWalletLifecycleEpochs({ context, provider, l1Address, progressAction = null }) {
   const fromBlock = Number(context.workspace.genesisBlockNumber ?? 0);
   const registeredLogs = await queryContractEventsChunked({
     contract: context.channelManager,
@@ -4295,6 +4298,9 @@ async function readWalletLifecycleEpochs({ context, provider, l1Address }) {
     eventArgs: [l1Address],
     fromBlock,
     toBlock: "latest",
+    onProgress: progressAction
+      ? createRpcLogScanProgress({ action: progressAction, label: "wallet-lifecycle registered events" })
+      : null,
   });
   const exitedLogs = await queryContractEventsChunked({
     contract: context.channelManager,
@@ -4302,6 +4308,9 @@ async function readWalletLifecycleEpochs({ context, provider, l1Address }) {
     eventArgs: [l1Address],
     fromBlock,
     toBlock: "latest",
+    onProgress: progressAction
+      ? createRpcLogScanProgress({ action: progressAction, label: "wallet-lifecycle exited events" })
+      : null,
   });
   const exits = await Promise.all(exitedLogs.map((log) => walletExitFromLog({ log, provider })));
   const epochs = [];

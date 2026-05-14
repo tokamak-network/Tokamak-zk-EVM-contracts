@@ -706,7 +706,8 @@ async function main() {
     }
     case "channel-recover-workspace": {
       assertRecoverWorkspaceArgs(args);
-      const { network, provider } = loadExplicitCommandRuntime(args);
+      const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args, { staticNetwork: true });
+      await assertProviderChainIdMatchesNetwork({ provider, network, rpcUrl });
       await prepareDeploymentArtifacts(network.chainId);
       await handleWorkspaceInit({ args, network, provider });
       return;
@@ -755,7 +756,8 @@ async function main() {
     }
     case "wallet-recover-workspace": {
       assertRecoverWalletArgs(args);
-      const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args);
+      const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args, { staticNetwork: true });
+      await assertProviderChainIdMatchesNetwork({ provider, network, rpcUrl });
       await prepareDeploymentArtifacts(network.chainId);
       await handleRecoverWallet({ args, network, provider, rpcUrl });
       return;
@@ -10905,18 +10907,33 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function loadExplicitCommandRuntime(args) {
+function loadExplicitCommandRuntime(args, { staticNetwork = false } = {}) {
   const networkName = requireNetworkName(args);
   const network = {
     ...resolveCliNetwork(networkName),
     name: networkName,
   };
   const rpcUrl = resolveCommandRpcUrl(args);
+  const provider = staticNetwork
+    ? new JsonRpcProvider(rpcUrl, Number(network.chainId), { staticNetwork: true })
+    : new JsonRpcProvider(rpcUrl);
   return {
     network,
     rpcUrl,
-    provider: new JsonRpcProvider(rpcUrl),
+    provider,
   };
+}
+
+async function assertProviderChainIdMatchesNetwork({ provider, network, rpcUrl }) {
+  const remoteChainId = ethers.toBigInt(await provider.send("eth_chainId", []));
+  const expectedChainId = ethers.toBigInt(network.chainId);
+  expect(
+    remoteChainId === expectedChainId,
+    [
+      `RPC URL ${redactRpcUrl(rpcUrl)} is connected to chainId ${remoteChainId.toString()},`,
+      `but --network ${network.name} requires chainId ${expectedChainId.toString()}.`,
+    ].join(" "),
+  );
 }
 
 function loadWalletCommandRuntime(args) {

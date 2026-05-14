@@ -366,8 +366,9 @@ note-delivery events and rebuild the user's readable note view. Sharing it gives
 registered note-receive public key, but not spending authority.
 
 The spending key is the channel-bound L2 private key. It authorizes proof-backed use of the wallet identity. Commands
-that consume existing notes, such as `wallet transfer-notes` and `wallet redeem-notes`, need both the viewing key and
-the spending key because the CLI must first reconstruct the plaintext notes and then prove authorized use of them.
+that create or consume notes, such as `wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`, need both
+the viewing key and the spending key because the CLI refreshes the readable note workspace after accepted note
+transactions and then proves authorized note use when inputs are consumed.
 
 Key recovery is intentionally split. Recreating the viewing key requires the original L1 private key and the same channel
 context. Recreating the spending key requires the original L1 private key, the same channel context, and the same wallet

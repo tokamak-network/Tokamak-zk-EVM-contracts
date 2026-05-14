@@ -2618,6 +2618,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       context,
       noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
       logs: recoveryEventScan.deliveryLogs,
+      storageObservationLogs: recoveryEventScan.storageObservationLogs,
       scanStartBlock: noteScanStartBlock,
       latestBlock: recoveryEventScan.scanRange.toBlock,
     });
@@ -2642,6 +2643,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       l2Nonce: existingWallet.wallet.l2Nonce,
       recoveredFromLogs: recoveredDeliveryState.importedNotes,
       scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
+      linkedEvidence: recoveredDeliveryState.linkedEvidence,
       noteReceiveScanRange: recoveredDeliveryState.scanRange,
     });
     return;
@@ -2674,6 +2676,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     context,
     noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
     logs: recoveryEventScan.deliveryLogs,
+    storageObservationLogs: recoveryEventScan.storageObservationLogs,
     scanStartBlock: noteScanStartBlock,
     latestBlock: recoveryEventScan.scanRange.toBlock,
   });
@@ -2699,6 +2702,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     l2Nonce: walletContext.wallet.l2Nonce,
     recoveredFromLogs: recoveredDeliveryState.importedNotes,
     scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
+    linkedEvidence: recoveredDeliveryState.linkedEvidence,
     noteReceiveScanRange: recoveredDeliveryState.scanRange,
   });
 }
@@ -4432,14 +4436,16 @@ async function scanWalletRecoveryEvents({ context, provider, l1Address, progress
   const normalizedRegisteredTopic = normalizeBytes32Hex(registeredTopic);
   const normalizedExitedTopic = normalizeBytes32Hex(exitedTopic);
   const normalizedNoteTopic = normalizeBytes32Hex(NOTE_VALUE_ENCRYPTED_TOPIC);
+  const normalizedStorageObservedTopic = normalizeBytes32Hex(CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC);
   const normalizedL1Address = getAddress(l1Address);
   const registeredLogs = [];
   const exitedLogs = [];
   const deliveryLogs = [];
+  const storageObservationLogs = [];
 
   await fetchLogsChunked(provider, {
     address: context.workspace.channelManager,
-    topics: [[registeredTopic, exitedTopic, NOTE_VALUE_ENCRYPTED_TOPIC]],
+    topics: [[registeredTopic, exitedTopic, NOTE_VALUE_ENCRYPTED_TOPIC, CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC]],
     fromBlock,
     toBlock,
     collectLogs: false,
@@ -4451,6 +4457,10 @@ async function scanWalletRecoveryEvents({ context, provider, l1Address, progress
         const normalizedTopic0 = normalizeBytes32Hex(log.topics?.[0] ?? ZERO_TOPIC);
         if (normalizedTopic0 === normalizedNoteTopic) {
           deliveryLogs.push(log);
+          continue;
+        }
+        if (normalizedTopic0 === normalizedStorageObservedTopic) {
+          storageObservationLogs.push(log);
           continue;
         }
         if (normalizedTopic0 !== normalizedRegisteredTopic && normalizedTopic0 !== normalizedExitedTopic) {
@@ -4479,6 +4489,7 @@ async function scanWalletRecoveryEvents({ context, provider, l1Address, progress
     registeredLogs,
     exitedLogs,
     deliveryLogs,
+    storageObservationLogs,
     scanRange: {
       fromBlock,
       toBlock,
@@ -5000,6 +5011,7 @@ function resolveFunctionMetadataProofForExecution({
 async function handleMintNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
   requireActiveWalletLifecycle(wallet, "wallet mint-notes");
+  requireWalletViewingCapability(wallet);
   requireWalletSpendingCapability(wallet);
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const amountInputs = parseAmountVector(requireArg(args.amounts, "--amounts"), {
@@ -5074,13 +5086,13 @@ async function handleMintNotes({ args, provider }) {
       outputNotes: templatePayload.lifecycleOutputs,
       sourceFunction: templatePayload.method,
       sourceTxHash: execution.receipt.hash,
-      bridgeCommitmentKeys: execution.noteLifecycle.outputCommitmentKeys,
       sourceBlockNumber: execution.receipt.blockNumber,
     }),
     gasUsed: receiptGasUsed(execution.receipt),
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace: contextResult.recoveredWorkspace,
+    postTransactionRecovery: execution.postTransactionRecovery,
     warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
@@ -5155,6 +5167,7 @@ async function handleRedeemNotes({ args, provider }) {
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace: contextResult.recoveredWorkspace,
+    postTransactionRecovery: execution.postTransactionRecovery,
     warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
@@ -5240,6 +5253,7 @@ async function handleWalletGetNotes({ args, provider }) {
     recoveredWalletWorkspace: noteReceiveFreshness.recoveredWalletWorkspace,
     recoveredFromLogs: noteReceiveFreshness.recoveredDeliveryState?.importedNotes ?? 0,
     scannedDeliveryLogs: noteReceiveFreshness.recoveredDeliveryState?.scannedLogs ?? 0,
+    linkedEvidence: noteReceiveFreshness.recoveredDeliveryState?.linkedEvidence ?? null,
     noteReceiveScanRange: noteReceiveFreshness.recoveredDeliveryState?.scanRange ?? null,
     evidenceExport,
   });
@@ -5406,6 +5420,145 @@ function validateEvidenceNotePlaintext(note, wallet) {
   );
 }
 
+function buildEvidencePublicLinkageMap({ context, noteInputs, storageObservationLogs }) {
+  const storageLayoutManifest = readJson(context.workspace.storageLayoutPath);
+  const commitmentExistsSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "commitmentExists"));
+  const nullifierUsedSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "nullifierUsed"));
+  const linkageByCommitment = {};
+  const targetKeys = new Map();
+  for (const { note } of noteInputs) {
+    const commitmentKey = normalizeBytes32Hex(
+      note.bridgeCommitmentKey ?? derivePrivateStateControllerMappingStorageKey(note.commitment, commitmentExistsSlot),
+    );
+    const nullifierKey = normalizeBytes32Hex(
+      note.bridgeNullifierKey ?? derivePrivateStateControllerMappingStorageKey(note.nullifier, nullifierUsedSlot),
+    );
+    linkageByCommitment[note.commitment] = {
+      commitment: {
+        storageKey: commitmentKey,
+        observation: null,
+      },
+      nullifier: {
+        storageKey: nullifierKey,
+        observation: null,
+      },
+    };
+    targetKeys.set(ethers.toBigInt(commitmentKey).toString(), {
+      commitment: note.commitment,
+      type: "commitment",
+    });
+    targetKeys.set(ethers.toBigInt(nullifierKey).toString(), {
+      commitment: note.commitment,
+      type: "nullifier",
+    });
+  }
+  for (const log of storageObservationLogs ?? []) {
+    const storageKey = decodeControllerStorageKeyObservedLog(log);
+    if (!storageKey) {
+      continue;
+    }
+    const target = targetKeys.get(ethers.toBigInt(storageKey).toString());
+    if (!target) {
+      continue;
+    }
+    const linkage = linkageByCommitment[target.commitment]?.[target.type];
+    if (!linkage || linkage.observation) {
+      continue;
+    }
+    linkage.observation = {
+      txHash: normalizeBytes32Hex(log.transactionHash),
+      blockNumber: Number(log.blockNumber),
+      logIndex: Number(log.index ?? log.logIndex),
+      contract: getAddress(log.address),
+      storageKey,
+    };
+  }
+  return linkageByCommitment;
+}
+
+function decodeControllerStorageKeyObservedLog(log) {
+  try {
+    const topic0 = log.topics?.[0] ? normalizeBytes32Hex(log.topics[0]) : null;
+    if (topic0 !== normalizeBytes32Hex(CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC)) {
+      return null;
+    }
+    const { storageKey } = controllerStorageKeyObservedEventInterface.decodeEventLog(
+      "StorageKeyObserved",
+      log.data,
+      log.topics,
+    );
+    return normalizeBytes32Hex(storageKey);
+  } catch {
+    return null;
+  }
+}
+
+function applyEvidencePublicLinkage(note, linkage) {
+  if (!linkage) {
+    return note;
+  }
+  const commitmentObservation = linkage.commitment?.observation ?? null;
+  const nullifierObservation = linkage.nullifier?.observation ?? null;
+  return {
+    ...note,
+    bridgeCommitmentKey: note.bridgeCommitmentKey ?? linkage.commitment?.storageKey ?? null,
+    bridgeNullifierKey: note.bridgeNullifierKey ?? linkage.nullifier?.storageKey ?? null,
+    commitmentObservedAtTxHash: note.commitmentObservedAtTxHash ?? commitmentObservation?.txHash ?? null,
+    commitmentObservedAtBlockNumber: note.commitmentObservedAtBlockNumber ?? commitmentObservation?.blockNumber ?? null,
+    commitmentObservedAtLogIndex: note.commitmentObservedAtLogIndex ?? commitmentObservation?.logIndex ?? null,
+    nullifierObservedAtTxHash: note.nullifierObservedAtTxHash ?? nullifierObservation?.txHash ?? null,
+    nullifierObservedAtBlockNumber: note.nullifierObservedAtBlockNumber ?? nullifierObservation?.blockNumber ?? null,
+    nullifierObservedAtLogIndex: note.nullifierObservedAtLogIndex ?? nullifierObservation?.logIndex ?? null,
+    createdAtTxHash: note.createdAtTxHash ?? commitmentObservation?.txHash ?? null,
+    createdAtBlockNumber: note.createdAtBlockNumber ?? commitmentObservation?.blockNumber ?? null,
+    createdAtLogIndex: note.createdAtLogIndex ?? commitmentObservation?.logIndex ?? null,
+    spentAtTxHash: note.spentAtTxHash ?? (note.status === "spent" ? nullifierObservation?.txHash ?? null : null),
+    spentAtBlockNumber: note.spentAtBlockNumber ?? (note.status === "spent" ? nullifierObservation?.blockNumber ?? null : null),
+    spentAtLogIndex: note.spentAtLogIndex ?? (note.status === "spent" ? nullifierObservation?.logIndex ?? null : null),
+    commitmentObservation,
+    nullifierObservation,
+  };
+}
+
+function applyEvidenceLinkageToWalletFromStorageObservations({ walletContext, context, storageObservationLogs }) {
+  const unusedNotes = Object.values(walletContext.wallet.notes.unused ?? {}).map(normalizeTrackedNote);
+  const spentNotes = Object.values(walletContext.wallet.notes.spent ?? {}).map(normalizeTrackedNote);
+  const allNotes = [...unusedNotes, ...spentNotes];
+  if (allNotes.length === 0) {
+    return {
+      linkedCommitments: 0,
+      linkedNullifiers: 0,
+    };
+  }
+
+  const linkageByCommitment = buildEvidencePublicLinkageMap({
+    context,
+    noteInputs: allNotes.map((note) => ({ note })),
+    storageObservationLogs,
+  });
+  let linkedCommitments = 0;
+  let linkedNullifiers = 0;
+  const linkNote = (note) => {
+    const linkedNote = normalizeTrackedNote(applyEvidencePublicLinkage(note, linkageByCommitment[note.commitment]));
+    if (linkedNote.commitmentObservedAtTxHash) {
+      linkedCommitments += 1;
+    }
+    if (linkedNote.nullifierObservedAtTxHash) {
+      linkedNullifiers += 1;
+    }
+    return linkedNote;
+  };
+  const linkedUnusedNotes = unusedNotes.map(linkNote);
+  const linkedSpentNotes = spentNotes.map(linkNote);
+  walletContext.wallet.notes.unused = Object.fromEntries(linkedUnusedNotes.map((note) => [note.commitment, note]));
+  walletContext.wallet.notes.spent = Object.fromEntries(linkedSpentNotes.map((note) => [note.nullifier, note]));
+  walletContext.wallet = normalizeWallet(walletContext.wallet);
+  return {
+    linkedCommitments,
+    linkedNullifiers,
+  };
+}
+
 async function buildTransactionEvidenceMap({ provider, txHashes }) {
   const entries = {};
   for (const txHash of txHashes) {
@@ -5484,6 +5637,24 @@ function buildEvidenceNoteRecord({
   const spentBlockNumber = note.spentAtBlockNumber
     ?? transactionEvidence[note.spentAtTxHash]?.transaction?.blockNumber
     ?? null;
+  const commitmentObservationTxHash = note.commitmentObservedAtTxHash ?? note.createdAtTxHash ?? null;
+  const commitmentObservationBlockNumber = note.commitmentObservedAtBlockNumber ?? creationBlockNumber;
+  const nullifierObservationTxHash = note.nullifierObservedAtTxHash ?? note.spentAtTxHash ?? null;
+  const nullifierObservationBlockNumber = note.nullifierObservedAtBlockNumber ?? spentBlockNumber;
+  const commitmentObservation = commitmentObservationTxHash ? {
+    txHash: commitmentObservationTxHash,
+    blockNumber: commitmentObservationBlockNumber,
+    logIndex: note.commitmentObservedAtLogIndex,
+    contract: context.workspace.channelManager,
+    storageKey: note.bridgeCommitmentKey,
+  } : null;
+  const nullifierObservation = nullifierObservationTxHash ? {
+    txHash: nullifierObservationTxHash,
+    blockNumber: nullifierObservationBlockNumber,
+    logIndex: note.nullifierObservedAtLogIndex ?? note.spentAtLogIndex,
+    contract: context.workspace.channelManager,
+    storageKey: note.bridgeNullifierKey,
+  } : null;
   const scheme = note.encryptedNoteValue ? unpackEncryptedNoteValue(note.encryptedNoteValue).scheme : null;
   return normalizeCliOutput({
     recordType: "note-evidence",
@@ -5511,6 +5682,10 @@ function buildEvidenceNoteRecord({
       commitmentStorageKey: note.bridgeCommitmentKey,
       nullifierStorageKey: note.bridgeNullifierKey,
     },
+    publicStorageObservations: {
+      commitment: commitmentObservation,
+      nullifier: nullifierObservation,
+    },
     encryptedDelivery: {
       encryptedNoteValue: note.encryptedNoteValue,
       saltDerivation: "poseidon(encryptedNoteValue)",
@@ -5532,6 +5707,7 @@ function buildEvidenceNoteRecord({
       function: note.createdByFunction,
       outputIndex: note.createdOutputIndex,
       acceptedTransition: acceptedTransitionReference(note.createdAtTxHash),
+      storageObservation: commitmentObservation,
     },
     spend: {
       status: note.status,
@@ -5539,9 +5715,11 @@ function buildEvidenceNoteRecord({
       blockNumber: spentBlockNumber,
       blockTimestamp: blockTimestampCache[Number(spentBlockNumber)]?.timestamp ?? null,
       blockTimestampIso: blockTimestampCache[Number(spentBlockNumber)]?.iso ?? null,
+      logIndex: note.spentAtLogIndex,
       function: note.spentByFunction,
       inputIndex: note.spentInputIndex,
       acceptedTransition: note.spentAtTxHash ? acceptedTransitionReference(note.spentAtTxHash) : null,
+      storageObservation: nullifierObservation,
     },
     relationshipHints: {
       direction: note.counterpartyDirection ?? inferEvidenceDirection(note, scheme),
@@ -5809,7 +5987,6 @@ async function handleTransferNotes({ args, provider }) {
     outputNotes: templatePayload.lifecycleOutputs,
     sourceFunction: templatePayload.method,
     sourceTxHash: execution.receipt.hash,
-    bridgeCommitmentKeys: execution.noteLifecycle.outputCommitmentKeys,
     sourceBlockNumber: execution.receipt.blockNumber,
     counterpartyL2Addresses: templatePayload.recipientAddresses,
     counterpartyDirection: "sent",
@@ -5838,6 +6015,7 @@ async function handleTransferNotes({ args, provider }) {
     txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace: contextResult.recoveredWorkspace,
+    postTransactionRecovery: execution.postTransactionRecovery,
     warnings: walletWarnings,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
@@ -6140,6 +6318,9 @@ function normalizeTrackedNote(note) {
     spentAtBlockNumber: note.spentAtBlockNumber !== undefined && note.spentAtBlockNumber !== null
       ? Number(note.spentAtBlockNumber)
       : null,
+    spentAtLogIndex: note.spentAtLogIndex !== undefined && note.spentAtLogIndex !== null
+      ? Number(note.spentAtLogIndex)
+      : null,
     spentByFunction: note.spentByFunction ?? (note.status === "spent" ? note.sourceFunction ?? null : null),
     spentInputIndex: note.spentInputIndex !== undefined && note.spentInputIndex !== null
       ? Number(note.spentInputIndex)
@@ -6149,6 +6330,20 @@ function normalizeTrackedNote(note) {
     counterpartyConfidence: note.counterpartyConfidence ?? null,
     bridgeCommitmentKey: note.bridgeCommitmentKey ? normalizeBytes32Hex(note.bridgeCommitmentKey) : null,
     bridgeNullifierKey: note.bridgeNullifierKey ? normalizeBytes32Hex(note.bridgeNullifierKey) : null,
+    commitmentObservedAtTxHash: note.commitmentObservedAtTxHash ? normalizeBytes32Hex(note.commitmentObservedAtTxHash) : null,
+    commitmentObservedAtBlockNumber: note.commitmentObservedAtBlockNumber !== undefined && note.commitmentObservedAtBlockNumber !== null
+      ? Number(note.commitmentObservedAtBlockNumber)
+      : null,
+    commitmentObservedAtLogIndex: note.commitmentObservedAtLogIndex !== undefined && note.commitmentObservedAtLogIndex !== null
+      ? Number(note.commitmentObservedAtLogIndex)
+      : null,
+    nullifierObservedAtTxHash: note.nullifierObservedAtTxHash ? normalizeBytes32Hex(note.nullifierObservedAtTxHash) : null,
+    nullifierObservedAtBlockNumber: note.nullifierObservedAtBlockNumber !== undefined && note.nullifierObservedAtBlockNumber !== null
+      ? Number(note.nullifierObservedAtBlockNumber)
+      : null,
+    nullifierObservedAtLogIndex: note.nullifierObservedAtLogIndex !== undefined && note.nullifierObservedAtLogIndex !== null
+      ? Number(note.nullifierObservedAtLogIndex)
+      : null,
   };
 }
 
@@ -6189,6 +6384,7 @@ async function buildWalletNoteBridgeStatus({
     createdOutputIndex: note.createdOutputIndex ?? null,
     spentAtTxHash: note.spentAtTxHash ?? null,
     spentAtBlockNumber: note.spentAtBlockNumber ?? null,
+    spentAtLogIndex: note.spentAtLogIndex ?? null,
     spentByFunction: note.spentByFunction ?? null,
     spentInputIndex: note.spentInputIndex ?? null,
     counterpartyL2Address: note.counterpartyL2Address ?? null,
@@ -6238,6 +6434,7 @@ function buildTrackedNote(note, sourceFunction, sourceTxHash, bridgeKeys = {}) {
     createdOutputIndex: bridgeKeys.createdOutputIndex ?? null,
     spentAtTxHash: bridgeKeys.spentAtTxHash ?? null,
     spentAtBlockNumber: bridgeKeys.spentAtBlockNumber ?? null,
+    spentAtLogIndex: bridgeKeys.spentAtLogIndex ?? null,
     spentByFunction: bridgeKeys.spentByFunction ?? null,
     spentInputIndex: bridgeKeys.spentInputIndex ?? null,
     counterpartyL2Address: bridgeKeys.counterpartyL2Address ? getAddress(bridgeKeys.counterpartyL2Address) : null,
@@ -6249,6 +6446,12 @@ function buildTrackedNote(note, sourceFunction, sourceTxHash, bridgeKeys = {}) {
     bridgeNullifierKey: bridgeKeys.bridgeNullifierKey
       ? normalizeBytes32Hex(bridgeKeys.bridgeNullifierKey)
       : null,
+    commitmentObservedAtTxHash: bridgeKeys.commitmentObservedAtTxHash ?? null,
+    commitmentObservedAtBlockNumber: bridgeKeys.commitmentObservedAtBlockNumber ?? null,
+    commitmentObservedAtLogIndex: bridgeKeys.commitmentObservedAtLogIndex ?? null,
+    nullifierObservedAtTxHash: bridgeKeys.nullifierObservedAtTxHash ?? null,
+    nullifierObservedAtBlockNumber: bridgeKeys.nullifierObservedAtBlockNumber ?? null,
+    nullifierObservedAtLogIndex: bridgeKeys.nullifierObservedAtLogIndex ?? null,
   };
 }
 
@@ -6306,10 +6509,11 @@ async function recoverDeliveredNotesFromEventLogs({
   context,
   provider,
   noteReceivePrivateKey,
+  storageObservationLogs = null,
   progressAction = null,
   fromGenesis = false,
 }) {
-  const latestBlock = await provider.getBlockNumber();
+  const latestBlock = await fetchFreshBlockNumber(provider);
   const scanStartBlock = fromGenesis
     ? Number(context.workspace.genesisBlockNumber)
     : requireUsableWalletNoteReceiveRecoveryIndex({
@@ -6328,12 +6532,18 @@ async function recoverDeliveredNotesFromEventLogs({
       currentSnapshot: context.currentSnapshot,
       controllerAddress: context.workspace.controller,
     });
+    const linkedEvidence = applyEvidenceLinkageToWalletFromStorageObservations({
+      walletContext,
+      context,
+      storageObservationLogs: storageObservationLogs ?? [],
+    });
     walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
     persistWallet(walletContext);
     return {
       importedNotes: [],
       reconciledState,
       scannedLogs: 0,
+      linkedEvidence,
       scanRange,
     };
   }
@@ -6347,9 +6557,10 @@ async function recoverDeliveredNotesFromEventLogs({
   let reconciledState = null;
   let scannedLogs = 0;
 
+  const collectedStorageObservationLogs = [];
   await fetchLogsChunked(provider, {
     address: context.workspace.channelManager,
-    topics: [NOTE_VALUE_ENCRYPTED_TOPIC],
+    topics: [[NOTE_VALUE_ENCRYPTED_TOPIC, CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC]],
     fromBlock: scanStartBlock,
     toBlock: latestBlock,
     collectLogs: false,
@@ -6357,9 +6568,20 @@ async function recoverDeliveredNotesFromEventLogs({
       ? createRpcLogScanProgress({ action: progressAction, label: "note-delivery events" })
       : null,
     onChunk: async ({ logs, chunkToBlock }) => {
-      scannedLogs += logs.length;
+      const deliveryLogs = [];
+      const storageLogs = [];
+      for (const log of logs) {
+        const topic0 = log.topics?.[0] ? normalizeBytes32Hex(log.topics[0]) : null;
+        if (topic0 === normalizeBytes32Hex(NOTE_VALUE_ENCRYPTED_TOPIC)) {
+          deliveryLogs.push(log);
+        } else if (topic0 === normalizeBytes32Hex(CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC)) {
+          storageLogs.push(log);
+        }
+      }
+      scannedLogs += deliveryLogs.length;
+      collectedStorageObservationLogs.push(...storageLogs);
       const importedCandidates = await recoverDeliveredNoteCandidatesFromLogs({
-        logs,
+        logs: deliveryLogs,
         walletContext,
         context,
         noteReceivePrivateKey,
@@ -6384,12 +6606,18 @@ async function recoverDeliveredNotesFromEventLogs({
     currentSnapshot: context.currentSnapshot,
     controllerAddress: context.workspace.controller,
   });
+  const linkedEvidence = applyEvidenceLinkageToWalletFromStorageObservations({
+    walletContext,
+    context,
+    storageObservationLogs: storageObservationLogs ?? collectedStorageObservationLogs,
+  });
   walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
   persistWallet(walletContext);
   return {
     importedNotes,
     reconciledState,
     scannedLogs,
+    linkedEvidence,
     scanRange,
   };
 }
@@ -6399,6 +6627,7 @@ async function recoverDeliveredNotesFromCollectedLogs({
   context,
   noteReceivePrivateKey,
   logs,
+  storageObservationLogs = [],
   scanStartBlock,
   latestBlock,
 }) {
@@ -6413,12 +6642,18 @@ async function recoverDeliveredNotesFromCollectedLogs({
       currentSnapshot: context.currentSnapshot,
       controllerAddress: context.workspace.controller,
     });
+    const linkedEvidence = applyEvidenceLinkageToWalletFromStorageObservations({
+      walletContext,
+      context,
+      storageObservationLogs,
+    });
     walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
     persistWallet(walletContext);
     return {
       importedNotes: [],
       reconciledState,
       scannedLogs: 0,
+      linkedEvidence,
       scanRange,
     };
   }
@@ -6446,12 +6681,18 @@ async function recoverDeliveredNotesFromCollectedLogs({
     currentSnapshot: context.currentSnapshot,
     controllerAddress: context.workspace.controller,
   });
+  const linkedEvidence = applyEvidenceLinkageToWalletFromStorageObservations({
+    walletContext,
+    context,
+    storageObservationLogs,
+  });
   walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
   persistWallet(walletContext);
   return {
     importedNotes,
     reconciledState,
     scannedLogs: deliveryLogs.length,
+    linkedEvidence,
     scanRange,
   };
 }
@@ -6551,7 +6792,7 @@ function requireUsableWalletNoteReceiveRecoveryIndex({ walletContext, context, l
 }
 
 async function assertWalletNoteReceiveStateFresh({ walletContext, context, provider }) {
-  const latestBlock = await provider.getBlockNumber();
+  const latestBlock = await fetchFreshBlockNumber(provider);
   const nextBlock = requireUsableWalletNoteReceiveRecoveryIndex({
     walletContext,
     context,
@@ -6578,7 +6819,7 @@ async function ensureWalletNoteReceiveStateCurrent({
   progressAction = null,
   preConsumedBlockDelta = 0,
 }) {
-  const latestBlock = await provider.getBlockNumber();
+  const latestBlock = await fetchFreshBlockNumber(provider);
   let nextBlock;
   try {
     nextBlock = requireUsableWalletNoteReceiveRecoveryIndex({
@@ -6650,31 +6891,6 @@ async function ensureWalletNoteReceiveStateCurrent({
   }
 }
 
-async function buildPostWalletCommandWarnings({ walletContext, context, provider, receipt }) {
-  const latestBlock = await provider.getBlockNumber();
-  const noteReceiveNextBlock = Number(walletContext.wallet.noteReceiveLastScannedBlock);
-  const warnings = [];
-  if (
-    Number.isInteger(noteReceiveNextBlock)
-    && receipt?.blockNumber !== undefined
-    && noteReceiveNextBlock <= Number(receipt.blockNumber)
-  ) {
-    warnings.push([
-      `Wallet note workspace may be stale after block ${receipt.blockNumber}.`,
-      `Run wallet recover-workspace --channel-name ${context.workspace.channelName}`,
-      `--network ${context.workspace.network}`,
-      `--account <ACCOUNT> before commands that read or spend newly received notes.`,
-    ].join(" "));
-  } else if (Number.isInteger(noteReceiveNextBlock) && noteReceiveNextBlock !== latestBlock + 1) {
-    warnings.push([
-      "Wallet note workspace is not aligned with the latest block.",
-      `noteReceiveLastScannedBlock is ${noteReceiveNextBlock}, latest block requires ${latestBlock + 1}.`,
-      "Run wallet recover-workspace before commands that read or spend wallet notes.",
-    ].join(" "));
-  }
-  return warnings;
-}
-
 function extractEncryptedNoteValueFromBridgeLog(log) {
   if (!Array.isArray(log?.topics) || log.topics.length !== 1) {
     return null;
@@ -6711,6 +6927,25 @@ function buildImportedTrackedNote(note) {
   const trackedNote = buildTrackedNote(note, note.sourceFunction ?? null, note.sourceTxHash ?? null, {
     bridgeCommitmentKey: note.bridgeCommitmentKey ?? null,
     bridgeNullifierKey: note.bridgeNullifierKey ?? null,
+    createdAtTxHash: note.createdAtTxHash ?? note.sourceTxHash ?? null,
+    createdAtBlockNumber: note.createdAtBlockNumber ?? null,
+    createdAtLogIndex: note.createdAtLogIndex ?? null,
+    createdByFunction: note.createdByFunction ?? note.sourceFunction ?? null,
+    createdOutputIndex: note.createdOutputIndex ?? null,
+    spentAtTxHash: note.spentAtTxHash ?? null,
+    spentAtBlockNumber: note.spentAtBlockNumber ?? null,
+    spentAtLogIndex: note.spentAtLogIndex ?? null,
+    spentByFunction: note.spentByFunction ?? null,
+    spentInputIndex: note.spentInputIndex ?? null,
+    counterpartyL2Address: note.counterpartyL2Address ?? null,
+    counterpartyDirection: note.counterpartyDirection ?? null,
+    counterpartyConfidence: note.counterpartyConfidence ?? null,
+    commitmentObservedAtTxHash: note.commitmentObservedAtTxHash ?? null,
+    commitmentObservedAtBlockNumber: note.commitmentObservedAtBlockNumber ?? null,
+    commitmentObservedAtLogIndex: note.commitmentObservedAtLogIndex ?? null,
+    nullifierObservedAtTxHash: note.nullifierObservedAtTxHash ?? null,
+    nullifierObservedAtBlockNumber: note.nullifierObservedAtBlockNumber ?? null,
+    nullifierObservedAtLogIndex: note.nullifierObservedAtLogIndex ?? null,
   });
   if (note.commitment !== undefined) {
     expect(
@@ -6738,166 +6973,6 @@ function normalizePlaintextNote(note) {
 function derivePrivateStateControllerMappingStorageKey(keyHex, slot) {
   const encoded = abiCoder.encode(["bytes32", "uint256"], [normalizeBytes32Hex(keyHex), ethers.toBigInt(slot)]);
   return normalizeBytes32Hex(bytesToHex(poseidon(hexToBytes(addHexPrefix(String(encoded ?? "").replace(/^0x/i, ""))))));
-}
-
-function extractNoteLifecycle(functionName, templatePayload) {
-  if (functionName.startsWith("mintNotes")) {
-    return {
-      inputs: [],
-      outputs: templatePayload.lifecycleOutputs ?? [],
-    };
-  }
-  if (functionName.startsWith("transferNotes")) {
-    return {
-      inputs: templatePayload.lifecycleInputs ?? [],
-      outputs: templatePayload.lifecycleOutputs ?? [],
-    };
-  }
-  if (functionName.startsWith("redeemNotes")) {
-    return {
-      inputs: templatePayload.args[0] ?? [],
-      outputs: [],
-    };
-  }
-  return {
-    inputs: [],
-    outputs: [],
-  };
-}
-
-function extractControllerStorageDelta({ previousSnapshot, nextSnapshot, controllerAddress, lifecycle }) {
-  const normalizedControllerAddress = getAddress(controllerAddress);
-  const previousStorageAddressIndex = previousSnapshot.storageAddresses.findIndex(
-    (entry) => ethers.toBigInt(getAddress(entry)) === ethers.toBigInt(normalizedControllerAddress),
-  );
-  const nextStorageAddressIndex = nextSnapshot.storageAddresses.findIndex(
-    (entry) => ethers.toBigInt(getAddress(entry)) === ethers.toBigInt(normalizedControllerAddress),
-  );
-  expect(previousStorageAddressIndex !== -1, `Storage snapshot does not include ${normalizedControllerAddress}.`);
-  expect(nextStorageAddressIndex !== -1, `Storage snapshot does not include ${normalizedControllerAddress}.`);
-  const previousKeysForAddress = previousSnapshot.storageKeys[previousStorageAddressIndex] ?? [];
-  const nextKeysForAddress = nextSnapshot.storageKeys[nextStorageAddressIndex] ?? [];
-  const previousKeys = new Set(previousKeysForAddress.map((key) => ethers.toBigInt(normalizeBytes32Hex(key)).toString()));
-  const newKeys = nextKeysForAddress
-    .map((key) => normalizeBytes32Hex(key))
-    .filter((key) => !previousKeys.has(ethers.toBigInt(key).toString()));
-  const inputCount = lifecycle.inputs.length;
-  const outputCount = lifecycle.outputs.length;
-  const expectedNewKeyCount = inputCount + outputCount;
-  expect(
-    newKeys.length >= expectedNewKeyCount,
-    buildControllerStorageDeltaError({
-      previousSnapshot,
-      nextSnapshot,
-      controllerAddress,
-      previousKeysForAddress,
-      nextKeysForAddress,
-      inputCount,
-      outputCount,
-      newKeyCount: newKeys.length,
-    }),
-  );
-  return {
-    ...lifecycle,
-    inputNullifierKeys: newKeys.slice(0, inputCount),
-    outputCommitmentKeys: newKeys.slice(inputCount, inputCount + outputCount),
-  };
-}
-
-function buildControllerStorageDeltaError({
-  previousSnapshot,
-  nextSnapshot,
-  controllerAddress,
-  previousKeysForAddress,
-  nextKeysForAddress,
-  inputCount,
-  outputCount,
-  newKeyCount,
-}) {
-  const normalizedAddress = getAddress(controllerAddress);
-  const previousRoot = snapshotRootForAddress(previousSnapshot, normalizedAddress);
-  const nextRoot = snapshotRootForAddress(nextSnapshot, normalizedAddress);
-  const headline = [
-    "The generated channel snapshot does not include enough private-state note records",
-    `to track ${inputCount} spent note(s) and ${outputCount} new note(s).`,
-  ].join(" ");
-  const details = [
-    `Controller: ${normalizedAddress}.`,
-    `Tracked controller slots before: ${previousKeysForAddress.length}.`,
-    `Tracked controller slots after: ${nextKeysForAddress.length}.`,
-    `New controller slots discovered: ${newKeyCount}.`,
-  ];
-  if (previousKeysForAddress.length === 0 && nextKeysForAddress.length === 0) {
-    details.push(
-      "The local workspace snapshot already had no tracked controller storage slots, and the proof pipeline produced another snapshot with no tracked controller storage slots.",
-    );
-  }
-  if (ethers.toBigInt(normalizeBytes32Hex(previousRoot)) === ethers.toBigInt(normalizeBytes32Hex(nextRoot))) {
-    details.push(
-      "The controller root also stayed unchanged in the generated snapshot, so the pipeline did not expose any controller state change that the CLI could map to note IDs.",
-    );
-  }
-  details.push(
-    "The CLI cannot save minted or transferred notes into the wallet unless the generated snapshot identifies the controller storage slots for those notes.",
-  );
-  details.push(
-    "Regenerate the local workspace state first. If the workspace snapshot still has zero tracked controller slots, this channel snapshot is incomplete for note-tracking operations.",
-  );
-  return `${headline} ${details.join(" ")}`;
-}
-
-function snapshotRootForAddress(snapshot, storageAddress) {
-  const normalizedAddress = getAddress(storageAddress);
-  const addressIndex = snapshot.storageAddresses.findIndex(
-    (entry) => ethers.toBigInt(getAddress(entry)) === ethers.toBigInt(normalizedAddress),
-  );
-  expect(addressIndex >= 0, `Storage snapshot does not include ${normalizedAddress}.`);
-  return snapshot.stateRoots[addressIndex];
-}
-
-function applyNoteLifecycleToWallet(walletContext, lifecycle, sourceFunction, sourceTxHash, sourceBlockNumber = null) {
-  for (const [index, inputNote] of lifecycle.inputs.entries()) {
-    const trackedInput = buildTrackedNote(inputNote, sourceFunction, sourceTxHash);
-    const existingUnusedNote = walletContext.wallet.notes.unused[trackedInput.commitment];
-    if (!existingUnusedNote) {
-      continue;
-    }
-    delete walletContext.wallet.notes.unused[trackedInput.commitment];
-    walletContext.wallet.notes.spent[trackedInput.nullifier] = {
-      ...existingUnusedNote,
-      status: "spent",
-      sourceFunction,
-      sourceTxHash,
-      bridgeNullifierKey: lifecycle.inputNullifierKeys?.[index] ?? existingUnusedNote.bridgeNullifierKey ?? null,
-      spentAtTxHash: sourceTxHash,
-      spentAtBlockNumber: sourceBlockNumber,
-      spentByFunction: sourceFunction,
-      spentInputIndex: index,
-      counterpartyL2Address: lifecycle.spendCounterpartyL2Address ?? existingUnusedNote.counterpartyL2Address ?? null,
-      counterpartyDirection: lifecycle.spendCounterpartyDirection ?? existingUnusedNote.counterpartyDirection ?? null,
-      counterpartyConfidence: lifecycle.spendCounterpartyConfidence ?? existingUnusedNote.counterpartyConfidence ?? null,
-    };
-  }
-
-  for (const [index, outputNote] of lifecycle.outputs.entries()) {
-    const trackedOutput = buildTrackedNote(outputNote, sourceFunction, sourceTxHash, {
-      bridgeCommitmentKey: lifecycle.outputCommitmentKeys?.[index] ?? null,
-      createdAtTxHash: sourceTxHash,
-      createdAtBlockNumber: sourceBlockNumber,
-      createdByFunction: sourceFunction,
-      createdOutputIndex: index,
-      counterpartyL2Address: lifecycle.outputCounterpartyL2Addresses?.[index] ?? null,
-      counterpartyDirection: lifecycle.outputCounterpartyDirection ?? null,
-      counterpartyConfidence: lifecycle.outputCounterpartyL2Addresses?.[index] ? "direct-local-metadata" : null,
-    });
-    if (trackedOutput.owner !== walletContext.wallet.l2Address) {
-      continue;
-    }
-    walletContext.wallet.notes.unused[trackedOutput.commitment] = trackedOutput;
-  }
-
-  walletContext.wallet = normalizeWallet(walletContext.wallet);
-  persistWallet(walletContext);
 }
 
 function buildMintNotesTemplatePayload({ wallet, baseUnitAmounts }) {
@@ -7392,6 +7467,45 @@ async function refreshPersistedWorkspaceAfterLocalTransaction({
   return context;
 }
 
+async function recoverLocalWorkspacesAfterAcceptedNoteTransaction({
+  wallet,
+  context,
+  provider,
+  receipt,
+  progressAction = null,
+}) {
+  emitProgress(progressAction, "recovering-channel-workspace");
+  await refreshPersistedWorkspaceAfterLocalTransaction({
+    context,
+    provider,
+    receipt,
+    progressAction,
+  });
+  emitProgress(progressAction, "recovering-wallet-workspace");
+  const { recoveredDeliveryState } = await recoverWalletReceivedNotes({
+    walletContext: wallet,
+    context,
+    provider,
+    progressAction,
+    fromGenesis: false,
+  });
+  const freshness = await assertWalletNoteReceiveStateFresh({
+    walletContext: wallet,
+    context,
+    provider,
+  });
+  return {
+    channelRecoveryLastScannedBlock: context.workspace.recoveryLastScannedBlock,
+    channelRecoveryScanRange: context.workspace.recoveryScanRange,
+    walletNoteReceiveNextBlock: freshness.nextBlock,
+    walletLatestBlock: freshness.latestBlock,
+    recoveredFromLogs: recoveredDeliveryState.importedNotes,
+    scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
+    linkedEvidence: recoveredDeliveryState.linkedEvidence,
+    noteReceiveScanRange: recoveredDeliveryState.scanRange,
+  };
+}
+
 function assertWalletMatchesChannelContext(walletContext, l2Identity, context) {
   expect(
     ethers.toBigInt(walletContext.wallet.channelId) === ethers.toBigInt(context.workspace.channelId),
@@ -7441,18 +7555,12 @@ async function executeWalletDirectTemplateCommand({
     functionName: templatePayload.method,
     templatePayload,
   });
-  const walletWarnings = await buildPostWalletCommandWarnings({
-    walletContext: wallet,
-    context: execution.context,
-    provider,
-    receipt: execution.receipt,
-  });
   emitProgress(operationName, "done");
   return {
     execution,
     contextResult,
     recoveredWorkspace: contextResult.recoveredWorkspace,
-    walletWarnings,
+    walletWarnings: [],
   };
 }
 
@@ -7524,12 +7632,6 @@ async function executeWalletTemplateSend({
     ),
     expectedFunctionRoot: context.workspace.functionRoot ?? context.workspace.policySnapshot?.functionRoot,
   });
-  const noteLifecycle = extractControllerStorageDelta({
-    previousSnapshot: context.currentSnapshot,
-    nextSnapshot,
-    controllerAddress: context.workspace.controller,
-    lifecycle: extractNoteLifecycle(functionName, templatePayload),
-  });
   const aPubBlockHash = hashTokamakPublicInputs(payload.aPubBlock);
   expect(
     ethers.toBigInt(normalizeBytes32Hex(aPubBlockHash))
@@ -7542,6 +7644,7 @@ async function executeWalletTemplateSend({
     await waitForReceipt(
       await context.channelManager.connect(txSubmitter).executeChannelTransaction(payload, functionProof),
     );
+  await waitForProviderBlockAtLeast(provider, receipt.blockNumber, { action: operationName });
 
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
@@ -7555,19 +7658,9 @@ async function executeWalletTemplateSend({
 
   emitProgress(operationName, "persisting");
   wallet.wallet.l2Nonce = nonce + 1;
-  if (functionName.startsWith("transferNotes")) {
-    noteLifecycle.spendCounterpartyL2Address = templatePayload.recipientAddresses?.[0] ?? null;
-    noteLifecycle.spendCounterpartyDirection = "sent";
-    noteLifecycle.spendCounterpartyConfidence = noteLifecycle.spendCounterpartyL2Address
-      ? "direct-local-metadata"
-      : null;
-    noteLifecycle.outputCounterpartyL2Addresses = templatePayload.recipientAddresses ?? [];
-    noteLifecycle.outputCounterpartyDirection = "sent";
-  }
-  applyNoteLifecycleToWallet(wallet, noteLifecycle, functionName, receipt.hash, receipt.blockNumber);
-  context.currentSnapshot = nextSnapshot;
   persistWallet(wallet);
-  await refreshPersistedWorkspaceAfterLocalTransaction({
+  const postTransactionRecovery = await recoverLocalWorkspacesAfterAcceptedNoteTransaction({
+    wallet,
     context,
     provider,
     receipt,
@@ -7583,7 +7676,7 @@ async function executeWalletTemplateSend({
     txSubmitterAccount,
     l2Identity,
     context,
-    noteLifecycle,
+    postTransactionRecovery,
     nonce,
     operationDir,
     receipt,
@@ -9148,6 +9241,30 @@ async function fetchFreshBlockNumber(provider) {
   return Number(ethers.toBigInt(await provider.send("eth_blockNumber", [])));
 }
 
+async function waitForProviderBlockAtLeast(provider, targetBlock, {
+  action = "transaction",
+  timeoutMs = 60_000,
+  pollIntervalMs = 1_000,
+} = {}) {
+  const normalizedTargetBlock = Number(targetBlock);
+  expect(Number.isInteger(normalizedTargetBlock) && normalizedTargetBlock >= 0, "Invalid receipt block number.");
+  const startedAt = Date.now();
+  while (true) {
+    const latestBlock = await fetchFreshBlockNumber(provider);
+    if (latestBlock >= normalizedTargetBlock) {
+      return latestBlock;
+    }
+    if (Date.now() - startedAt >= timeoutMs) {
+      throw new Error([
+        `RPC provider did not report block ${normalizedTargetBlock} after ${action}.`,
+        `Latest reported block is ${latestBlock}.`,
+        "Retry the command after the RPC provider catches up, or run channel recover-workspace and wallet recover-workspace manually.",
+      ].join(" "));
+    }
+    await sleep(pollIntervalMs);
+  }
+}
+
 function recoveryBlockDelta({ fromBlock, toBlock }) {
   const normalizedFromBlock = Number(fromBlock);
   const normalizedToBlock = Number(toBlock);
@@ -10507,6 +10624,7 @@ function sanitizeTrackedNoteForPersistence(note) {
     createdOutputIndex: normalized.createdOutputIndex,
     spentAtTxHash: normalized.spentAtTxHash,
     spentAtBlockNumber: normalized.spentAtBlockNumber,
+    spentAtLogIndex: normalized.spentAtLogIndex,
     spentByFunction: normalized.spentByFunction,
     spentInputIndex: normalized.spentInputIndex,
     counterpartyL2Address: normalized.counterpartyL2Address,
@@ -10514,6 +10632,12 @@ function sanitizeTrackedNoteForPersistence(note) {
     counterpartyConfidence: normalized.counterpartyConfidence,
     bridgeCommitmentKey: normalized.bridgeCommitmentKey,
     bridgeNullifierKey: normalized.bridgeNullifierKey,
+    commitmentObservedAtTxHash: normalized.commitmentObservedAtTxHash,
+    commitmentObservedAtBlockNumber: normalized.commitmentObservedAtBlockNumber,
+    commitmentObservedAtLogIndex: normalized.commitmentObservedAtLogIndex,
+    nullifierObservedAtTxHash: normalized.nullifierObservedAtTxHash,
+    nullifierObservedAtBlockNumber: normalized.nullifierObservedAtBlockNumber,
+    nullifierObservedAtLogIndex: normalized.nullifierObservedAtLogIndex,
   };
 }
 

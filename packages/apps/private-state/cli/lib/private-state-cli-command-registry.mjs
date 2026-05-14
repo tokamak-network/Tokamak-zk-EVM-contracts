@@ -606,6 +606,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     usage: "--wallet, --network, --amounts, --acknowledge-action-impact, and optional --tx-submitter",
     help: [
       "Refreshes the local channel workspace through the saved recovery index before proving the mint when the scan fits the 10 second pre-command budget",
+      "Requires both viewing and spending key capability so the accepted mint can be recovered through the normal note event path",
       "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
       "Action impact: emits public accepted-transition, commitment, encrypted note-delivery, root update, and transaction events.",
       "Private note state changes by creating local note plaintext and public commitments; note owner/value/salt are not public by default.",

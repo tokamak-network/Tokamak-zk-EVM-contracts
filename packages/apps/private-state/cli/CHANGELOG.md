@@ -14,6 +14,12 @@
 - Added `set rpc` for per-network RPC configuration with built-in `eth_getLogs` scan-limit tables
   for Ankr, Chainstack, Chainnodes, QuickNode, and Alchemy, using 90% of the provider reference
   request-rate values.
+- Simplified note-mutating command post-processing so accepted note transactions wait for the
+  receipt block, then refresh channel and wallet workspaces from their recovery indexes instead of
+  manually applying note lifecycle metadata.
+- Extended wallet recovery to persist public creation/spend linkage from commitment and
+  nullifier storage observations so raw evidence export can package stored metadata without
+  running its own log scan.
 
 ## 2.1.1 - 2026-05-14
 

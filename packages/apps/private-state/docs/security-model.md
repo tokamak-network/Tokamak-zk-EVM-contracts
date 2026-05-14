@@ -293,9 +293,9 @@ This creates three operational restore levels:
 - backup plus viewing key plus spending key: operate the wallet in the normal CLI note flow
 
 Commands that only inspect registration metadata can run from backup metadata. Commands that decrypt
-or refresh received notes require the viewing key. Commands that consume notes or change L2
-channel-accounting state require the spending key, and note-consuming commands also require the
-viewing key so the CLI can reconstruct the plaintext notes it is about to spend.
+or refresh received notes require the viewing key. Commands that create or consume notes require the
+spending key and also require the viewing key so the CLI can refresh the readable note workspace from
+event logs after accepted note transactions.
 
 ## 7. Channel-Bound L2 Identity
 

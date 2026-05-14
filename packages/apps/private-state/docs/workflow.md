@@ -158,11 +158,10 @@ not grant either viewing or spending authority.
 That separation affects how wallet commands behave. `wallet get-meta` and `wallet list` can inspect
 local registration metadata without decrypting notes. `wallet get-notes` can list encrypted-only
 tracked notes from backup metadata, but it needs the viewing key to refresh and decrypt received
-note events or compute note-value totals. `wallet mint-notes` needs spending authority for the
-wallet identity and uses the registered note-receive public key for self-mint delivery. Commands
-that consume existing notes, such as `wallet transfer-notes` and `wallet redeem-notes`, need both
-the viewing key and the spending key: the viewing key reconstructs the note plaintext, while the
-spending key authorizes the proof-backed note use.
+note events or compute note-value totals. Commands that create or consume notes, such as
+`wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`, need both the viewing key
+and the spending key: the viewing key lets the CLI refresh the readable note workspace after
+accepted note transactions, while the spending key authorizes proof-backed note use.
 
 ## 5. Bridge Registration Model
 
@@ -269,6 +268,8 @@ For `wallet mint-notes`, the CLI:
 3. derives encrypted self-mint outputs for the wallet owner
 4. encrypts those outputs to the wallet's note-receive public key
 5. sends fixed-arity calldata to the DApp controller through the bridge execution path
+6. refreshes the channel workspace and wallet note workspace from their recovery indexes after the
+   transaction's receipt block is visible through the configured RPC provider
 
 The contract then derives note salts from the encrypted payloads.
 

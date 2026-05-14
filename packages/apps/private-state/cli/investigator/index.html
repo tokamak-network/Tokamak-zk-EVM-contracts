@@ -27,90 +27,136 @@
         spending keys, wallet secrets, or account private keys.
       </section>
 
-      <section class="grid">
-        <form id="filters" class="panel">
-          <h2>Filter Scope</h2>
-          <label>
-            Commitment contains
-            <input name="commitment" autocomplete="off" placeholder="0x...">
-          </label>
-          <label>
-            Nullifier contains
-            <input name="nullifier" autocomplete="off" placeholder="0x...">
-          </label>
-          <label>
-            Creation tx
-            <input name="creationTx" autocomplete="off" placeholder="0x...">
-          </label>
-          <label>
-            Spend tx
-            <input name="spendTx" autocomplete="off" placeholder="0x...">
-          </label>
-          <div class="two-col">
-            <label>
-              Created from block
-              <input name="createdFrom" inputmode="numeric" autocomplete="off">
+      <section id="summaryCards" class="summary-grid" aria-live="polite"></section>
+
+      <section class="workspace">
+        <form id="filters" class="panel scope-panel">
+          <div class="panel-head">
+            <h2>Disclosure Request</h2>
+            <button id="applyFilters" type="button">Apply</button>
+          </div>
+
+          <div class="purpose-grid" role="radiogroup" aria-label="Disclosure request type">
+            <label class="purpose-card">
+              <input name="purpose" type="radio" value="overview" checked>
+              <span>Full graph view</span>
             </label>
-            <label>
-              Created to block
-              <input name="createdTo" inputmode="numeric" autocomplete="off">
+            <label class="purpose-card">
+              <input name="purpose" type="radio" value="receipt">
+              <span>Specific note receipt</span>
+            </label>
+            <label class="purpose-card">
+              <input name="purpose" type="radio" value="spend">
+              <span>Specific note use</span>
+            </label>
+            <label class="purpose-card">
+              <input name="purpose" type="radio" value="transaction">
+              <span>Transaction linkage</span>
+            </label>
+            <label class="purpose-card">
+              <input name="purpose" type="radio" value="range">
+              <span>Period receipts</span>
+            </label>
+            <label class="purpose-card">
+              <input name="purpose" type="radio" value="counterparty">
+              <span>Counterparty subset</span>
             </label>
           </div>
-          <div class="two-col">
-            <label>
-              Spent from block
-              <input name="spentFrom" inputmode="numeric" autocomplete="off">
+
+          <div class="form-section">
+            <h3>Request Inputs</h3>
+            <label data-purpose-field="receipt spend">
+              Commitment contains
+              <input name="commitment" autocomplete="off" placeholder="0x...">
             </label>
-            <label>
-              Spent to block
-              <input name="spentTo" inputmode="numeric" autocomplete="off">
+            <label data-purpose-field="spend">
+              Nullifier contains
+              <input name="nullifier" autocomplete="off" placeholder="0x...">
+            </label>
+            <label data-purpose-field="receipt transaction">
+              Creation tx
+              <input name="creationTx" autocomplete="off" placeholder="0x...">
+            </label>
+            <label data-purpose-field="spend transaction">
+              Spend tx
+              <input name="spendTx" autocomplete="off" placeholder="0x...">
+            </label>
+            <div class="two-col" data-purpose-field="range">
+              <label>
+                Created from block
+                <input name="createdFrom" inputmode="numeric" autocomplete="off">
+              </label>
+              <label>
+                Created to block
+                <input name="createdTo" inputmode="numeric" autocomplete="off">
+              </label>
+            </div>
+            <div class="two-col" data-purpose-field="range spend">
+              <label>
+                Spent from block
+                <input name="spentFrom" inputmode="numeric" autocomplete="off">
+              </label>
+              <label>
+                Spent to block
+                <input name="spentTo" inputmode="numeric" autocomplete="off">
+              </label>
+            </div>
+            <label data-purpose-field="counterparty">
+              Counterparty L2 address
+              <input name="counterparty" autocomplete="off" placeholder="0x...">
             </label>
           </div>
-          <div class="two-col">
-            <label>
-              Status
-              <select name="status">
-                <option value="">Any</option>
-                <option value="unused">Unused</option>
-                <option value="spent">Spent</option>
-              </select>
-            </label>
-            <label>
-              Direction
-              <select name="direction">
-                <option value="">Any</option>
-                <option value="self-mint">Self mint</option>
-                <option value="sent">Sent</option>
-                <option value="received">Received</option>
-                <option value="unknown">Unknown</option>
-              </select>
-            </label>
-          </div>
-          <label>
-            Counterparty L2 address
-            <input name="counterparty" autocomplete="off" placeholder="0x...">
-          </label>
-          <button id="applyFilters" type="button">Apply filters</button>
+
+          <details class="advanced-filters">
+            <summary>Advanced filters</summary>
+            <div class="two-col">
+              <label>
+                Status
+                <select name="status">
+                  <option value="">Any</option>
+                  <option value="unused">Unused</option>
+                  <option value="spent">Spent</option>
+                </select>
+              </label>
+              <label>
+                Direction
+                <select name="direction">
+                  <option value="">Any</option>
+                  <option value="self-mint">Self mint</option>
+                  <option value="sent">Sent</option>
+                  <option value="received">Received</option>
+                  <option value="unknown">Unknown</option>
+                </select>
+              </label>
+            </div>
+          </details>
         </form>
 
-        <form id="packageForm" class="panel">
-          <h2>Package Metadata</h2>
-          <label>
-            Case ID
-            <input name="caseId" autocomplete="off" placeholder="exchange-case-001">
-          </label>
-          <label>
-            Requesting party
-            <input name="requestingParty" autocomplete="off" placeholder="Exchange or investigator name">
-          </label>
-          <label>
-            Bridge deposit tx
-            <input name="bridgeDepositTx" autocomplete="off" placeholder="0x...">
-          </label>
-          <label>
-            Withdraw or claim tx
-            <input name="withdrawTx" autocomplete="off" placeholder="0x...">
-          </label>
+        <form id="packageForm" class="panel package-panel">
+          <div class="panel-head">
+            <h2>Export Package</h2>
+            <button id="buildPackage" type="button" disabled>Build disclosure ZIP</button>
+          </div>
+          <div class="two-col">
+            <label>
+              Case ID
+              <input name="caseId" autocomplete="off" placeholder="exchange-case-001">
+            </label>
+            <label>
+              Requesting party
+              <input name="requestingParty" autocomplete="off" placeholder="Exchange or investigator name">
+            </label>
+          </div>
+          <div class="two-col">
+            <label>
+              Bridge deposit tx
+              <input name="bridgeDepositTx" autocomplete="off" placeholder="0x...">
+            </label>
+            <label>
+              Withdraw or claim tx
+              <input name="withdrawTx" autocomplete="off" placeholder="0x...">
+            </label>
+          </div>
           <fieldset>
             <legend>Disclosure intents</legend>
             <label><input name="intent" type="checkbox" value="note-receipt" checked> Note receipt</label>
@@ -122,37 +168,54 @@
           </fieldset>
           <label>
             User statement
-            <textarea name="statement" rows="5" placeholder="Optional explanation included in the disclosure package."></textarea>
+            <textarea name="statement" rows="4" placeholder="Optional explanation included in the disclosure package."></textarea>
           </label>
-          <button id="buildPackage" type="button" disabled>Build disclosure ZIP</button>
         </form>
       </section>
 
       <section class="panel">
-        <div class="table-header">
-          <h2>Matched Notes</h2>
+        <div class="result-header">
+          <div>
+            <h2>Results</h2>
+            <div id="status" class="status">Load a raw evidence ZIP to begin.</div>
+          </div>
           <div class="actions">
+            <button id="exportAscii" type="button" disabled>Export ASCII-art</button>
             <button id="selectAll" type="button" disabled>Select all</button>
             <button id="selectNone" type="button" disabled>Select none</button>
           </div>
         </div>
-        <div id="status" class="status">Load a raw evidence ZIP to begin.</div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Use</th>
-                <th>Commitment</th>
-                <th>Value</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Spent</th>
-                <th>Direction</th>
-                <th>Counterparty</th>
-              </tr>
-            </thead>
-            <tbody id="noteRows"></tbody>
-          </table>
+
+        <div class="tabs" role="tablist" aria-label="Result views">
+          <button id="graphTab" class="tab is-active" type="button" data-result-tab="graph">Graph</button>
+          <button id="notesTab" class="tab" type="button" data-result-tab="notes">Notes</button>
+        </div>
+
+        <div id="graphPanel" class="result-panel is-active">
+          <div id="graphViewport" class="graph-viewport">
+            <svg id="graphSvg" class="graph-svg" role="img" aria-label="Note linkage graph"></svg>
+            <div id="nodeDetail" class="node-detail is-hidden"></div>
+          </div>
+        </div>
+
+        <div id="notesPanel" class="result-panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Use</th>
+                  <th>Commitment</th>
+                  <th>Value</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Spent</th>
+                  <th>Direction</th>
+                  <th>Counterparty</th>
+                </tr>
+              </thead>
+              <tbody id="noteRows"></tbody>
+            </table>
+          </div>
         </div>
       </section>
     </main>

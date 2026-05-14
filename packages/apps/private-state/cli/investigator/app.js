@@ -7,18 +7,29 @@ const state = {
   notes: [],
   filteredNotes: [],
   selectedNotePaths: new Set(),
+  graph: { nodes: [], edges: [] },
+  activeTab: "graph",
 };
 
 const els = {
   bundleFile: document.getElementById("bundleFile"),
+  summaryCards: document.getElementById("summaryCards"),
   filters: document.getElementById("filters"),
   packageForm: document.getElementById("packageForm"),
   applyFilters: document.getElementById("applyFilters"),
   buildPackage: document.getElementById("buildPackage"),
+  exportAscii: document.getElementById("exportAscii"),
   selectAll: document.getElementById("selectAll"),
   selectNone: document.getElementById("selectNone"),
   status: document.getElementById("status"),
   noteRows: document.getElementById("noteRows"),
+  graphSvg: document.getElementById("graphSvg"),
+  graphViewport: document.getElementById("graphViewport"),
+  nodeDetail: document.getElementById("nodeDetail"),
+  graphPanel: document.getElementById("graphPanel"),
+  notesPanel: document.getElementById("notesPanel"),
+  graphTab: document.getElementById("graphTab"),
+  notesTab: document.getElementById("notesTab"),
 };
 
 els.bundleFile.addEventListener("change", async (event) => {
@@ -38,13 +49,19 @@ els.bundleFile.addEventListener("change", async (event) => {
 });
 
 els.applyFilters.addEventListener("click", applyFilters);
+els.filters.addEventListener("change", (event) => {
+  if (event.target?.name === "purpose") {
+    updatePurposeFields();
+    applyFilters();
+  }
+});
 els.selectAll.addEventListener("click", () => {
   state.selectedNotePaths = new Set(state.filteredNotes.map((entry) => entry.path));
-  renderNotes();
+  renderResults();
 });
 els.selectNone.addEventListener("click", () => {
   state.selectedNotePaths.clear();
-  renderNotes();
+  renderResults();
 });
 els.buildPackage.addEventListener("click", async () => {
   try {
@@ -53,6 +70,17 @@ els.buildPackage.addEventListener("click", async () => {
     setStatus(`Failed to build disclosure package: ${error.message}`);
   }
 });
+els.exportAscii.addEventListener("click", () => {
+  try {
+    exportAsciiReport();
+  } catch (error) {
+    setStatus(`Failed to export ASCII report: ${error.message}`);
+  }
+});
+els.graphTab.addEventListener("click", () => setResultTab("graph"));
+els.notesTab.addEventListener("click", () => setResultTab("notes"));
+
+updatePurposeFields();
 
 async function loadEvidenceBundle(bytes) {
   const files = await readZip(bytes);
@@ -65,12 +93,19 @@ async function loadEvidenceBundle(bytes) {
   }
   const notes = [...files.entries()]
     .filter(([path]) => isEvidenceNotePath(path))
-    .map(([path, content]) => ({
-      path,
-      record: JSON.parse(content),
-    }))
+    .map(([path, content], index) => {
+      const record = JSON.parse(content);
+      return {
+        path,
+        record,
+        note: normalizeNoteEntry(path, record, index),
+      };
+    })
     .sort((left, right) =>
       String(left.record?.derived?.commitment ?? "").localeCompare(String(right.record?.derived?.commitment ?? "")));
+  notes.forEach((entry, index) => {
+    entry.note.label = `N${String(index + 1).padStart(2, "0")}`;
+  });
   if (notes.length === 0) {
     throw new Error("The evidence bundle does not contain current epoch-aware note records.");
   }
@@ -80,8 +115,10 @@ async function loadEvidenceBundle(bytes) {
   state.filteredNotes = notes;
   state.selectedNotePaths = new Set(notes.map((entry) => entry.path));
   els.buildPackage.disabled = false;
+  els.exportAscii.disabled = false;
   els.selectAll.disabled = false;
   els.selectNone.disabled = false;
+  renderSummary();
   setStatus(
     `Loaded ${notes.length} note records from ${evidenceWalletLabel(manifest)} on ${manifest.network ?? "network"}.`,
   );
@@ -103,11 +140,16 @@ function resetBundle() {
   state.manifest = null;
   state.notes = [];
   state.filteredNotes = [];
+  state.graph = { nodes: [], edges: [] };
   state.selectedNotePaths.clear();
   els.buildPackage.disabled = true;
+  els.exportAscii.disabled = true;
   els.selectAll.disabled = true;
   els.selectNone.disabled = true;
   els.noteRows.textContent = "";
+  els.graphSvg.textContent = "";
+  els.summaryCards.textContent = "";
+  hideNodeDetail();
 }
 
 function applyFilters() {
@@ -119,12 +161,14 @@ function applyFilters() {
   const criteria = getFilterCriteria(form);
   state.filteredNotes = state.notes.filter(({ record }) => matchesCriteria(record, criteria));
   state.selectedNotePaths = new Set(state.filteredNotes.map((entry) => entry.path));
-  renderNotes();
+  renderResults();
   setStatus(`${state.filteredNotes.length} of ${state.notes.length} notes match the current filter.`);
 }
 
 function getFilterCriteria(form) {
-  return {
+  const purpose = String(form.get("purpose") ?? "overview");
+  const criteria = {
+    purpose,
     commitment: normalizeSearch(form.get("commitment")),
     nullifier: normalizeSearch(form.get("nullifier")),
     creationTx: normalizeSearch(form.get("creationTx")),
@@ -137,6 +181,20 @@ function getFilterCriteria(form) {
     direction: String(form.get("direction") ?? ""),
     counterparty: normalizeSearch(form.get("counterparty")),
   };
+  if (!["receipt", "spend"].includes(purpose)) criteria.commitment = "";
+  if (purpose !== "spend") criteria.nullifier = "";
+  if (!["receipt", "transaction"].includes(purpose)) criteria.creationTx = "";
+  if (!["spend", "transaction"].includes(purpose)) criteria.spendTx = "";
+  if (purpose !== "range") {
+    criteria.createdFrom = null;
+    criteria.createdTo = null;
+  }
+  if (!["range", "spend"].includes(purpose)) {
+    criteria.spentFrom = null;
+    criteria.spentTo = null;
+  }
+  if (purpose !== "counterparty") criteria.counterparty = "";
+  return criteria;
 }
 
 function matchesCriteria(record, criteria) {
@@ -152,14 +210,97 @@ function matchesCriteria(record, criteria) {
   return true;
 }
 
+function normalizeNoteEntry(path, record, index) {
+  return {
+    path,
+    label: `N${String(index + 1).padStart(2, "0")}`,
+    commitment: record.derived?.commitment ?? null,
+    nullifier: record.derived?.nullifier ?? null,
+    value: record.plaintext?.value ?? null,
+    owner: record.plaintext?.owner ?? null,
+    salt: record.plaintext?.salt ?? null,
+    status: record.spend?.status ?? "unknown",
+    direction: record.relationshipHints?.direction ?? "unknown",
+    counterparty: record.relationshipHints?.counterpartyL2Address ?? null,
+    creation: normalizeEventRef(record.creation),
+    spend: normalizeEventRef(record.spend),
+    walletPath: path.split("/notes/")[0] ?? "",
+  };
+}
+
+function normalizeEventRef(value) {
+  if (!value) {
+    return null;
+  }
+  return {
+    txHash: value.txHash ?? null,
+    blockNumber: value.blockNumber ?? null,
+    logIndex: value.logIndex ?? null,
+    functionName: value.functionName ?? value.function ?? null,
+    acceptedTransition: value.acceptedTransition ?? null,
+  };
+}
+
+function renderResults() {
+  renderNotes();
+  buildGraph();
+  renderGraph();
+  renderSummary();
+  hideNodeDetail();
+}
+
+function renderSummary() {
+  els.summaryCards.textContent = "";
+  if (!state.manifest) {
+    return;
+  }
+  const total = state.notes.length;
+  const spent = state.notes.filter(({ note }) => note.status === "spent").length;
+  const unused = state.notes.filter(({ note }) => note.status === "unused").length;
+  const visible = state.filteredNotes.length;
+  const externalOnly = countExternalOnlyNotes(state.notes);
+  const selected = state.selectedNotePaths.size;
+  const summaryItems = [
+    ["Wallet", evidenceWalletLabel(state.manifest)],
+    ["Visible notes", `${visible} / ${total}`],
+    ["Spent / unused", `${spent} / ${unused}`],
+    ["Selected for ZIP", String(selected)],
+    ["External-only notes", String(externalOnly)],
+  ];
+  for (const [label, value] of summaryItems) {
+    const item = document.createElement("div");
+    item.className = "summary-card";
+    const title = document.createElement("span");
+    title.textContent = label;
+    const body = document.createElement("strong");
+    body.textContent = value;
+    item.append(title, body);
+    els.summaryCards.append(item);
+  }
+}
+
+function countExternalOnlyNotes(notes) {
+  const creationTxs = new Set(notes.map(({ note }) => note.creation?.txHash).filter(Boolean));
+  const spendTxs = new Set(notes.map(({ note }) => note.spend?.txHash).filter(Boolean));
+  let count = 0;
+  for (const { note } of notes) {
+    const hasLocalPredecessor = note.creation?.txHash && spendTxs.has(note.creation.txHash);
+    const hasLocalSuccessor = note.spend?.txHash && creationTxs.has(note.spend.txHash);
+    if (!hasLocalPredecessor && !hasLocalSuccessor) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 function renderNotes() {
   els.noteRows.textContent = "";
   const fragment = document.createDocumentFragment();
-  for (const { path, record } of state.filteredNotes) {
+  for (const { path, record, note } of state.filteredNotes) {
     const row = document.createElement("tr");
     row.append(
       cellWithCheckbox(path),
-      monoCell(shortHex(record.derived?.commitment)),
+      monoCell(`${note.label} ${shortHex(record.derived?.commitment)}`),
       textCell(record.plaintext?.value ?? ""),
       textCell(record.spend?.status ?? ""),
       monoCell(formatEventRef(record.creation)),
@@ -183,9 +324,435 @@ function cellWithCheckbox(path) {
     } else {
       state.selectedNotePaths.delete(path);
     }
+    renderSummary();
   });
   cell.append(checkbox);
   return cell;
+}
+
+function buildGraph() {
+  const entries = state.filteredNotes;
+  const noteByPath = new Map(entries.map((entry) => [entry.path, entry.note]));
+  const notesByCreationTx = groupNotesByTx(entries, "creation");
+  const edges = [];
+  const incoming = new Map(entries.map(({ path }) => [path, []]));
+  const outgoing = new Map(entries.map(({ path }) => [path, []]));
+
+  for (const { path, note } of entries) {
+    const localSuccessors = note.spend?.txHash ? notesByCreationTx.get(note.spend.txHash) ?? [] : [];
+    for (const successor of localSuccessors) {
+      if (successor.path === path) {
+        continue;
+      }
+      const edge = {
+        id: `${path}->${successor.path}`,
+        type: "local",
+        sourcePath: path,
+        targetPath: successor.path,
+        txHash: note.spend.txHash,
+      };
+      edges.push(edge);
+      outgoing.get(path).push(edge);
+      incoming.get(successor.path).push(edge);
+    }
+  }
+
+  for (const { path, note } of entries) {
+    const hasLocalPredecessor = incoming.get(path).length > 0;
+    const hasLocalSuccessor = outgoing.get(path).length > 0;
+    if (!hasLocalPredecessor) {
+      edges.push({
+        id: `external-in->${path}`,
+        type: "external-in",
+        targetPath: path,
+        txHash: note.creation?.txHash ?? null,
+      });
+    }
+    if (note.status === "spent" && !hasLocalSuccessor) {
+      edges.push({
+        id: `${path}->external-out`,
+        type: "external-out",
+        sourcePath: path,
+        txHash: note.spend?.txHash ?? null,
+      });
+    }
+  }
+
+  const depthByPath = computeGraphDepth(entries, incoming, noteByPath);
+  const rowByPath = assignGraphRows(entries, incoming, outgoing);
+
+  const nodes = entries.map(({ path, note }) => ({
+    path,
+    note,
+    depth: depthByPath.get(path) ?? 0,
+    row: rowByPath.get(path) ?? 0,
+    x: 120 + (depthByPath.get(path) ?? 0) * 240,
+    y: 80 + (rowByPath.get(path) ?? 0) * 88,
+  }));
+  state.graph = { nodes, edges };
+}
+
+function assignGraphRows(entries, incoming, outgoing) {
+  const entryByPath = new Map(entries.map((entry) => [entry.path, entry]));
+  const rowByPath = new Map();
+  let row = 0;
+  const ordered = [...entries].sort(compareNoteEntriesForGraph);
+  const roots = ordered.filter((entry) => (incoming.get(entry.path) ?? []).length === 0);
+  const assignChain = (entry) => {
+    let current = entry;
+    let safety = entries.length + 1;
+    while (current && !rowByPath.has(current.path) && safety > 0) {
+      rowByPath.set(current.path, row);
+      const nextEdge = (outgoing.get(current.path) ?? [])[0];
+      current = nextEdge?.targetPath ? entryByPath.get(nextEdge.targetPath) : null;
+      safety -= 1;
+    }
+    row += 1;
+  };
+  for (const root of roots) {
+    assignChain(root);
+  }
+  for (const entry of ordered) {
+    if (!rowByPath.has(entry.path)) {
+      assignChain(entry);
+    }
+  }
+  return rowByPath;
+}
+
+function compareNoteEntriesForGraph(left, right) {
+  return compareNullableNumber(left.note.creation?.blockNumber, right.note.creation?.blockNumber)
+    || compareNullableNumber(left.note.creation?.logIndex, right.note.creation?.logIndex)
+    || left.note.label.localeCompare(right.note.label);
+}
+
+function groupNotesByTx(entries, section) {
+  const result = new Map();
+  for (const entry of entries) {
+    const txHash = entry.note[section]?.txHash;
+    if (!txHash) {
+      continue;
+    }
+    if (!result.has(txHash)) {
+      result.set(txHash, []);
+    }
+    result.get(txHash).push(entry);
+  }
+  return result;
+}
+
+function computeGraphDepth(entries, incoming, noteByPath) {
+  const depthByPath = new Map();
+  const visiting = new Set();
+  const visit = (path) => {
+    if (depthByPath.has(path)) {
+      return depthByPath.get(path);
+    }
+    if (visiting.has(path)) {
+      return 0;
+    }
+    visiting.add(path);
+    const predecessors = incoming.get(path) ?? [];
+    let depth = 0;
+    for (const edge of predecessors) {
+      if (!edge.sourcePath || !noteByPath.has(edge.sourcePath)) {
+        continue;
+      }
+      depth = Math.max(depth, visit(edge.sourcePath) + 1);
+    }
+    visiting.delete(path);
+    depthByPath.set(path, depth);
+    return depth;
+  };
+  for (const { path } of entries) {
+    visit(path);
+  }
+  return depthByPath;
+}
+
+function renderGraph() {
+  const svg = els.graphSvg;
+  svg.textContent = "";
+  const nodes = state.graph.nodes;
+  if (!nodes.length) {
+    svg.setAttribute("width", "720");
+    svg.setAttribute("height", "220");
+    const empty = svgElement("text", { x: 28, y: 48, class: "graph-empty" });
+    empty.textContent = "No notes match the current request.";
+    svg.append(empty);
+    return;
+  }
+
+  const nodeByPath = new Map(nodes.map((node) => [node.path, node]));
+  const width = Math.max(900, Math.max(...nodes.map((node) => node.x)) + 260);
+  const height = Math.max(360, Math.max(...nodes.map((node) => node.y)) + 130);
+  svg.setAttribute("width", String(width));
+  svg.setAttribute("height", String(height));
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.append(buildGraphDefs());
+
+  for (const edge of state.graph.edges) {
+    renderGraphEdge(svg, edge, nodeByPath, width);
+  }
+  for (const node of nodes) {
+    renderGraphNode(svg, node);
+  }
+}
+
+function buildGraphDefs() {
+  const defs = svgElement("defs");
+  const marker = svgElement("marker", {
+    id: "arrow",
+    markerWidth: "10",
+    markerHeight: "10",
+    refX: "9",
+    refY: "3",
+    orient: "auto",
+    markerUnits: "strokeWidth",
+  });
+  const path = svgElement("path", { d: "M0,0 L0,6 L9,3 z", class: "edge-arrow" });
+  marker.append(path);
+  defs.append(marker);
+  return defs;
+}
+
+function renderGraphEdge(svg, edge, nodeByPath, width) {
+  const source = edge.sourcePath ? nodeByPath.get(edge.sourcePath) : null;
+  const target = edge.targetPath ? nodeByPath.get(edge.targetPath) : null;
+  const sourcePoint = source
+    ? { x: source.x + 150, y: source.y + 28 }
+    : { x: 34, y: target.y + 28 };
+  const targetPoint = target
+    ? { x: target.x, y: target.y + 28 }
+    : { x: Math.min(width - 34, source.x + 230), y: source.y + 28 };
+  const path = svgElement("path", {
+    d: curvedPath(sourcePoint, targetPoint),
+    class: `graph-edge ${edge.type}`,
+    "marker-end": "url(#arrow)",
+  });
+  svg.append(path);
+
+  const label = svgElement("text", {
+    x: String((sourcePoint.x + targetPoint.x) / 2),
+    y: String((sourcePoint.y + targetPoint.y) / 2 - 8),
+    class: "edge-label",
+  });
+  label.textContent = edge.type === "local" ? shortHex(edge.txHash) : edge.type === "external-in" ? "created" : "spent";
+  svg.append(label);
+}
+
+function curvedPath(source, target) {
+  const distance = Math.max(60, Math.abs(target.x - source.x));
+  const control = Math.min(120, distance / 2);
+  return `M ${source.x} ${source.y} C ${source.x + control} ${source.y}, ${target.x - control} ${target.y}, ${target.x} ${target.y}`;
+}
+
+function renderGraphNode(svg, node) {
+  const group = svgElement("g", {
+    class: `graph-node ${state.selectedNotePaths.has(node.path) ? "is-selected" : ""}`,
+    tabindex: "0",
+    role: "button",
+    "aria-label": `${node.note.label} note details`,
+  });
+  group.addEventListener("click", () => showNodeDetail(node));
+  group.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      showNodeDetail(node);
+    }
+  });
+  const rect = svgElement("rect", {
+    x: String(node.x),
+    y: String(node.y),
+    width: "150",
+    height: "58",
+    rx: "8",
+  });
+  const label = svgElement("text", { x: String(node.x + 14), y: String(node.y + 22), class: "node-label" });
+  label.textContent = node.note.label;
+  const value = svgElement("text", { x: String(node.x + 14), y: String(node.y + 42), class: "node-value" });
+  value.textContent = `${shortText(node.note.value ?? "-", 15)} ${node.note.status}`;
+  const commitment = svgElement("title");
+  commitment.textContent = node.note.commitment ?? "";
+  group.append(rect, label, value, commitment);
+  svg.append(group);
+}
+
+function showNodeDetail(node) {
+  const detail = els.nodeDetail;
+  const selected = state.selectedNotePaths.has(node.path);
+  detail.classList.remove("is-hidden");
+  detail.style.left = `${node.x + 166}px`;
+  detail.style.top = `${Math.max(12, node.y - 8)}px`;
+  detail.textContent = "";
+  const title = document.createElement("div");
+  title.className = "detail-title";
+  title.textContent = `${node.note.label} note`;
+  const selectButton = document.createElement("button");
+  selectButton.type = "button";
+  selectButton.className = "secondary";
+  selectButton.textContent = selected ? "Remove from ZIP" : "Add to ZIP";
+  selectButton.addEventListener("click", () => {
+    if (state.selectedNotePaths.has(node.path)) {
+      state.selectedNotePaths.delete(node.path);
+    } else {
+      state.selectedNotePaths.add(node.path);
+    }
+    renderResults();
+    showNodeDetail(node);
+  });
+  detail.append(title, detailRows(node.note), selectButton);
+}
+
+function detailRows(note) {
+  const container = document.createElement("dl");
+  container.className = "detail-rows";
+  for (const [label, value] of [
+    ["Commitment", note.commitment],
+    ["Nullifier", note.nullifier],
+    ["Value", note.value],
+    ["Status", note.status],
+    ["Created", formatEventRef(note.creation)],
+    ["Spent", formatEventRef(note.spend)],
+    ["Direction", note.direction],
+    ["Counterparty", note.counterparty],
+  ]) {
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const description = document.createElement("dd");
+    description.className = "mono";
+    description.textContent = value || "-";
+    container.append(term, description);
+  }
+  return container;
+}
+
+function hideNodeDetail() {
+  els.nodeDetail.classList.add("is-hidden");
+  els.nodeDetail.textContent = "";
+}
+
+function setResultTab(tab) {
+  state.activeTab = tab;
+  els.graphTab.classList.toggle("is-active", tab === "graph");
+  els.notesTab.classList.toggle("is-active", tab === "notes");
+  els.graphPanel.classList.toggle("is-active", tab === "graph");
+  els.notesPanel.classList.toggle("is-active", tab === "notes");
+}
+
+function updatePurposeFields() {
+  const purpose = String(new FormData(els.filters).get("purpose") ?? "overview");
+  const fields = [...els.filters.querySelectorAll("[data-purpose-field]")];
+  for (const element of fields) {
+    const values = element.dataset.purposeField.split(/\s+/u);
+    element.hidden = purpose === "overview" ? true : !values.includes(purpose);
+  }
+  const section = els.filters.querySelector(".form-section");
+  if (section) {
+    section.hidden = fields.every((element) => element.hidden);
+  }
+}
+
+function exportAsciiReport() {
+  if (!state.manifest) {
+    throw new Error("Load an evidence bundle first.");
+  }
+  if (state.filteredNotes.length === 0) {
+    throw new Error("No notes match the current request.");
+  }
+  const metadata = readPackageMetadata();
+  const report = buildAsciiReport(metadata);
+  const name = asciiReportFileName(metadata, state.manifest);
+  downloadBlob(new Blob([report], { type: "text/markdown" }), name);
+  setStatus(`Exported ${name} with ${state.filteredNotes.length} visible notes.`);
+}
+
+function buildAsciiReport(metadata) {
+  const selected = new Set(state.selectedNotePaths);
+  const lines = [
+    "# Private-State Note Linkage Report",
+    "",
+    `Generated at: ${new Date().toISOString()}`,
+    `Network: ${state.manifest.network ?? "-"}`,
+    `Channel: ${state.manifest.channelName ?? state.manifest.channelId ?? "-"}`,
+    `Wallet: ${evidenceWalletLabel(state.manifest)}`,
+    `Case ID: ${metadata.caseId || "-"}`,
+    `Requesting party: ${metadata.requestingParty || "-"}`,
+    "",
+    "## ASCII Linkage Graph",
+    "",
+    "```text",
+    ...asciiGraphLines(),
+    "```",
+    "",
+    "## Note Details",
+    "",
+  ];
+  for (const { note } of state.filteredNotes) {
+    lines.push(
+      `### ${note.label}${selected.has(note.path) ? " (selected)" : ""}`,
+      "",
+      `- Commitment: ${note.commitment ?? "-"}`,
+      `- Nullifier: ${note.nullifier ?? "-"}`,
+      `- Value: ${note.value ?? "-"}`,
+      `- Status: ${note.status}`,
+      `- Created: ${formatEventRef(note.creation)}`,
+      `- Spent: ${formatEventRef(note.spend)}`,
+      `- Direction: ${note.direction}`,
+      `- Counterparty: ${note.counterparty ?? "-"}`,
+      "",
+    );
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function asciiGraphLines() {
+  const nodeByPath = new Map(state.graph.nodes.map((node) => [node.path, node]));
+  const localEdges = state.graph.edges.filter((edge) => edge.type === "local");
+  const outgoing = new Map();
+  const incoming = new Map();
+  for (const edge of localEdges) {
+    if (!outgoing.has(edge.sourcePath)) outgoing.set(edge.sourcePath, []);
+    if (!incoming.has(edge.targetPath)) incoming.set(edge.targetPath, []);
+    outgoing.get(edge.sourcePath).push(edge);
+    incoming.get(edge.targetPath).push(edge);
+  }
+  const lines = [];
+  const nodes = [...state.graph.nodes].sort((left, right) =>
+    compareNullableNumber(left.note.creation?.blockNumber, right.note.creation?.blockNumber)
+    || left.note.label.localeCompare(right.note.label));
+  for (const node of nodes) {
+    if (!incoming.has(node.path)) {
+      lines.push(`external -> ${asciiNodeLabel(node.note)}`);
+    }
+    for (const edge of outgoing.get(node.path) ?? []) {
+      const target = nodeByPath.get(edge.targetPath);
+      if (target) {
+        lines.push(`${asciiNodeLabel(node.note)} -- ${shortHex(edge.txHash)} --> ${asciiNodeLabel(target.note)}`);
+      }
+    }
+    if (node.note.status === "spent" && !outgoing.has(node.path)) {
+      lines.push(`${asciiNodeLabel(node.note)} -> external`);
+    }
+    if (node.note.status !== "spent" && !outgoing.has(node.path)) {
+      lines.push(`${asciiNodeLabel(node.note)} remains unused`);
+    }
+  }
+  return lines.length ? lines : ["No linkage graph is available for the current filter."];
+}
+
+function asciiNodeLabel(note) {
+  return `${note.label}[${note.value ?? "-"}, ${note.status}, ${shortHex(note.commitment)}]`;
+}
+
+function asciiReportFileName(metadata, manifest) {
+  const rawName = [
+    metadata.caseId || "note-linkage-report",
+    manifest.network,
+    manifest.channelName,
+    new Date().toISOString().replace(/[:.]/g, "-"),
+  ].filter(Boolean).join("-");
+  return `${rawName.replace(/[^A-Za-z0-9_.-]+/g, "-")}.md`;
 }
 
 function textCell(value) {
@@ -620,6 +1187,12 @@ function inRange(value, from, to) {
   return true;
 }
 
+function compareNullableNumber(left, right) {
+  const leftNumber = Number.isFinite(Number(left)) ? Number(left) : Number.MAX_SAFE_INTEGER;
+  const rightNumber = Number.isFinite(Number(right)) ? Number(right) : Number.MAX_SAFE_INTEGER;
+  return leftNumber - rightNumber;
+}
+
 function normalizeSearch(value) {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -634,6 +1207,14 @@ function shortHex(value) {
     return "-";
   }
   return text.length > 18 ? `${text.slice(0, 10)}...${text.slice(-8)}` : text;
+}
+
+function shortText(value, maxLength) {
+  const text = String(value ?? "");
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(1, maxLength - 3))}...`;
 }
 
 function formatEventRef(value) {
@@ -671,4 +1252,12 @@ function downloadBlob(blob, fileName) {
 
 function setStatus(message) {
   els.status.textContent = message;
+}
+
+function svgElement(tagName, attributes = {}) {
+  const element = document.createElementNS("http://www.w3.org/2000/svg", tagName);
+  for (const [key, value] of Object.entries(attributes)) {
+    element.setAttribute(key, value);
+  }
+  return element;
 }

@@ -8529,44 +8529,26 @@ async function fetchChannelRecoveryLogs({
   toBlock,
   progressAction = null,
 }) {
-  const resolvedChannelManager = channelManager ?? new Contract(
-    channelInfo.manager,
-    bridgeAbiManifest.contracts.channelManager.abi,
-    provider,
-  );
-  const bridgeTokenVault = new Contract(
-    channelInfo.bridgeTokenVault,
-    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
-    provider,
-  );
-  const currentRootVectorObservedTopic =
-    normalizeBytes32Hex(resolvedChannelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
-  const channelManagerLogs = await fetchLogsChunked(provider, {
-    address: channelInfo.manager,
-    topics: [[
-      currentRootVectorObservedTopic,
-      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
-      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
-    ]],
-    fromBlock,
-    toBlock,
-    onProgress: progressAction
-      ? createRpcLogScanProgress({ action: progressAction, label: "channel-manager events" })
-      : null,
+  const recoveryFilter = buildChannelRecoveryLogFilter({
+    bridgeAbiManifest,
+    channelInfo,
+    channelManager,
   });
-  const bridgeVaultLogs = await queryContractEventsChunked({
-    contract: bridgeTokenVault,
-    eventName: "StorageWriteObserved",
+  const logs = await fetchLogsChunked(provider, {
+    address: recoveryFilter.addresses,
+    topics: recoveryFilter.topics,
     fromBlock,
     toBlock,
     onProgress: progressAction
-      ? createRpcLogScanProgress({ action: progressAction, label: "bridge-vault events" })
+      ? createRpcLogScanProgress({ action: progressAction, label: "channel-recovery events" })
       : null,
   });
   return {
-    currentRootVectorObservedTopic,
-    channelManagerLogs,
-    bridgeVaultLogs,
+    currentRootVectorObservedTopic: recoveryFilter.currentRootVectorObservedTopic,
+    channelManagerLogs: logs.filter((log) =>
+      ethers.toBigInt(getAddress(log.address)) === ethers.toBigInt(getAddress(channelInfo.manager))),
+    bridgeVaultLogs: logs.filter((log) =>
+      ethers.toBigInt(getAddress(log.address)) === ethers.toBigInt(getAddress(channelInfo.bridgeTokenVault))),
   };
 }
 
@@ -8580,42 +8562,24 @@ async function fetchChannelRecoveryEventGroupsChunked({
   progressAction = null,
   onChunk,
 }) {
-  const resolvedChannelManager = channelManager ?? new Contract(
-    channelInfo.manager,
-    bridgeAbiManifest.contracts.channelManager.abi,
-    provider,
-  );
-  const currentRootVectorObservedTopic =
-    normalizeBytes32Hex(resolvedChannelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
-  const bridgeTokenVault = new Contract(
-    channelInfo.bridgeTokenVault,
-    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
-    provider,
-  );
-  const bridgeVaultTopic = bridgeTokenVault.interface.getEvent("StorageWriteObserved").topicHash;
+  const recoveryFilter = buildChannelRecoveryLogFilter({
+    bridgeAbiManifest,
+    channelInfo,
+    channelManager,
+  });
 
   await fetchLogsChunked(provider, {
-    address: channelInfo.manager,
-    topics: [[
-      currentRootVectorObservedTopic,
-      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
-      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
-    ]],
+    address: recoveryFilter.addresses,
+    topics: recoveryFilter.topics,
     fromBlock,
     toBlock,
     collectLogs: false,
     onProgress: progressAction
       ? createRpcLogScanProgress({ action: progressAction, label: "channel-recovery chunks" })
       : null,
-    onChunk: async ({ logs: channelManagerLogs, chunkFromBlock, chunkToBlock }) => {
-      const bridgeVaultLogs = await fetchLogsRateLimited(provider, {
-        address: channelInfo.bridgeTokenVault,
-        topics: [bridgeVaultTopic],
-        fromBlock: chunkFromBlock,
-        toBlock: chunkToBlock,
-      });
+    onChunk: async ({ logs, chunkFromBlock, chunkToBlock }) => {
       const groupedValues = normalizeWorkspaceMirrorDeltaEventGroups({
-        logs: [...channelManagerLogs, ...bridgeVaultLogs],
+        logs,
         channelInfo,
         bridgeAbiManifest,
         fromBlock: chunkFromBlock,
@@ -8628,6 +8592,35 @@ async function fetchChannelRecoveryEventGroupsChunked({
       });
     },
   });
+}
+
+function buildChannelRecoveryLogFilter({ bridgeAbiManifest, channelInfo, channelManager = null }) {
+  const resolvedChannelManager = channelManager ?? new Contract(
+    channelInfo.manager,
+    bridgeAbiManifest.contracts.channelManager.abi,
+  );
+  const bridgeTokenVault = new Contract(
+    channelInfo.bridgeTokenVault,
+    bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+  );
+  const currentRootVectorObservedTopic =
+    normalizeBytes32Hex(resolvedChannelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
+  const bridgeVaultStorageWriteObservedTopic =
+    normalizeBytes32Hex(bridgeTokenVault.interface.getEvent("StorageWriteObserved").topicHash);
+  return {
+    addresses: [
+      getAddress(channelInfo.manager),
+      getAddress(channelInfo.bridgeTokenVault),
+    ],
+    topics: [[
+      currentRootVectorObservedTopic,
+      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
+      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
+      bridgeVaultStorageWriteObservedTopic,
+    ]],
+    currentRootVectorObservedTopic,
+    bridgeVaultStorageWriteObservedTopic,
+  };
 }
 
 async function reconstructChannelSnapshot({

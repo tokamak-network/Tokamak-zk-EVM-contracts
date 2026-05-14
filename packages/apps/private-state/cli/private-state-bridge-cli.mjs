@@ -2515,12 +2515,15 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     account: signer.address,
   });
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
-  const lifecycleEpoch = await resolveWalletLifecycleEpoch({
+  const recoveryEventScan = await scanWalletRecoveryEvents({
     context,
     provider,
     l1Address: signer.address,
-    registration,
     progressAction: "wallet recover-workspace",
+  });
+  const lifecycleEpoch = selectWalletLifecycleEpoch({
+    epochs: recoveryEventScan.lifecycleEpochs,
+    registration,
   });
   expect(
     lifecycleEpoch,
@@ -2561,14 +2564,20 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     persistWalletKeys(existingWallet);
     persistWallet(existingWallet);
     persistWalletIndexForContext(existingWallet);
-    const { recoveredDeliveryState } = await recoverWalletReceivedNotes({
+    const noteScanStartBlock = args.fromGenesis === true
+      ? Number(context.workspace.genesisBlockNumber)
+      : requireUsableWalletNoteReceiveRecoveryIndex({
+        walletContext: existingWallet,
+        context,
+        latestBlock: recoveryEventScan.scanRange.toBlock,
+      });
+    const recoveredDeliveryState = await recoverDeliveredNotesFromCollectedLogs({
       walletContext: existingWallet,
       context,
-      provider,
-      signer,
-      noteReceiveKeyMaterial,
-      progressAction: "wallet recover-workspace",
-      fromGenesis: args.fromGenesis === true,
+      noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
+      logs: recoveryEventScan.deliveryLogs,
+      scanStartBlock: noteScanStartBlock,
+      latestBlock: recoveryEventScan.scanRange.toBlock,
     });
     printJson({
       action: "wallet recover-workspace",
@@ -2611,14 +2620,20 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
   walletContext.wallet.l2Nonce = 0;
   persistWallet(walletContext);
 
-  const { recoveredDeliveryState } = await recoverWalletReceivedNotes({
+  const noteScanStartBlock = args.fromGenesis === true
+    ? Number(context.workspace.genesisBlockNumber)
+    : requireUsableWalletNoteReceiveRecoveryIndex({
+      walletContext,
+      context,
+      latestBlock: recoveryEventScan.scanRange.toBlock,
+    });
+  const recoveredDeliveryState = await recoverDeliveredNotesFromCollectedLogs({
     walletContext,
     context,
-    provider,
-    signer,
-    noteReceiveKeyMaterial,
-    progressAction: "wallet recover-workspace",
-    fromGenesis: args.fromGenesis === true,
+    noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
+    logs: recoveryEventScan.deliveryLogs,
+    scanStartBlock: noteScanStartBlock,
+    latestBlock: recoveryEventScan.scanRange.toBlock,
   });
 
   printJson({
@@ -4276,6 +4291,10 @@ async function resolveWalletLifecycleEpoch({
     l1Address,
     progressAction,
   });
+  return selectWalletLifecycleEpoch({ epochs, registration });
+}
+
+function selectWalletLifecycleEpoch({ epochs, registration = null }) {
   if (registration?.exists) {
     const active = [...epochs].reverse().find((epoch) => (
       epoch.lifecycleStatus === "active"
@@ -4312,6 +4331,10 @@ async function readWalletLifecycleEpochs({ context, provider, l1Address, progres
       ? createRpcLogScanProgress({ action: progressAction, label: "wallet-lifecycle exited events" })
       : null,
   });
+  return buildWalletLifecycleEpochsFromLogs({ registeredLogs, exitedLogs, provider });
+}
+
+async function buildWalletLifecycleEpochsFromLogs({ registeredLogs, exitedLogs, provider }) {
   const exits = await Promise.all(exitedLogs.map((log) => walletExitFromLog({ log, provider })));
   const epochs = [];
   for (const log of registeredLogs.sort(compareLogsByPosition)) {
@@ -4336,6 +4359,68 @@ async function readWalletLifecycleEpochs({ context, provider, l1Address, progres
     }
   }
   return epochs.sort(compareWalletEpochs);
+}
+
+async function scanWalletRecoveryEvents({ context, provider, l1Address, progressAction = null }) {
+  const fromBlock = Number(context.workspace.genesisBlockNumber ?? 0);
+  const toBlock = await fetchFreshBlockNumber(provider);
+  const registeredTopic = context.channelManager.interface.getEvent("ChannelTokenVaultIdentityRegistered").topicHash;
+  const exitedTopic = context.channelManager.interface.getEvent("ChannelTokenVaultIdentityExited").topicHash;
+  const normalizedRegisteredTopic = normalizeBytes32Hex(registeredTopic);
+  const normalizedExitedTopic = normalizeBytes32Hex(exitedTopic);
+  const normalizedNoteTopic = normalizeBytes32Hex(NOTE_VALUE_ENCRYPTED_TOPIC);
+  const normalizedL1Address = getAddress(l1Address);
+  const registeredLogs = [];
+  const exitedLogs = [];
+  const deliveryLogs = [];
+
+  await fetchLogsChunked(provider, {
+    address: context.workspace.channelManager,
+    topics: [[registeredTopic, exitedTopic, NOTE_VALUE_ENCRYPTED_TOPIC]],
+    fromBlock,
+    toBlock,
+    collectLogs: false,
+    onProgress: progressAction
+      ? createRpcLogScanProgress({ action: progressAction, label: "wallet-recovery events" })
+      : null,
+    onChunk: async ({ logs }) => {
+      for (const log of logs) {
+        const normalizedTopic0 = normalizeBytes32Hex(log.topics?.[0] ?? ZERO_TOPIC);
+        if (normalizedTopic0 === normalizedNoteTopic) {
+          deliveryLogs.push(log);
+          continue;
+        }
+        if (normalizedTopic0 !== normalizedRegisteredTopic && normalizedTopic0 !== normalizedExitedTopic) {
+          continue;
+        }
+        const parsedLog = context.channelManager.interface.parseLog(log);
+        if (ethers.toBigInt(getAddress(parsedLog.args.l1Address)) !== ethers.toBigInt(normalizedL1Address)) {
+          continue;
+        }
+        const eventLog = {
+          ...log,
+          args: parsedLog.args,
+          fragment: parsedLog.fragment,
+        };
+        if (normalizedTopic0 === normalizedRegisteredTopic) {
+          registeredLogs.push(eventLog);
+        } else {
+          exitedLogs.push(eventLog);
+        }
+      }
+    },
+  });
+
+  return {
+    lifecycleEpochs: await buildWalletLifecycleEpochsFromLogs({ registeredLogs, exitedLogs, provider }),
+    registeredLogs,
+    exitedLogs,
+    deliveryLogs,
+    scanRange: {
+      fromBlock,
+      toBlock,
+    },
+  };
 }
 
 async function walletEpochFromRegisteredLog({ log, provider }) {
@@ -6242,6 +6327,68 @@ async function recoverDeliveredNotesFromEventLogs({
     importedNotes,
     reconciledState,
     scannedLogs,
+    scanRange,
+  };
+}
+
+async function recoverDeliveredNotesFromCollectedLogs({
+  walletContext,
+  context,
+  noteReceivePrivateKey,
+  logs,
+  scanStartBlock,
+  latestBlock,
+}) {
+  const scanRange = {
+    fromBlock: scanStartBlock,
+    toBlock: latestBlock,
+  };
+
+  if (scanStartBlock > latestBlock) {
+    const reconciledState = await reconcileWalletNotesWithBridgeState({
+      walletContext,
+      currentSnapshot: context.currentSnapshot,
+      controllerAddress: context.workspace.controller,
+    });
+    walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
+    persistWallet(walletContext);
+    return {
+      importedNotes: [],
+      reconciledState,
+      scannedLogs: 0,
+      scanRange,
+    };
+  }
+
+  const storageLayoutManifest = readJson(
+    walletContext.wallet.storageLayoutPath ?? context.workspace.storageLayoutPath,
+  );
+  const commitmentExistsSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "commitmentExists"));
+  const nullifierUsedSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "nullifierUsed"));
+  const deliveryLogs = logs.filter((log) => {
+    const blockNumber = Number(log.blockNumber);
+    return blockNumber >= scanStartBlock && blockNumber <= latestBlock;
+  });
+  const importedCandidates = await recoverDeliveredNoteCandidatesFromLogs({
+    logs: deliveryLogs,
+    walletContext,
+    context,
+    noteReceivePrivateKey,
+    commitmentExistsSlot,
+    nullifierUsedSlot,
+  });
+  const importedNotes = mergeTrackedNotesIntoWallet(walletContext, importedCandidates);
+  const reconciledState = await reconcileWalletNotesWithBridgeState({
+    walletContext,
+    currentSnapshot: context.currentSnapshot,
+    controllerAddress: context.workspace.controller,
+  });
+  walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
+  persistWallet(walletContext);
+  return {
+    importedNotes,
+    reconciledState,
+    scannedLogs: deliveryLogs.length,
     scanRange,
   };
 }

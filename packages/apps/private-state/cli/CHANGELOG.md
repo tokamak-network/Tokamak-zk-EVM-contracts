@@ -11,6 +11,8 @@
   instead of relying on a race-prone timestamp throttle during concurrent scans.
 - Added progress output for the wallet lifecycle registered/exited event scans that run before
   note-delivery recovery in `wallet recover-workspace`.
+- Added `set rpc` for per-network RPC configuration with built-in `eth_getLogs` scan-limit tables
+  for Ankr, Chainstack, Chainnodes, QuickNode, and Alchemy.
 
 ## 2.1.1 - 2026-05-14
 

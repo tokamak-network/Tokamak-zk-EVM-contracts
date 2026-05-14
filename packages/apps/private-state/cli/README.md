@@ -273,7 +273,7 @@ the wallet workspace with `wallet recover-workspace` and export a new bundle wit
 Estimate live transaction costs before sending commands with:
 
 ```bash
-private-state-cli help transaction-fees --network mainnet --rpc-url <RPC_URL>
+private-state-cli help transaction-fees --network mainnet
 ```
 
 `help transaction-fees` uses the measured gas data packaged in `assets/tx-fees.json`, the selected network's live fee data,
@@ -390,11 +390,20 @@ The CLI stores user workspaces under:
 Wallet backup metadata lives under the channel workspace. Viewing and spending private keys live as separate protected
 key files under `~/tokamak-private-channels/secrets/<network>/wallets/<wallet>/`.
 
-Bridge-facing commands accept optional `--rpc-url <URL>`. When `--rpc-url` is provided, the CLI stores it in
-`~/tokamak-private-channels/secrets/<network>/.env` as `RPC_URL=<URL>` with protected canonical secret permissions.
-When `--rpc-url` is omitted, the CLI reads `RPC_URL` from that file. The `anvil` network falls back to
-`http://127.0.0.1:8545` when no saved RPC URL exists. Canonical CLI secrets are checked on read: macOS/Linux uses
-`0600`, while Windows uses ACL repair and inspection when possible.
+Configure the network RPC endpoint before bridge-facing or wallet recovery commands:
+
+```bash
+private-state-cli set rpc --network mainnet --rpc-url <RPC_URL> --provider alchemy
+```
+
+The CLI writes `~/tokamak-private-channels/workspace/<network>/rpc-config.env` and later commands read `RPC_URL`,
+`LOG_CHUNK_SIZE`, `LOG_REQUESTS_PER_SECOND`, and `RPC_BLOCK_RANGE_CAP` from that file. Built-in provider limits are:
+Ankr `30 calls/s, 3000 blocks`; Chainstack `25 calls/s, 100 blocks`; Chainnodes `25 calls/s, 20000 blocks`;
+QuickNode `15 calls/s, 5 blocks`; Alchemy `8.33 calls/s, 10 blocks`. If the provider is not listed, use
+`--log-requests-per-second <N>` and `--block-range-cap <N>` instead of `--provider`.
+
+Canonical CLI secrets are checked on read: macOS/Linux uses `0600`, while Windows uses ACL repair and inspection when
+possible.
 
 ## LLM Agent Guidance
 
@@ -429,8 +438,9 @@ Operating rules:
   - A viewing key decrypts encrypted note-delivery events for the registered note-receive public key. A spending key is
     the channel-bound L2 private key used to authorize note use. Do not describe either key as interchangeable with the
     other.
-  - The network RPC URL is the endpoint used to read and write chain state. It can be supplied once with `--rpc-url`
-    on a bridge-facing command, after which the CLI saves it under the selected network.
+  - The network RPC URL is the endpoint used to read and write chain state. It must be configured once with
+    `private-state-cli set rpc --network <NETWORK> --rpc-url <URL> --provider <PROVIDER>`, or with explicit
+    `--log-requests-per-second` and `--block-range-cap` values when the provider is not built in.
   - A workspace recovery index is the saved block pointer and state-root hash that lets the CLI resume log scanning
     without replaying the channel from its creation block. If it is missing, explain `--from-genesis` before using it
     because genesis replay can take much longer.
@@ -441,22 +451,24 @@ Operating rules:
 - When a CLI command fails, read the error message and any printed `Try:` hints first. Prefer the corrective action
   suggested by the CLI before inventing a different recovery sequence.
 - When the user does not have a network RPC URL yet, explain that they need an Ethereum JSON-RPC endpoint for the
-  selected network. They can obtain one from an infrastructure provider such as Alchemy, Infura, QuickNode, or from
-  their own node. Ask the user to create or select the endpoint in that provider's UI, then paste only the endpoint URL
-  into the CLI command that accepts `--rpc-url`; do not ask for provider account passwords, API dashboards, seed phrases,
-  private keys, or wallet secrets.
+  selected network. They can obtain one from an infrastructure provider such as Alchemy, Ankr, Chainstack, Chainnodes,
+  QuickNode, or from their own node. Ask the user to create or select the endpoint in that provider's UI, then paste only
+  the endpoint URL into `private-state-cli set rpc`; do not ask for provider account passwords, API dashboards, seed
+  phrases, private keys, or wallet secrets.
 - When a user wants to join a channel, do not jump straight to `channel join`. Walk them through:
   1. choose the network and channel name
   2. run `private-state-cli install`
   3. run `private-state-cli help doctor`
   4. obtain or confirm a network RPC URL for the selected network
-  5. prepare a private key source file locally, without pasting the key into chat
-  6. run `account import --account <NAME> --network <NETWORK> --private-key-file <PATH>`
-  7. prepare a wallet secret source file locally, for example with `openssl rand -hex 32 > ./wallet-secret.txt`
-  8. inspect the channel with `channel get-meta` if it already exists, or create it with `channel create` if the user is
+  5. run `set rpc --network <NETWORK> --rpc-url <URL> --provider <PROVIDER>`, or use explicit scan limits for an
+     unlisted provider
+  6. prepare a private key source file locally, without pasting the key into chat
+  7. run `account import --account <NAME> --network <NETWORK> --private-key-file <PATH>`
+  8. prepare a wallet secret source file locally, for example with `openssl rand -hex 32 > ./wallet-secret.txt`
+  9. inspect the channel with `channel get-meta` if it already exists, or create it with `channel create` if the user is
      the channel creator
-  9. explain the immutable policy warning printed by the CLI
-  10. run `channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path <PATH> --acknowledge-action-impact`
+  10. explain the immutable policy warning printed by the CLI
+  11. run `channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path <PATH> --acknowledge-action-impact`
 - Before executing any command for a user that requires an `--acknowledge-*` option, strongly warn the user in plain
   language about what that acknowledgement means and ask for explicit confirmation. Do not add
   `--acknowledge-action-impact` or `--acknowledge-full-note-plaintext-export` on the user's behalf until they confirm.

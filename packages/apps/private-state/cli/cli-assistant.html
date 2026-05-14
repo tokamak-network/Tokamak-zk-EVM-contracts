@@ -414,15 +414,21 @@
           <div class="box">
             <ol class="guide-list">
               <li>
+                <span class="guide-label">Configure RPC:</span> <code>set rpc</code>
+                <div class="guide-example">
+                  <code>set rpc --network 'sepolia' --rpc-url '__RPC_URL__' --provider 'alchemy'</code>
+                </div>
+              </li>
+              <li>
                 <span class="guide-label">Join a channel:</span> <code>channel join</code>
                 <div class="guide-example">
-                  <code>channel join --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --wallet-secret-path '/path/to/wallet-secret' --rpc-url '__RPC_URL__'</code>
+                  <code>channel join --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --wallet-secret-path '/path/to/wallet-secret'</code>
                 </div>
               </li>
               <li>
                 <span class="guide-label">Create notes:</span> <code>account deposit-bridge</code> -&gt; <code>wallet deposit-channel</code> -&gt; <code>wallet mint-notes</code>
                 <div class="guide-example">
-                  <code>account deposit-bridge --amount '100' --network 'sepolia' --account 'my-account' --rpc-url '__RPC_URL__'</code><br />
+                  <code>account deposit-bridge --amount '100' --network 'sepolia' --account 'my-account'</code><br />
                   <code>wallet deposit-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '100'</code><br />
                   <code>wallet mint-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amounts '[&quot;50&quot;,&quot;50&quot;,&quot;0&quot;]'</code>
                 </div>
@@ -438,7 +444,7 @@
                 <div class="guide-example">
                   <code>wallet redeem-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]'</code><br />
                   <code>wallet withdraw-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '25'</code><br />
-                  <code>account withdraw-bridge --amount '25' --network 'sepolia' --account 'my-account' --rpc-url '__RPC_URL__'</code>
+                  <code>account withdraw-bridge --amount '25' --network 'sepolia' --account 'my-account'</code>
                 </div>
               </li>
             </ol>
@@ -1420,7 +1426,7 @@
         ].forEach((fieldKey) => {
           memoryFieldsEl.appendChild(createField(fieldKey));
         });
-        memoryStatusEl.textContent = "Use account import --private-key-file before signing commands. Optional --rpc-url is saved as the network RPC_URL for later commands.";
+        memoryStatusEl.textContent = "Use set rpc once before bridge-facing commands, then use account import --private-key-file before signing commands.";
       }
 
       function renderCommandSelect() {
@@ -1480,7 +1486,7 @@
             : "",
         ].join("");
         warningEl.textContent = missing.length === 0
-          ? `Ready. If --rpc-url is omitted, the CLI uses the saved network RPC_URL.${workspaceWarnings}`
+          ? `Ready. Bridge-facing commands use the saved network RPC configuration.${workspaceWarnings}`
           : `Missing inputs: ${missing.map((fieldKey) => fieldCatalog[fieldKey].label).join(", ")}.${workspaceWarnings}`;
       }
 

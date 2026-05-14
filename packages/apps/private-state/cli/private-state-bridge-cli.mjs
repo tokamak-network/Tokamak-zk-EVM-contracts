@@ -71,6 +71,7 @@ import {
   slugifyPathComponent,
   workspaceChannelDir,
   workspaceDirForName,
+  workspaceNetworkDir,
   workspaceWalletsDir,
   walletDirForName,
   walletNameForChannelAndAddress,
@@ -207,12 +208,45 @@ const vaultStorageWriteObservedEventInterface = new Interface(VAULT_STORAGE_WRIT
 const VAULT_STORAGE_WRITE_OBSERVED_TOPIC =
   vaultStorageWriteObservedEventInterface.getEvent("LiquidBalanceStorageWriteObserved").topicHash;
 const ZERO_TOPIC = normalizeBytes32Hex(ethers.ZeroHash);
-const DEFAULT_LOG_CHUNK_SIZE = 2000;
-const DEFAULT_LOG_REQUESTS_PER_SECOND = 5;
-const LOG_REQUEST_INTERVAL_MS = Math.ceil(1000 / DEFAULT_LOG_REQUESTS_PER_SECOND);
 const AUTO_RECOVERY_BLOCK_BUDGET = 7200;
+const RPC_PROVIDER_LOG_LIMITS = Object.freeze({
+  ankr: {
+    provider: "ankr",
+    logRequestsPerSecond: 30,
+    blockRangeCap: 3000,
+  },
+  chainstack: {
+    provider: "chainstack",
+    logRequestsPerSecond: 25,
+    blockRangeCap: 100,
+  },
+  chainnodes: {
+    provider: "chainnodes",
+    logRequestsPerSecond: 25,
+    blockRangeCap: 20000,
+  },
+  quicknode: {
+    provider: "quicknode",
+    logRequestsPerSecond: 15,
+    blockRangeCap: 5,
+  },
+  alchemy: {
+    provider: "alchemy",
+    logRequestsPerSecond: 8.33,
+    blockRangeCap: 10,
+  },
+});
+const RPC_PROVIDER_ALIASES = Object.freeze({
+  ankr: "ankr",
+  chainstack: "chainstack",
+  chainnodes: "chainnodes",
+  quicknode: "quicknode",
+  quicknodes: "quicknode",
+  alchemy: "alchemy",
+});
 let lastLogRequestStartedAtMs = 0;
 let logRequestQueue = Promise.resolve();
+let activeRpcLogConfig = null;
 
 function printImmutableChannelPolicyWarning({
   action,
@@ -562,6 +596,12 @@ async function main() {
   if (args.command === "uninstall") {
     assertUninstallArgs(args);
     await handleUninstall();
+    return;
+  }
+
+  if (args.command === "set-rpc") {
+    assertSetRpcArgs(args);
+    await handleSetRpc({ args });
     return;
   }
 
@@ -2737,6 +2777,36 @@ async function handleUninstall() {
   });
 }
 
+async function handleSetRpc({ args }) {
+  const networkName = requireNetworkName(args);
+  const network = {
+    ...resolveCliNetwork(networkName),
+    name: networkName,
+  };
+  const rpcUrl = requireArg(args.rpcUrl, "--rpc-url").trim();
+  validateRpcUrl(rpcUrl, "--rpc-url");
+  const rpcScanLimits = resolveRpcScanLimitsFromArgs(args);
+  const provider = new JsonRpcProvider(rpcUrl, Number(network.chainId), { staticNetwork: true });
+  await assertProviderChainIdMatchesNetwork({ provider, network, rpcUrl });
+  const rpcConfig = writeRpcConfig(networkName, {
+    RPC_URL: rpcUrl,
+    RPC_PROVIDER: rpcScanLimits.provider ?? "custom",
+    LOG_REQUESTS_PER_SECOND: rpcScanLimits.logRequestsPerSecond,
+    LOG_CHUNK_SIZE: rpcScanLimits.blockRangeCap,
+    RPC_BLOCK_RANGE_CAP: rpcScanLimits.blockRangeCap,
+  });
+  printJson({
+    action: "set rpc",
+    network: networkName,
+    rpcConfigPath: rpcConfigEnvPath(networkName),
+    rpcUrl: redactRpcUrl(rpcConfig.rpcUrl),
+    provider: rpcConfig.provider,
+    logRequestsPerSecond: rpcConfig.logRequestsPerSecond,
+    logChunkSize: rpcConfig.logChunkSize,
+    blockRangeCap: rpcConfig.blockRangeCap,
+  });
+}
+
 async function requireUninstallConfirmation() {
   const prompt = [
     "This permanently deletes local private-state CLI workspaces, wallet secrets, installed private-state artifacts,",
@@ -3748,19 +3818,10 @@ function inspectGuideNetworkRuntime(networkName) {
   let provider = null;
   let error = null;
   try {
-    const savedRpcUrl = readNetworkSecretEnv(networkName).RPC_URL?.trim();
-    if (savedRpcUrl) {
-      validateRpcUrl(savedRpcUrl, `${networkSecretEnvPath(networkName)} RPC_URL`);
-      rpcUrl = savedRpcUrl;
-      rpcSource = networkSecretEnvPath(networkName);
-    } else if (network.defaultRpcUrl) {
-      rpcUrl = network.defaultRpcUrl;
-      rpcSource = "network-default";
-    } else {
-      throw new Error(
-        `Missing RPC_URL for ${networkName}. Create ${networkSecretEnvPath(networkName)} with RPC_URL=<URL>, or run a bridge-facing command once with --rpc-url <URL>.`,
-      );
-    }
+    const rpcConfig = resolveCommandRpcConfig({ network: networkName });
+    rpcUrl = rpcConfig.rpcUrl;
+    rpcSource = rpcConfig.configPath;
+    setActiveRpcLogConfig(rpcConfig);
     provider = new JsonRpcProvider(rpcUrl, Number(network.chainId), { staticNetwork: true });
   } catch (caught) {
     error = caught.message;
@@ -3776,7 +3837,7 @@ function inspectGuideNetworkRuntime(networkName) {
       rpcConfigured: Boolean(rpcUrl),
       rpcSource,
       rpcUrl: rpcUrl ? redactRpcUrl(rpcUrl) : null,
-      networkSecretEnvPath: networkSecretEnvPath(networkName),
+      rpcConfigEnvPath: rpcConfigEnvPath(networkName),
       error,
     },
     check: guideCheck("network RPC", rpcUrl ? "ok" : "missing", {
@@ -3996,8 +4057,8 @@ function applyGuideNextAction(guide) {
   }
   if (guide.state.network && !guide.state.network.rpcConfigured) {
     setGuideNextAction(guide, {
-      command: null,
-      why: `Configure RPC_URL in ${guide.state.network.networkSecretEnvPath}, or run a bridge-facing command once with --rpc-url <URL>.`,
+      command: `set rpc --network ${guide.selectors.network} --rpc-url <URL> --provider <PROVIDER>`,
+      why: `Configure RPC settings in ${guide.state.network.rpcConfigEnvPath}.`,
     });
     return;
   }
@@ -7915,10 +7976,6 @@ function loadWalletMetadata(walletName, networkName) {
     `Wallet ${normalizedWalletName} metadata is missing network.`,
   );
   expect(
-    typeof metadata.rpcUrl === "string" && metadata.rpcUrl.length > 0,
-    `Wallet ${normalizedWalletName} metadata is missing rpcUrl.`,
-  );
-  expect(
     typeof metadata.channelName === "string" && metadata.channelName.length > 0,
       `Wallet ${normalizedWalletName} metadata is missing channelName.`,
   );
@@ -8992,11 +9049,11 @@ async function fetchLogsChunked(provider, {
   topics,
   fromBlock,
   toBlock,
-  initialChunkSize = DEFAULT_LOG_CHUNK_SIZE,
   collectLogs = true,
   onProgress = null,
   onChunk = null,
 }) {
+  const rpcLogConfig = requireActiveRpcLogConfig();
   const normalizedFromBlock = Number(fromBlock);
   const resolvedToBlock = toBlock === "latest" ? await fetchFreshBlockNumber(provider) : Number(toBlock);
   const aggregatedLogs = [];
@@ -9024,7 +9081,7 @@ async function fetchLogsChunked(provider, {
     logsFound: 0,
   });
 
-  let chunkSize = Math.max(1, Number(initialChunkSize));
+  const chunkSize = rpcLogConfig.logChunkSize;
   let cursor = normalizedFromBlock;
   while (cursor <= resolvedToBlock) {
     const chunkToBlock = Math.min(resolvedToBlock, cursor + chunkSize - 1);
@@ -9037,18 +9094,12 @@ async function fetchLogsChunked(provider, {
         toBlock: chunkToBlock,
       });
     } catch (error) {
-      if (isRateLimitError(error)) {
-        throw new Error(
-          `RPC log query rate limit exceeded. Log chunk requests are paced at ${DEFAULT_LOG_REQUESTS_PER_SECOND} requests per second.`,
-          { cause: error },
-        );
-      }
-      const suggestedChunkSize = deriveRecommendedLogChunkSize(error, chunkSize);
-      if (suggestedChunkSize >= chunkSize) {
-        throw error;
-      }
-      chunkSize = suggestedChunkSize;
-      continue;
+      throw buildRpcLogQueryConfigError({
+        error,
+        fromBlock: cursor,
+        toBlock: chunkToBlock,
+        rpcLogConfig,
+      });
     }
     logsFound += logs.length;
     if (collectLogs) {
@@ -9132,6 +9183,7 @@ function assertAutoRecoveryBlockBudget({
 }
 
 async function fetchLogsRateLimited(provider, request) {
+  const rpcLogConfig = requireActiveRpcLogConfig();
   let releaseQueue;
   const previousRequest = logRequestQueue;
   logRequestQueue = new Promise((resolve) => {
@@ -9140,8 +9192,8 @@ async function fetchLogsRateLimited(provider, request) {
   await previousRequest;
   try {
     const elapsedMs = Date.now() - lastLogRequestStartedAtMs;
-    if (elapsedMs < LOG_REQUEST_INTERVAL_MS) {
-      await sleep(LOG_REQUEST_INTERVAL_MS - elapsedMs);
+    if (elapsedMs < rpcLogConfig.requestIntervalMs) {
+      await sleep(rpcLogConfig.requestIntervalMs - elapsedMs);
     }
     lastLogRequestStartedAtMs = Date.now();
     return await provider.getLogs(request);
@@ -9167,28 +9219,19 @@ function isRateLimitError(error) {
   return /\b429\b|too many requests|rate limit|compute units/i.test(serializedError);
 }
 
-function deriveRecommendedLogChunkSize(error, currentChunkSize) {
-  const serializedError = [
-    error?.message,
-    error?.shortMessage,
-    error?.info?.responseBody,
-  ].filter((value) => typeof value === "string" && value.length > 0).join("\n");
-
-  const boundedRangeMatch = /up to a (\d+) block range/i.exec(serializedError);
-  if (boundedRangeMatch) {
-    return Math.max(1, Number(boundedRangeMatch[1]));
-  }
-
-  const recommendedWindowMatch = /\[(0x[0-9a-f]+),\s*(0x[0-9a-f]+)\]/i.exec(serializedError);
-  if (recommendedWindowMatch) {
-    const lower = Number(ethers.toBigInt(recommendedWindowMatch[1]));
-    const upper = Number(ethers.toBigInt(recommendedWindowMatch[2]));
-    if (Number.isFinite(lower) && Number.isFinite(upper) && upper >= lower) {
-      return Math.max(1, upper - lower + 1);
-    }
-  }
-
-  return Math.max(1, Math.floor(currentChunkSize / 2));
+function buildRpcLogQueryConfigError({ error, fromBlock, toBlock, rpcLogConfig }) {
+  const reason = isRateLimitError(error)
+    ? "The RPC provider reported a rate-limit error."
+    : "The RPC provider rejected the configured eth_getLogs request.";
+  return new Error([
+    reason,
+    `Configured LOG_CHUNK_SIZE=${rpcLogConfig.logChunkSize}, LOG_REQUESTS_PER_SECOND=${rpcLogConfig.logRequestsPerSecond}.`,
+    `Failed block range: ${fromBlock}-${toBlock}.`,
+    `Run private-state-cli set rpc --network ${rpcLogConfig.networkName} --rpc-url <URL> --provider <PROVIDER>,`,
+    "or set explicit --log-requests-per-second and --block-range-cap values that match your RPC plan.",
+    `RPC config file: ${rpcLogConfig.configPath}.`,
+    `Original error: ${error?.shortMessage ?? error?.message ?? String(error)}`,
+  ].join(" "), { cause: error });
 }
 
 async function queryContractEventsChunked({
@@ -9438,6 +9481,7 @@ function parseArgs(argv) {
   if (
     (parsed.command === "account"
       || parsed.command === "channel"
+      || parsed.command === "set"
       || parsed.command === "wallet"
       || parsed.command === "help")
     && parsed.positional[1]
@@ -9713,10 +9757,6 @@ function accountPrivateKeyPath(networkName, accountName) {
     slugifyPathComponent(accountName),
     "private-key",
   );
-}
-
-function networkSecretEnvPath(networkName) {
-  return path.join(secretRoot, requireNetworkName({ network: networkName }), ".env");
 }
 
 function accountMetadataPath(networkName, accountName) {
@@ -10087,6 +10127,13 @@ function assertInstallZkEvmArgs(args) {
 
 function assertUninstallArgs(args) {
   assertAllowedCommandSchema(args, "uninstall");
+}
+
+function assertSetRpcArgs(args) {
+  assertAllowedCommandSchema(args, "set-rpc");
+  requireNetworkName(args);
+  requireArg(args.rpcUrl, "--rpc-url");
+  resolveRpcScanLimitsFromArgs(args);
 }
 
 function assertHelpCommandsArgs(args) {
@@ -10524,8 +10571,8 @@ Secret source options:
   Create one before joining a channel, for example:
       openssl rand -hex 32 > ./wallet-secret.txt
       private-state-cli channel join --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
-  Bridge-facing commands accept optional --rpc-url. When provided, it is saved to
-  ~/tokamak-private-channels/secrets/<network>/.env as RPC_URL. When omitted, the CLI reads RPC_URL from that file.
+  Configure each network RPC endpoint once with set rpc. The CLI reads RPC_URL, LOG_CHUNK_SIZE,
+  and LOG_REQUESTS_PER_SECOND from ~/tokamak-private-channels/workspace/<network>/rpc-config.env.
   Wallet commands use separate protected viewing-key and spending-key files when those capabilities are needed.
   Source files passed to --private-key-file and --wallet-secret-path are not required to use 0600 permissions, but
   canonical CLI secret files remain protected. On macOS/Linux this means 0600; on Windows the CLI repairs ACLs when possible.
@@ -10565,14 +10612,88 @@ function writeJsonWithMode(filePath, value, mode) {
   }
 }
 
-function readNetworkSecretEnv(networkName) {
-  const envPath = networkSecretEnvPath(networkName);
-  if (!fs.existsSync(envPath)) {
-    return {};
+function formatEnvValue(value) {
+  if (/^[^\s#"'`$\\]+$/u.test(value)) {
+    return value;
   }
-  assertSecretFilePermissions(envPath, `${networkName} network secret env file`);
+  return JSON.stringify(value);
+}
+
+function resolveCommandRpcConfig(args) {
+  const networkName = requireNetworkName(args);
+  const rpcConfig = readRpcConfig(networkName);
+  if (rpcConfig) {
+    return rpcConfig;
+  }
+  throw cliError(
+    CLI_ERROR_CODES.MISSING_RPC_URL,
+    [
+      `Missing RPC configuration for ${networkName}.`,
+      `Run private-state-cli set rpc --network ${networkName} --rpc-url <URL> --provider <PROVIDER>,`,
+      "or provide --log-requests-per-second and --block-range-cap explicitly.",
+      `Expected config file: ${rpcConfigEnvPath(networkName)}.`,
+    ].join(" "),
+  );
+}
+
+function validateRpcUrl(value, label) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("unsupported protocol");
+    }
+  } catch {
+    throw new Error(`${label} must be a valid http(s) RPC URL.`);
+  }
+}
+
+function rpcConfigEnvPath(networkName) {
+  return path.join(workspaceNetworkDir(workspaceRoot, requireNetworkName({ network: networkName })), "rpc-config.env");
+}
+
+function readRpcConfig(networkName) {
+  const envPath = rpcConfigEnvPath(networkName);
+  if (!fs.existsSync(envPath)) {
+    return null;
+  }
+  const env = readPlainEnvFile(envPath);
+  return normalizeRpcConfig({
+    networkName,
+    configPath: envPath,
+    rpcUrl: env.RPC_URL,
+    provider: env.RPC_PROVIDER,
+    logRequestsPerSecond: env.LOG_REQUESTS_PER_SECOND,
+    logChunkSize: env.LOG_CHUNK_SIZE ?? env.RPC_BLOCK_RANGE_CAP,
+    blockRangeCap: env.RPC_BLOCK_RANGE_CAP ?? env.LOG_CHUNK_SIZE,
+  });
+}
+
+function writeRpcConfig(networkName, updates) {
+  const envPath = rpcConfigEnvPath(networkName);
+  const next = normalizeRpcConfig({
+    networkName,
+    configPath: envPath,
+    rpcUrl: updates.RPC_URL,
+    provider: updates.RPC_PROVIDER,
+    logRequestsPerSecond: updates.LOG_REQUESTS_PER_SECOND,
+    logChunkSize: updates.LOG_CHUNK_SIZE,
+    blockRangeCap: updates.RPC_BLOCK_RANGE_CAP,
+  });
+  const lines = [
+    ["LOG_CHUNK_SIZE", next.logChunkSize],
+    ["LOG_REQUESTS_PER_SECOND", next.logRequestsPerSecond],
+    ["RPC_BLOCK_RANGE_CAP", next.blockRangeCap],
+    ["RPC_PROVIDER", next.provider],
+    ["RPC_URL", next.rpcUrl],
+  ].map(([key, value]) => `${key}=${formatEnvValue(value)}`);
+  ensureDir(path.dirname(envPath));
+  fs.writeFileSync(envPath, `${lines.join("\n")}\n`, "utf8");
+  return next;
+}
+
+function readPlainEnvFile(filePath) {
   const result = {};
-  for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/u)) {
+  for (const line of fs.readFileSync(filePath, "utf8").split(/\r?\n/u)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) {
       continue;
@@ -10594,75 +10715,107 @@ function readNetworkSecretEnv(networkName) {
   return result;
 }
 
-function writeNetworkSecretEnv(networkName, updates) {
-  const envPath = networkSecretEnvPath(networkName);
-  if (fs.existsSync(envPath)) {
-    protectSecretFile(envPath, `${networkName} network secret env file`);
-  }
-  const existing = readNetworkSecretEnv(networkName);
-  const next = {
-    ...existing,
-    ...Object.fromEntries(
-      Object.entries(updates)
-        .filter(([_key, value]) => value !== undefined && value !== null && String(value).trim() !== "")
-        .map(([key, value]) => [key, String(value).trim()]),
-    ),
-  };
-  const lines = Object.entries(next)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${formatEnvValue(value)}`);
-  writeSecretFile(envPath, lines.join("\n"));
-}
-
-function formatEnvValue(value) {
-  if (/^[^\s#"'`$\\]+$/u.test(value)) {
-    return value;
-  }
-  return JSON.stringify(value);
-}
-
-function resolveCommandRpcUrl(args) {
-  const networkName = requireNetworkName(args);
-  const network = resolveCliNetwork(networkName);
-  if (args.rpcUrl === true) {
-    throw new Error("--rpc-url requires a URL value.");
-  }
-  const explicitRpcUrl = typeof args.rpcUrl === "string" ? args.rpcUrl.trim() : "";
-  if (explicitRpcUrl) {
-    validateRpcUrl(explicitRpcUrl, "--rpc-url");
-    writeNetworkSecretEnv(networkName, { RPC_URL: explicitRpcUrl });
-    return explicitRpcUrl;
-  }
-
-  const savedRpcUrl = readNetworkSecretEnv(networkName).RPC_URL?.trim();
-  if (savedRpcUrl) {
-    validateRpcUrl(savedRpcUrl, `${networkSecretEnvPath(networkName)} RPC_URL`);
-    return savedRpcUrl;
-  }
-
-  if (network.defaultRpcUrl) {
-    return network.defaultRpcUrl;
-  }
-
-  throw cliError(
-    CLI_ERROR_CODES.MISSING_RPC_URL,
-    [
-      `Missing RPC_URL for ${networkName}.`,
-      `Pass --rpc-url <URL> once to save it to ${networkSecretEnvPath(networkName)},`,
-      "or create that protected canonical secret file with RPC_URL=<URL>.",
-    ].join(" "),
+function normalizeRpcConfig({
+  networkName,
+  configPath,
+  rpcUrl,
+  provider,
+  logRequestsPerSecond,
+  logChunkSize,
+  blockRangeCap,
+}) {
+  validateRpcUrl(String(rpcUrl ?? ""), `${configPath} RPC_URL`);
+  const normalizedLogRequestsPerSecond = Number(logRequestsPerSecond);
+  const normalizedLogChunkSize = Number(logChunkSize);
+  const normalizedBlockRangeCap = Number(blockRangeCap);
+  expect(
+    Number.isFinite(normalizedLogRequestsPerSecond) && normalizedLogRequestsPerSecond > 0,
+    `${configPath} LOG_REQUESTS_PER_SECOND must be a positive number.`,
   );
+  expect(
+    Number.isInteger(normalizedLogChunkSize) && normalizedLogChunkSize > 0,
+    `${configPath} LOG_CHUNK_SIZE must be a positive integer.`,
+  );
+  expect(
+    Number.isInteger(normalizedBlockRangeCap) && normalizedBlockRangeCap > 0,
+    `${configPath} RPC_BLOCK_RANGE_CAP must be a positive integer.`,
+  );
+  expect(
+    normalizedLogChunkSize === normalizedBlockRangeCap,
+    `${configPath} LOG_CHUNK_SIZE must match RPC_BLOCK_RANGE_CAP.`,
+  );
+  return {
+    networkName,
+    configPath,
+    rpcUrl: String(rpcUrl).trim(),
+    provider: String(provider ?? "custom").trim() || "custom",
+    logRequestsPerSecond: normalizedLogRequestsPerSecond,
+    logChunkSize: normalizedLogChunkSize,
+    blockRangeCap: normalizedBlockRangeCap,
+    requestIntervalMs: Math.ceil(1000 / normalizedLogRequestsPerSecond),
+  };
 }
 
-function validateRpcUrl(value, label) {
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      throw new Error("unsupported protocol");
+function resolveRpcScanLimitsFromArgs(args) {
+  const providerInput = typeof args.provider === "string" ? args.provider.trim() : "";
+  const hasProvider = providerInput.length > 0;
+  const hasManualLimits = args.logRequestsPerSecond !== undefined || args.blockRangeCap !== undefined;
+  expect(
+    hasProvider !== hasManualLimits,
+    "set rpc requires either --provider or both --log-requests-per-second and --block-range-cap.",
+  );
+  if (hasProvider) {
+    if (args.provider === true) {
+      throw new Error("--provider requires a provider name.");
     }
-  } catch {
-    throw new Error(`${label} must be a valid http(s) RPC URL.`);
+    const providerKey = normalizeRpcProviderKey(providerInput);
+    const limits = RPC_PROVIDER_LOG_LIMITS[providerKey];
+    expect(
+      limits,
+      `Unsupported RPC provider ${providerInput}. Supported providers: ${Object.keys(RPC_PROVIDER_LOG_LIMITS).join(", ")}.`,
+    );
+    return limits;
   }
+  return {
+    provider: "custom",
+    logRequestsPerSecond: parsePositiveNumberOption(args.logRequestsPerSecond, "--log-requests-per-second"),
+    blockRangeCap: parsePositiveIntegerOption(args.blockRangeCap, "--block-range-cap"),
+  };
+}
+
+function normalizeRpcProviderKey(value) {
+  const normalized = String(value).toLowerCase().replace(/[^a-z0-9]/gu, "");
+  return RPC_PROVIDER_ALIASES[normalized] ?? normalized;
+}
+
+function parsePositiveNumberOption(value, label) {
+  if (value === true || value === undefined) {
+    throw new Error(`${label} requires a positive number.`);
+  }
+  const parsed = Number(value);
+  expect(Number.isFinite(parsed) && parsed > 0, `${label} must be a positive number.`);
+  return parsed;
+}
+
+function parsePositiveIntegerOption(value, label) {
+  if (value === true || value === undefined) {
+    throw new Error(`${label} requires a positive integer.`);
+  }
+  const parsed = Number(value);
+  expect(Number.isInteger(parsed) && parsed > 0, `${label} must be a positive integer.`);
+  return parsed;
+}
+
+function setActiveRpcLogConfig(rpcConfig) {
+  activeRpcLogConfig = rpcConfig;
+}
+
+function requireActiveRpcLogConfig() {
+  expect(
+    activeRpcLogConfig,
+    "RPC log scan configuration is missing. Run private-state-cli set rpc before commands that scan logs.",
+  );
+  return activeRpcLogConfig;
 }
 
 function readSecretFile(filePath, label) {
@@ -10906,13 +11059,15 @@ function loadExplicitCommandRuntime(args, { staticNetwork = false } = {}) {
     ...resolveCliNetwork(networkName),
     name: networkName,
   };
-  const rpcUrl = resolveCommandRpcUrl(args);
+  const rpcConfig = resolveCommandRpcConfig(args);
+  setActiveRpcLogConfig(rpcConfig);
   const provider = staticNetwork
-    ? new JsonRpcProvider(rpcUrl, Number(network.chainId), { staticNetwork: true })
-    : new JsonRpcProvider(rpcUrl);
+    ? new JsonRpcProvider(rpcConfig.rpcUrl, Number(network.chainId), { staticNetwork: true })
+    : new JsonRpcProvider(rpcConfig.rpcUrl);
   return {
     network,
-    rpcUrl,
+    rpcUrl: rpcConfig.rpcUrl,
+    rpcConfig,
     provider,
   };
 }
@@ -10931,13 +11086,17 @@ async function assertProviderChainIdMatchesNetwork({ provider, network, rpcUrl }
 
 function loadWalletCommandRuntime(args) {
   const networkName = requireNetworkName(args);
-  const walletMetadata = loadWalletMetadata(requireWalletName(args), networkName);
+  loadWalletMetadata(requireWalletName(args), networkName);
+  const network = {
+    ...resolveCliNetwork(networkName),
+    name: networkName,
+  };
+  const rpcConfig = resolveCommandRpcConfig(args);
+  setActiveRpcLogConfig(rpcConfig);
   return {
-    network: {
-      ...resolveCliNetwork(networkName),
-      name: networkName,
-    },
-    provider: new JsonRpcProvider(walletMetadata.rpcUrl),
+    network,
+    rpcConfig,
+    provider: new JsonRpcProvider(rpcConfig.rpcUrl),
   };
 }
 
@@ -11342,11 +11501,12 @@ function buildRecoveryHints(error, args = {}) {
     ? args.wallet
     : extractUnknownWalletName(message) ?? "<WALLET>";
 
-  if (error?.code === CLI_ERROR_CODES.MISSING_RPC_URL || message.includes("Missing RPC_URL")) {
-    hints.push("rerun the same bridge-facing command once with --rpc-url <URL>.");
-    if (networkName !== "<NETWORK>") {
-      hints.push(`create ${networkSecretEnvPath(networkName)} with RPC_URL=<URL>.`);
-    }
+  if (
+    error?.code === CLI_ERROR_CODES.MISSING_RPC_URL
+    || message.includes("Missing RPC configuration")
+    || message.includes("RPC log query")
+  ) {
+    hints.push(`private-state-cli set rpc --network ${networkName} --rpc-url <URL> --provider <PROVIDER>`);
   }
 
   if (

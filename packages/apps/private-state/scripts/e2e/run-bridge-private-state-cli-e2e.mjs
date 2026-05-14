@@ -1271,11 +1271,21 @@ function runAnvilCliCommand(command, args = []) {
 }
 
 function runAnvilBridgeCliCommand(command, args = []) {
-  return runPrivateStateCli([...commandTokens(command), "--network", "anvil", "--rpc-url", providerUrl, ...args]);
+  return runPrivateStateCli([...commandTokens(command), "--network", "anvil", ...args]);
 }
 
 function commandTokens(command) {
   return Array.isArray(command) ? command : String(command).trim().split(/\s+/u);
+}
+
+function configureAnvilRpcForCli() {
+  return runPrivateStateCli([
+    "set", "rpc",
+    "--network", workspaceNetworkName,
+    "--rpc-url", providerUrl,
+    "--log-requests-per-second", "100",
+    "--block-range-cap", "2000",
+  ]);
 }
 
 function walletCliArgs(participant) {
@@ -1850,6 +1860,7 @@ async function main() {
     cliPackageInstall = installPrivateStateCliPackageForE2E();
     console.log("E2E CLI: bootstrapping anvil and local deployments.");
     bootstrapAnvil();
+    configureAnvilRpcForCli();
     await resolveParticipantRegistrations(provider, participants);
     prepareCliSecrets(participants);
     bridgeDeployment = deployBridgeStack();

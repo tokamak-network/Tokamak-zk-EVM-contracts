@@ -404,6 +404,25 @@ Chainnodes `22.5 calls/s, 20000 blocks`; QuickNode `13.5 calls/s, 5 blocks`; Alc
 If the provider is not listed, use
 `--log-requests-per-second <N>` and `--block-range-cap <N>` instead of `--provider`.
 
+### Slow Workspace Recovery
+
+`channel recover-workspace` and `wallet recover-workspace` scan on-chain logs with `eth_getLogs`. If recovery is
+unexpectedly slow, first check the RPC scan limits saved by `set rpc`. The main speed factors are the provider's
+`eth_getLogs` block range cap and the allowed log request rate. A small block range cap can turn the same channel scan
+into thousands of RPC calls.
+
+For example, an Alchemy free-tier-style cap of `10` blocks is much slower for long recovery scans than Ankr's built-in
+`3000` block setting or Chainnodes' built-in `20000` block setting. When recovery is too slow, re-run `set rpc` with a
+provider that supports a larger `eth_getLogs` block range cap, or provide explicit values:
+
+```bash
+private-state-cli set rpc --network mainnet --rpc-url <RPC_URL> --provider ankr
+private-state-cli set rpc --network mainnet --rpc-url <RPC_URL> --log-requests-per-second <N> --block-range-cap <N>
+```
+
+If an RPC provider rejects the configured range or rate during recovery, run `set rpc` again with limits that match the
+provider's documented `eth_getLogs` policy, then retry the recovery command.
+
 Canonical CLI secrets are checked on read: macOS/Linux uses `0600`, while Windows uses ACL repair and inspection when
 possible.
 
@@ -450,6 +469,11 @@ Operating rules:
   recovery can be very slow because it scans channel logs from the creation block. If a channel workspace mirror is
   available, try mirror-based recovery first, and use RPC genesis replay only when mirror recovery is unavailable or
   unsuitable.
+- When `channel recover-workspace` or `wallet recover-workspace` is unexpectedly slow, first inspect the RPC provider
+  configured by `set rpc`. Explain that recovery speed is dominated by `eth_getLogs` block range cap and log request
+  rate. Suggest re-running `set rpc` with a provider that supports a larger block range cap, such as Ankr or Chainnodes
+  when appropriate, or with explicit `--log-requests-per-second` and `--block-range-cap` values from the provider's
+  documentation.
 - When a CLI command fails, read the error message and any printed `Try:` hints first. Prefer the corrective action
   suggested by the CLI before inventing a different recovery sequence.
 - When the user does not have a network RPC URL yet, explain that they need an Ethereum JSON-RPC endpoint for the

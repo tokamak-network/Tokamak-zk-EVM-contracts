@@ -212,6 +212,7 @@ const DEFAULT_LOG_REQUESTS_PER_SECOND = 5;
 const LOG_REQUEST_INTERVAL_MS = Math.ceil(1000 / DEFAULT_LOG_REQUESTS_PER_SECOND);
 const AUTO_RECOVERY_BLOCK_BUDGET = 7200;
 let lastLogRequestStartedAtMs = 0;
+let logRequestQueue = Promise.resolve();
 
 function printImmutableChannelPolicyWarning({
   action,
@@ -4288,22 +4289,20 @@ async function resolveWalletLifecycleEpoch({
 
 async function readWalletLifecycleEpochs({ context, provider, l1Address }) {
   const fromBlock = Number(context.workspace.genesisBlockNumber ?? 0);
-  const [registeredLogs, exitedLogs] = await Promise.all([
-    queryContractEventsChunked({
-      contract: context.channelManager,
-      eventName: "ChannelTokenVaultIdentityRegistered",
-      eventArgs: [l1Address],
-      fromBlock,
-      toBlock: "latest",
-    }),
-    queryContractEventsChunked({
-      contract: context.channelManager,
-      eventName: "ChannelTokenVaultIdentityExited",
-      eventArgs: [l1Address],
-      fromBlock,
-      toBlock: "latest",
-    }),
-  ]);
+  const registeredLogs = await queryContractEventsChunked({
+    contract: context.channelManager,
+    eventName: "ChannelTokenVaultIdentityRegistered",
+    eventArgs: [l1Address],
+    fromBlock,
+    toBlock: "latest",
+  });
+  const exitedLogs = await queryContractEventsChunked({
+    contract: context.channelManager,
+    eventName: "ChannelTokenVaultIdentityExited",
+    eventArgs: [l1Address],
+    fromBlock,
+    toBlock: "latest",
+  });
   const exits = await Promise.all(exitedLogs.map((log) => walletExitFromLog({ log, provider })));
   const epochs = [];
   for (const log of registeredLogs.sort(compareLogsByPosition)) {
@@ -8451,8 +8450,7 @@ async function fetchChannelRecoveryEventGroupsChunked({
       ? createRpcLogScanProgress({ action: progressAction, label: "channel-recovery chunks" })
       : null,
     onChunk: async ({ logs: channelManagerLogs, chunkFromBlock, chunkToBlock }) => {
-      await throttleLogRequest();
-      const bridgeVaultLogs = await provider.getLogs({
+      const bridgeVaultLogs = await fetchLogsRateLimited(provider, {
         address: channelInfo.bridgeTokenVault,
         topics: [bridgeVaultTopic],
         fromBlock: chunkFromBlock,
@@ -8881,8 +8879,7 @@ async function fetchLogsChunked(provider, {
     const chunkToBlock = Math.min(resolvedToBlock, cursor + chunkSize - 1);
     let logs;
     try {
-      await throttleLogRequest();
-      logs = await provider.getLogs({
+      logs = await fetchLogsRateLimited(provider, {
         address,
         topics,
         fromBlock: cursor,
@@ -8983,12 +8980,23 @@ function assertAutoRecoveryBlockBudget({
   ].join(" "));
 }
 
-async function throttleLogRequest() {
-  const elapsedMs = Date.now() - lastLogRequestStartedAtMs;
-  if (elapsedMs < LOG_REQUEST_INTERVAL_MS) {
-    await sleep(LOG_REQUEST_INTERVAL_MS - elapsedMs);
+async function fetchLogsRateLimited(provider, request) {
+  let releaseQueue;
+  const previousRequest = logRequestQueue;
+  logRequestQueue = new Promise((resolve) => {
+    releaseQueue = resolve;
+  });
+  await previousRequest;
+  try {
+    const elapsedMs = Date.now() - lastLogRequestStartedAtMs;
+    if (elapsedMs < LOG_REQUEST_INTERVAL_MS) {
+      await sleep(LOG_REQUEST_INTERVAL_MS - elapsedMs);
+    }
+    lastLogRequestStartedAtMs = Date.now();
+    return await provider.getLogs(request);
+  } finally {
+    releaseQueue();
   }
-  lastLogRequestStartedAtMs = Date.now();
 }
 
 function sleep(ms) {

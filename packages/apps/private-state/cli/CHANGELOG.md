@@ -7,6 +7,8 @@
 - Removed synthetic wallet lifecycle epoch fallback creation; wallet recovery now requires
   lifecycle registration events to be found in RPC log history instead of fabricating epochs from
   current registration state.
+- Fixed RPC log request pacing so every `eth_getLogs` call passes through a shared async limiter
+  instead of relying on a race-prone timestamp throttle during concurrent scans.
 
 ## 2.1.1 - 2026-05-14
 

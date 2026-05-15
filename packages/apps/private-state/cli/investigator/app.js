@@ -158,7 +158,13 @@ function applyFilters() {
     return;
   }
   const form = new FormData(els.filters);
-  const criteria = getFilterCriteria(form);
+  let criteria;
+  try {
+    criteria = getFilterCriteria(form);
+  } catch (error) {
+    setStatus(`Invalid filter: ${error.message}`);
+    return;
+  }
   state.filteredNotes = state.notes.filter(({ record }) => matchesCriteria(record, criteria));
   state.selectedNotePaths = new Set(state.filteredNotes.map((entry) => entry.path));
   renderResults();
@@ -173,10 +179,10 @@ function getFilterCriteria(form) {
     nullifier: normalizeSearch(form.get("nullifier")),
     creationTx: normalizeSearch(form.get("creationTx")),
     spendTx: normalizeSearch(form.get("spendTx")),
-    createdFrom: parseOptionalNumber(form.get("createdFrom")),
-    createdTo: parseOptionalNumber(form.get("createdTo")),
-    spentFrom: parseOptionalNumber(form.get("spentFrom")),
-    spentTo: parseOptionalNumber(form.get("spentTo")),
+    createdFrom: parseOptionalNumber(form.get("createdFrom"), "Created from block"),
+    createdTo: parseOptionalNumber(form.get("createdTo"), "Created to block"),
+    spentFrom: parseOptionalNumber(form.get("spentFrom"), "Spent from block"),
+    spentTo: parseOptionalNumber(form.get("spentTo"), "Spent to block"),
     status: String(form.get("status") ?? ""),
     direction: String(form.get("direction") ?? ""),
     counterparty: normalizeSearch(form.get("counterparty")),
@@ -1162,14 +1168,14 @@ function dosTimeDate(date) {
   return { time, date: dosDate };
 }
 
-function parseOptionalNumber(value) {
+function parseOptionalNumber(value, label) {
   const text = String(value ?? "").trim();
   if (!text) {
     return null;
   }
   const number = Number(text);
   if (!Number.isSafeInteger(number) || number < 0) {
-    return null;
+    throw new Error(`${label} must be a non-negative integer.`);
   }
   return number;
 }

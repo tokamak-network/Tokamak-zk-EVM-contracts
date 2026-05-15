@@ -1075,7 +1075,7 @@ async function handleGetChannel({ args, network, provider }) {
     policySnapshot,
     refundSchedule,
     bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
-    workspaceMirror: await tryReadChannelWorkspaceMirror({ bridgeCore, channelId }),
+    workspaceMirror: await readChannelWorkspaceMirror({ bridgeCore, channelId }),
   });
 }
 
@@ -1559,14 +1559,6 @@ function safeUrlPathSegments(pathname) {
       expect(segment !== ".." && !segment.includes("/") && !segment.includes("\\"), "Workspace mirror URL path contains an unsafe segment.");
       return segment;
     });
-}
-
-async function tryReadChannelWorkspaceMirror({ bridgeCore, channelId }) {
-  try {
-    return await readChannelWorkspaceMirror({ bridgeCore, channelId });
-  } catch {
-    return null;
-  }
 }
 
 async function loadWorkspaceMirrorRecoveryIndex({
@@ -4345,22 +4337,6 @@ async function loadWalletChannelRegistrationState({
   };
 }
 
-async function resolveWalletLifecycleEpoch({
-  context,
-  provider,
-  l1Address,
-  registration = null,
-  progressAction = null,
-}) {
-  const epochs = await readWalletLifecycleEpochs({
-    context,
-    provider,
-    l1Address,
-    progressAction,
-  });
-  return selectWalletLifecycleEpoch({ epochs, registration });
-}
-
 function selectWalletLifecycleEpoch({ epochs, registration = null }) {
   if (registration?.exists) {
     const active = [...epochs].reverse().find((epoch) => (
@@ -4374,31 +4350,6 @@ function selectWalletLifecycleEpoch({ epochs, registration = null }) {
     }
   }
   return epochs[epochs.length - 1] ?? null;
-}
-
-async function readWalletLifecycleEpochs({ context, provider, l1Address, progressAction = null }) {
-  const fromBlock = Number(context.workspace.genesisBlockNumber ?? 0);
-  const registeredLogs = await queryContractEventsChunked({
-    contract: context.channelManager,
-    eventName: "ChannelTokenVaultIdentityRegistered",
-    eventArgs: [l1Address],
-    fromBlock,
-    toBlock: "latest",
-    onProgress: progressAction
-      ? createRpcLogScanProgress({ action: progressAction, label: "wallet-lifecycle registered events" })
-      : null,
-  });
-  const exitedLogs = await queryContractEventsChunked({
-    contract: context.channelManager,
-    eventName: "ChannelTokenVaultIdentityExited",
-    eventArgs: [l1Address],
-    fromBlock,
-    toBlock: "latest",
-    onProgress: progressAction
-      ? createRpcLogScanProgress({ action: progressAction, label: "wallet-lifecycle exited events" })
-      : null,
-  });
-  return buildWalletLifecycleEpochsFromLogs({ registeredLogs, exitedLogs, provider });
 }
 
 async function buildWalletLifecycleEpochsFromLogs({ registeredLogs, exitedLogs, provider }) {
@@ -4426,6 +4377,52 @@ async function buildWalletLifecycleEpochsFromLogs({ registeredLogs, exitedLogs, 
     }
   }
   return epochs.sort(compareWalletEpochs);
+}
+
+async function walletEpochFromJoinReceipt({ receipt, context, provider, l1Address, registration }) {
+  const registeredTopic = normalizeBytes32Hex(
+    context.channelManager.interface.getEvent("ChannelTokenVaultIdentityRegistered").topicHash,
+  );
+  const normalizedManager = getAddress(context.workspace.channelManager);
+  const normalizedL1Address = getAddress(l1Address);
+  const matchingLogs = [];
+
+  for (const log of receipt.logs ?? []) {
+    if (ethers.toBigInt(getAddress(log.address)) !== ethers.toBigInt(normalizedManager)) {
+      continue;
+    }
+    const topic0 = log.topics?.[0] ? normalizeBytes32Hex(log.topics[0]) : null;
+    if (topic0 !== registeredTopic) {
+      continue;
+    }
+    const parsedLog = context.channelManager.interface.parseLog(log);
+    if (ethers.toBigInt(getAddress(parsedLog.args.l1Address)) !== ethers.toBigInt(normalizedL1Address)) {
+      continue;
+    }
+    matchingLogs.push({
+      ...log,
+      args: parsedLog.args,
+      fragment: parsedLog.fragment,
+    });
+  }
+
+  expect(
+    matchingLogs.length === 1,
+    `Expected exactly one ChannelTokenVaultIdentityRegistered log for ${normalizedL1Address} in the join transaction, found ${matchingLogs.length}.`,
+  );
+  const epoch = await walletEpochFromRegisteredLog({ log: matchingLogs[0], provider });
+  if (registration?.exists) {
+    expect(
+      ethers.toBigInt(getAddress(epoch.l2Address)) === ethers.toBigInt(getAddress(registration.l2Address)),
+      "Join transaction registration log does not match the current registered L2 address.",
+    );
+    expect(
+      ethers.toBigInt(normalizeBytes32Hex(epoch.channelTokenVaultKey))
+        === ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey)),
+      "Join transaction registration log does not match the current channel token vault key.",
+    );
+  }
+  return epoch;
 }
 
 async function scanWalletRecoveryEvents({ context, provider, l1Address, progressAction = null }) {
@@ -4665,13 +4662,13 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     ),
   );
   const registered = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
-  const lifecycleEpoch = await resolveWalletLifecycleEpoch({
+  const lifecycleEpoch = await walletEpochFromJoinReceipt({
+    receipt,
     context,
     provider,
     l1Address: signer.address,
     registration: registered,
   });
-  expect(lifecycleEpoch, "Unable to resolve the channel join epoch from emitted registration logs.");
   await refreshPersistedWorkspaceAfterLocalTransaction({
     context,
     provider,
@@ -9376,38 +9373,6 @@ function buildRpcLogQueryConfigError({ error, fromBlock, toBlock, rpcLogConfig }
     `RPC config file: ${rpcLogConfig.configPath}.`,
     `Original error: ${error?.shortMessage ?? error?.message ?? String(error)}`,
   ].join(" "), { cause: error });
-}
-
-async function queryContractEventsChunked({
-  contract,
-  eventName,
-  eventArgs = [],
-  fromBlock,
-  toBlock,
-  onProgress = null,
-}) {
-  const eventFragment = contract.interface.getEvent(eventName);
-  const contractAddress = getAddress(await contract.getAddress());
-  const provider = contract.runner?.provider ?? contract.runner;
-  expect(provider, `Contract runner is missing a provider for event ${eventName}.`);
-  const eventFilter = contract.filters[eventName](...eventArgs);
-  const topics = await eventFilter.getTopicFilter();
-  const logs = await fetchLogsChunked(provider, {
-    address: contractAddress,
-    topics,
-    fromBlock,
-    toBlock,
-    onProgress,
-  });
-
-  return logs.map((log) => {
-    const parsed = contract.interface.parseLog(log);
-    return {
-      ...log,
-      args: parsed.args,
-      fragment: parsed.fragment,
-    };
-  }).filter((event) => event.fragment?.name === eventFragment.name);
 }
 
 const OUTPUT_BYTES32_SCALAR_KEYS = new Set([

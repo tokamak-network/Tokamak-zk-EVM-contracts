@@ -64,11 +64,11 @@ AZTEC의 가장 중요한 전략은 **거래소 입출금 네트워크와 privat
 
 Tokamak이 따라야 할 방식은 다음과 같다.
 
-- [x] 거래소가 취급하는 것은 **TON의 기존 L1 전송**뿐이라고 설명한다.
-- [x] private-state note, channel balance, note commitment, encrypted note payload를 **거래소 입출금 대상 자산**처럼 표현하지 않는다.
-- [x] “TON이 private해진다”가 아니라 **“self-custody 사용자가 opt-in DApp channel에서 private-state 기능을 이용할 수 있다”**고 표현한다.
-- [x] 거래소가 private-state channel을 직접 deposit network로 지원하지 않는다는 점을 명확히 한다.
-- [x] private note를 “TON”이라고만 부르지 말고, **“channel-local note representation”**, **“private-state note”**, **“application-level accounting state”**라고 부른다.
+- [ ] 거래소가 취급하는 것은 **TON의 기존 L1 전송**뿐이라고 설명한다.
+- [ ] private-state note, channel balance, note commitment, encrypted note payload를 **거래소 입출금 대상 자산**처럼 표현하지 않는다.
+- [ ] “TON이 private해진다”가 아니라 **“self-custody 사용자가 opt-in DApp channel에서 private-state 기능을 이용할 수 있다”**고 표현한다.
+- [ ] 거래소가 private-state channel을 직접 deposit network로 지원하지 않는다는 점을 명확히 한다.
+- [ ] private note를 “TON”이라고만 부르지 말고, **“channel-local note representation”**, **“private-state note”**, **“application-level accounting state”**라고 부른다.
 
 ### 2.2 “프라이버시 코인”이 아니라 “programmable privacy infrastructure”로 포지셔닝
 
@@ -83,25 +83,25 @@ Tokamak 홍보도 같은 방향이어야 한다.
 
 #### 금지 프레임
 
-- [x] “TON 익명 송금”
-- [x] “거래소도 추적 불가”
-- [x] “자금 출처를 숨길 수 있음”
-- [x] “untraceable TON”
-- [x] “mixer”
-- [x] “tumbler”
-- [x] “dark coin”
-- [x] “현금화 추적 방지”
-- [x] “규제기관·거래소 감시 회피”
+- [ ] “TON 익명 송금”
+- [ ] “거래소도 추적 불가”
+- [ ] “자금 출처를 숨길 수 있음”
+- [ ] “untraceable TON”
+- [ ] “mixer”
+- [ ] “tumbler”
+- [ ] “dark coin”
+- [ ] “현금화 추적 방지”
+- [ ] “규제기관·거래소 감시 회피”
 
 #### 권장 프레임
 
-- [x] “proof-backed confidential application state”
-- [x] “L1-transparent bridge edge”
-- [x] “user-controlled private note state”
-- [x] “selective disclosure capable architecture”
-- [x] “privacy-preserving DApp channel”
-- [x] “TON custody remains anchored on L1”
-- [x] “internal note transfer privacy, transparent L1 entry/exit”
+- [ ] “proof-backed confidential application state”
+- [ ] “L1-transparent bridge edge”
+- [ ] “user-controlled private note state”
+- [ ] “selective disclosure capable architecture”
+- [ ] “privacy-preserving DApp channel”
+- [ ] “TON custody remains anchored on L1”
+- [ ] “internal note transfer privacy, transparent L1 entry/exit”
 
 ### 2.3 모니터링 자료를 먼저 공개
 
@@ -301,11 +301,11 @@ Tokamak 문서도 note-receive public key는 on-chain에 등록되지만, note-r
 - [x] Tokamak, 회사, channel operator는 사용자의 spending key를 보유하지 않는다.
 - [x] Tokamak, 회사, channel operator는 사용자의 wallet secret을 보유하지 않는다.
 - [x] Tokamak, 회사, channel operator는 모든 note plaintext를 볼 수 있는 master viewing key를 보유하지 않는다.
-- [x] auditor 또는 거래소에 모든 note copy가 자동 전달되는 구조를 상장유지 장치로 홍보하지 않는다.
+- [ ] auditor 또는 거래소에 모든 note copy가 자동 전달되는 구조를 상장유지 장치로 홍보하지 않는다.
 - [x] selective disclosure는 **사용자 통제형**이어야 한다.
 - [x] viewing key 공유는 spending key 공유와 명확히 분리해야 한다.
 - [x] 사용자가 선택적으로 제출할 수 있는 증빙자료의 범위를 문서화한다.
-- [x] 구현되지 않은 disclosure 기능을 홍보하지 않는다.
+- [ ] 구현되지 않은 disclosure 기능을 홍보하지 않는다.
 
 ### 6.2 사용자 선택공개 기능으로 준비할 항목
 
@@ -429,7 +429,7 @@ CLI 설치 페이지와 사용 예시에 다음 경고를 넣는다.
 - [x] 어떤 정보가 public이 아닌지
 - [x] note provenance가 public observer에게 복원되지 않는다는 점
 - [x] 불법 목적 사용 금지
-- [ ] CEX deposit address 사용 금지
+- [x] CEX deposit address 사용 금지
 - [x] wallet secret 분실 시 recovery 한계
 - [x] 사용자가 policy snapshot을 확인했다는 체크
 

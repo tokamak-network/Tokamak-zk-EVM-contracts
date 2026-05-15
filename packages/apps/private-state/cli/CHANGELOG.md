@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.1.2 - 2026-05-15
+
 - Fixed wallet lifecycle recovery log lookups so account-specific registration and exit event scans
   use the same chunked `eth_getLogs` path as the rest of RPC workspace recovery.
 - Removed synthetic wallet lifecycle epoch fallback creation; wallet recovery now requires
@@ -26,6 +28,14 @@
   SVG note-linkage graph, node detail overlays, and Markdown ASCII-art linkage report export.
 - Updated private-state documentation to reflect `set rpc` as the only CLI RPC configuration path
   for ordinary bridge-facing and wallet commands.
+- Split the CLI entrypoint into command dispatch modules and moved the shared runtime implementation
+  under `lib/runtime.mjs`; the published package now includes the `commands/` modules.
+- Removed the `channel get-meta` workspace mirror lookup fallback so contract lookup errors surface
+  directly instead of being hidden behind `null` metadata.
+- Changed `channel join` to derive the wallet lifecycle epoch from the accepted join receipt instead
+  of rescanning full account registration and exit history.
+- Changed investigator numeric block filters to reject invalid values instead of silently treating
+  them as absent filters.
 
 ## 2.1.1 - 2026-05-14
 

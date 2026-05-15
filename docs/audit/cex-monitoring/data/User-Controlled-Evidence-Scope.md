@@ -101,10 +101,11 @@ submitted as-is unless full wallet-history disclosure is intended.
 
 The repository provides a static HTML investigator under
 `packages/apps/private-state/cli/investigator/`. It runs in the user's browser and does not require a
-server. The user loads a local raw evidence ZIP, selects a filter scope, and exports a new
-user-consent disclosure ZIP.
+server. The user loads a local raw evidence ZIP, chooses the disclosure request type, inspects an
+interactive note-linkage graph, and exports a new user-consent disclosure ZIP or a Markdown
+ASCII-art linkage report.
 
-The investigator can filter by:
+The investigator supports purpose-first request presets and can filter by:
 
 - specific note commitment or nullifier
 - note creation transaction or note spend transaction
@@ -112,6 +113,12 @@ The investigator can filter by:
 - current note status
 - relationship direction and available counterparty L2 address metadata
 - user-provided bridge deposit or withdraw transaction context
+
+The graph view renders matched notes as nodes and shows external creation edges, external spend
+edges, and locally recoverable note-to-note linkage edges. Clicking a note shows that note's
+commitment, nullifier, value, status, creation reference, spend reference, direction, and available
+counterparty metadata. The ASCII-art report separates the compact graph from per-note detail
+sections for text-based dispute records.
 
 The output package contains only the selected note records, directly referenced transaction calldata,
 receipts, event files, a scope manifest, and optional user statement. It does not include viewing

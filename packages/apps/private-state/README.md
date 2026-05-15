@@ -100,9 +100,11 @@ The CLI:
 
 - requires `--network` on bridge-facing commands that do not already have a local wallet
 - does not read `packages/apps/.env`
-- accepts optional `--rpc-url <URL>` on bridge-facing commands and stores it as `RPC_URL` in
-  `~/tokamak-private-channels/secrets/<network>/.env`; when omitted, reads the saved network RPC URL
-- rebuilds wallet-backed providers from the wallet metadata `rpcUrl`
+- configures the network RPC endpoint once through `set rpc`; ordinary bridge-facing and wallet
+  commands read `~/tokamak-private-channels/workspace/<network>/rpc-config.env` and do not accept
+  `--rpc-url`
+- records the resolved RPC URL in wallet metadata for auditability, but live providers are rebuilt
+  from the current per-network RPC configuration
 - reads installed bridge, DApp, registration, and Groth16 artifacts from
   `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/`
 - binds every channel to the canonical Tokamak Network Token for the selected network
@@ -160,14 +162,14 @@ The current implementation includes:
 
 The commands below are ordered by the normal execution flow.
 
-### 1. Install or remove the local zk-EVM toolchain
+### 1. Install, remove, or configure the local CLI runtime
 
 `help guide`
 
 - inspects local private-state workspace state, saved network RPC configuration, deployment artifacts, channel workspace state, account secrets, wallet metadata, bridge balance, channel balance, and local note inventory when enough selectors are provided
 - prints the next safe command and the reason for that recommendation
 - accepts optional `--network`, `--channel-name`, `--account`, and `--wallet`
-- does not accept `--rpc-url`; configure network RPC through a bridge-facing command once with `--rpc-url`, or by writing `RPC_URL=<URL>` to `~/tokamak-private-channels/secrets/<network>/.env`
+- does not accept `--rpc-url`; configure network RPC with `set rpc`
 - is read-only and never creates wallets, sends transactions, or changes channel state
 
 `help doctor`
@@ -197,6 +199,14 @@ The commands below are ordered by the normal execution flow.
 - attempts to remove the global `@tokamak-private-dapps/private-state-cli` npm package when npm reports that it is globally installed
 - accepts no options
 
+`set rpc`
+
+- configures the network RPC URL and fixed `eth_getLogs` scan limits before bridge-facing or wallet recovery commands
+- writes `~/tokamak-private-channels/workspace/<network>/rpc-config.env`
+- accepts `--network`, `--rpc-url`, and either `--provider` or both `--log-requests-per-second` and `--block-range-cap`
+- supports built-in provider presets for Alchemy, Ankr, Chainstack, Chainnodes, and QuickNode
+- should be rerun with a provider or limits that better match the endpoint when workspace recovery is unexpectedly slow or the provider rejects the configured log range
+
 ### 2. Create the channel
 
 `account import`
@@ -211,18 +221,22 @@ The commands below are ordered by the normal execution flow.
 - creates the bridge channel on-chain
 - always binds the channel to the `private-state` DApp
 - always creates the saved channel workspace for the channel
-- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
+- reads the RPC endpoint and fixed log-scan limits from the per-network `set rpc` configuration
 - prints an immutable-channel-policy warning before sending the transaction
 - should be run only after the verifier versions, DApp registration metadata, function layout, managed storage vector, and refund policy have been reviewed for the intended channel
 
 Example:
 
 ```bash
+node packages/apps/private-state/cli/private-state-bridge-cli.mjs set rpc \
+  --network sepolia \
+  --rpc-url <url> \
+  --provider <provider>
+
 node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create \
   --channel-name demo-channel \
   --join-toll 0 \
   --account <account-name> \
-  --rpc-url <url> \
   --network sepolia
 ```
 
@@ -234,7 +248,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - writes the saved workspace into `~/tokamak-private-channels/workspace/<network>/<channel-name>/channel/`
 - reuses existing local artifacts when their hashes still match the current on-chain channel state
 - is optional in the happy path because wallet-backed snapshot commands now materialize and refresh the saved workspace automatically
-- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
+- reads RPC settings from `~/tokamak-private-channels/workspace/<network>/rpc-config.env`
 - resumes RPC log scanning from the saved recovery index by default
 - fails instead of silently replaying from channel genesis when no usable recovery index exists
 - accepts `--source rpc --from-genesis` when the user intentionally wants to ignore the local index and replay the channel from its creation block
@@ -242,7 +256,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 `channel get-meta`
 
 - reads whether a channel exists and reports its manager, vault, join toll, refund schedule, and immutable policy snapshot
-- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
+- reads RPC settings from the per-network `set rpc` configuration
 - is the lightest inspection command when a user or channel creator wants to review policy before joining or creating local wallet state
 
 ### 4. Fund the shared L1 bridge vault
@@ -251,12 +265,13 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 
 - deposits Tokamak Network Token into the shared bridge-level `bridgeTokenVault`
 - does not register the user in the channel
-- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
+- reads RPC settings from the per-network `set rpc` configuration
+- requires `--acknowledge-action-impact`
 
 `account get-bridge-fund`
 
 - reads the caller's balance in the shared bridge-level `bridgeTokenVault`
-- requires `--network` and `--account`; accepts optional `--rpc-url`, otherwise reads the saved network `RPC_URL`
+- requires `--network` and `--account`
 
 ### 5. Join the channel-specific wallet and L2 identity
 
@@ -269,9 +284,10 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - does not require the source wallet-secret file to use `0600` permissions
 - stores the resolved `rpcUrl` in the wallet metadata so later wallet-backed commands do not need CLI RPC inputs
 - returns the deterministic wallet name `<channelName>-<l1Address>`
-- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
+- reads RPC settings from the per-network `set rpc` configuration
 - prints an immutable-channel-policy warning before first registration
 - should be treated as user acceptance of the channel's fixed verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy
+- requires `--acknowledge-action-impact`
 
 `wallet recover-workspace`
 
@@ -281,14 +297,14 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - reclassifies every recovered current-version note into `unused` or `spent` by checking the on-chain commitment and nullifier state
 - resets `l2Nonce` to `0`
 - stops early if the target wallet epoch already exists with current-version metadata for the requested channel
-- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
-- resumes channel workspace scanning from the saved recovery index by default
-- fails instead of silently replaying from channel genesis when no usable recovery index exists
-- accepts `--from-genesis` when the user intentionally wants to rebuild channel state from the channel creation block before recovering the wallet
+- reads RPC settings from the per-network `set rpc` configuration
+- refreshes the channel workspace only when the saved channel recovery index delta fits the pre-command budget
+- fails and asks for `channel recover-workspace` first when the channel workspace is missing, unusable, or too stale for automatic recovery
+- accepts `--from-genesis` to restart received-note scanning from channel genesis; it does not rebuild the channel workspace from genesis
 
 Wallet getter commands that need channel state, including `wallet get-meta`, `wallet get-channel-fund`, and
 `wallet get-notes`, refresh stale local workspaces through saved recovery indexes before reading state when the
-estimated RPC log scan fits within the 10 second pre-command budget. Automatic refresh never replays from channel
+estimated RPC log scan fits within the 7,200-block pre-command budget. Automatic refresh never replays from channel
 genesis; if the saved index is missing, unusable, or too far behind, the command stops and asks the user to run
 `channel recover-workspace --source rpc --from-genesis` or `wallet recover-workspace --from-genesis` explicitly.
 
@@ -329,6 +345,7 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 - moves value from the shared bridge-level `bridgeTokenVault` into the channel-level L2 accounting vault
 - accepts `--wallet`, `--network`, and `--amount`
 - requires an existing wallet and the matching local account secret for the wallet owner
+- requires `--acknowledge-action-impact`
 
 `wallet get-channel-fund`
 
@@ -342,9 +359,11 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 - mints one or two notes owned by the wallet's L2 address with the currently registered private-state DApp metadata
 - builds self-mint ciphertext outputs and lets the controller derive note salts from the ciphertext hash
 - accepts `--wallet`, `--network`, and `--amounts`
+- accepts optional `--tx-submitter <ACCOUNT>` so a separate local L1 account can submit the L1 transaction and pay gas
 - maps the amount-vector length to the fixed-arity `mintNotes<N>` contract entrypoint
-- requires the wallet spending key because minting changes the wallet's channel-local L2 state
+- requires both viewing and spending key capability so the accepted mint can be recovered through the normal note event path
 - uses the registered note-receive public key to create self-mint ciphertext outputs for later recovery
+- requires `--acknowledge-action-impact`
 
 ### 9. Transfer notes
 
@@ -352,29 +371,34 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 
 - consumes tracked input notes and creates encrypted recipient note payloads
 - accepts `--wallet`, `--network`, `--note-ids`, `--recipients`, and `--amounts`
+- accepts optional `--tx-submitter <ACCOUNT>` so a separate local L1 account can submit the L1 transaction and pay gas
 - supports only `1->1`, `1->2`, and `2->1` note transfer shapes
-- updates the sender wallet immediately and relies on recipient-side event-log recovery rather than local recipient inbox files
+- refreshes local workspace state after the accepted transaction and relies on recipient-side event-log recovery rather than local recipient inbox files
 - requires both the viewing key and the spending key: the viewing key reconstructs the plaintext input notes, and the spending key authorizes the proof-backed spend
+- requires `--acknowledge-action-impact`
 
 ### 10. Recover and inspect received notes
 
 `wallet get-notes`
 
-- scans bridge-propagated private-state encrypted-note events from Ethereum
-- decrypts both transferred note payloads and self-minted note payloads with the note-receive private key
+- refreshes received-note logs from the saved wallet recovery index when the delta fits the pre-command budget
+- decrypts transferred note payloads and self-minted note payloads with the note-receive private key when viewing authority is available
 - merges newly discovered notes into wallet note metadata without persisting plaintext note secrets
 - reconciles the wallet's current-version notes against on-chain commitment/nullifier state to classify them into `unused` and `spent`
 - reports both unused and spent note sets plus bridge-consistency status
 - reports whether a viewing key is available; without it, the command can show encrypted-only tracked note state but cannot refresh or decrypt received-note events
 - accepts `--wallet` and `--network`
+- accepts `--export-evidence <PATH>` with `--acknowledge-full-note-plaintext-export` to write a raw evidence ZIP for `private-state-cli investigator`
 
 ### 11. Redeem notes
 
 `wallet redeem-notes`
 
-- redeems one or two tracked notes back into liquid accounting balance
+- redeems one tracked note back into liquid accounting balance
 - accepts `--wallet`, `--network`, and `--note-ids`
+- accepts optional `--tx-submitter <ACCOUNT>` so a separate local L1 account can submit the L1 transaction and pay gas
 - requires both the viewing key and the spending key for the same reason as `wallet transfer-notes`
+- requires `--acknowledge-action-impact`
 
 ### 12. Move value back to the shared L1 bridge vault
 
@@ -382,6 +406,7 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 
 - moves value from the channel L2 accounting vault back into the shared bridge-level `bridgeTokenVault`
 - accepts `--wallet`, `--network`, and `--amount`
+- requires `--acknowledge-action-impact`
 
 ### 13. Exit the channel registration
 
@@ -400,4 +425,5 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 
 - claims value from the shared bridge-level `bridgeTokenVault` back into the caller wallet
 - uses the local `--account` signer instead of channel wallet state
-- requires `--amount`, `--network`, and `--account`; accepts optional `--rpc-url`, otherwise reads the saved network `RPC_URL`
+- requires `--amount`, `--network`, and `--account`
+- requires `--acknowledge-action-impact`

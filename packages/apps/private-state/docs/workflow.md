@@ -35,21 +35,27 @@ wallet metadata, and user-held key files.
 
 The normal flow is:
 
-1. `channel create`
-2. `account deposit-bridge`
-3. `channel join`
-4. `wallet deposit-channel`
-5. `wallet mint-notes`
-6. `wallet transfer-notes`
-7. `wallet get-notes`
-8. `wallet redeem-notes`
-9. `wallet withdraw-channel`
-10. `channel exit`
-11. `account withdraw-bridge`
+1. `set rpc`
+2. `account import`
+3. `channel create`
+4. `account deposit-bridge`
+5. `channel join`
+6. `wallet deposit-channel`
+7. `wallet mint-notes`
+8. `wallet transfer-notes`
+9. `wallet get-notes`
+10. `wallet redeem-notes`
+11. `wallet withdraw-channel`
+12. `channel exit`
+13. `account withdraw-bridge`
 
 `channel create` is permissionless at the bridge level. The caller becomes the channel leader and
 chooses the initial join toll. `channel join` binds the user's L1 identity to a channel-specific L2
 identity and registers the note-receive public key for encrypted note delivery.
+
+`set rpc` is the per-network RPC configuration step. It stores the endpoint URL plus fixed
+`eth_getLogs` scan limits under the local workspace. Ordinary bridge-facing and wallet commands read
+that configuration instead of accepting per-command RPC URL overrides.
 
 Users should run this flow from a self-custody L1 wallet. A centralized-exchange deposit address is
 not a private-state wallet address: the exchange does not hold the user's channel workspace, wallet

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-12T07:48:02.780Z",
+  "generatedAt": "2026-05-15T04:41:06.056Z",
   "chainId": 1,
   "channelName": "the-great-first-channel",
   "channelId": "108336797649051254585401751173864353497144788660297920004548699607442466523065",
@@ -11,6 +11,22 @@
   "asset": "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5",
   "joinToll": "4000000000000000000",
   "currentRootVectorHash": "0xff17171e3c6fccf964c38cab3b708f7626e841fba2cb81a61745cead699f47a2",
+  "latestAcceptedTransition": {
+    "eventName": "CurrentRootVectorObserved",
+    "transactionHash": "0x6869f9510cbae6df7e5992092febc4c0812260dd9540a3c27bd4b0d0ffea2115",
+    "blockNumber": 25061824,
+    "blockHash": "0x56831b0c44c38702a6cbe5fba6c1addced7d8fee0e4a41818b9986e4df24f730",
+    "logIndex": 312,
+    "transactionIndex": 116,
+    "timestamp": 1778381519,
+    "rootVectorHash": "0xff17171e3c6fccf964c38cab3b708f7626e841fba2cb81a61745cead699f47a2",
+    "rootVector": [
+      "0x1bf39f29f79bb36d91c80722210520b80ebf023dfc121cf79f7a82c9dc7453ac",
+      "0x52619bab7d9d1551aed626013016e21e3368c3df8642d3f82b64dfd0bfa3d65e"
+    ],
+    "explorerUrl": "https://etherscan.io/tx/0x6869f9510cbae6df7e5992092febc4c0812260dd9540a3c27bd4b0d0ffea2115#eventlog",
+    "checkedVia": "etherscan-api"
+  },
   "managedStorageAddresses": [
     "0x67C6233A99D9f122Fef9DC111e89948107b34c2F",
     "0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA"
@@ -27,5 +43,18 @@
     "2.1"
   ],
   "storageLayoutSource": "deployment/chain-id-1/dapps/private-state/20260504T003212Z/storage-layout.1.latest.json",
+  "storageLayoutHash": "0xf51e367c2356f9155b84cab511b832ebbe39acdce151ae96ff5de0901073d0c7",
+  "storageLayoutHashAlgorithm": "keccak256(file bytes)",
+  "latestPolicyVersion": {
+    "label": "channel-creation-snapshot-v1",
+    "version": 1,
+    "status": "immutable",
+    "sourceEvent": "ChannelCreated",
+    "transactionHash": "0xa5f1529cd8e5c62d46eb0eca2b2de6d317569d9e2776f3feff5bba4fa27656ee",
+    "blockNumber": 25018368,
+    "dappMetadataDigestSchema": "0xc2d8278e5129f8263782de4f76198a90fe23bf8f776c3f3bbe2835174c5cad92",
+    "dappMetadataDigest": "0x24ce1b24d4b0c085b713574c3f1eb8861ac18200263a3d20da1b87ce56c2fe04",
+    "dappFunctionRoot": "0x6954ea4661cff62a888de1898b69fa5b9861bcebc33a966c7b02b65ac10f1f6e"
+  },
   "policyExplanationSource": "bridge/docs/whitepaper.md#82-policy-surfaces"
 }

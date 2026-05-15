@@ -39,6 +39,10 @@ const PRIVATE_STATE_EVENT_ABIS = {
     "event LiquidBalanceStorageWriteObserved(address l2Address, bytes32 value)",
   ],
 };
+const CURRENT_ROOT_VECTOR_OBSERVED_ABI = [
+  "event CurrentRootVectorObserved(bytes32 indexed rootVectorHash, bytes32[] rootVector)",
+];
+const DEFAULT_RPC_LOG_CHUNK_SIZE = 10;
 
 function printHelp() {
   console.log(`Usage: node scripts/cex-monitoring-packet/generate.mjs [options]
@@ -153,6 +157,10 @@ function writeJson(filePath, value) {
 function writeText(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, value.endsWith("\n") ? value : `${value}\n`);
+}
+
+function fileKeccak256(filePath) {
+  return ethers.keccak256(fs.readFileSync(filePath));
 }
 
 function toPlain(value) {
@@ -284,13 +292,133 @@ async function safeCall(label, fn) {
   }
 }
 
-async function queryFirstFilterInChunks(contract, filter, fromBlock, toBlock, chunkSize = 10) {
+async function queryFirstFilterInChunks(contract, filter, fromBlock, toBlock, chunkSize = DEFAULT_RPC_LOG_CHUNK_SIZE) {
   for (let start = Number(fromBlock); start <= Number(toBlock); start += chunkSize) {
     const end = Math.min(start + chunkSize - 1, Number(toBlock));
     const logs = await contract.queryFilter(filter, start, end);
     if (logs.length > 0) return logs[0];
   }
   return null;
+}
+
+async function queryLatestFilterInChunks(contract, filter, fromBlock, toBlock, chunkSize = DEFAULT_RPC_LOG_CHUNK_SIZE) {
+  for (let end = Number(toBlock); end >= Number(fromBlock); end -= chunkSize) {
+    const start = Math.max(Number(fromBlock), end - chunkSize + 1);
+    const logs = await contract.queryFilter(filter, start, end);
+    if (logs.length > 0) return logs[logs.length - 1];
+  }
+  return null;
+}
+
+function numberFromHex(value) {
+  if (value === null || value === undefined) return null;
+  return Number(ethers.toBigInt(value));
+}
+
+function formatAcceptedTransitionLog(log) {
+  if (!log) return null;
+  const rootVectorHash = log.args?.rootVectorHash ?? log.args?.[0] ?? null;
+  const rootVector = log.args?.rootVector ?? log.args?.[1] ?? [];
+  return {
+    eventName: "CurrentRootVectorObserved",
+    transactionHash: log.transactionHash,
+    blockNumber: log.blockNumber,
+    blockHash: log.blockHash,
+    logIndex: log.index ?? log.logIndex ?? null,
+    rootVectorHash,
+    rootVector: Array.from(rootVector).map((entry) => String(entry)),
+    explorerUrl: log.transactionHash ? `${ETHERSCAN_BASE_URL}/tx/${log.transactionHash}#eventlog` : null,
+  };
+}
+
+function formatEtherscanAcceptedTransitionLog(log) {
+  if (!log) return null;
+  const iface = new Interface(CURRENT_ROOT_VECTOR_OBSERVED_ABI);
+  const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+  const rootVectorHash = parsed.args.rootVectorHash ?? parsed.args[0];
+  const rootVector = parsed.args.rootVector ?? parsed.args[1] ?? [];
+  const transactionHash = log.transactionHash ?? null;
+  return {
+    eventName: "CurrentRootVectorObserved",
+    transactionHash,
+    blockNumber: numberFromHex(log.blockNumber),
+    blockHash: log.blockHash ?? null,
+    logIndex: numberFromHex(log.logIndex),
+    transactionIndex: numberFromHex(log.transactionIndex),
+    timestamp: numberFromHex(log.timeStamp),
+    rootVectorHash,
+    rootVector: Array.from(rootVector).map((entry) => String(entry)),
+    explorerUrl: transactionHash ? `${ETHERSCAN_BASE_URL}/tx/${transactionHash}#eventlog` : null,
+    checkedVia: "etherscan-api",
+  };
+}
+
+async function fetchEtherscanCurrentRootLogs({
+  address,
+  rootVectorHash,
+  fromBlock,
+  toBlock,
+  chainId,
+  apiKey,
+}) {
+  const params = new URLSearchParams({
+    chainid: String(chainId),
+    module: "logs",
+    action: "getLogs",
+    fromBlock: String(fromBlock),
+    toBlock: String(toBlock),
+    address,
+    topic0: ethers.id("CurrentRootVectorObserved(bytes32,bytes32[])"),
+    topic0_1_opr: "and",
+    topic1: rootVectorHash,
+    page: "1",
+    offset: "1000",
+    apikey: apiKey,
+  });
+  const response = await fetch(`${ETHERSCAN_V2_API_URL}?${params.toString()}`);
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(`Etherscan getLogs failed: ${response.status}`);
+  }
+  if (json.status === "0") {
+    const message = String(json.result ?? json.message ?? "");
+    if (/No records found/i.test(message)) return [];
+    throw new Error(`Etherscan getLogs failed: ${json.message ?? "status 0"}: ${message}`);
+  }
+  if (!Array.isArray(json.result)) {
+    throw new Error("Etherscan getLogs returned a non-array result.");
+  }
+  return json.result;
+}
+
+async function resolveLatestAcceptedTransition({
+  args,
+  channelManager,
+  channelCreatedBlock,
+  latestBlock,
+  currentRootVectorHash,
+}) {
+  if (!currentRootVectorHash) return null;
+  const fromBlock = Number(channelCreatedBlock);
+  const toBlock = Number(latestBlock);
+  const apiKey = args.skipEtherscan ? null : resolveEtherscanApiKey();
+  if (apiKey) {
+    const logs = await fetchEtherscanCurrentRootLogs({
+      address: await channelManager.getAddress(),
+      rootVectorHash: currentRootVectorHash,
+      fromBlock,
+      toBlock,
+      chainId: args.chainId,
+      apiKey,
+    });
+    const latestLog = logs
+      .map(formatEtherscanAcceptedTransitionLog)
+      .sort((a, b) => (a.blockNumber - b.blockNumber) || ((a.logIndex ?? 0) - (b.logIndex ?? 0)))
+      .at(-1);
+    if (latestLog) return latestLog;
+  }
+  const filter = channelManager.filters.CurrentRootVectorObserved(currentRootVectorHash);
+  return formatAcceptedTransitionLog(await queryLatestFilterInChunks(channelManager, filter, fromBlock, toBlock));
 }
 
 function privateStateControllerAddress(artifacts) {
@@ -352,6 +480,16 @@ async function buildOnchainSnapshot({ args, artifacts, rpcUrl }) {
     proxyState(provider, artifacts.bridge.dAppManager),
     proxyState(provider, artifacts.bridge.bridgeTokenVault),
   ]);
+  const latestAcceptedTransition = await safeCall(
+    "ChannelManager.CurrentRootVectorObserved latest log scan",
+    () => resolveLatestAcceptedTransition({
+      args,
+      channelManager,
+      channelCreatedBlock: channelCreated?.blockNumber ?? artifacts.dappRegistration.registration?.blockNumber ?? 0,
+      latestBlock,
+      currentRootVectorHash: currentRootVectorHash.ok ? currentRootVectorHash.value : null,
+    }),
+  );
 
   const monitoredAddresses = [
     artifacts.bridge.bridgeCore,
@@ -391,6 +529,7 @@ async function buildOnchainSnapshot({ args, artifacts, rpcUrl }) {
       dappMetadataDigest: channelInfo.dappMetadataDigest,
       workspaceMirrorUrl: String(mirrorUrl ?? ""),
       currentRootVectorHash: currentRootVectorHash.ok ? currentRootVectorHash.value : null,
+      latestAcceptedTransition: latestAcceptedTransition.ok ? latestAcceptedTransition.value : null,
       managedStorageAddresses: managedStorageAddresses.ok
         ? managedStorageAddresses.value.map((address) => ethers.getAddress(address))
         : [],
@@ -437,6 +576,7 @@ async function buildOnchainSnapshot({ args, artifacts, rpcUrl }) {
       dappInfo,
       verifierSnapshot,
       channelCreatedResult,
+      latestAcceptedTransition,
     ].filter((entry) => !entry.ok).map((entry) => entry.error),
   };
 }
@@ -905,6 +1045,7 @@ function buildEventCoverage({ artifacts, onchain }) {
 
 function buildContractAddressPack({ args, artifacts, onchain, sourceVerification, eventCoverage }) {
   const bridge = artifacts.bridge;
+  const storageLayoutHash = fileKeccak256(artifacts.paths.dappStorageLayoutPath);
   return {
     generatedAt: new Date().toISOString(),
     chainId: args.chainId,
@@ -918,6 +1059,8 @@ function buildContractAddressPack({ args, artifacts, onchain, sourceVerification
       id: onchain.channel.id,
       creationTxHash: onchain.channel.createdTxHash,
       creationBlockNumber: onchain.channel.createdBlockNumber,
+      latestAcceptedTransition: onchain.channel.latestAcceptedTransition,
+      latestPolicyVersion: "channel-creation-snapshot-v1",
       leader: onchain.channel.leader,
       operator: onchain.channel.operator,
     },
@@ -928,6 +1071,8 @@ function buildContractAddressPack({ args, artifacts, onchain, sourceVerification
       registrationBlockNumber: onchain.dapp.registrationBlockNumber,
       metadataDigest: onchain.dapp.metadataDigest,
       functionRoot: onchain.dapp.functionRoot,
+      storageLayoutHash,
+      storageLayoutHashAlgorithm: "keccak256(file bytes)",
     },
     verifierContractAddresses: {
       grothVerifier: bridge.grothVerifier,
@@ -997,6 +1142,18 @@ function buildContractAddressPack({ args, artifacts, onchain, sourceVerification
 }
 
 function buildChannelPolicySnapshot({ args, artifacts, onchain }) {
+  const storageLayoutHash = fileKeccak256(artifacts.paths.dappStorageLayoutPath);
+  const latestPolicyVersion = {
+    label: "channel-creation-snapshot-v1",
+    version: 1,
+    status: "immutable",
+    sourceEvent: "ChannelCreated",
+    transactionHash: onchain.channel.createdTxHash,
+    blockNumber: onchain.channel.createdBlockNumber,
+    dappMetadataDigestSchema: onchain.channel.dappMetadataDigestSchema,
+    dappMetadataDigest: onchain.channel.dappMetadataDigest,
+    dappFunctionRoot: onchain.dapp.functionRoot,
+  };
   return {
     generatedAt: new Date().toISOString(),
     chainId: args.chainId,
@@ -1010,6 +1167,7 @@ function buildChannelPolicySnapshot({ args, artifacts, onchain }) {
     asset: onchain.channel.asset,
     joinToll: onchain.channel.joinToll,
     currentRootVectorHash: onchain.channel.currentRootVectorHash,
+    latestAcceptedTransition: onchain.channel.latestAcceptedTransition,
     managedStorageAddresses: onchain.channel.managedStorageAddresses,
     workspaceMirrorUrl: onchain.channel.workspaceMirrorUrl,
     aPubBlockHash: onchain.channel.aPubBlockHash,
@@ -1018,6 +1176,9 @@ function buildChannelPolicySnapshot({ args, artifacts, onchain }) {
     dappFunctionRoot: onchain.dapp.functionRoot,
     verifierSnapshot: onchain.dapp.verifierSnapshot,
     storageLayoutSource: path.relative(REPO_ROOT, artifacts.paths.dappStorageLayoutPath),
+    storageLayoutHash,
+    storageLayoutHashAlgorithm: "keccak256(file bytes)",
+    latestPolicyVersion,
     policyExplanationSource: "bridge/docs/whitepaper.md#82-policy-surfaces",
   };
 }
@@ -1170,7 +1331,6 @@ async function main() {
   loadEnv();
   const publicDir = PUBLIC_OUTPUT_DIR;
   const internalDir = args.output;
-  fs.rmSync(publicDir, { recursive: true, force: true });
   fs.rmSync(internalDir, { recursive: true, force: true });
   fs.mkdirSync(publicDir, { recursive: true });
   fs.mkdirSync(internalDir, { recursive: true });

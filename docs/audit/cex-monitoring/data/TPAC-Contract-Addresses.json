@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-12T07:48:02.779Z",
+  "generatedAt": "2026-05-15T04:41:06.055Z",
   "chainId": 1,
   "chain": "ethereum-mainnet",
   "canonicalTonContractAddress": "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5",
@@ -11,6 +11,23 @@
     "id": "108336797649051254585401751173864353497144788660297920004548699607442466523065",
     "creationTxHash": "0xa5f1529cd8e5c62d46eb0eca2b2de6d317569d9e2776f3feff5bba4fa27656ee",
     "creationBlockNumber": 25018368,
+    "latestAcceptedTransition": {
+      "eventName": "CurrentRootVectorObserved",
+      "transactionHash": "0x6869f9510cbae6df7e5992092febc4c0812260dd9540a3c27bd4b0d0ffea2115",
+      "blockNumber": 25061824,
+      "blockHash": "0x56831b0c44c38702a6cbe5fba6c1addced7d8fee0e4a41818b9986e4df24f730",
+      "logIndex": 312,
+      "transactionIndex": 116,
+      "timestamp": 1778381519,
+      "rootVectorHash": "0xff17171e3c6fccf964c38cab3b708f7626e841fba2cb81a61745cead699f47a2",
+      "rootVector": [
+        "0x1bf39f29f79bb36d91c80722210520b80ebf023dfc121cf79f7a82c9dc7453ac",
+        "0x52619bab7d9d1551aed626013016e21e3368c3df8642d3f82b64dfd0bfa3d65e"
+      ],
+      "explorerUrl": "https://etherscan.io/tx/0x6869f9510cbae6df7e5992092febc4c0812260dd9540a3c27bd4b0d0ffea2115#eventlog",
+      "checkedVia": "etherscan-api"
+    },
+    "latestPolicyVersion": "channel-creation-snapshot-v1",
     "leader": "0x32e6EE3d9820F0843E3e596132368747d36425F0",
     "operator": "0x32e6EE3d9820F0843E3e596132368747d36425F0"
   },
@@ -20,7 +37,9 @@
     "registrationTxHash": "0xf6130ee7f1a3ec63116369086d907da6d2da27c93ef5bf2eae91400d91323daf",
     "registrationBlockNumber": 25018081,
     "metadataDigest": "0x24ce1b24d4b0c085b713574c3f1eb8861ac18200263a3d20da1b87ce56c2fe04",
-    "functionRoot": "0x6954ea4661cff62a888de1898b69fa5b9861bcebc33a966c7b02b65ac10f1f6e"
+    "functionRoot": "0x6954ea4661cff62a888de1898b69fa5b9861bcebc33a966c7b02b65ac10f1f6e",
+    "storageLayoutHash": "0xf51e367c2356f9155b84cab511b832ebbe39acdce151ae96ff5de0901073d0c7",
+    "storageLayoutHashAlgorithm": "keccak256(file bytes)"
   },
   "verifierContractAddresses": {
     "grothVerifier": "0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5",

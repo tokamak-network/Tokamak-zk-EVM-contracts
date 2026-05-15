@@ -9,7 +9,6 @@ import { fetchNpmPackageMetadata } from "@tokamak-private-dapps/common-library/n
 import {
   normalizePackageVersionToCompatibleBackendVersion,
   readTokamakZkEvmCompatibleBackendVersionFromPackageJson,
-  requireCanonicalCompatibleBackendVersion,
   requireExactSemverVersion,
 } from "@tokamak-private-dapps/common-library/proof-backend-versioning";
 import {

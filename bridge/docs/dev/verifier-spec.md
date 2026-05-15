@@ -1,4 +1,8 @@
 # Final pairing equation
+
+Status: Developer reference. This note records verifier-equation details for implementation and
+optimization work, not public bridge guidance.
+
 $$ 
 e([LHS]_1 +[AUX]_1, [1]_2)
 e([U]_1,[\alpha]_2)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 - 2026-05-14
+
+- Added shared Tokamak L2 execution and state helper exports for private DApp CLIs.
+
 ## 0.1.1 - 2026-04-30
 
 - Added shared npm registry helpers for package metadata, latest version, and latest manifest lookup.

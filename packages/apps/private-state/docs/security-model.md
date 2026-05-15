@@ -35,8 +35,10 @@ The DApp itself adds three local secret domains:
 - the channel-bound L2 private key
 - the channel-scoped note-receive private key
 
-The wallet secret protects the encrypted local wallet file. It is a local-storage protection
-secret, not a bridge-side secret.
+The wallet secret source file is not a persisted wallet unlock password. The CLI reads it once
+during `channel join`, combines it with the user's Ethereum signer and channel context, and derives
+the channel-bound L2 private key. After that point, wallet backup metadata, viewing authority, and
+spending authority are managed as separate artifacts.
 
 ## 2. Bridge-Inherited Security Model
 
@@ -62,7 +64,42 @@ announce the affected channel, stop using it, redeem or withdraw through support
 a new channel with corrected policy. The existing channel's policy is not meant to be silently
 rewritten by a later bridge upgrade.
 
-## 3. Finite Leaf Projection Inherited From The Bridge
+## 3. Public Policy And Operator Authority
+
+The current `private-state` DApp adopts a user-controlled privacy and disclosure model. It should be
+presented as an opt-in application channel used from self-custody wallets, not as a private
+centralized-exchange deposit network and not as a change to TON's L1 transfer rules.
+
+For this DApp, the public monitoring surface includes:
+
+- L1 bridge deposits and withdrawal claims
+- channel creation and immutable policy snapshots
+- channel join and token-vault identity registration
+- accepted proof-backed transitions
+- root-vector movement and observed storage writes
+- commitments, nullifiers, and encrypted note-delivery events surfaced by the DApp
+- bridge verifier, DApp metadata, and upgrade events
+
+That monitoring surface is intentionally not the same as a complete note provenance graph. It is the
+specific disclosure surface programmed by the current `private-state` DApp, not a bridge-wide rule
+for every DApp. Public observers can see that accepted activity occurred and can inspect the
+bridge-visible outputs, but they do not automatically learn every note plaintext, sender-recipient
+relationship, or note ownership history.
+
+The channel leader's authority is limited by the bridge and DApp policy snapshot. For
+`private-state`, the leader does not custody user TON, does not hold user wallet secret source
+files, does not hold note-spending keys, does not hold note-receive private keys, does not
+intermediate user note transfers, and does not have a protocol backdoor to reconstruct all private
+note provenance. Channel
+leaders may operate public metadata or availability services, such as a workspace mirror, but those
+services are availability aids rather than custody or viewing authorities.
+
+Selective disclosure is therefore user-controlled in the current DApp. A user may disclose selected
+wallet-derived evidence where implemented tooling supports it. Documentation and external
+communication should not imply that Tokamak, a channel leader, a centralized exchange, or an auditor
+can reconstruct every private-state transfer from public logs alone.
+
+## 4. Finite Leaf Projection Inherited From The Bridge
 
 The bridge maps storage keys into a finite Merkle leaf domain. Let:
 
@@ -117,7 +154,7 @@ channel-lifespan capacity limit. It is not a statement that any particular note 
 immediately. It is a statement that a channel with growing storage usage should not be treated as
 collision-free forever.
 
-## 4. Future Nullifier Collision Probability
+## 5. Future Nullifier Collision Probability
 
 The note-specific risk is different from the general channel collision risk.
 
@@ -221,33 +258,53 @@ The practical conclusion is that note age matters. A note that is created and re
 less exposure to future unrelated storage keys. A note held for a long time remains exposed for a
 longer period.
 
-## 5. Wallet File Encryption
+## 6. Separated Wallet Capabilities
 
-The CLI stores a channel wallet as an encrypted local file under the workspace.
+The current CLI separates wallet state from wallet authority. This separation is part of the user
+security model because a backup should not, by itself, become a transferable full-control wallet.
 
-The wallet secret is used to decrypt:
+The wallet workspace contains non-authorizing wallet backup metadata:
 
-- wallet metadata needed for normal wallet-backed commands
-- the stored L1 key copy
-- the stored L2 key pair
-- tracked note state
+- channel and registration metadata
+- note commitments and nullifiers
+- encrypted note-delivery payloads
+- note scan checkpoints and local operation history
+- channel workspace cache needed for local reconstruction
 
-The wallet secret should be treated as a long-term ownership secret. If the wallet file and wallet
-secret are both stolen, the attacker can decrypt the wallet and recover key material sufficient to
-endanger channel funds.
+The backup metadata intentionally excludes spending keys, viewing keys, derivation material, and
+plaintext note `owner`, `value`, and `salt` fields. A third party that obtains only a wallet backup
+can inspect or restore the encrypted tracking state, but cannot decrypt note events or spend notes.
 
-The wallet secret should not be treated like a temporary UI unlock code. It participates in recovering
-the channel-bound L2 identity, so losing it can break spendability even if the Ethereum key remains
-available.
+Viewing authority is exported and imported separately with `wallet export viewing-key` and
+`wallet import viewing-key`. The viewing key is the channel-scoped note-receive private key. It lets
+the holder decrypt encrypted note-delivery events and reconstruct note plaintext for notes addressed
+to the registered note-receive public key. It does not authorize note spending.
 
-## 6. Channel-Bound L2 Identity
+Spending authority is exported and imported separately with `wallet export spending-key` and
+`wallet import spending-key`. The spending key is the channel-bound L2 private key. It authorizes
+proof-backed note use and L2 channel-accounting operations for the registered wallet identity. It
+does not, by itself, decrypt encrypted note-delivery events.
+
+This creates three operational restore levels:
+
+- backup only: restore encrypted tracking state and channel cache, with no viewing or spending
+  authority
+- backup plus viewing key: reconstruct the note view from encrypted events, but do not spend notes
+- backup plus viewing key plus spending key: operate the wallet in the normal CLI note flow
+
+Commands that only inspect registration metadata can run from backup metadata. Commands that decrypt
+or refresh received notes require the viewing key. Commands that create or consume notes require the
+spending key and also require the viewing key so the CLI can refresh the readable note workspace from
+event logs after accepted note transactions.
+
+## 7. Channel-Bound L2 Identity
 
 The channel-bound L2 identity is derived by asking the Ethereum signer to sign a deterministic
 message that includes:
 
 - a fixed domain string
 - the channel name
-- the wallet secret
+- the wallet secret source content
 
 From that signature, the CLI derives:
 
@@ -255,11 +312,13 @@ From that signature, the CLI derives:
 - `l2PublicKey`
 - `l2Address`
 
-If the wallet secret is lost, the same `l2PrivateKey` can no longer be re-derived. Without that
-key, notes cannot be spent, transferred, or redeemed. Under the CLI's strict ownership definition,
-losing the wallet secret means losing note ownership.
+The resulting `l2PrivateKey` is the wallet's spending key. It is stored as a protected key file and
+can be moved separately from wallet backup metadata. If both the spending-key file and the
+derivation inputs needed to recreate it are lost, notes cannot be spent, transferred, or redeemed.
+Under the CLI's strict ownership definition, losing the spending key means losing note ownership in
+the spendable sense.
 
-## 7. Note-Receive Auxiliary Keys
+## 8. Note-Receive Auxiliary Keys
 
 The note-receive key pair is different from the channel-bound L2 identity.
 
@@ -287,33 +346,46 @@ Example: Bob can use the note-receive private key to discover that an encrypted 
 him. Bob still needs the L2 private key to transfer or redeem that note. Discovery and spendability
 are deliberately separate.
 
-## 8. Recovery Model
+## 9. Recovery Model
 
-If the wallet file is lost, recovery is still possible if the user retains:
+If wallet backup metadata is lost, recovery is still possible if the user retains:
 
 - the Ethereum private key
 - the correct channel context
-- the wallet secret
+- the viewing key, or the ability to reproduce the registered note-receive key
+- the spending key, or the derivation inputs needed to recreate it
 
-With those inputs, the CLI can reconstruct:
+With those inputs, the CLI can reconstruct or restore:
 
 - the channel-bound L2 identity
 - the note-receive key material
-- a recoverable wallet view from on-chain registration and bridge-propagated event logs
+- wallet backup metadata from on-chain registration and bridge-propagated event logs
 
-If the wallet secret is lost:
+Importing a backup alone does not grant wallet authority. The imported backup restores encrypted
+tracking state, commitments, nullifiers, and channel cache files. The user must also import the
+viewing key to decrypt note events and the spending key to operate notes.
 
-- existing note ciphertexts may still be recognized or decrypted through the note-receive path
-- the notes can no longer be used
+If the viewing key is lost:
+
+- existing backup metadata can still preserve encrypted note payloads and public note markers
+- new event-log recovery cannot decrypt notes addressed to that viewing key
+- notes are not spendable through the normal CLI note flow unless their plaintext is otherwise
+  available to the wallet tooling
+
+If the spending key is lost:
+
+- readable notes remain readable if the viewing key is present
+- the notes can no longer be spent, transferred, or redeemed
 - note ownership, in the strict spendable sense, is lost
 
 This can look counterintuitive. A user may still see note data but be unable to spend it. The reason
 is that readable note plaintext is not the same as the L2 private key required to authorize note use.
 
-If the wallet file and wallet secret are both stolen, the attacker can decrypt stored key material
-and compromise channel funds.
+If both the viewing key and spending key are stolen, the attacker can reconstruct the user's note
+view and operate spendable notes. A backup file increases the attacker's convenience by providing
+local note-tracking state, but it is not the authority-bearing artifact by itself.
 
-## 9. Protocol Risks And Recommendations
+## 10. Protocol Risks And Recommendations
 
 The note-receive derivation model depends on deterministic reproduction of the same typed-data
 signature bytes for the same account and typed-data payload. If that property fails for a wallet
@@ -322,9 +394,12 @@ delivery recovery can fail.
 
 Operational recommendations:
 
-- protect the wallet secret as a long-term ownership secret
+- protect viewing-key and spending-key exports as sensitive authority-bearing files
+- keep wallet backups separate from key exports when storing or transmitting them
+- treat a backup plus viewing key plus spending key as a full operational wallet restore set
+- protect the wallet secret source file if it is kept after `channel join`, because it may help
+  recreate the spending key with the same account and channel context
 - back up the Ethereum private key separately from the local workspace
-- treat the wallet file and wallet secret together as sufficient to compromise channel funds
 - do not assume that being able to read a note implies being able to spend it
 - treat long-lived unused notes as having increasing future-nullifier exposure
 - prefer redeeming or rotating notes when a channel is expected to run for a long time

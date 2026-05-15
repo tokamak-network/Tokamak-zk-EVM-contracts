@@ -22,6 +22,7 @@ import {
   resolveTokamakCliResourceDir,
   resolveTokamakCliSetupOutputDir,
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
+import AdmZip from "adm-zip";
 import {
   deriveNoteReceiveKeyMaterial,
 } from "../../cli/lib/private-state-note-delivery.mjs";
@@ -1270,11 +1271,21 @@ function runAnvilCliCommand(command, args = []) {
 }
 
 function runAnvilBridgeCliCommand(command, args = []) {
-  return runPrivateStateCli([...commandTokens(command), "--network", "anvil", "--rpc-url", providerUrl, ...args]);
+  return runPrivateStateCli([...commandTokens(command), "--network", "anvil", ...args]);
 }
 
 function commandTokens(command) {
   return Array.isArray(command) ? command : String(command).trim().split(/\s+/u);
+}
+
+function configureAnvilRpcForCli() {
+  return runPrivateStateCli([
+    "set", "rpc",
+    "--network", workspaceNetworkName,
+    "--rpc-url", providerUrl,
+    "--log-requests-per-second", "100",
+    "--block-range-cap", "2000",
+  ]);
 }
 
 function walletCliArgs(participant) {
@@ -1289,6 +1300,10 @@ function signerCliArgs(participant) {
   ];
 }
 
+function acknowledgeActionImpactArgs() {
+  return ["--acknowledge-action-impact"];
+}
+
 function createChannel() {
   return runAnvilBridgeCliCommand("channel create", [
     "--channel-name", channelName,
@@ -1301,6 +1316,7 @@ function depositBridge(participant) {
   return runAnvilBridgeCliCommand("account deposit-bridge", [
     ...signerCliArgs(participant),
     "--amount", depositAmountTokens,
+    ...acknowledgeActionImpactArgs(),
   ]);
 }
 
@@ -1309,6 +1325,7 @@ function joinChannel(participant) {
     "--channel-name", channelName,
     ...signerCliArgs(participant),
     "--wallet-secret-path", participant.walletSecretPath,
+    ...acknowledgeActionImpactArgs(),
   ]);
   participant.walletName = result.wallet;
   participant.l2Address = result.l2Address;
@@ -1357,6 +1374,7 @@ function depositChannel(participant) {
   return runAnvilCliCommand("wallet deposit-channel", [
     ...walletCliArgs(participant),
     "--amount", depositAmountTokens,
+    ...acknowledgeActionImpactArgs(),
   ]);
 }
 
@@ -1368,23 +1386,38 @@ function walletExportPath(participant, suffix) {
   return path.join(
     outputRoot,
     "wallet-exports",
-    `${slugifyPathComponent(participant.walletName)}-${slugifyPathComponent(suffix)}.zip`,
+    `${slugifyPathComponent(participant.walletName)}-${slugifyPathComponent(suffix)}`,
   );
 }
 
-function exportWallet(participant, { includeNotes = false, suffix = "default" } = {}) {
-  const outputPath = walletExportPath(participant, suffix);
+function exportWalletBackup(participant, { suffix = "backup" } = {}) {
+  const outputPath = `${walletExportPath(participant, suffix)}.zip`;
   fs.rmSync(outputPath, { force: true });
-  return runAnvilCliCommand("wallet export", [
+  return runAnvilCliCommand("wallet export backup", [
     ...walletCliArgs(participant),
     "--output", outputPath,
-    ...(includeNotes ? ["--include-notes"] : []),
   ]);
 }
 
-function importWallet(inputPath) {
+function exportWalletKey(participant, keyKind) {
+  const outputPath = `${walletExportPath(participant, keyKind)}.key`;
+  fs.rmSync(outputPath, { force: true });
+  return runAnvilCliCommand(`wallet export ${keyKind}-key`, [
+    ...walletCliArgs(participant),
+    "--output", outputPath,
+  ]);
+}
+
+function importWalletBackup(inputPath) {
   return runPrivateStateCli([
-    "wallet", "import",
+    "wallet", "import", "backup",
+    "--input", inputPath,
+  ]);
+}
+
+function importWalletKey(inputPath, keyKind) {
+  return runPrivateStateCli([
+    "wallet", "import", `${keyKind}-key`,
     "--input", inputPath,
   ]);
 }
@@ -1447,6 +1480,7 @@ function mintNotes(participant, amounts, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("wallet mint-notes", [
     ...walletCliArgs(participant),
     "--amounts", JSON.stringify(amounts),
+    ...acknowledgeActionImpactArgs(),
     ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
@@ -1455,12 +1489,59 @@ function getWalletNotes(participant) {
   return runAnvilCliCommand("wallet get-notes", walletCliArgs(participant));
 }
 
+function exportWalletEvidence(participant) {
+  const outputPath = path.join(
+    outputRoot,
+    "wallet-exports",
+    `${slugifyPathComponent(participant.walletName)}-evidence.zip`,
+  );
+  return runAnvilCliCommand("wallet get-notes", [
+    ...walletCliArgs(participant),
+    "--export-evidence", outputPath,
+    "--acknowledge-full-note-plaintext-export",
+  ]);
+}
+
+function assertWalletEvidenceExport(result, { expectedNoteCount }) {
+  expect(result.evidenceExport, "wallet get-notes evidence export result is missing.");
+  expect(fs.existsSync(result.evidenceExport.output), `Evidence ZIP was not written: ${result.evidenceExport.output}.`);
+  expect(Number(result.evidenceExport.noteCount) === Number(expectedNoteCount), "Evidence ZIP note count mismatch.");
+  expect(Number(result.evidenceExport.walletEpochCount ?? 1) >= 1, "Evidence ZIP must report wallet epoch count.");
+  expect(result.evidenceExport.containsSpendingKey === false, "Evidence ZIP must not report spending-key inclusion.");
+  expect(result.evidenceExport.containsViewingKey === false, "Evidence ZIP must not report viewing-key inclusion.");
+  const zip = new AdmZip(result.evidenceExport.output);
+  const entries = new Set(zip.getEntries().map((entry) => entry.entryName));
+  for (const requiredEntry of [
+    "manifest.json",
+    "indexes/by-commitment.json",
+    "indexes/by-nullifier.json",
+    "indexes/by-creation-tx.json",
+    "indexes/by-spend-tx.json",
+    "indexes/by-block-range.json",
+    "indexes/by-counterparty.json",
+  ]) {
+    expect(entries.has(requiredEntry), `Evidence ZIP is missing ${requiredEntry}.`);
+  }
+  const manifest = JSON.parse(zip.readAsText("manifest.json"));
+  expect(manifest.containsNotePlaintext === true, "Evidence manifest must declare note plaintext inclusion.");
+  expect(manifest.excludedSecrets?.spendingKey === true, "Evidence manifest must exclude spending keys.");
+  expect(Array.isArray(manifest.wallets), "Evidence manifest must include wallet epoch metadata.");
+  const noteEntries = [...entries].filter((entry) =>
+    /^wallets\/[^/]+\/epochs\/[^/]+\/notes\/[^/]+\.json$/u.test(entry));
+  expect(noteEntries.length === Number(expectedNoteCount), "Evidence ZIP note entry count mismatch.");
+  const serializedZip = zip.getEntries().map((entry) => zip.readAsText(entry)).join("\n");
+  for (const forbidden of ["l2PrivateKey", "noteReceivePrivateKey"]) {
+    expect(!serializedZip.includes(forbidden), `Evidence ZIP contains forbidden secret field ${forbidden}.`);
+  }
+}
+
 function transferNotes(participant, noteIds, recipients, amounts, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("wallet transfer-notes", [
     ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
     "--recipients", JSON.stringify(recipients),
     "--amounts", JSON.stringify(amounts),
+    ...acknowledgeActionImpactArgs(),
     ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
@@ -1469,6 +1550,7 @@ function redeemNotes(participant, noteIds, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("wallet redeem-notes", [
     ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
+    ...acknowledgeActionImpactArgs(),
     ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
@@ -1477,6 +1559,7 @@ function withdrawChannel(participant, amount) {
   return runAnvilCliCommand("wallet withdraw-channel", [
     ...walletCliArgs(participant),
     "--amount", amount,
+    ...acknowledgeActionImpactArgs(),
   ]);
 }
 
@@ -1484,11 +1567,30 @@ function withdrawBridge(participant, amount) {
   return runAnvilBridgeCliCommand("account withdraw-bridge", [
     ...signerCliArgs(participant),
     "--amount", amount,
+    ...acknowledgeActionImpactArgs(),
   ]);
 }
 
 function exitChannel(participant) {
   return runAnvilCliCommand("channel exit", walletCliArgs(participant));
+}
+
+function assertExitedWalletWorkspace(result, participant) {
+  expect(result.lifecycleStatus === "exited", "channel exit must mark the wallet epoch as exited.");
+  expect(result.archivedWalletDir, "channel exit must report the retained exited wallet directory.");
+  expect(fs.existsSync(result.archivedWalletDir), `Exited wallet directory is missing: ${result.archivedWalletDir}.`);
+  const walletMetadata = readJson(path.join(result.archivedWalletDir, "wallet-notes.metadata.json"));
+  expect(walletMetadata.lifecycleStatus === "exited", "Exited wallet metadata must record lifecycleStatus=exited.");
+  expect(
+    walletMetadata.exitedAtTxHash === result.exitedAtTxHash,
+    "Exited wallet metadata must record the exit transaction.",
+  );
+  const walletIndex = readJson(path.join(walletDirForName(participant.walletName), "wallet-index.metadata.json"));
+  expect(walletIndex.activeEpochId === null, "Wallet index must not keep an active epoch after channel exit.");
+  expect(
+    walletIndex.epochs.some((epoch) => epoch.epochId === result.epochId && epoch.lifecycleStatus === "exited"),
+    "Wallet index must retain the exited epoch.",
+  );
 }
 
 function assertResolvedWalletIdentity(result, participant, label) {
@@ -1758,6 +1860,7 @@ async function main() {
     cliPackageInstall = installPrivateStateCliPackageForE2E();
     console.log("E2E CLI: bootstrapping anvil and local deployments.");
     bootstrapAnvil();
+    configureAnvilRpcForCli();
     await resolveParticipantRegistrations(provider, participants);
     prepareCliSecrets(participants);
     bridgeDeployment = deployBridgeStack();
@@ -1959,6 +2062,8 @@ async function main() {
     recoverWallet(participants[2]);
     const notesAfterRedeemC = getWalletNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
+    const walletEvidenceExport = exportWalletEvidence(participants[2]);
+    assertWalletEvidenceExport(walletEvidenceExport, { expectedNoteCount: 3 });
     recoverWorkspaceAfterLocalTransactions = recoverWorkspace();
     assertPostTransactionWorkspaceRecoveryIndex(
       recoverWorkspaceAfterLocalTransactions,
@@ -1970,58 +2075,30 @@ async function main() {
       "recover-workspace from workspace mirror",
     );
 
-    const walletExportIncludeNotes = exportWallet(participants[2], {
-      includeNotes: true,
-      suffix: "include-notes",
-    });
+    const walletExportBackup = exportWalletBackup(participants[2]);
+    const walletExportViewingKey = exportWalletKey(participants[2], "viewing");
+    const walletExportSpendingKey = exportWalletKey(participants[2], "spending");
     expect(
-      walletExportIncludeNotes.includeNotes === true && walletExportIncludeNotes.fileCount >= 8,
-      "wallet export --include-notes must include the wallet files and channel workspace cache.",
+      walletExportBackup.exportMode === "backup" && walletExportBackup.fileCount >= 8,
+      "wallet export backup must include wallet backup metadata and channel workspace cache.",
     );
     deleteWorkspaceDir();
     removeAnvilWalletSecret(participants[2].walletName);
-    const walletImportIncludeNotes = importWallet(walletExportIncludeNotes.output);
+    const walletImportBackup = importWalletBackup(walletExportBackup.output);
     expect(
-      walletImportIncludeNotes.includeNotes === true,
-      "wallet import must report includeNotes=true for an include-notes export.",
+      walletImportBackup.exportMode === "backup",
+      "wallet import backup must report backup export mode.",
     );
+    importWalletKey(walletExportViewingKey.output, "viewing");
+    importWalletKey(walletExportSpendingKey.output, "spending");
     recoverWallet(participants[2]);
-    const notesAfterIncludeNotesImport = getWalletNotes(participants[2]);
-    assertWalletNoteSnapshot(notesAfterIncludeNotesImport, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
-    const channelDepositAfterIncludeNotesImport = getChannelFund(participants[2]);
+    const notesAfterBackupImport = getWalletNotes(participants[2]);
+    assertWalletNoteSnapshot(notesAfterBackupImport, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
+    const channelDepositAfterBackupImport = getChannelFund(participants[2]);
     assertBigIntEq(
-      channelDepositAfterIncludeNotesImport.channelDepositBaseUnits,
+      channelDepositAfterBackupImport.channelDepositBaseUnits,
       claimAmountBaseUnits,
-      "participant-c channel deposit after include-notes wallet import",
-    );
-
-    const walletExportDefault = exportWallet(participants[2], {
-      suffix: "default",
-    });
-    expect(
-      walletExportDefault.includeNotes === false && walletExportDefault.fileCount === 3,
-      "default wallet export must include only wallet secret, encrypted wallet, and wallet metadata.",
-    );
-    deleteWorkspaceDir();
-    removeAnvilWalletSecret(participants[2].walletName);
-    const walletImportDefault = importWallet(walletExportDefault.output);
-    expect(
-      walletImportDefault.includeNotes === false,
-      "wallet import must report includeNotes=false for a default export.",
-    );
-    const recoverWorkspaceAfterDefaultWalletImport = recoverWorkspace({ fromGenesis: true });
-    expect(
-      recoverWorkspaceAfterDefaultWalletImport.channelName === channelName,
-      "recover-workspace must rebuild channel state after default wallet import.",
-    );
-    recoverWallet(participants[2]);
-    const notesAfterDefaultImportRecovery = getWalletNotes(participants[2]);
-    assertWalletNoteSnapshot(notesAfterDefaultImportRecovery, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
-    const channelDepositAfterDefaultImportRecovery = getChannelFund(participants[2]);
-    assertBigIntEq(
-      channelDepositAfterDefaultImportRecovery.channelDepositBaseUnits,
-      claimAmountBaseUnits,
-      "participant-c channel deposit after default wallet import and workspace recovery",
+      "participant-c channel deposit after separated wallet import",
     );
 
     deleteWorkspaceDir();
@@ -2030,15 +2107,15 @@ async function main() {
       recoverWorkspaceAfterNotesResult.channelName === channelName,
       "recover-workspace must rebuild the deleted workspace after note activity.",
     );
-    deleteWorkspaceDir();
-    const recoverWalletFromGenesisAfterWorkspaceReset = recoverWallet(participants[2], { fromGenesis: true });
+    deleteWalletDir(participants[2]);
+    const recoverWalletFromGenesisAfterWalletReset = recoverWallet(participants[2], { fromGenesis: true });
     expect(
-      recoverWalletFromGenesisAfterWorkspaceReset.wallet === participants[2].walletName,
-      "recover-wallet --from-genesis must restore participant-c after workspace deletion.",
+      recoverWalletFromGenesisAfterWalletReset.wallet === participants[2].walletName,
+      "recover-wallet --from-genesis must restore participant-c after wallet workspace deletion.",
     );
-    const recoverWalletAfterWorkspaceReset = recoverWallet(participants[2]);
+    const recoverWalletAfterWalletReset = recoverWallet(participants[2]);
     expect(
-      recoverWalletAfterWorkspaceReset.wallet === participants[2].walletName,
+      recoverWalletAfterWalletReset.wallet === participants[2].walletName,
       "recover-wallet must restore participant-c from the refreshed recovery index.",
     );
 
@@ -2080,6 +2157,14 @@ async function main() {
       Number(exitChannelResult.refundBps) === 7500,
       `participant-c exit-channel refundBps mismatch: ${exitChannelResult.refundBps}.`,
     );
+    assertExitedWalletWorkspace(exitChannelResult, participants[2]);
+    const exitedWalletNotes = getWalletNotes(participants[2]);
+    expect(
+      exitedWalletNotes.wallet === participants[2].walletName,
+      "wallet get-notes must remain available for an exited wallet epoch.",
+    );
+    const exitedEvidence = exportWalletEvidence(participants[2]);
+    assertWalletEvidenceExport(exitedEvidence, { expectedNoteCount: 3 });
 
     const withdrawBridgeResult = withdrawBridge(participants[2], claimAmountTokens);
     const bridgeDepositAfterClaim = getBridgeFund(participants[2]);
@@ -2116,11 +2201,11 @@ async function main() {
       workspaceMirrorRecovery,
       recoverWorkspaceAfterNotes: recoverWorkspaceAfterNotesResult,
       walletExportImport: {
-        includeNotesExport: walletExportIncludeNotes,
-        includeNotesImport: walletImportIncludeNotes,
-        defaultExport: walletExportDefault,
-        defaultImport: walletImportDefault,
-        recoverWorkspaceAfterDefaultWalletImport,
+        backupExport: walletExportBackup,
+        backupImport: walletImportBackup,
+        viewingKeyExport: walletExportViewingKey,
+        spendingKeyExport: walletExportSpendingKey,
+        evidenceExport: walletEvidenceExport.evidenceExport,
       },
       localWallets: localWalletList,
       participants: participants.map((participant) => ({

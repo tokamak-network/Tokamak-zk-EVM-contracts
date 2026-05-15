@@ -385,20 +385,20 @@
           <div class="box">
             <ul class="guide-list">
               <li>
-                Your channel wallet is stored in your local workspace at
+                Your wallet backup metadata is stored in your local workspace at
                 <code id="workspace-path-label"></code>.
               </li>
               <li>
-                Even if you lose the channel wallet file, only your Ethereum private key, together with the correct
-                channel context, can recover your channel wallet as long as you still know the wallet secret.
+                A wallet backup does not include viewing keys, spending keys, key derivation material, or plaintext
+                note owner, value, and salt fields.
               </li>
               <li>
-                If your channel wallet file and wallet secret are both stolen, your channel funds can be stolen.
+                The viewing key decrypts encrypted note-delivery events. The spending key authorizes note use. Export
+                and import those keys only when that authority should move to the target machine.
               </li>
               <li>
-                If you lose your wallet secret, you lose the ability to derive your channel L2 private key. In that
-                case, you lose ownership of all notes because you can no longer use them, and that ownership cannot be
-                recovered.
+                If you lose the spending key and cannot recreate it from the original account, channel context, and
+                wallet secret source, you lose the ability to spend, transfer, or redeem notes.
               </li>
               <li>
                 Channel policy is immutable after creation. Joining a channel means accepting its verifier bindings,
@@ -414,15 +414,21 @@
           <div class="box">
             <ol class="guide-list">
               <li>
+                <span class="guide-label">Configure RPC:</span> <code>set rpc</code>
+                <div class="guide-example">
+                  <code>set rpc --network 'sepolia' --rpc-url '__RPC_URL__' --provider 'alchemy'</code>
+                </div>
+              </li>
+              <li>
                 <span class="guide-label">Join a channel:</span> <code>channel join</code>
                 <div class="guide-example">
-                  <code>channel join --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --wallet-secret-path '/path/to/wallet-secret' --rpc-url '__RPC_URL__'</code>
+                  <code>channel join --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --wallet-secret-path '/path/to/wallet-secret'</code>
                 </div>
               </li>
               <li>
                 <span class="guide-label">Create notes:</span> <code>account deposit-bridge</code> -&gt; <code>wallet deposit-channel</code> -&gt; <code>wallet mint-notes</code>
                 <div class="guide-example">
-                  <code>account deposit-bridge --amount '100' --network 'sepolia' --account 'my-account' --rpc-url '__RPC_URL__'</code><br />
+                  <code>account deposit-bridge --amount '100' --network 'sepolia' --account 'my-account'</code><br />
                   <code>wallet deposit-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '100'</code><br />
                   <code>wallet mint-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amounts '[&quot;50&quot;,&quot;50&quot;,&quot;0&quot;]'</code>
                 </div>
@@ -438,7 +444,7 @@
                 <div class="guide-example">
                   <code>wallet redeem-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]'</code><br />
                   <code>wallet withdraw-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '25'</code><br />
-                  <code>account withdraw-bridge --amount '25' --network 'sepolia' --account 'my-account' --rpc-url '__RPC_URL__'</code>
+                  <code>account withdraw-bridge --amount '25' --network 'sepolia' --account 'my-account'</code>
                 </div>
               </li>
             </ol>
@@ -485,6 +491,7 @@
         transferAmount1: "",
         transferRecipient2: "",
         transferAmount2: "",
+        acknowledgeActionImpact: false,
         docker: false,
         includeLocalArtifacts: false,
         groth16CliVersion: "",
@@ -826,7 +833,7 @@
         if (!commandNeedsWalletNotes()) {
           return;
         }
-        clearWalletNoteState("Enter note IDs manually. The CLI uses the wallet-local default secret file and the assistant does not request wallet secrets.");
+        clearWalletNoteState("Enter note IDs manually. The CLI uses local wallet metadata plus protected viewing/spending key files when commands require them.");
       }
 
       function acceptsRpcUrl(command) {
@@ -843,8 +850,12 @@
           : null;
         const optionalFields = new Set(command.optionalFields ?? []);
         return command.fields.filter((fieldKey) => {
-          if (fieldCatalog[fieldKey]?.optional || optionalFields.has(fieldKey)) {
+          const fieldConfig = fieldCatalog[fieldKey];
+          if (fieldConfig?.optional || optionalFields.has(fieldKey)) {
             return false;
+          }
+          if (fieldConfig?.type === "checkbox") {
+            return state[fieldKey] !== true;
           }
           if (fieldKey === "amounts" && command.id === "wallet-mint-notes") {
             return currentMintAmounts().length === 0;
@@ -1415,7 +1426,7 @@
         ].forEach((fieldKey) => {
           memoryFieldsEl.appendChild(createField(fieldKey));
         });
-        memoryStatusEl.textContent = "Use account import --private-key-file before signing commands. Optional --rpc-url is saved as the network RPC_URL for later commands.";
+        memoryStatusEl.textContent = "Use set rpc once before bridge-facing commands, then use account import --private-key-file before signing commands.";
       }
 
       function renderCommandSelect() {
@@ -1475,7 +1486,7 @@
             : "",
         ].join("");
         warningEl.textContent = missing.length === 0
-          ? `Ready. If --rpc-url is omitted, the CLI uses the saved network RPC_URL.${workspaceWarnings}`
+          ? `Ready. Bridge-facing commands use the saved network RPC configuration.${workspaceWarnings}`
           : `Missing inputs: ${missing.map((fieldKey) => fieldCatalog[fieldKey].label).join(", ")}.${workspaceWarnings}`;
       }
 

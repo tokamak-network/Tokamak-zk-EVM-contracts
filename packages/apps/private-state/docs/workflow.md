@@ -20,7 +20,7 @@ The private-state CLI is an off-chain protocol participant, not a thin transacti
 It:
 
 - derives channel-specific identities
-- manages encrypted wallet state
+- manages wallet metadata plus separate viewing-key and spending-key capabilities
 - reconstructs channel snapshots
 - assembles Tokamak proof inputs
 - generates proofs locally
@@ -28,28 +28,38 @@ It:
 - scans bridge-propagated logs for encrypted note delivery
 
 This role matters because the contracts do not store a complete user wallet. The CLI is responsible
-for reconstructing the user's actionable view from accepted bridge outputs, local encrypted wallet
-state, and user-held secrets.
+for reconstructing the user's actionable view from accepted bridge outputs, encrypted note payloads,
+wallet metadata, and user-held key files.
 
 ## 2. Normal Command Flow
 
 The normal flow is:
 
-1. `channel create`
-2. `account deposit-bridge`
-3. `channel join`
-4. `wallet deposit-channel`
-5. `wallet mint-notes`
-6. `wallet transfer-notes`
-7. `wallet get-notes`
-8. `wallet redeem-notes`
-9. `wallet withdraw-channel`
-10. `channel exit`
-11. `account withdraw-bridge`
+1. `set rpc`
+2. `account import`
+3. `channel create`
+4. `account deposit-bridge`
+5. `channel join`
+6. `wallet deposit-channel`
+7. `wallet mint-notes`
+8. `wallet transfer-notes`
+9. `wallet get-notes`
+10. `wallet redeem-notes`
+11. `wallet withdraw-channel`
+12. `channel exit`
+13. `account withdraw-bridge`
 
 `channel create` is permissionless at the bridge level. The caller becomes the channel leader and
 chooses the initial join toll. `channel join` binds the user's L1 identity to a channel-specific L2
 identity and registers the note-receive public key for encrypted note delivery.
+
+`set rpc` is the per-network RPC configuration step. It stores the endpoint URL plus fixed
+`eth_getLogs` scan limits under the local workspace. Ordinary bridge-facing and wallet commands read
+that configuration instead of accepting per-command RPC URL overrides.
+
+Users should run this flow from a self-custody L1 wallet. A centralized-exchange deposit address is
+not a private-state wallet address: the exchange does not hold the user's channel workspace, wallet
+spending key, viewing key, or recovery context.
 
 Joining an existing channel requires a recovered local channel workspace. If the workspace has no
 usable recovery index, the user must explicitly run
@@ -94,12 +104,27 @@ Example: if a channel was created with the wrong function root, later fixing the
 not rewrite that channel. A user should move to a new channel whose policy snapshot contains the
 correct function root.
 
+For the current `private-state` DApp, the channel leader's role is limited by this policy snapshot.
+The leader can open the channel and manage exposed channel-level configuration, such as toll-related
+policy, but does not custody user TON, does not hold user wallet secret source files, viewing keys,
+or spending keys, does not intermediate note transfers, and does not have a protocol backdoor for
+reconstructing every private note history. Availability services such as workspace mirrors may help
+users recover channel state, but they do not replace user-held secrets and do not become custody or
+viewing authorities.
+
+The public monitoring surface is also bounded by this DApp's programmed disclosure policy. Bridge
+deposits, withdrawals, channel joins, accepted transitions, commitments, nullifiers, encrypted note
+events, verifier snapshots, and channel policy are publicly observable for the current
+`private-state` DApp. Internal note provenance and sender-recipient relationships are not
+automatically reconstructed from public data alone; selective disclosure is controlled by the user
+within the limits of implemented wallet tooling.
+
 ## 4. Workspace And Wallet Artifacts
 
 The CLI stores local state in two layers:
 
 - channel workspace
-- per-user encrypted wallet
+- per-user wallet metadata and separate key files
 
 The channel workspace contains:
 
@@ -109,33 +134,40 @@ The channel workspace contains:
 - deployment and storage-layout manifest paths
 - channel metadata
 
-The wallet contains:
+The wallet metadata is split across non-authorizing state and authority metadata. The note-tracking
+metadata contains:
 
-- encrypted L1 and L2 key material
 - note-receive registration metadata
-- tracked notes
+- tracked note commitments, nullifiers, and encrypted note payloads
 - last scanned encrypted-note event block
-- wallet-local operation history
+- local wallet operation history
 
-The channel workspace is shared context for the channel. The encrypted wallet is user-specific
-context. Losing the workspace is recoverable if the wallet and chain data can reconstruct it. Losing
-the encrypted wallet or its wallet secret has stronger consequences because it can remove the secrets
-needed to use notes.
+The viewing-key metadata and spending-key metadata are stored separately and contain public
+information derived from the corresponding secret, such as the registered note-receive public key or
+the L2 public identity. The private viewing key and private spending key live as protected key files
+outside the backup metadata.
 
-`wallet export` and `wallet import` are the backup boundary for this local state. A default wallet
-export contains the wallet-local secret, encrypted `wallet.json`, and wallet metadata. Because
-tracked notes are stored inside encrypted `wallet.json`, the default export preserves the wallet's
-note state while still excluding the shared channel workspace cache. That is the minimum local
-material needed to restore the wallet identity on another machine; after importing it, the user
-should run `channel recover-workspace` so the shared channel snapshot is rebuilt from bridge logs.
-The export intentionally does not include account secrets because wallet commands restore their L1
-signer from encrypted `wallet.json`.
+The channel workspace is shared context for the channel. Wallet note metadata is user-specific
+context, but it is no longer a full-control secret bundle. Losing the workspace is recoverable if
+the wallet and chain data can reconstruct it. Losing the viewing-key or spending-key files removes
+the corresponding capability until the user reimports or rederives that key material.
 
-`wallet export --include-notes` adds the channel workspace cache: `workspace.json`, the current state
-snapshot, block info, and managed contract codes. With those files imported, wallet commands can run
-without an immediate recovery step as long as the cached channel state is still aligned with the
-bridge. If the bridge has advanced, the normal indexed workspace refresh path resumes from the
-imported recovery index.
+`wallet export backup` and `wallet import backup` are the non-authorizing backup boundary for this
+local state. A backup contains wallet note-tracking metadata and the channel workspace cache, but it
+does not contain spending keys, viewing keys, key derivation material, or plaintext note `owner`,
+`value`, and `salt` fields. It preserves commitments, nullifiers, and encrypted note payloads.
+
+`wallet export viewing-key` / `wallet import viewing-key` and `wallet export spending-key` /
+`wallet import spending-key` move those capabilities independently. Importing only the backup does
+not grant either viewing or spending authority.
+
+That separation affects how wallet commands behave. `wallet get-meta` and `wallet list` can inspect
+local registration metadata without decrypting notes. `wallet get-notes` can list encrypted-only
+tracked notes from backup metadata, but it needs the viewing key to refresh and decrypt received
+note events or compute note-value totals. Commands that create or consume notes, such as
+`wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`, need both the viewing key
+and the spending key: the viewing key lets the CLI refresh the readable note workspace after
+accepted note transactions, while the spending key authorizes proof-backed note use.
 
 ## 5. Bridge Registration Model
 
@@ -242,6 +274,8 @@ For `wallet mint-notes`, the CLI:
 3. derives encrypted self-mint outputs for the wallet owner
 4. encrypts those outputs to the wallet's note-receive public key
 5. sends fixed-arity calldata to the DApp controller through the bridge execution path
+6. refreshes the channel workspace and wallet note workspace from their recovery indexes after the
+   transaction's receipt block is visible through the configured RPC provider
 
 The contract then derives note salts from the encrypted payloads.
 

@@ -1,5 +1,109 @@
 # Changelog
 
+## Unreleased
+
+## 2.1.2 - 2026-05-15
+
+- Fixed wallet lifecycle recovery log lookups so account-specific registration and exit event scans
+  use the same chunked `eth_getLogs` path as the rest of RPC workspace recovery.
+- Removed synthetic wallet lifecycle epoch fallback creation; wallet recovery now requires
+  lifecycle registration events to be found in RPC log history instead of fabricating epochs from
+  current registration state.
+- Fixed RPC log request pacing so every `eth_getLogs` call passes through a shared async limiter
+  instead of relying on a race-prone timestamp throttle during concurrent scans.
+- Added progress output for the wallet lifecycle registered/exited event scans that run before
+  note-delivery recovery in `wallet recover-workspace`.
+- Added `set rpc` for per-network RPC configuration with built-in `eth_getLogs` scan-limit tables
+  for Ankr, Chainstack, Chainnodes, QuickNode, and Alchemy, using 90% of the provider reference
+  request-rate values.
+- Simplified note-mutating command post-processing so accepted note transactions wait for the
+  receipt block, then refresh channel and wallet workspaces from their recovery indexes instead of
+  manually applying note lifecycle metadata.
+- Extended wallet recovery to persist public creation/spend linkage from commitment and
+  nullifier storage observations so raw evidence export can package stored metadata without
+  running its own log scan.
+- Fixed raw evidence spend linkage so nullifier observation transactions are used as the spend
+  transition references and included with their transaction, receipt, and event evidence.
+- Redesigned the bundled investigator GUI around purpose-first disclosure requests, an interactive
+  SVG note-linkage graph, node detail overlays, and Markdown ASCII-art linkage report export.
+- Updated private-state documentation to reflect `set rpc` as the only CLI RPC configuration path
+  for ordinary bridge-facing and wallet commands.
+- Split the CLI entrypoint into command dispatch modules and moved the shared runtime implementation
+  under `lib/runtime.mjs`; the published package now includes the `commands/` modules.
+- Removed the `channel get-meta` workspace mirror lookup fallback so contract lookup errors surface
+  directly instead of being hidden behind `null` metadata.
+- Changed `channel join` to derive the wallet lifecycle epoch from the accepted join receipt instead
+  of rescanning full account registration and exit history.
+- Changed investigator numeric block filters to reject invalid values instead of silently treating
+  them as absent filters.
+
+## 2.1.1 - 2026-05-14
+
+- Changed `channel recover-workspace --from-genesis` to move any existing local channel workspace
+  to `workspace-rebuild-backups/` before writing the current-format workspace. The clean rebuild
+  path is limited to workspace files and preserves local account and wallet key secrets under
+  `secrets/`.
+- Added channel workspace recovery checkpointing at the existing RPC log chunk boundary so
+  interrupted RPC recovery can resume from the last completed chunk.
+- Changed mirror recovery to fall back to a newer verified full mirror checkpoint when no matching
+  delta bundle exists for the local recovery index.
+- Changed `wallet recover-workspace` to use the same bounded channel-workspace freshness preflight
+  as other wallet commands. `wallet recover-workspace --from-genesis` now restarts received-note
+  scanning from channel genesis but does not rebuild the channel workspace from genesis.
+- Added received-note recovery checkpointing at the existing RPC log chunk boundary so ordinary
+  `wallet recover-workspace` resumes from the last completed chunk after an interruption.
+
+## 2.1.0 - 2026-05-14
+
+- Required current epoch-aware wallet workspaces for wallet commands and backup imports. Local
+  wallet metadata must include the wallet index and epoch metadata; users with older local
+  workspaces should rebuild them with `wallet recover-workspace`.
+- Required current epoch-aware evidence bundle note paths in the investigator and removed the
+  special-case legacy evidence layout branch.
+- Consolidated the static evidence investigator into the CLI package under `cli/investigator/`
+  and removed the duplicate top-level investigator copy.
+- Simplified wallet command argument validation by removing unused schema fallback wrappers.
+
+## 2.0.0 - 2026-05-13
+
+- Split wallet export/import into `wallet export backup`, `wallet export viewing-key`,
+  `wallet export spending-key`, `wallet import backup`, `wallet import viewing-key`, and
+  `wallet import spending-key`.
+- Changed wallet backups so they exclude spending keys, viewing keys, key derivation material,
+  and plaintext note `owner`, `value`, and `salt` fields. Backups retain commitments,
+  nullifiers, encrypted note payloads, and channel workspace cache files.
+- Replaced the previous full-control wallet workspace format with separate note-tracking,
+  spending-key metadata, and viewing-key metadata files. The CLI now loads only the current
+  wallet metadata format.
+- Added action-impact acknowledgements for bridge-facing, channel, and note-mutating commands.
+  The warning output covers public event exposure, private note-state impact, note provenance
+  boundaries, illegal-use prohibition, CEX deposit-address warnings, secret-recovery limits, and
+  channel policy acceptance.
+- Added full-note raw evidence export through `wallet get-notes --export-evidence` with an explicit
+  plaintext-export acknowledgement. Evidence bundles include note plaintext facts, derived
+  commitments and nullifiers, creation/spend transaction references, receipts, events, calldata, and
+  filtering indexes, while excluding viewing keys, spending keys, wallet secrets, account private
+  keys, and `.key` files.
+- Made local wallet workspaces epoch-aware. `channel exit` now marks the active wallet epoch as
+  exited and retains its local note metadata instead of deleting the wallet workspace, while
+  `wallet recover-workspace` and `wallet get-notes --export-evidence` can still use retained exited
+  epochs for historical disclosure.
+- Added a local static evidence investigator GUI and bundled it with the NPM package. The new
+  top-level `private-state-cli investigator` command prints the bundled HTML path, prints the file
+  URL, and opens the GUI in the default browser.
+- Clarified wallet authority recovery in the NPM README: viewing-key rederivation needs the original
+  L1 private key and channel context, while spending-key rederivation additionally needs the same
+  wallet secret source used at `channel join`.
+- Added a `channel join` success warning that losing both the spending-key file and wallet secret
+  source prevents spending-key rederivation.
+- Aligned README terminology around `private-state DApp`, `private-state CLI`, `viewing key`,
+  `spending key`, `wallet secret source`, `user-controlled selective disclosure`, and
+  `privacy-preserving note semantics`.
+- Added LLM-assistant guidance requiring strong user warnings and explicit confirmation before an
+  assistant runs commands that require `--acknowledge-*` options on a user's behalf.
+- Simplified internal CLI code paths by removing a dead `loadWallet` parameter and redundant
+  `channel join` result aliases.
+
 ## 1.2.1 - 2026-05-11
 
 - Changed pre-command automatic recovery from an RPC log request time estimate to a fixed

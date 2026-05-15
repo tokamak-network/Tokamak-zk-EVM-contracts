@@ -189,7 +189,9 @@ Evidence:
 - Commits: `8f6d3bc` (`Mark metadata digest channel gate resolved`), `eb7fd30`
   (`Use function root proofs for channel execution`).
 - Code: `bridge/src/DAppManager.sol`, `bridge/src/BridgeCore.sol`,
-  `packages/apps/private-state/cli/private-state-bridge-cli.mjs`.
+  `packages/apps/private-state/cli/private-state-bridge-cli.mjs`,
+  `packages/apps/private-state/cli/commands/`, and
+  `packages/apps/private-state/cli/lib/runtime.mjs`.
 - Test: `bridge/test/BridgeFlow.t.sol::testChannelCreationRejectsStaleDAppMetadataDigest`.
 
 Upgradeability note: future channels are protected. A channel deliberately created against the wrong
@@ -219,7 +221,8 @@ Resolution and accepted control:
 Evidence:
 
 - Commit: `52815b645431490a663892bacfbef3cdd1396702`.
-- Code: `packages/apps/private-state/cli/private-state-bridge-cli.mjs`.
+- Code: `packages/apps/private-state/cli/commands/channel.mjs` and
+  `packages/apps/private-state/cli/lib/runtime.mjs`.
 - Docs: bridge and private-state CLI README warnings describe immutable channel policy.
 
 Upgradeability note: future governance can be strengthened by UUPS upgrade, timelocks, or ownership
@@ -334,7 +337,8 @@ Evidence:
 - Commits: `eb7fd30`, `352494c`.
 - Code: `bridge/src/DAppManager.sol`, `bridge/src/ChannelManager.sol`,
   `bridge/scripts/admin-add-dapp.mjs`,
-  `packages/apps/private-state/cli/private-state-bridge-cli.mjs`.
+  `packages/apps/private-state/cli/commands/channel.mjs`, and
+  `packages/apps/private-state/cli/lib/runtime.mjs`.
 - Gas documentation: `bridge/docs/gas-assessment.md` records current `createChannel` full-path gas
   as `2,731,347`, down from the earlier `3,884,651` deep-copy design measurement.
 
@@ -361,7 +365,8 @@ Resolution:
 Evidence:
 
 - Commit: `73f214f`.
-- Code: `bridge/src/BridgeCore.sol`, `packages/apps/private-state/cli/private-state-bridge-cli.mjs`.
+- Code: `bridge/src/BridgeCore.sol`, `packages/apps/private-state/cli/commands/channel.mjs`,
+  and `packages/apps/private-state/cli/lib/runtime.mjs`.
 - Test: `bridge/test/BridgeFlow.t.sol::testCreateChannelUsesCallerAsLeader`.
 - Gas documentation classifies `BridgeCore.createChannel` as a user call.
 
@@ -397,8 +402,9 @@ Evidence:
 
 - Code: `bridge/src/BridgeCore.sol`, `bridge/src/DAppManager.sol`,
   `bridge/src/L1TokenVault.sol`.
-- Code: `packages/apps/private-state/cli/private-state-bridge-cli.mjs` prints immutable policy
-  snapshot values before channel creation and first join.
+- Code: `packages/apps/private-state/cli/commands/channel.mjs` and
+  `packages/apps/private-state/cli/lib/runtime.mjs` print immutable policy snapshot values before
+  channel creation and first join.
 - Related commits: `99bc739` (`Allow DApp metadata verifier snapshots to update`) and
   `52815b6` (`Warn users about immutable channel policy`).
 
@@ -549,7 +555,7 @@ why finite leaf projection creates a channel-lifespan capacity limit rather than
 static-set risk, even after the depth increase materially reduces the practical collision rate. The
 graph uses a logarithmic probability axis so low-probability early-lifespan regions remain visible.
 
-![General channel lifespan leaf collision probability by operating period and depth](../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
+![General channel lifespan leaf collision probability by operating period and depth](../../assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 
 Evidence:
 
@@ -559,8 +565,9 @@ Evidence:
   into the finite leaf domain.
 - Code: `packages/apps/private-state/src/PrivateStateController.sol` emits observed storage keys
   for commitment and nullifier writes.
-- Code: `packages/apps/private-state/cli/private-state-bridge-cli.mjs` derives and tracks
-  commitment/nullifier storage keys and reconciles note state from snapshots.
+- Code: `packages/apps/private-state/cli/commands/notes.mjs` and
+  `packages/apps/private-state/cli/lib/runtime.mjs` derive and track commitment/nullifier storage
+  keys and reconcile note state from snapshots.
 
 Operational note: do not describe the dense finite-leaf storage projection as collision-free. If
 future deployments reduce tree depth, materially increase managed storage-key volume, or target
@@ -610,13 +617,12 @@ Verification was performed across the implementation series covered by this audi
   - Passed after deployment-gate updates.
 - `node --check bridge/scripts/admin-add-dapp.mjs`
   - Passed during the covered implementation series.
-- `node --check packages/apps/private-state/cli/private-state-bridge-cli.mjs`
-  - Passed after metadata-digest and permissionless channel-creation updates.
-- Private-state CLI E2E with a locally packed CLI tarball and `@tokamak-zk-evm/cli@2.0.16`
-  passed earlier in this branch after the function metadata proof and stale lookup cleanup. It
-  covered bridge deployment, DApp registration, channel creation, joins, deposits, mint, transfer,
-  redeem, channel withdrawal, exit, and bridge withdrawal. It was intentionally not rerun for the
-  later permissionless-channel-creation-only change.
+- `node --check` for the private-state CLI entrypoint, command modules, and runtime modules.
+  - Passed after splitting the CLI dispatch modules.
+- Private-state CLI E2E passed after the CLI dispatch split with the current local private-state
+  CLI package. It covered bridge deployment, DApp registration, channel creation, joins, deposits,
+  mint, transfer, redeem, channel withdrawal, exit, bridge withdrawal, evidence export, and
+  investigator bundle validation.
 - Static successful-path checks passed `L2AccountingVault.creditLiquidBalance(...)` and
   `debitLiquidBalance(...)`, and passed mint/transfer functions in `PrivateStateController` before
   the checker stopped on inline assembly in redeem functions. Manual review kept the redeem family

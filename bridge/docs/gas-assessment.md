@@ -1,5 +1,7 @@
 # Bridge Gas Assessment
 
+Status: Official public bridge document.
+
 Measurement timestamp: 2026-05-02T05:20:48Z / 2026-05-02 13:20:48 +08.
 
 ETH/USD: 2,300.89 USD.

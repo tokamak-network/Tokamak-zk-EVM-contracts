@@ -25,8 +25,8 @@ state commitments before accepting a transition.
 ### What is the private-state DApp?
 
 The private-state DApp is the current reference DApp in this repository. It lets users move canonical Tokamak Network
-Token value into channel-local accounting, mint private notes, transfer notes, redeem notes, and withdraw liquid
-channel balance back through the bridge.
+Token value into channel-local accounting, mint private-state notes, transfer private-state notes, redeem notes, and
+withdraw liquid channel balance back through the bridge.
 
 ### What remains trusted or operationally assumed?
 
@@ -34,11 +34,31 @@ The current model assumes sound Tokamak and Groth16 verifiers, correct DApp meta
 upgradeable root contracts, exact-transfer behavior of the canonical token, and user review of immutable channel policy
 before channel creation or joining.
 
+## Terminology And CEX Boundary
+
+This repository and the npm CLI use the same terminology for the private-state flow:
+
+- `Tokamak Private App Channels`: Ethereum-settled, validity-proven execution domains for bridge-coupled DApps.
+- `private-state DApp`: the current reference DApp that programs confidential application state inside a channel.
+- `canonical Tokamak Network Token`: the L1 asset whose custody remains anchored on Ethereum.
+- `self-custody L1 wallet`: a user-controlled L1 account, not a centralized-exchange deposit address.
+- `L1-transparent bridge edge`: public bridge deposit and withdrawal transactions involving the canonical token.
+- `channel-local accounting balance`: liquid application balance inside a channel before or after note use.
+- `private-state note`: a channel-local application note, not an exchange-supported token or deposit asset.
+- `proof-backed confidential application state`: DApp state advanced by accepted proof-backed channel transitions.
+- `user-controlled selective disclosure`: optional user disclosure from local wallet state; Tokamak does not hold a master viewing key.
+- `viewing key`: the note-receive private key used to decrypt note-delivery events for the registered note-receive public key.
+- `spending key`: the channel-bound L2 private key used to authorize proof-backed note use.
+
+Tokamak Private App Channels are not a centralized-exchange deposit network. CEX-facing token transfers and bridge
+entry or exit remain public L1 activity. Internal private-state note counterparty relationships and note provenance are
+not public by default and are not reconstructed by Tokamak on a user's behalf.
+
 ## What Is In This Repository
 
 - [bridge/](./bridge/): the current bridge workspace, including contracts, deployment scripts, tests, and bridge documentation
 - [packages/apps/](./packages/apps/): bridge-coupled DApps that follow the repository's zk-L2 assumptions
-- [packages/apps/private-state/](./packages/apps/private-state/): the current reference DApp for private note-based channel activity
+- [packages/apps/private-state/](./packages/apps/private-state/): the current reference DApp for private-state note-based channel activity
 - [bridge/src/generated/](./bridge/src/generated/): generated verifier sources and verifier-key data used by bridge workflows
 - [packages/groth16/](./packages/groth16/): generated Groth16 verifier artifacts used by the bridge token-vault path
 - [scripts/](./scripts/): shared repository scripts for artifact handling and current workflow support
@@ -47,9 +67,9 @@ before channel creation or joining.
 ## Where To Start
 
 - Bridge overview: [bridge/README.md](./bridge/README.md)
-- Bridge white paper: [bridge/docs/zk-l2-bridge-whitepaper.md](./bridge/docs/zk-l2-bridge-whitepaper.md)
-- Bridge spec: [bridge/docs/spec.md](./bridge/docs/spec.md)
-- Verifier notes: [bridge/docs/verifier-spec.md](./bridge/docs/verifier-spec.md)
+- Bridge docs index: [bridge/docs/index.md](./bridge/docs/index.md)
+- Bridge white paper: [bridge/docs/whitepaper.md](./bridge/docs/whitepaper.md)
+- Bridge developer references: [bridge/docs/dev/](./bridge/docs/dev/)
 - App workspace guide: [packages/apps/README.md](./packages/apps/README.md)
 - Private-state DApp guide: [packages/apps/private-state/README.md](./packages/apps/private-state/README.md)
 - AI/search summary: [llms.txt](./llms.txt)
@@ -66,6 +86,15 @@ GitHub is not the artifact store for deployment or DApp registration results. Th
 keeps the source code, deployment scripts, and artifact upload tooling; generated deployment
 metadata, registration manifests, ABI snapshots, CRS snapshots, and source snapshots should be
 looked up through the Google Drive artifact index and uploaded folders.
+
+## Mainnet Registered DApps
+
+The table below lists the DApps currently registered on the Ethereum mainnet bridge according to
+the published artifacts and mainnet `DAppManager` events. Dates are UTC.
+
+| DApp | DApp ID | Deployment manifest | Registered or last updated | Registration or update tx | Tokamak Network channels |
+| --- | ---: | --- | --- | --- | --- |
+| `private-state` | `1` | [Google Drive folder](https://drive.google.com/drive/folders/1DwjAOlryTdWnBi-c7bSlV77IhutRfYXX) | Registered on 2026-05-04 00:33:35 UTC at block `25018081`; no later metadata update event is recorded | [`0xf6130e...23daf`](https://etherscan.io/tx/0xf6130ee7f1a3ec63116369086d907da6d2da27c93ef5bf2eae91400d91323daf) | `the-great-first-channel` |
 
 ## Repository Model
 
@@ -203,7 +232,7 @@ Bridge tests keep Tokamak proof fixtures under [bridge/test/fixtures/](./bridge/
 Bridge deployment and DApp registration consume `@tokamak-zk-evm/cli`,
 `@tokamak-zk-evm/subcircuit-library`, `@tokamak-zk-evm/synthesizer-node`, `tokamak-l2js`, and
 the repository Groth16 package from npm-linked packages. Current implementation details live in
-[bridge/docs/current-implementation.md](./bridge/docs/current-implementation.md).
+[bridge/docs/dev/current-implementation.md](./bridge/docs/dev/current-implementation.md).
 
 ## Notes On Scope
 

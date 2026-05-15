@@ -28,7 +28,7 @@ For bridge deployment and upgrades, use:
 bridge-facing Tokamak constants, the Groth16 runtime CRS, and the Groth16
 verifier before it broadcasts a bridge deployment.
 Current ZK deployment and DApp-registration details are documented in
-`bridge/docs/current-implementation.md`.
+`bridge/docs/dev/current-implementation.md`.
 
 For private-state deployment and local flows, use:
 

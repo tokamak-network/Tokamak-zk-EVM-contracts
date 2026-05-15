@@ -1,7 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { AbiCoder, ethers } from "ethers";
-import { deriveL2KeysFromSignature, poseidon } from "tokamak-l2js";
+import { deriveL2KeysFromSignature } from "tokamak-l2js";
 import { jubjub } from "@noble/curves/jubjub";
+import {
+  normalizeBytesHex,
+  normalizeBytes32Hex,
+  poseidonHexFromBytes,
+} from "@tokamak-private-dapps/common-library/tokamak-l2-helpers";
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 
@@ -40,18 +45,6 @@ function expect(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
-}
-
-function normalizeBytes32Hex(value) {
-  return ethers.hexlify(ethers.zeroPadValue(ethers.hexlify(value), 32)).toLowerCase();
-}
-
-function normalizeBytes16Hex(value) {
-  return ethers.hexlify(ethers.zeroPadValue(ethers.hexlify(value), 16)).toLowerCase();
-}
-
-function poseidonHexFromBytes(bytesLike) {
-  return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
 }
 
 function noteReceivePubKeyFromPoint(point) {
@@ -371,7 +364,7 @@ function decryptFieldEncryptedNoteValue({
     encryptionInfo,
   });
   expect(
-    normalizeBytes16Hex(expectedTag) === normalizeBytes16Hex(normalized.tag),
+    normalizeBytesHex(expectedTag, 16) === normalizeBytesHex(normalized.tag, 16),
     "Encrypted note value integrity tag mismatch.",
   );
   const fieldMask = deriveFieldMask({

@@ -1,5 +1,8 @@
 # Current Bridge Implementation Notes
 
+Status: Developer reference. This document records volatile current-implementation detail and is
+not the public bridge narrative entrypoint.
+
 This document records implementation details that are useful for operating or reviewing the
 current bridge, but that are too concrete or volatile for the abstract bridge specification or the
 stable architecture notes.
@@ -13,7 +16,7 @@ published Tokamak subcircuit library package, the Groth16 package, and the local
 ### Bridge Deployment
 
 Bridge deployment performs its ZK refresh directly inside
-[deploy-bridge.mjs](../scripts/deploy-bridge.mjs) instead of routing through a separate reflection
+[deploy-bridge.mjs](../../scripts/deploy-bridge.mjs) instead of routing through a separate reflection
 orchestrator. The deployment helper performs the following tasks before broadcasting:
 
 1. Runs the installed `@tokamak-zk-evm/cli` runtime refresh with `tokamak-cli --install`.
@@ -35,7 +38,7 @@ paths because those paths are not useful to users who consume the published depl
 
 Bridge-side DApp metadata registration is handled by:
 
-- [admin-add-dapp.mjs](../scripts/admin-add-dapp.mjs)
+- [admin-add-dapp.mjs](../../scripts/admin-add-dapp.mjs)
 
 That script runs `tokamak-cli --synthesize --tokamak-ch-tx` and `tokamak-cli --preprocess` for a
 selected example group such as `privateStateMint`, `privateStateTransfer`, or `privateStateRedeem`.

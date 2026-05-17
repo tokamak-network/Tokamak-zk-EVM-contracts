@@ -4,7 +4,7 @@ This file defines the limited evidence scope for exceptional exchange disputes, 
 withdrawal explanations, and compliance questions involving the current `private-state` DApp and
 `the-great-first-channel`.
 
-This is not general user-facing product documentation. It is a CEX Monitoring Packet companion that
+This is not general user-facing product documentation. It is a Monitoring Packet companion that
 describes what a user may voluntarily submit when a centralized exchange, compliance team, or
 investigator asks the user to explain activity that passed through self-custody and the
 private-state channel.

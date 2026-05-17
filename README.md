@@ -55,7 +55,7 @@ entry or exit remain public L1 activity. Internal private-state note counterpart
 not public by default and are not reconstructed by Tokamak on a user's behalf.
 
 Audit materials for exchange-facing monitoring are kept under
-[docs/audit/cex-monitoring/](./docs/audit/cex-monitoring/).
+[docs/audit/monitoring/](./docs/audit/monitoring/).
 
 ## What Is In This Repository
 

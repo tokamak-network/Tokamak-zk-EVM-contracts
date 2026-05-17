@@ -1,21 +1,21 @@
-# CEX Monitoring Packet
+# Monitoring Packet
 
-This document explains how the repository generates the public, data-backed CEX Monitoring Packet files.
+This document explains how the repository generates the public, data-backed Monitoring Packet files.
 
-The packet generator is [scripts/cex-monitoring-packet/generate.mjs](../../../scripts/cex-monitoring-packet/generate.mjs). It is a read-only script that collects current evidence from the mainnet bridge deployment artifacts, Ethereum RPC, Etherscan, and the configured Google Drive artifact folder.
+The packet generator is [scripts/monitoring-packet/generate.mjs](../../../scripts/monitoring-packet/generate.mjs). It is a read-only script that collects current evidence from the mainnet bridge deployment artifacts, Ethereum RPC, Etherscan, and the configured Google Drive artifact folder.
 
 The external policy model for monitoring, public disclosure boundaries, user-controlled selective disclosure, and channel policy is described in [bridge/docs/whitepaper.md](../../../bridge/docs/whitepaper.md). The generator creates data files that support the white paper's policy statements. The packet may also include manually maintained companion files for narrow audit or exchange-dispute scopes.
 
 ## How To Generate
 
 ```bash
-node scripts/cex-monitoring-packet/generate.mjs
+node scripts/monitoring-packet/generate.mjs
 ```
 
 Useful options:
 
 ```bash
-node scripts/cex-monitoring-packet/generate.mjs \
+node scripts/monitoring-packet/generate.mjs \
   --chain-id 1 \
   --dapp private-state \
   --channel the-great-first-channel \
@@ -26,10 +26,10 @@ node scripts/cex-monitoring-packet/generate.mjs \
 The default public output directory is:
 
 ```text
-docs/audit/cex-monitoring/data/
+docs/audit/monitoring/data/
 ```
 
-Passing `--output <dir>` changes only the script's internal validation output directory. The public packet data remains under `docs/audit/cex-monitoring/data/`.
+Passing `--output <dir>` changes only the script's internal validation output directory. The public packet data remains under `docs/audit/monitoring/data/`.
 
 ## Method
 
@@ -40,7 +40,7 @@ The generator performs the following steps:
 3. Reads Etherscan source verification status, using the API when available and falling back to Etherscan's public contract page status when the API cannot be read.
 4. Reads Google Drive artifact metadata from the configured artifact publication folder.
 5. Builds ABI-derived event monitoring coverage for the Monitoring Packet checklist.
-6. Writes public packet data to `docs/audit/cex-monitoring/data/`.
+6. Writes public packet data to `docs/audit/monitoring/data/`.
 
 ## Public Outputs
 

@@ -28,7 +28,7 @@ not public by default and are not reconstructed by Tokamak on a user's behalf.
 
 ## Address And Key-Safety Warnings
 
-Do not use a centralized exchange deposit address as a private-state wallet address. Private-state notes are not
+Do not use an exchange deposit address as a private-state wallet address. Private-state notes are not
 supported exchange assets. Always withdraw TON to a self-custody L1 wallet before using a channel.
 
 Bridge deposits and withdrawals are public L1 events. Internal note transfers are private by design and are not

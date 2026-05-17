@@ -5,7 +5,7 @@ withdrawal explanations, and compliance questions involving the current `private
 `the-great-first-channel`.
 
 This is not general user-facing product documentation. It is a Monitoring Packet companion that
-describes what a user may voluntarily submit when a centralized exchange, compliance team, or
+describes what a user may voluntarily submit when an exchange, compliance team, or
 investigator asks the user to explain activity that passed through self-custody and the
 private-state channel.
 
@@ -175,7 +175,7 @@ submission package.
 
 The correct monitoring posture remains:
 
-- CEX-facing TON transfers and L1 bridge edges are public and monitorable.
+- exchange-facing TON transfers and L1 bridge edges are public and monitorable.
 - Private-state note provenance is not reconstructed from public data alone.
 - A user may voluntarily generate a local raw evidence bundle and then provide a selected subset in
   exceptional dispute or compliance contexts.

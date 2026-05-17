@@ -57,7 +57,7 @@ identity and registers the note-receive public key for encrypted note delivery.
 `eth_getLogs` scan limits under the local workspace. Ordinary bridge-facing and wallet commands read
 that configuration instead of accepting per-command RPC URL overrides.
 
-Users should run this flow from a self-custody L1 wallet. A centralized-exchange deposit address is
+Users should run this flow from a self-custody L1 wallet. An exchange deposit address is
 not a private-state wallet address: the exchange does not hold the user's channel workspace, wallet
 spending key, viewing key, or recovery context.
 

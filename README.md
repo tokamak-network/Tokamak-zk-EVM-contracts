@@ -54,6 +54,9 @@ Tokamak Private App Channels are not a centralized-exchange deposit network. CEX
 entry or exit remain public L1 activity. Internal private-state note counterparty relationships and note provenance are
 not public by default and are not reconstructed by Tokamak on a user's behalf.
 
+Audit materials for exchange-facing monitoring are kept under
+[docs/audit/cex-monitoring/](./docs/audit/cex-monitoring/).
+
 ## What Is In This Repository
 
 - [bridge/](./bridge/): the current bridge workspace, including contracts, deployment scripts, tests, and bridge documentation

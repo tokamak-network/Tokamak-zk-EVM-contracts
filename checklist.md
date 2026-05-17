@@ -413,9 +413,9 @@ Tokamak 공개 repo와 NPM 패키지는 “비수탁·사용자 로컬 실행”
 
 CLI 설치 페이지와 사용 예시에 다음 경고를 넣는다.
 
-- [ ] **Do not use a centralized exchange deposit address as a private-state wallet address. Private-state notes are not supported exchange assets. Always withdraw TON to a self-custody L1 wallet before using a channel.**
-- [ ] **Bridge deposits and withdrawals are public L1 events. Internal note transfers are private by design and are not automatically reconstructible by Tokamak, exchanges, or public observers.**
-- [ ] **This CLI does not send your spending key, wallet secret, or private note plaintext to Tokamak.**
+- [x] **Do not use a centralized exchange deposit address as a private-state wallet address. Private-state notes are not supported exchange assets. Always withdraw TON to a self-custody L1 wallet before using a channel.**
+- [x] **Bridge deposits and withdrawals are public L1 events. Internal note transfers are private by design and are not automatically reconstructible by Tokamak, exchanges, or public observers.**
+- [x] **This CLI does not send your spending key, wallet secret, or private note plaintext to Tokamak.**
 
 ### 8.3 CLI 실행 중 표시해야 할 경고
 

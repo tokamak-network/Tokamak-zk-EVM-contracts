@@ -26,6 +26,16 @@ Tokamak Private App Channels are not a centralized-exchange deposit network. CEX
 entry or exit remain public L1 activity. Internal private-state note counterparty relationships and note provenance are
 not public by default and are not reconstructed by Tokamak on a user's behalf.
 
+## Address And Key-Safety Warnings
+
+Do not use a centralized exchange deposit address as a private-state wallet address. Private-state notes are not
+supported exchange assets. Always withdraw TON to a self-custody L1 wallet before using a channel.
+
+Bridge deposits and withdrawals are public L1 events. Internal note transfers are private by design and are not
+automatically reconstructible by Tokamak, exchanges, or public observers.
+
+This CLI does not send your spending key, wallet secret, or private note plaintext to Tokamak.
+
 ## Tokamak-Operated Mainnet Channels
 
 The table below lists private-state mainnet channels directly opened by Tokamak Network. Dates are

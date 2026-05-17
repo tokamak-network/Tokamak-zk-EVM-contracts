@@ -558,14 +558,14 @@ Tokamak의 security model에서 bridge owner의 upgrade 권한과 privileged own
 
 ### 11.3 금지 문구
 
-- [x] “TON을 완전히 익명화합니다.”
-- [x] “거래소 현금화 시 출처를 숨길 수 있습니다.”
-- [x] “업비트·빗썸·코인원이 추적할 수 없습니다.”
-- [x] “규제기관의 감시를 피할 수 있습니다.”
-- [x] “mixer처럼 사용할 수 있습니다.”
-- [x] “프라이버시 코인으로 진화한 TON.”
-- [x] “자금 출처를 세탁할 수 있습니다.”
-- [x] “CEX off-ramp privacy.”
+- [ ] “TON을 완전히 익명화합니다.”
+- [ ] “거래소 현금화 시 출처를 숨길 수 있습니다.”
+- [ ] “업비트·빗썸·코인원이 추적할 수 없습니다.”
+- [ ] “규제기관의 감시를 피할 수 있습니다.”
+- [ ] “mixer처럼 사용할 수 있습니다.”
+- [ ] “프라이버시 코인으로 진화한 TON.”
+- [ ] “자금 출처를 세탁할 수 있습니다.”
+- [ ] “CEX off-ramp privacy.”
 
 ---
 
@@ -695,21 +695,21 @@ P0는 아니지만, 상장유지 리스크를 크게 낮추는 항목이다.
 
 아래는 피해야 할 red flag다.
 
-- [x] 홍보자료 첫 문장에 “익명 송금”을 넣는 것
-- [x] “거래소 현금화 출처 추적 방지”를 장점으로 말하는 것
-- [x] CEX 출금 → bridge → note transfer → CEX 입금 튜토리얼을 제공하는 것
+- [ ] 홍보자료 첫 문장에 “익명 송금”을 넣는 것
+- [ ] “거래소 현금화 출처 추적 방지”를 장점으로 말하는 것
+- [ ] CEX 출금 → bridge → note transfer → CEX 입금 튜토리얼을 제공하는 것
 - [x] private notes를 “TON notes”라고만 불러 TON 자체와 혼동시키는 것
 - [x] CEX deposit address를 CLI 사용 예시에 넣는 것
 - [x] contract addresses와 admin wallets를 공개하지 않는 것
-- [x] source code verification 없이 홍보하는 것
+- [ ] source code verification 없이 홍보하는 것
 - [x] upgrade 권한을 숨기는 것
 - [x] channel operator가 무엇을 할 수 있는지 설명하지 않는 것
 - [x] 사용자 viewing key 또는 note plaintext를 서버가 보관하는데 이를 숨기는 것
-- [x] “AZTEC이 상장됐으니 문제없다”고 단정하는 것
+- [ ] “AZTEC이 상장됐으니 문제없다”고 단정하는 것
 - [x] 내부 note provenance를 복원할 수 없다는 사실을 감추는 것
-- [x] 구현되지 않은 selective disclosure 기능을 이미 있는 것처럼 홍보하는 것
-- [x] auditor backdoor를 넣고도 “완전 프라이버시”라고 홍보하는 것
-- [x] auditor backdoor가 없는데 “거래소 요청 시 모든 내부 흐름 제공 가능”이라고 홍보하는 것
+- [ ] 구현되지 않은 selective disclosure 기능을 이미 있는 것처럼 홍보하는 것
+- [ ] auditor backdoor를 넣고도 “완전 프라이버시”라고 홍보하는 것
+- [ ] auditor backdoor가 없는데 “거래소 요청 시 모든 내부 흐름 제공 가능”이라고 홍보하는 것
 
 ---
 

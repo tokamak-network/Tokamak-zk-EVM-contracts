@@ -157,7 +157,7 @@ Static warning scope:
 | `wallet redeem-notes` | L1 submitter, input nullifier, accounting update, root update | Consumes notes | Prior path by which the note was received |
 | `wallet withdraw-channel` | L1 submitter, registered L2 address, amount, channel id, accounting update | No direct note spend | Prior private-state note path behind the liquid balance |
 
-`account deposit-bridge` and `account withdraw-bridge` also print an exchange address warning. Do not use an
+`account deposit-bridge` and `account withdraw-bridge` also print an exchange-controlled address warning. Do not use an
 exchange-controlled address as a self-custody bridge source or as the direct bridge withdrawal target
 unless the user explicitly understands the compliance implications. Prefer a self-custody L1 wallet.
 

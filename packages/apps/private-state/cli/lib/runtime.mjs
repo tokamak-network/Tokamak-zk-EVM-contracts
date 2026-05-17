@@ -299,7 +299,7 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
       "No private note owner, value, salt, counterparty, or note provenance is created by this action.",
     ],
     noteProvenance: "Not applicable for this bridge-edge action.",
-    exchangeAddressWarning: "Do not use an exchange-controlled address as a self-custody bridge source.",
+    exchangeControlledAddressWarning: "Do not use an exchange-controlled address as a self-custody bridge source.",
     policy: "No channel policy is accepted by this action.",
   },
   "account-withdraw-bridge": {
@@ -316,7 +316,7 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
       "The private note path that produced any prior channel balance is not reconstructed from this event alone.",
     ],
     noteProvenance: "Public observers cannot reconstruct prior internal note provenance from this withdrawal alone.",
-    exchangeAddressWarning: "Do not use an exchange deposit address as the direct bridge withdrawal target unless the user has explicitly accepted the compliance implications. Prefer a self-custody L1 wallet.",
+    exchangeControlledAddressWarning: "Do not use an exchange deposit address as the direct bridge withdrawal target unless the user has explicitly accepted the compliance implications. Prefer a self-custody L1 wallet.",
     policy: "No channel policy is accepted by this action.",
   },
   "channel-join": {
@@ -472,8 +472,8 @@ function printActionImpactSummary(summary, details) {
     `- Secret recovery: Losing wallet secrets, viewing keys, or spending keys can prevent note discovery or note use. The CLI cannot recover lost secrets.`,
     `- Channel policy: ${summary.policy}`,
   ];
-  if (summary.exchangeAddressWarning) {
-    lines.push(`- Exchange address warning: ${summary.exchangeAddressWarning}`);
+  if (summary.exchangeControlledAddressWarning) {
+    lines.push(`- Exchange-controlled address warning: ${summary.exchangeControlledAddressWarning}`);
   }
   lines.push(`- Confirmation: pass --acknowledge-action-impact or type the exact confirmation phrase when prompted.`);
   console.error(lines.join("\n"));

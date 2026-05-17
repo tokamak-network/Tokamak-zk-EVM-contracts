@@ -337,7 +337,7 @@ Tokamak의 권장 정책은 다음이다.
 - [x] auditor 기능을 넣는다면 별도 channel 또는 별도 DApp policy로 분리한다.
 - [x] auditor 기능이 있는 channel은 명확히 “audited channel”이라고 표시한다.
 - [x] unaudited/private channel과 audited channel을 혼동시키지 않는다.
-- [x] 거래소에는 “global backdoor는 없지만, 사용자 선택공개와 public edge monitoring을 제공한다”고 설명한다.
+- [ ] 거래소에는 “global backdoor는 없지만, 사용자 선택공개와 public edge monitoring을 제공한다”고 설명한다.
 
 ---
 
@@ -358,15 +358,15 @@ Tokamak의 권장 정책은 다음이다.
 - [x] linked vault address
 - [x] canonical TON address
 - [x] accepted function root
-- [ ] storage layout hash
+- [x] storage layout hash
 - [x] verifier snapshot
 - [x] metadata digest
 - [x] join policy
 - [x] toll/refund policy
 - [x] upgradeability policy
 - [ ] emergency policy
-- [ ] latest accepted transition
-- [ ] latest policy version
+- [x] latest accepted transition
+- [x] latest policy version
 - [x] source commit and package versions
 
 ### 7.2 Channel operator 설명
@@ -588,13 +588,13 @@ Tokamak의 security model에서 bridge owner의 upgrade 권한과 privileged own
 ### 12.2 문서 정합성
 
 - [x] GitHub README와 NPM README에서 같은 용어 사용
-- [x] “TON 자체가 private asset이 된다”는 표현 제거
-- [x] “untraceable” 표현 제거
-- [x] “anonymous cash-out” 표현 제거
-- [x] “mixer” 표현 제거
-- [x] `private-state note ≠ exchange-supported TON` 명시
-- [x] `CEX edge remains transparent` 명시
-- [x] 내부 note provenance 비가시성을 숨기지 않고 정확히 명시
+- [ ] “TON 자체가 private asset이 된다”는 표현 제거
+- [ ] “untraceable” 표현 제거
+- [ ] “anonymous cash-out” 표현 제거
+- [ ] “mixer” 표현 제거
+- [ ] `private-state note ≠ exchange-supported TON` 명시
+- [ ] `CEX edge remains transparent` 명시
+- [ ] 내부 note provenance 비가시성을 숨기지 않고 정확히 명시
 
 ### 12.3 사용자 보호
 

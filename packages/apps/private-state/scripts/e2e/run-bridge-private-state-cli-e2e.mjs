@@ -65,6 +65,7 @@ const cliPackageSpecs = resolveCliPackageSpecs();
 const cliPackageSpecLabel = cliPackageSpecs.join(" ");
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
 const cliInstallRoot = path.resolve(outputRoot, "npm-cli-install");
+const readOnlyArtifactCacheRoot = path.resolve(outputRoot, "read-only-artifact-cache");
 const cliBinPath = path.join(
   cliInstallRoot,
   "node_modules",
@@ -847,6 +848,76 @@ function installPrivateStateCliRuntimeForE2E() {
     label: "private-state-cli:install",
     quiet: true,
   });
+}
+
+function assertCommandAvailability(doctorReport, commandId, available, expectedReason = null) {
+  const entry = doctorReport.commandAvailability?.find((candidate) => candidate.id === commandId);
+  expect(entry, `Doctor report is missing command availability for ${commandId}.`);
+  expect(entry.available === available, `${commandId} availability must be ${available}.`);
+  if (expectedReason) {
+    expect(
+      entry.reasons?.includes(expectedReason),
+      `${commandId} availability must include reason: ${expectedReason}.`,
+    );
+  }
+}
+
+function verifyReadOnlyInstallForE2E() {
+  fs.rmSync(readOnlyArtifactCacheRoot, { recursive: true, force: true });
+  const env = {
+    ...process.env,
+    PRIVATE_STATE_ARTIFACT_CACHE_ROOT: readOnlyArtifactCacheRoot,
+  };
+  const install = runPrivateStateCli(["install", "--read-only", "--include-local-artifacts"], {
+    cwd: repoRoot,
+    env,
+    label: "private-state-cli:install-read-only",
+  });
+  expect(install.installMode === "read-only", "read-only install must report installMode=read-only.");
+  expect(install.selectedVersions === null, "read-only install must not select proof runtime versions.");
+  expect(install.tokamakCliRuntime === null, "read-only install must not install Tokamak runtime.");
+  expect(install.groth16Runtime === null, "read-only install must not install Groth16 runtime.");
+
+  const localArtifact = install.installedDeploymentArtifacts
+    ?.filter((entry) => Number(entry.chainId) === 31337)
+    .at(-1);
+  expect(localArtifact?.artifactDir, "read-only install must install local chain 31337 artifacts.");
+  for (const fileName of [
+    "bridge.31337.json",
+    "bridge-abi-manifest.31337.json",
+    "deployment.31337.latest.json",
+    "storage-layout.31337.latest.json",
+  ]) {
+    const filePath = path.join(localArtifact.artifactDir, fileName);
+    expect(fs.existsSync(filePath), `Missing read-only artifact ${filePath}.`);
+  }
+  for (const fileName of [
+    "groth16.31337.latest.json",
+    "circuit_final.zkey",
+    "PrivateStateController.callable-abi.json",
+    "dapp-registration.31337.json",
+  ]) {
+    const filePath = path.join(localArtifact.artifactDir, fileName);
+    expect(!fs.existsSync(filePath), `Unexpected full-only artifact ${filePath}.`);
+  }
+
+  const doctor = runPrivateStateCli(["help", "doctor"], {
+    env,
+    label: "private-state-cli:doctor-read-only",
+  });
+  expect(doctor.installManifest?.mode === "read-only", "doctor must report read-only install mode.");
+  expect(doctor.tokamakCli?.doctor?.status === null, "read-only doctor must skip Tokamak runtime doctor.");
+  expect(doctor.groth16Runtime?.doctor?.status === null, "read-only doctor must skip Groth16 runtime doctor.");
+  assertCommandAvailability(doctor, "channel-recover-workspace", true);
+  assertCommandAvailability(doctor, "wallet-get-notes", true);
+  assertCommandAvailability(doctor, "wallet-mint-notes", false, "full install required");
+
+  return {
+    installMode: install.installMode,
+    artifactDir: localArtifact.artifactDir,
+    doctorOk: doctor.ok,
+    fullCommandReason: doctor.commandAvailability.find((entry) => entry.id === "wallet-mint-notes")?.reasons ?? [],
+  };
 }
 
 function deriveParticipant(index, alias) {
@@ -1852,6 +1923,7 @@ async function main() {
   let canonicalAsset = null;
   let dappRegistrationResult = null;
   let cliPackageInstall = null;
+  let readOnlyInstallCheck = null;
   const commandResults = {
     participants: {},
   };
@@ -1867,6 +1939,7 @@ async function main() {
     canonicalAsset = prepareCanonicalAsset(bridgeDeployment, participants);
     dappRegistrationResult = await registerPrivateStateDApp(provider, bridgeDeployment, participants);
     if (options.runInstall) {
+      readOnlyInstallCheck = verifyReadOnlyInstallForE2E();
       installPrivateStateCliRuntimeForE2E();
     }
 
@@ -2195,6 +2268,7 @@ async function main() {
       bridgeDeployment,
       canonicalAsset,
       dappRegistration: dappRegistrationResult,
+      readOnlyInstallCheck,
       createChannel: createChannelResult,
       recoverWorkspace: recoverWorkspaceResult,
       recoverWorkspaceAfterLocalTransactions,

@@ -13,6 +13,7 @@ tag, version, local tarball, or package spec manually.
 
 The scenario combines:
 
+- A read-only install preflight that verifies the lightweight artifact set and doctor command availability before the full install
 - L1 ERC-20 funding into the bridge vault
 - Groth-backed L1 -> L2 accounting deposits
 - Tokamak proof-backed private-state mint / transfer / redeem steps

@@ -33,11 +33,20 @@ import {
   readGroth16CompatibleBackendVersionFromPackageJson,
   requireCanonicalGroth16CompatibleBackendVersion,
 } from "@tokamak-private-dapps/groth16/public-drive-crs";
+import {
+  PRIVATE_STATE_CLI_COMMANDS,
+  privateStateCliCommandDisplay,
+  privateStateCliCommandInstallMode,
+} from "./private-state-cli-command-registry.mjs";
 
 const require = createRequire(import.meta.url);
 const privateStateCliPackageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultCommandCwd = process.cwd();
 const PRIVATE_STATE_DAPP_LABEL = "private-state";
+const PRIVATE_STATE_INSTALL_MODES = Object.freeze({
+  FULL: "full",
+  READ_ONLY: "read-only",
+});
 const DOCKER_CUDA_PROBE_IMAGE = "nvidia/cuda:12.2.0-base-ubuntu22.04";
 const DOCTOR_GPU_PROBE_TIMEOUT_MS = 120000;
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
@@ -139,8 +148,12 @@ function printDoctorHumanReport(report) {
     `Generated: ${report.generatedAt}`,
     `Package: ${report.package.name}@${report.package.version ?? "unknown"}`,
     `Install manifest: ${report.installManifest.exists ? "found" : "missing"} (${report.installManifest.path})`,
+    `Install mode: ${report.installManifest.mode}`,
     "",
     formatDoctorTable(rows),
+    "",
+    "Command availability",
+    formatDoctorCommandAvailabilityTable(report.commandAvailability),
     "",
     "Run `help doctor --json` for the full machine-readable report.",
   ];
@@ -155,6 +168,7 @@ function buildDoctorHumanRows(report) {
     .find((check) => check.name === "selected proof backend runtime versions")
     ?.details ?? [];
   const selectedVersionSummary = selectedVersionDetails
+    .filter((entry) => entry.name)
     .map((entry) => [
       `${entry.name}:`,
       `selected=${entry.selectedVersion ?? "none"}`,
@@ -163,6 +177,9 @@ function buildDoctorHumanRows(report) {
       entry.crsCompatibleBackendVersion ? `crs=${entry.crsCompatibleBackendVersion}` : null,
     ].filter(Boolean).join(" "))
     .join("; ");
+  const selectedVersionSkippedReason = selectedVersionDetails
+    .find((entry) => entry.skippedReason)
+    ?.skippedReason;
 
   return [
     {
@@ -172,12 +189,16 @@ function buildDoctorHumanRows(report) {
     },
     {
       check: "selected backend versions",
-      status: doctorStatus(report.checks.find((check) => check.name === "selected proof backend runtime versions")?.ok),
-      detail: selectedVersionSummary || "no selected runtime version pin",
+      status: report.checks.find((check) => check.name === "selected proof backend runtime versions")?.skipped
+        ? "SKIP"
+        : doctorStatus(report.checks.find((check) => check.name === "selected proof backend runtime versions")?.ok),
+      detail: selectedVersionSkippedReason ?? (selectedVersionSummary || "no selected runtime version pin"),
     },
     {
       check: "tokamak zk-evm runtime",
-      status: doctorStatus(report.tokamakCli.installed),
+      status: report.checks.find((check) => check.name === "tokamak zk-evm runtime")?.skipped
+        ? "SKIP"
+        : doctorStatus(report.tokamakCli.installed),
       detail: [
         `package=${report.tokamakCli.packageVersion ?? "missing"}`,
         `cbv=${report.tokamakCli.compatibleBackendVersion ?? "missing"}`,
@@ -198,13 +219,29 @@ function buildDoctorHumanRows(report) {
     },
     {
       check: "groth16 runtime",
-      status: doctorStatus(report.groth16Runtime.installed),
+      status: report.checks.find((check) => check.name === "groth16 runtime")?.skipped
+        ? "SKIP"
+        : doctorStatus(report.groth16Runtime.installed),
       detail: [
         `package=${report.groth16Runtime.packageVersion ?? "missing"}`,
         `cbv=${report.groth16Runtime.compatibleBackendVersion ?? "missing"}`,
         `crs=${report.groth16Runtime.crsCompatibleBackendVersion ?? "missing"}`,
         `workspace=${report.groth16Runtime.workspaceRoot ?? "missing"}`,
         `doctorStatus=${report.groth16Runtime.doctor.status}`,
+      ].join(" "),
+    },
+    {
+      check: `${report.installManifest.mode} deployment artifacts`,
+      status: doctorStatus(report.checks.find((check) => check.name === `${report.installManifest.mode} deployment artifacts`)?.ok),
+      detail: [
+        `readOnlyChains=${report.deploymentArtifacts.chains
+          .filter((entry) => entry.modes[PRIVATE_STATE_INSTALL_MODES.READ_ONLY].ok)
+          .map((entry) => entry.chainId)
+          .join(",") || "none"}`,
+        `fullChains=${report.deploymentArtifacts.chains
+          .filter((entry) => entry.modes[PRIVATE_STATE_INSTALL_MODES.FULL].ok)
+          .map((entry) => entry.chainId)
+          .join(",") || "none"}`,
       ].join(" "),
     },
   ];
@@ -235,10 +272,53 @@ function formatDoctorTable(rows) {
   ].join("\n");
 }
 
+function formatDoctorCommandAvailabilityTable(entries) {
+  const headers = ["Command", "Mode", "Status", "Detail"];
+  const rows = entries.map((entry) => ({
+    command: entry.display,
+    mode: entry.requiredInstallMode,
+    status: entry.available ? "OK" : "FAIL",
+    detail: entry.available
+      ? (entry.chains.length > 0 ? `chains=${entry.chains.join(",")}` : "no install artifacts required")
+      : entry.reasons.join("; "),
+  }));
+  const commandWidth = Math.max(headers[0].length, ...rows.map((row) => row.command.length));
+  const modeWidth = Math.max(headers[1].length, ...rows.map((row) => row.mode.length));
+  const statusWidth = Math.max(headers[2].length, ...rows.map((row) => row.status.length));
+  return [
+    [
+      headers[0].padEnd(commandWidth),
+      headers[1].padEnd(modeWidth),
+      headers[2].padEnd(statusWidth),
+      headers[3],
+    ].join("  "),
+    [
+      "-".repeat(commandWidth),
+      "-".repeat(modeWidth),
+      "-".repeat(statusWidth),
+      "-".repeat(headers[3].length),
+    ].join("  "),
+    ...rows.map((row) => [
+      row.command.padEnd(commandWidth),
+      row.mode.padEnd(modeWidth),
+      row.status.padEnd(statusWidth),
+      row.detail,
+    ].join("  ")),
+  ].join("\n");
+}
+
 function doctorStatus(ok) {
   if (ok === true) return "OK";
   if (ok === false) return "FAIL";
   return "UNKNOWN";
+}
+
+function normalizeInstallMode(value = PRIVATE_STATE_INSTALL_MODES.FULL) {
+  const normalized = String(value ?? PRIVATE_STATE_INSTALL_MODES.FULL).trim().toLowerCase();
+  if (normalized === PRIVATE_STATE_INSTALL_MODES.FULL || normalized === PRIVATE_STATE_INSTALL_MODES.READ_ONLY) {
+    return normalized;
+  }
+  throw new Error(`Unsupported install mode: ${value}.`);
 }
 
 function formatDoctorBool(value) {
@@ -281,6 +361,79 @@ function privateStateCliArtifactPaths(cacheBaseRoot = resolveArtifactCacheBaseRo
   };
 }
 
+function privateStateCliArtifactRequiredFiles(paths, installMode = PRIVATE_STATE_INSTALL_MODES.FULL) {
+  const normalizedInstallMode = normalizeInstallMode(installMode);
+  const readOnlyFiles = [
+    { label: "bridge deployment", path: paths.bridgeDeploymentPath },
+    { label: "bridge ABI manifest", path: paths.bridgeAbiManifestPath },
+    { label: "DApp deployment", path: paths.dappDeploymentPath },
+    { label: "DApp storage layout", path: paths.dappStorageLayoutPath },
+  ];
+  if (normalizedInstallMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY) {
+    return readOnlyFiles;
+  }
+  return [
+    ...readOnlyFiles,
+    { label: "Groth16 manifest", path: paths.grothManifestPath },
+    { label: "Groth16 zkey", path: paths.grothZkeyPath },
+    { label: "PrivateStateController callable ABI", path: paths.privateStateControllerAbiPath },
+    { label: "DApp registration", path: paths.dappRegistrationPath },
+  ];
+}
+
+function inspectPrivateStateCliArtifactReadiness({
+  cacheBaseRoot = resolveArtifactCacheBaseRoot(),
+  installManifest = readPrivateStateCliInstallManifest(cacheBaseRoot),
+} = {}) {
+  const chainIds = new Set(
+    (installManifest?.install?.installedDeploymentArtifacts ?? [])
+      .map((entry) => Number(entry.chainId))
+      .filter((chainId) => Number.isInteger(chainId)),
+  );
+  const artifactRoot = privateStateCliArtifactRoot(cacheBaseRoot);
+  if (fs.existsSync(artifactRoot)) {
+    for (const entry of fs.readdirSync(artifactRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const match = /^chain-id-(\d+)$/u.exec(entry.name);
+      if (match) {
+        chainIds.add(Number(match[1]));
+      }
+    }
+  }
+
+  const chains = [...chainIds].sort(compareChainIds).map((chainId) => {
+    const paths = privateStateCliArtifactPaths(cacheBaseRoot, chainId);
+    const modeStatus = Object.fromEntries(
+      Object.values(PRIVATE_STATE_INSTALL_MODES).map((mode) => {
+        const requiredFiles = privateStateCliArtifactRequiredFiles(paths, mode);
+        const missingFiles = requiredFiles
+          .filter((entry) => !fs.existsSync(entry.path))
+          .map((entry) => entry.path);
+        return [mode, {
+          ok: missingFiles.length === 0,
+          missingFiles,
+          requiredFiles: requiredFiles.map((entry) => entry.path),
+        }];
+      }),
+    );
+    return {
+      chainId,
+      rootDir: paths.rootDir,
+      modes: modeStatus,
+    };
+  });
+
+  return {
+    cacheBaseRoot,
+    artifactRoot,
+    chains,
+    readOnlyInstalled: chains.some((entry) => entry.modes[PRIVATE_STATE_INSTALL_MODES.READ_ONLY].ok),
+    fullInstalled: chains.some((entry) => entry.modes[PRIVATE_STATE_INSTALL_MODES.FULL].ok),
+  };
+}
+
 function privateStateCliInstallManifestPath(cacheBaseRoot = resolveArtifactCacheBaseRoot()) {
   return path.join(privateStateCliArtifactRoot(cacheBaseRoot), "install-manifest.json");
 }
@@ -290,6 +443,7 @@ function readPrivateStateCliInstallManifest(cacheBaseRoot = resolveArtifactCache
 }
 
 function writePrivateStateCliInstallManifest({
+  installMode = PRIVATE_STATE_INSTALL_MODES.FULL,
   dockerRequested,
   includeLocalArtifacts,
   localDeploymentBaseRoot,
@@ -308,6 +462,7 @@ function writePrivateStateCliInstallManifest({
     dependencies: collectDependencyPackageReports().map(summarizePackageReport),
     install: {
       dockerRequested,
+      mode: normalizeInstallMode(installMode),
       includeLocalArtifacts,
       localDeploymentBaseRoot,
       artifactCacheRoot: deploymentArtifacts.cacheBaseRoot,
@@ -337,14 +492,22 @@ function buildDoctorReport({ probeGpu = false } = {}) {
   const cacheBaseRoot = resolveArtifactCacheBaseRoot();
   const installManifestPath = privateStateCliInstallManifestPath(cacheBaseRoot);
   const installManifest = readJsonIfExists(installManifestPath);
+  const installMode = normalizeInstallMode(installManifest?.install?.mode ?? PRIVATE_STATE_INSTALL_MODES.FULL);
   const dependencyReports = collectDependencyPackageReports(installManifest);
   const tokamakCli = inspectTokamakCliRuntime();
   const groth16Runtime = inspectGroth16Runtime();
   const gpuDockerReadiness = probeGpu
     ? inspectGpuDockerReadiness(tokamakCli)
     : buildSkippedGpuDockerReadiness(tokamakCli);
+  const artifactReadiness = inspectPrivateStateCliArtifactReadiness({ cacheBaseRoot, installManifest });
+  const commandAvailability = buildCommandAvailability({
+    artifactReadiness,
+    groth16Runtime,
+    tokamakCli,
+  });
   const selectedRuntimeVersionCheck = buildSelectedRuntimeVersionCheck({
     installManifest,
+    installMode,
     tokamakCli,
     groth16Runtime,
   });
@@ -363,8 +526,12 @@ function buildDoctorReport({ probeGpu = false } = {}) {
     selectedRuntimeVersionCheck,
     {
       name: "tokamak zk-evm runtime",
-      ok: tokamakCli.installed,
+      ok: installMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY ? true : tokamakCli.installed,
+      skipped: installMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY,
       details: {
+        skippedReason: installMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY
+          ? "read-only install mode does not require the Tokamak zk-EVM runtime"
+          : null,
         doctorStatus: tokamakCli.doctor.status,
         runtimeRoot: tokamakCli.runtimeRoot,
         installations: tokamakCli.installations.map(({ platform, installMode, packageVersion, docker }) => ({
@@ -395,13 +562,24 @@ function buildDoctorReport({ probeGpu = false } = {}) {
     },
     {
       name: "groth16 runtime",
-      ok: groth16Runtime.installed,
+      ok: installMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY ? true : groth16Runtime.installed,
+      skipped: installMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY,
       details: {
+        skippedReason: installMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY
+          ? "read-only install mode does not require the Groth16 runtime"
+          : null,
         packageRoot: groth16Runtime.packageRoot,
         workspaceRoot: groth16Runtime.workspaceRoot,
         doctorStatus: groth16Runtime.doctor.status,
         checks: groth16Runtime.checks,
       },
+    },
+    {
+      name: `${installMode} deployment artifacts`,
+      ok: installMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY
+        ? artifactReadiness.readOnlyInstalled
+        : artifactReadiness.fullInstalled,
+      details: artifactReadiness,
     },
   ];
 
@@ -417,6 +595,7 @@ function buildDoctorReport({ probeGpu = false } = {}) {
       path: installManifestPath,
       exists: Boolean(installManifest),
       installedAt: installManifest?.installedAt ?? null,
+      mode: installMode,
       dockerRequested: installManifest?.install?.dockerRequested ?? null,
       includeLocalArtifacts: installManifest?.install?.includeLocalArtifacts ?? null,
       selectedVersions: installManifest?.install?.selectedVersions ?? null,
@@ -427,6 +606,8 @@ function buildDoctorReport({ probeGpu = false } = {}) {
     tokamakCli,
     groth16Runtime,
     gpuDockerReadiness,
+    deploymentArtifacts: artifactReadiness,
+    commandAvailability,
     checks,
   };
 }
@@ -445,7 +626,59 @@ function buildSkippedGpuDockerReadiness(tokamakCli) {
   };
 }
 
-function buildSelectedRuntimeVersionCheck({ installManifest, tokamakCli, groth16Runtime }) {
+function buildCommandAvailability({ artifactReadiness, tokamakCli, groth16Runtime }) {
+  const proofRuntimeReady = tokamakCli.installed && groth16Runtime.installed;
+  return PRIVATE_STATE_CLI_COMMANDS.map((command) => {
+    const requiredInstallMode = privateStateCliCommandInstallMode(command);
+    const reasons = [];
+    let available = true;
+    if (requiredInstallMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY) {
+      available = artifactReadiness.readOnlyInstalled;
+      if (!artifactReadiness.readOnlyInstalled) {
+        reasons.push("missing read-only deployment artifacts");
+      }
+    } else if (requiredInstallMode === PRIVATE_STATE_INSTALL_MODES.FULL) {
+      available = artifactReadiness.fullInstalled && proofRuntimeReady;
+      if (!artifactReadiness.fullInstalled) {
+        reasons.push("missing full deployment artifacts");
+      }
+      if (!tokamakCli.installed) {
+        reasons.push("missing Tokamak zk-EVM runtime");
+      }
+      if (!groth16Runtime.installed) {
+        reasons.push("missing Groth16 runtime");
+      }
+    }
+    return {
+      id: command.id,
+      display: privateStateCliCommandDisplay(command),
+      requiredInstallMode,
+      available,
+      chains: requiredInstallMode === PRIVATE_STATE_INSTALL_MODES.FULL
+        ? artifactReadiness.chains
+          .filter((entry) => entry.modes[PRIVATE_STATE_INSTALL_MODES.FULL].ok)
+          .map((entry) => entry.chainId)
+        : requiredInstallMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY
+          ? artifactReadiness.chains
+            .filter((entry) => entry.modes[PRIVATE_STATE_INSTALL_MODES.READ_ONLY].ok)
+            .map((entry) => entry.chainId)
+          : [],
+      reasons,
+    };
+  });
+}
+
+function buildSelectedRuntimeVersionCheck({ installManifest, installMode, tokamakCli, groth16Runtime }) {
+  if (installMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY) {
+    return {
+      name: "selected proof backend runtime versions",
+      ok: true,
+      skipped: true,
+      details: [{
+        skippedReason: "read-only install mode does not select proof backend runtime versions",
+      }],
+    };
+  }
   const selectedVersions = installManifest?.install?.selectedVersions ?? null;
   const selectedTokamakCompatibleBackendVersion = selectedVersions?.tokamak
     ? normalizePackageVersionToCompatibleBackendVersion(
@@ -1087,6 +1320,7 @@ function stripAnsi(value) {
 
 async function installPrivateStateCliArtifacts({
   dappName,
+  installMode = PRIVATE_STATE_INSTALL_MODES.FULL,
   indexFileId = process.env.PRIVATE_STATE_DRIVE_ARTIFACT_INDEX_FILE_ID
     ?? process.env.TOKAMAK_ARTIFACT_INDEX_FILE_ID
     ?? DEFAULT_PUBLIC_ARTIFACT_INDEX_FILE_ID,
@@ -1096,6 +1330,7 @@ async function installPrivateStateCliArtifacts({
   groth16CrsVersion,
 } = {}) {
   const normalizedDappName = requireNonEmptyString(dappName, "dappName");
+  const normalizedInstallMode = normalizeInstallMode(installMode);
   const normalizedCacheBaseRoot = resolveArtifactCacheBaseRoot(cacheBaseRoot);
   const normalizedLocalDeploymentBaseRoot = localDeploymentBaseRoot
     ? path.resolve(localDeploymentBaseRoot)
@@ -1112,6 +1347,7 @@ async function installPrivateStateCliArtifacts({
       index,
       chainId,
       dappName: normalizedDappName,
+      installMode: normalizedInstallMode,
       cacheBaseRoot: normalizedCacheBaseRoot,
       source: "drive",
       groth16CrsVersion,
@@ -1123,6 +1359,7 @@ async function installPrivateStateCliArtifacts({
       installed.push(await materializeLocalPrivateStateCliDeployment({
         chainId,
         dappName: normalizedDappName,
+        installMode: normalizedInstallMode,
         cacheBaseRoot: normalizedCacheBaseRoot,
         localDeploymentBaseRoot: normalizedLocalDeploymentBaseRoot,
         groth16CrsVersion,
@@ -1145,12 +1382,14 @@ async function materializePrivateStateCliDeployment({
   index,
   chainId,
   dappName,
+  installMode,
   cacheBaseRoot,
   source,
   groth16CrsVersion,
 }) {
   const normalizedChainId = String(requireChainId(chainId));
   const normalizedDappName = requireNonEmptyString(dappName, "dappName");
+  const normalizedInstallMode = normalizeInstallMode(installMode);
   const chain = index.chains[normalizedChainId];
   if (!chain) {
     throw new Error(`Drive artifact index does not contain chain ${normalizedChainId}.`);
@@ -1173,15 +1412,19 @@ async function materializePrivateStateCliDeployment({
   await materializeSelectedDriveFiles({
     targetDir: paths.rootDir,
     files: chain.bridge.files,
-    selectedFiles: privateStateBridgeArtifactSelections(normalizedChainId, paths),
+    selectedFiles: privateStateBridgeArtifactSelections(normalizedChainId, paths, normalizedInstallMode),
   });
-  await materializeFlatGroth16Zkey({ paths, groth16CrsVersion });
+  if (normalizedInstallMode === PRIVATE_STATE_INSTALL_MODES.FULL) {
+    await materializeFlatGroth16Zkey({ paths, groth16CrsVersion });
+  }
   await materializeSelectedDriveFiles({
     targetDir: paths.rootDir,
     files: dapp.files,
-    selectedFiles: privateStateDappArtifactSelections(normalizedChainId, paths),
+    selectedFiles: privateStateDappArtifactSelections(normalizedChainId, paths, normalizedInstallMode),
   });
-  rewriteFlatGroth16Manifest(paths.grothManifestPath, paths.grothZkeyPath);
+  if (normalizedInstallMode === PRIVATE_STATE_INSTALL_MODES.FULL) {
+    rewriteFlatGroth16Manifest(paths.grothManifestPath, paths.grothZkeyPath);
+  }
 
   return {
     chainId: Number(normalizedChainId),
@@ -1195,12 +1438,14 @@ async function materializePrivateStateCliDeployment({
 async function materializeLocalPrivateStateCliDeployment({
   chainId,
   dappName,
+  installMode,
   cacheBaseRoot,
   localDeploymentBaseRoot,
   groth16CrsVersion,
 }) {
   const normalizedChainId = String(requireChainId(chainId));
   const normalizedDappName = requireNonEmptyString(dappName, "dappName");
+  const normalizedInstallMode = normalizeInstallMode(installMode);
   const bridgeRoot = path.join(
     localDeploymentBaseRoot,
     "deployment",
@@ -1225,12 +1470,20 @@ async function materializeLocalPrivateStateCliDeployment({
   materializeSelectedLocalFiles({
     targetDir: paths.rootDir,
     selectedFiles: [
-      ...localizeArtifactSelections(bridgeDir, privateStateBridgeArtifactSelections(normalizedChainId, paths)),
-      ...localizeArtifactSelections(dappDir, privateStateDappArtifactSelections(normalizedChainId, paths)),
+      ...localizeArtifactSelections(
+        bridgeDir,
+        privateStateBridgeArtifactSelections(normalizedChainId, paths, normalizedInstallMode),
+      ),
+      ...localizeArtifactSelections(
+        dappDir,
+        privateStateDappArtifactSelections(normalizedChainId, paths, normalizedInstallMode),
+      ),
     ],
   });
-  await materializeFlatGroth16Zkey({ paths, groth16CrsVersion });
-  rewriteFlatGroth16Manifest(paths.grothManifestPath, paths.grothZkeyPath);
+  if (normalizedInstallMode === PRIVATE_STATE_INSTALL_MODES.FULL) {
+    await materializeFlatGroth16Zkey({ paths, groth16CrsVersion });
+    rewriteFlatGroth16Manifest(paths.grothManifestPath, paths.grothZkeyPath);
+  }
 
   return {
     chainId: Number(normalizedChainId),
@@ -1241,21 +1494,29 @@ async function materializeLocalPrivateStateCliDeployment({
   };
 }
 
-function privateStateBridgeArtifactSelections(chainId, paths) {
-  return [
+function privateStateBridgeArtifactSelections(chainId, paths, installMode = PRIVATE_STATE_INSTALL_MODES.FULL) {
+  const selections = [
     [`bridge.${chainId}.json`, path.basename(paths.bridgeDeploymentPath)],
     [`bridge-abi-manifest.${chainId}.json`, path.basename(paths.bridgeAbiManifestPath)],
-    [`groth16.${chainId}.latest.json`, path.basename(paths.grothManifestPath)],
   ];
+  if (normalizeInstallMode(installMode) === PRIVATE_STATE_INSTALL_MODES.FULL) {
+    selections.push([`groth16.${chainId}.latest.json`, path.basename(paths.grothManifestPath)]);
+  }
+  return selections;
 }
 
-function privateStateDappArtifactSelections(chainId, paths) {
-  return [
+function privateStateDappArtifactSelections(chainId, paths, installMode = PRIVATE_STATE_INSTALL_MODES.FULL) {
+  const selections = [
     [`deployment.${chainId}.latest.json`, path.basename(paths.dappDeploymentPath)],
     [`storage-layout.${chainId}.latest.json`, path.basename(paths.dappStorageLayoutPath)],
-    ["PrivateStateController.callable-abi.json", path.basename(paths.privateStateControllerAbiPath)],
-    [`dapp-registration.${chainId}.json`, path.basename(paths.dappRegistrationPath)],
   ];
+  if (normalizeInstallMode(installMode) === PRIVATE_STATE_INSTALL_MODES.FULL) {
+    selections.push(
+      ["PrivateStateController.callable-abi.json", path.basename(paths.privateStateControllerAbiPath)],
+      [`dapp-registration.${chainId}.json`, path.basename(paths.dappRegistrationPath)],
+    );
+  }
+  return selections;
 }
 
 function localizeArtifactSelections(sourceDir, selections) {
@@ -1302,6 +1563,9 @@ export {
   parseJsonReport,
   resolveArtifactCacheBaseRoot,
   privateStateCliArtifactPaths,
+  privateStateCliArtifactRequiredFiles,
+  normalizeInstallMode,
+  PRIVATE_STATE_INSTALL_MODES,
   inspectGroth16Runtime,
   stripAnsi,
   resolveActiveGroth16ProverRuntime,

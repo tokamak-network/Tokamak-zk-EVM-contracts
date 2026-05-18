@@ -25,19 +25,19 @@ export const accountCommands = Object.freeze({
   "account-get-bridge-fund": async (args) => {
     assertAccountGetBridgeFundArgs(args);
     const { network, provider } = loadExplicitCommandRuntime(args);
-    await prepareDeploymentArtifacts(network.chainId);
+    await prepareDeploymentArtifacts(network.chainId, { mode: "read-only" });
     await handleAccountGetBridgeFund({ args, provider });
   },
   "account-deposit-bridge": async (args) => {
     assertDepositBridgeArgs(args);
     const { network, provider } = loadExplicitCommandRuntime(args);
-    await prepareDeploymentArtifacts(network.chainId);
+    await prepareDeploymentArtifacts(network.chainId, { mode: "read-only" });
     await handleDepositBridge({ args, network, provider });
   },
   "account-withdraw-bridge": async (args) => {
     assertWithdrawBridgeArgs(args);
     const { network, provider } = loadExplicitCommandRuntime(args);
-    await prepareDeploymentArtifacts(network.chainId);
+    await prepareDeploymentArtifacts(network.chainId, { mode: "read-only" });
     await handleWithdrawBridge({ args, network, provider });
   },
 });

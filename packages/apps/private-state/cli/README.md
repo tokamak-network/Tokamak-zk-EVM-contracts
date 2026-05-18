@@ -51,8 +51,8 @@ UTC.
 npm install -g @tokamak-private-dapps/private-state-cli
 ```
 
-Install the local Tokamak zk-EVM runtime workspace, Groth16 runtime workspace, and public private-state deployment
-artifacts:
+Install the full local Tokamak zk-EVM runtime workspace, Groth16 runtime workspace, and public private-state deployment
+artifacts needed by transaction-sending channel commands:
 
 ```bash
 private-state-cli install
@@ -70,6 +70,18 @@ The Groth16 installer downloads the public Google Drive CRS archive whose major.
 selected Groth16 CLI package version.
 The Tokamak zk-EVM installer requires the selected CLI package to declare
 `tokamakZkEvm.compatibleBackendVersion` as a canonical major.minor version matching the selected package version.
+
+For read-only channel recovery, channel metadata lookup, wallet recovery, wallet metadata lookup, bridge balance
+lookup, bridge deposit, bridge withdrawal, and local helper commands, install only the read-only artifact subset:
+
+```bash
+private-state-cli install --read-only
+```
+
+Read-only install materializes only `bridge.<chainId>.json`, `bridge-abi-manifest.<chainId>.json`,
+`deployment.<chainId>.latest.json`, and `storage-layout.<chainId>.latest.json`. It does not install the Tokamak
+zk-EVM runtime, Groth16 runtime, Groth16 zkey, callable DApp ABI, or DApp registration artifact, so commands that
+create or mutate channel state require a later full `private-state-cli install`.
 
 `install` downloads public deployment artifacts from the configured artifact index. It does not read repository-local
 `deployment/` outputs by default. Repository development workflows that need local anvil artifacts can opt in explicitly:
@@ -319,9 +331,11 @@ Channel policy warning:
   a new channel; it does not rewrite the policy of an already-created channel.
 
 `private-state-cli help doctor` reports the CLI package version, dependency versions recorded by the last
-`private-state-cli install`, selected proof backend runtime versions, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime
-install mode, Docker mode, CUDA runtime metadata, live `nvidia-smi` and Docker GPU probe results, and Groth16
-runtime health. The doctor check fails when the Tokamak Docker `useGpus` metadata does not match the live GPU probes.
+`private-state-cli install`, selected proof backend runtime versions when full mode was installed, current dependency
+versions through `tokamak-l2js`, Tokamak zk-EVM runtime install mode, Docker mode, CUDA runtime metadata, live
+`nvidia-smi` and Docker GPU probe results, Groth16 runtime health, deployment artifact readiness, and per-command
+availability. In read-only install mode, proof runtime checks are skipped and proof-backed or channel-mutating
+commands are reported unavailable until full install is completed.
 
 Local helper commands:
 
@@ -571,8 +585,9 @@ command.
 
 ## Artifacts
 
-Proof-backed commands require installed bridge, DApp, and Groth16 artifacts. Run `private-state-cli install` before
-using bridge-facing commands on a new machine.
+Proof-backed and channel-mutating commands require full installed bridge, DApp, and Groth16 artifacts. Run
+`private-state-cli install` before creating, joining, exiting, or mutating channels on a new machine. Channel-state read
+commands and commands unrelated to channel state can run after `private-state-cli install --read-only`.
 
 Channel balance commands such as `wallet deposit-channel` and `wallet withdraw-channel` use the installed Groth16 runtime workspace
 directly. Proof generation writes to the fixed workspace paths under `~/tokamak-private-channels/groth16/proof`; the CLI
@@ -589,11 +604,16 @@ Release order matters for npm publication. `@tokamak-private-dapps/common-librar
 
 It installs the `private-state-cli` terminal command and the local files needed by that command.
 It does not install bridge contracts, app contracts, or local deployment outputs. The `private-state-cli install`
-command provisions the local Tokamak zk-EVM and Groth16 runtime workspaces used by proof-backed commands.
+command defaults to full mode, which provisions local Tokamak zk-EVM and Groth16 runtime workspaces used by
+proof-backed commands. `private-state-cli install --read-only` installs only the public bridge and private-state DApp
+artifacts needed by channel-state read commands and commands that do not depend on channel state.
 
 ### When should I run `private-state-cli install`?
 
-Run it once on a new machine, or after public bridge, DApp, Groth16, or Tokamak zk-EVM runtime artifacts are updated.
+Run full install once on a machine that will create, join, exit, or mutate channels. Run read-only install on a machine
+that only needs channel recovery, wallet recovery, metadata lookup, bridge balance lookup, bridge deposit or withdrawal,
+and local import/export/helper commands. Re-run the relevant mode after public bridge, DApp, Groth16, or Tokamak zk-EVM
+runtime artifacts are updated.
 
 ### Does this package publish private user data?
 

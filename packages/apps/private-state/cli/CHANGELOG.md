@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added `install --read-only` for channel-state read commands and commands that do not depend on channel state. This
+  mode installs only the bridge deployment, bridge ABI manifest, DApp deployment, and storage layout artifacts.
+- Kept default `install` as full mode for proof-backed and channel-mutating commands, and made deployment artifact
+  validation mode-aware before command execution.
+- Extended `help doctor` with per-command availability so read-only installs clearly report which commands are usable
+  and which commands still require full install.
+
 ## 2.1.2 - 2026-05-15
 
 - Fixed wallet lifecycle recovery log lookups so account-specific registration and exit event scans

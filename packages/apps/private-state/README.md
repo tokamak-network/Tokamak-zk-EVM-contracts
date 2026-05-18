@@ -105,8 +105,10 @@ The CLI:
   `--rpc-url`
 - records the resolved RPC URL in wallet metadata for auditability, but live providers are rebuilt
   from the current per-network RPC configuration
-- reads installed bridge, DApp, registration, and Groth16 artifacts from
+- reads installed bridge, DApp, registration, and Groth16 artifacts from full installs under
   `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/`
+- read-only installs include only the bridge deployment, bridge ABI manifest, DApp deployment, and storage layout
+  artifacts needed by channel-state read commands
 - binds every channel to the canonical Tokamak Network Token for the selected network
 - stores channel state under `~/tokamak-private-channels/workspace/<network>/<channel>/channel/`
 - stores per-user wallets under `~/tokamak-private-channels/workspace/<network>/<channel>/wallets/<wallet>/`
@@ -177,17 +179,21 @@ The commands below are ordered by the normal execution flow.
 - checks private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
 - prints a concise human-readable table by default
 - accepts `--json` to print the full machine-readable report
+- reports command-by-command availability for the current read-only or full install state
 
 `install`
 
-- installs the local Tokamak zk-EVM toolchain through the published `@tokamak-zk-evm/cli` package
-- accepts optional `--docker` to forward `tokamak-cli --install --docker`
+- defaults to full mode, which installs the local Tokamak zk-EVM toolchain through the published
+  `@tokamak-zk-evm/cli` package
+- accepts optional `--read-only` to install only artifacts needed by channel-state read commands and commands that do
+  not depend on channel state
+- accepts optional `--docker` in full mode to forward `tokamak-cli --install --docker`
 - supports `--docker` only on Linux hosts because that mode is implemented by the upstream Tokamak CLI
-- refreshes the local Tokamak zk-EVM runtime workspace reported by `tokamak-cli --doctor`
-- installs the minimal private-state deployment artifacts into
+- refreshes the local Tokamak zk-EVM runtime workspace reported by `tokamak-cli --doctor` in full mode
+- installs private-state deployment artifacts into
   `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/`
-- installs the latest public Groth16 MPC `circuit_final.zkey` from the Groth16 CRS Drive folder
-- writes Groth16 proof outputs only under the fixed runtime workspace proof directory
+- installs the latest public Groth16 MPC `circuit_final.zkey` from the Groth16 CRS Drive folder in full mode
+- writes Groth16 proof outputs only under the fixed runtime workspace proof directory in full mode
 - refreshes shared bridge constants derived from `tokamak-l2js`
 
 `uninstall`

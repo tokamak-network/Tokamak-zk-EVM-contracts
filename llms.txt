@@ -103,8 +103,10 @@ No. The root `package.json` is a private workspace manager.
 ### How do users install the private-state CLI?
 
 Users install `@tokamak-private-dapps/private-state-cli` from npm and run the
-`private-state-cli` command. The CLI installs public bridge, DApp, and Groth16
-artifacts with `private-state-cli install`.
+`private-state-cli` command. `private-state-cli install` performs a full install
+for proof-backed and channel-mutating commands, while `private-state-cli install
+--read-only` installs only public bridge and DApp artifacts needed by
+channel-state read commands.
 
 ### What order should private DApp packages be published in?
 

@@ -56,31 +56,31 @@ export const walletCommands = Object.freeze({
     assertRecoverWalletArgs(args);
     const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args, { staticNetwork: true });
     await assertProviderChainIdMatchesNetwork({ provider, network, rpcUrl });
-    await prepareDeploymentArtifacts(network.chainId);
+    await prepareDeploymentArtifacts(network.chainId, { mode: "read-only" });
     await handleRecoverWallet({ args, network, provider, rpcUrl });
   },
   "wallet-get-meta": async (args) => {
     assertWalletGetMetaArgs(args);
     const { network, provider } = loadWalletCommandRuntime(args);
-    await prepareDeploymentArtifacts(network.chainId);
+    await prepareDeploymentArtifacts(network.chainId, { mode: "read-only" });
     await handleWalletGetMeta({ args, provider });
   },
   "wallet-get-channel-fund": async (args) => {
     assertWalletGetChannelFundArgs(args);
     const { network, provider } = loadWalletCommandRuntime(args);
-    await prepareDeploymentArtifacts(network.chainId);
+    await prepareDeploymentArtifacts(network.chainId, { mode: "read-only" });
     await handleWalletGetChannelFund({ args, provider });
   },
   "wallet-deposit-channel": async (args) => {
     assertWalletChannelMoveArgs(args, "wallet-deposit-channel");
     const { network, provider } = loadWalletCommandRuntime(args);
-    await prepareDeploymentArtifacts(network.chainId);
+    await prepareDeploymentArtifacts(network.chainId, { mode: "full" });
     await handleGrothVaultMove({ args, provider, direction: "deposit" });
   },
   "wallet-withdraw-channel": async (args) => {
     assertWalletChannelMoveArgs(args, "wallet-withdraw-channel");
     const { network, provider } = loadWalletCommandRuntime(args);
-    await prepareDeploymentArtifacts(network.chainId);
+    await prepareDeploymentArtifacts(network.chainId, { mode: "full" });
     await handleGrothVaultMove({ args, provider, direction: "withdraw" });
   },
 });

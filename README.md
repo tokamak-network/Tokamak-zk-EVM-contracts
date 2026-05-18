@@ -201,9 +201,10 @@ node bridge/scripts/admin-add-dapp.mjs \
 ```
 
 Bridge deployment publishes the chain-scoped Groth16 deployment snapshot to the Google Drive
-artifact store. The npm CLI installs the proof-consuming subset into
+artifact store. The npm CLI full install mode installs the proof-consuming subset into
 `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/` and uses the fixed Groth16
-runtime workspace under `~/tokamak-private-channels/groth16/` for proof generation.
+runtime workspace under `~/tokamak-private-channels/groth16/` for proof generation. The read-only
+install mode installs only the bridge and DApp artifacts needed by channel-state read commands.
 
 See [bridge/README.md](./bridge/README.md) for deployment modes, environment variables, and bridge registration details.
 

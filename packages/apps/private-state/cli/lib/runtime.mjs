@@ -82,9 +82,12 @@ import {
   installPrivateStateCliArtifacts,
   installTokamakCliRuntimeForPrivateState,
   inspectGroth16Runtime,
+  normalizeInstallMode,
   parseJsonReport,
   printDoctorHumanReport,
+  privateStateCliArtifactRequiredFiles,
   privateStateCliArtifactPaths,
+  PRIVATE_STATE_INSTALL_MODES,
   readTokamakCliPackageReport,
   requireActiveTokamakCliRuntimeRoot,
   resolveActiveGroth16ProverRuntime,
@@ -509,22 +512,28 @@ function normalizeDAppPolicySnapshot({
   };
 }
 
-async function prepareDeploymentArtifacts(chainId) {
+async function prepareDeploymentArtifacts(chainId, { mode = PRIVATE_STATE_INSTALL_MODES.FULL } = {}) {
   const normalizedChainId = Number(chainId);
-  const existingPaths = flatDeploymentArtifactPathsByChainId.get(normalizedChainId);
-  if (existingPaths) {
-    return existingPaths.rootDir;
+  const normalizedMode = normalizeInstallMode(mode);
+  const existingEntry = flatDeploymentArtifactPathsByChainId.get(normalizedChainId);
+  if (existingEntry?.preparedModes.has(normalizedMode)) {
+    return existingEntry.paths.rootDir;
   }
 
   const cacheBaseRoot = resolveArtifactCacheBaseRoot();
-  const artifactPaths = privateStateCliArtifactPaths(cacheBaseRoot, normalizedChainId);
-  requireInstalledDeploymentArtifacts(artifactPaths, normalizedChainId);
-  flatDeploymentArtifactPathsByChainId.set(normalizedChainId, artifactPaths);
+  const artifactPaths = existingEntry?.paths ?? privateStateCliArtifactPaths(cacheBaseRoot, normalizedChainId);
+  requireInstalledDeploymentArtifacts(artifactPaths, normalizedChainId, normalizedMode);
+  const preparedModes = existingEntry?.preparedModes ?? new Set();
+  preparedModes.add(normalizedMode);
+  flatDeploymentArtifactPathsByChainId.set(normalizedChainId, {
+    paths: artifactPaths,
+    preparedModes,
+  });
   return artifactPaths.rootDir;
 }
 
 function flatDeploymentArtifactPathsForChainId(chainId) {
-  return flatDeploymentArtifactPathsByChainId.get(Number(chainId)) ?? null;
+  return flatDeploymentArtifactPathsByChainId.get(Number(chainId))?.paths ?? null;
 }
 
 function requireFlatDeploymentArtifactPathsForChainId(chainId) {
@@ -535,29 +544,22 @@ function requireFlatDeploymentArtifactPathsForChainId(chainId) {
   return paths;
 }
 
-function requireInstalledDeploymentArtifacts(artifactPaths, chainId) {
-  const requiredFiles = [
-    artifactPaths.bridgeDeploymentPath,
-    artifactPaths.bridgeAbiManifestPath,
-    artifactPaths.grothManifestPath,
-    artifactPaths.grothZkeyPath,
-    artifactPaths.dappDeploymentPath,
-    artifactPaths.dappStorageLayoutPath,
-    artifactPaths.privateStateControllerAbiPath,
-    artifactPaths.dappRegistrationPath,
-  ];
+function requireInstalledDeploymentArtifacts(artifactPaths, chainId, mode) {
+  const requiredFiles = privateStateCliArtifactRequiredFiles(artifactPaths, mode);
   try {
-    for (const filePath of requiredFiles) {
-      if (!fs.existsSync(filePath)) {
-        throw new Error(`Missing ${filePath}.`);
+    for (const entry of requiredFiles) {
+      if (!fs.existsSync(entry.path)) {
+        throw new Error(`Missing ${entry.label}: ${entry.path}.`);
       }
     }
   } catch (error) {
     throw cliError(
       CLI_ERROR_CODES.MISSING_DEPLOYMENT_ARTIFACTS,
       [
-        `Missing installed deployment artifacts for chain ${chainId} under ${artifactPaths.rootDir}.`,
-        "Run install before running private-state CLI commands for this network.",
+        `Missing ${mode} installed deployment artifacts for chain ${chainId} under ${artifactPaths.rootDir}.`,
+        mode === PRIVATE_STATE_INSTALL_MODES.FULL
+          ? "Run install before running private-state CLI commands that write channel state."
+          : "Run install --read-only before running private-state CLI commands that read channel state.",
         `Original error: ${error.message}`,
       ].join(" "),
     );
@@ -2450,22 +2452,33 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
 }
 
 async function handleInstallZkEvm({ args }) {
-  const selectedVersions = await resolvePrivateStateInstallRuntimeVersions(args);
-  const tokamakCliRuntime = await installTokamakCliRuntimeForPrivateState({
-    version: selectedVersions.tokamak,
-    docker: Boolean(args.docker),
-  });
-  const groth16Runtime = await installGroth16RuntimeForPrivateState({
-    version: selectedVersions.groth16,
-    docker: Boolean(args.docker),
-  });
+  const installMode = args.readOnly === true
+    ? PRIVATE_STATE_INSTALL_MODES.READ_ONLY
+    : PRIVATE_STATE_INSTALL_MODES.FULL;
+  const selectedVersions = installMode === PRIVATE_STATE_INSTALL_MODES.FULL
+    ? await resolvePrivateStateInstallRuntimeVersions(args)
+    : null;
+  const tokamakCliRuntime = installMode === PRIVATE_STATE_INSTALL_MODES.FULL
+    ? await installTokamakCliRuntimeForPrivateState({
+      version: selectedVersions.tokamak,
+      docker: Boolean(args.docker),
+    })
+    : null;
+  const groth16Runtime = installMode === PRIVATE_STATE_INSTALL_MODES.FULL
+    ? await installGroth16RuntimeForPrivateState({
+      version: selectedVersions.groth16,
+      docker: Boolean(args.docker),
+    })
+    : null;
   const localDeploymentBaseRoot = args.includeLocalArtifacts ? process.cwd() : null;
   const deploymentArtifacts = await installPrivateStateCliArtifacts({
     dappName: PRIVATE_STATE_DAPP_LABEL,
+    installMode,
     localDeploymentBaseRoot,
-    groth16CrsVersion: groth16Runtime.compatibleBackendVersion,
+    groth16CrsVersion: groth16Runtime?.compatibleBackendVersion ?? null,
   });
   const installManifest = writePrivateStateCliInstallManifest({
+    installMode,
     dockerRequested: Boolean(args.docker),
     includeLocalArtifacts: Boolean(args.includeLocalArtifacts),
     localDeploymentBaseRoot,
@@ -2476,9 +2489,10 @@ async function handleInstallZkEvm({ args }) {
   });
   printJson({
     action: "install",
+    installMode,
     selectedVersions,
-    tokamakCli: tokamakCliRuntime.entryPath,
-    runtimeRoot: tokamakCliRuntime.runtimeRoot,
+    tokamakCli: tokamakCliRuntime?.entryPath ?? null,
+    runtimeRoot: tokamakCliRuntime?.runtimeRoot ?? null,
     tokamakCliRuntime,
     groth16Runtime,
     docker: Boolean(args.docker),
@@ -3435,15 +3449,19 @@ async function handleGuide({ args }) {
   guide.state.deploymentArtifacts = artifactState;
   guide.checks.push(guideCheck(
     "installed deployment artifacts",
-    artifactState.installed ? "ok" : "missing",
+    artifactState.readOnlyInstalled ? "ok" : "missing",
     {
       chainId: networkRuntime.network.chainId,
       rootDir: artifactState.rootDir,
-      missingFiles: artifactState.missingFiles,
+      missingFiles: artifactState.readOnlyMissingFiles,
+      fullMissingFiles: artifactState.fullMissingFiles,
     },
   ));
-  if (artifactState.installed) {
-    flatDeploymentArtifactPathsByChainId.set(Number(networkRuntime.network.chainId), artifactState.paths);
+  if (artifactState.readOnlyInstalled) {
+    flatDeploymentArtifactPathsByChainId.set(Number(networkRuntime.network.chainId), {
+      paths: artifactState.paths,
+      preparedModes: new Set([PRIVATE_STATE_INSTALL_MODES.READ_ONLY]),
+    });
   }
 
   const provider = networkRuntime.provider;
@@ -3452,7 +3470,7 @@ async function handleGuide({ args }) {
       channelName: String(args.channelName),
       network: networkRuntime.network,
       provider,
-      artifactsInstalled: artifactState.installed,
+      artifactsInstalled: artifactState.readOnlyInstalled,
     });
     guide.checks.push(guideCheck(
       "channel",
@@ -3474,7 +3492,7 @@ async function handleGuide({ args }) {
       networkName,
       network: networkRuntime.network,
       provider,
-      artifactsInstalled: artifactState.installed,
+      artifactsInstalled: artifactState.readOnlyInstalled,
     });
     guide.checks.push(guideCheck(
       "local account secret",
@@ -3493,7 +3511,7 @@ async function handleGuide({ args }) {
       walletName: String(args.wallet),
       networkName,
       provider,
-      artifactsInstalled: artifactState.installed,
+      artifactsInstalled: artifactState.readOnlyInstalled,
     });
     guide.checks.push(guideCheck(
       "local wallet",
@@ -3596,21 +3614,20 @@ function inspectGuideNetworkRuntime(networkName) {
 
 function inspectGuideDeploymentArtifacts(chainId) {
   const paths = privateStateCliArtifactPaths(resolveArtifactCacheBaseRoot(), chainId);
-  const requiredFiles = [
-    paths.bridgeDeploymentPath,
-    paths.bridgeAbiManifestPath,
-    paths.grothManifestPath,
-    paths.grothZkeyPath,
-    paths.dappDeploymentPath,
-    paths.dappStorageLayoutPath,
-    paths.privateStateControllerAbiPath,
-    paths.dappRegistrationPath,
-  ];
-  const missingFiles = requiredFiles.filter((filePath) => !fs.existsSync(filePath));
+  const readOnlyMissingFiles = privateStateCliArtifactRequiredFiles(paths, PRIVATE_STATE_INSTALL_MODES.READ_ONLY)
+    .map((entry) => entry.path)
+    .filter((filePath) => !fs.existsSync(filePath));
+  const fullMissingFiles = privateStateCliArtifactRequiredFiles(paths, PRIVATE_STATE_INSTALL_MODES.FULL)
+    .map((entry) => entry.path)
+    .filter((filePath) => !fs.existsSync(filePath));
   return {
-    installed: missingFiles.length === 0,
+    installed: readOnlyMissingFiles.length === 0,
+    readOnlyInstalled: readOnlyMissingFiles.length === 0,
+    fullInstalled: fullMissingFiles.length === 0,
     rootDir: paths.rootDir,
-    missingFiles,
+    missingFiles: readOnlyMissingFiles,
+    readOnlyMissingFiles,
+    fullMissingFiles,
     paths,
   };
 }
@@ -9976,6 +9993,20 @@ function assertWalletChannelMoveArgs(args, commandName) {
 
 function assertInstallZkEvmArgs(args) {
   assertAllowedCommandSchema(args, "install");
+  if (args.readOnly !== undefined && args.readOnly !== true) {
+    throw new Error("install option --read-only does not accept a value.");
+  }
+  if (args.readOnly === true && args.docker !== undefined) {
+    throw new Error("install --read-only does not accept --docker because proof runtimes are not installed.");
+  }
+  if (args.readOnly === true && args.groth16CliVersion !== undefined) {
+    throw new Error("install --read-only does not accept --groth16-cli-version because Groth16 is not installed.");
+  }
+  if (args.readOnly === true && args.tokamakZkEvmCliVersion !== undefined) {
+    throw new Error(
+      "install --read-only does not accept --tokamak-zk-evm-cli-version because Tokamak zk-EVM is not installed.",
+    );
+  }
   if (args.groth16CliVersion !== undefined) {
     requireSemverVersion(args.groth16CliVersion, "--groth16-cli-version");
   }

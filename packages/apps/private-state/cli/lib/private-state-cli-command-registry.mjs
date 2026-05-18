@@ -188,6 +188,13 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     valueLabel: "<VERSION>",
     optional: true,
   },
+  readOnly: {
+    label: "Read-Only Install",
+    type: "checkbox",
+    hint: "Install only artifacts needed by channel-state read commands and commands that do not depend on channel state.",
+    option: "--read-only",
+    optional: true,
+  },
   fromGenesis: {
     label: "Scan From Genesis",
     type: "checkbox",
@@ -247,10 +254,12 @@ const ACTION_IMPACT_HELP = Object.freeze({
 export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
   {
     id: "install",
-    description: "Install the Tokamak zk-EVM CLI runtime, Groth16 runtime, and private-state deployment artifacts.",
-    fields: ["docker", "includeLocalArtifacts", "groth16CliVersion", "tokamakZkEvmCliVersion"],
-    usage: "optional --docker, --include-local-artifacts, --groth16-cli-version, and --tokamak-zk-evm-cli-version",
+    description: "Install private-state CLI runtime artifacts in full or read-only mode.",
+    fields: ["readOnly", "docker", "includeLocalArtifacts", "groth16CliVersion", "tokamakZkEvmCliVersion"],
+    usage: "optional --read-only, --docker, --include-local-artifacts, --groth16-cli-version, and --tokamak-zk-evm-cli-version",
     help: [
+      "Default full mode installs proof runtimes and all deployment artifacts needed by transaction-sending commands",
+      "--read-only installs only artifacts needed by channel-state read commands and commands unrelated to channel state",
       "Version options install exact CLI package versions; omitted versions resolve to npm registry latest",
       "Use --docker on Linux to forward Docker mode to the Tokamak zk-EVM and Groth16 runtimes",
       "Use --include-local-artifacts to also install local deployment/ artifacts from the current working directory",
@@ -295,11 +304,12 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
   {
     id: "help-doctor",
     display: "help doctor",
-    description: "Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts.",
+    description: "Check private-state CLI package versions, install state, deployment artifacts, and command availability.",
     fields: ["gpu", "json"],
     usage: "optional --gpu and optional --json",
     help: [
       "Prints a concise human-readable table by default; use --json for the full machine-readable report",
+      "Reports whether each command is usable with the current read-only or full install state",
       "Use --gpu to run live NVIDIA/Docker GPU probes",
     ],
   },
@@ -352,6 +362,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "account-get-bridge-fund",
     display: "account get-bridge-fund",
     description: "Read the local account's current shared bridge vault balance.",
+    installMode: "read-only",
     fields: ["network", "account"],
     usage: "--network, --account",
   },
@@ -359,6 +370,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "channel-create",
     display: "channel create",
     description: "Create a bridge channel and initialize its workspace.",
+    installMode: "full",
     fields: ["channelName", "joinToll", "network", "account"],
     usage: "--channel-name, --join-toll, --network, --account",
     help: [
@@ -370,6 +382,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "channel-recover-workspace",
     display: "channel recover-workspace",
     description: "Rebuild the local channel workspace from bridge state.",
+    installMode: "read-only",
     fields: ["channelName", "network", "source", "fromGenesis"],
     usage: "--channel-name, --network, optional --source, optional --from-genesis",
     help: [
@@ -387,6 +400,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "channel-set-workspace-mirror",
     display: "channel set-workspace-mirror",
     description: "Register or update the channel leader's workspace mirror base URL.",
+    installMode: "full",
     fields: ["channelName", "network", "account", "url"],
     usage: "--channel-name, --network, --account, --url",
     help: [
@@ -398,6 +412,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "channel-publish-workspace-mirror",
     display: "channel publish-workspace-mirror",
     description: "Build static workspace mirror files for the registered mirror URL.",
+    installMode: "read-only",
     fields: ["channelName", "network", "account", "output", "force"],
     usage: "--channel-name, --network, --account, --output, optional --force",
     help: [
@@ -411,6 +426,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "channel-get-meta",
     display: "channel get-meta",
     description: "Read channel existence, manager, vault, toll, refund schedule, and immutable policy snapshot.",
+    installMode: "read-only",
     fields: ["channelName", "network"],
     usage: "--channel-name, --network",
   },
@@ -418,6 +434,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "account-deposit-bridge",
     display: "account deposit-bridge",
     description: "Deposit canonical tokens into the shared bridge vault.",
+    installMode: "read-only",
     fields: ["amount", "network", "account", "acknowledgeActionImpact"],
     usage: "--amount, --network, --account, --acknowledge-action-impact",
     help: [
@@ -432,6 +449,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "account-withdraw-bridge",
     display: "account withdraw-bridge",
     description: "Withdraw tokens from the shared bridge vault back to the wallet.",
+    installMode: "read-only",
     fields: ["amount", "network", "account", "acknowledgeActionImpact"],
     usage: "--amount, --network, --account, --acknowledge-action-impact",
     help: [
@@ -446,6 +464,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "wallet-recover-workspace",
     display: "wallet recover-workspace",
     description: "Rebuild a recoverable local wallet from on-chain channel state.",
+    installMode: "read-only",
     fields: ["channelName", "network", "account", "fromGenesis"],
     usage: "--channel-name, --network, --account, optional --from-genesis",
     help: [
@@ -462,6 +481,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "channel-join",
     display: "channel join",
     description: "Pay the channel join toll and bind a wallet to a channel-specific L2 identity.",
+    installMode: "full",
     fields: ["channelName", "network", "account", "walletSecretPath", "acknowledgeActionImpact"],
     usage: "--channel-name, --network, --account, --wallet-secret-path, --acknowledge-action-impact",
     help: [
@@ -481,6 +501,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "wallet-get-meta",
     display: "wallet get-meta",
     description: "Check whether a wallet matches the on-chain channel registration.",
+    installMode: "read-only",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
     help: [
@@ -550,6 +571,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "wallet-deposit-channel",
     display: "wallet deposit-channel",
     description: "Move bridged funds into the channel L2 accounting balance.",
+    installMode: "full",
     fields: ["wallet", "network", "amount", "acknowledgeActionImpact"],
     usage: "--wallet, --network, --amount, and --acknowledge-action-impact",
     help: [
@@ -566,6 +588,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "wallet-withdraw-channel",
     display: "wallet withdraw-channel",
     description: "Move channel L2 balance back into the shared bridge vault.",
+    installMode: "full",
     fields: ["wallet", "network", "amount", "acknowledgeActionImpact"],
     usage: "--wallet, --network, --amount, and --acknowledge-action-impact",
     help: [
@@ -583,6 +606,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "wallet-get-channel-fund",
     display: "wallet get-channel-fund",
     description: "Read the current channel L2 accounting balance.",
+    installMode: "read-only",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
     help: ["Refreshes the local channel workspace through the saved recovery index before reading the L2 accounting balance when the scan fits the 10 second pre-command budget"],
@@ -591,6 +615,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "channel-exit",
     display: "channel exit",
     description: "Exit a channel. Both the CLI and bridge contract require a zero channel balance.",
+    installMode: "full",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
     help: [
@@ -602,6 +627,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "wallet-mint-notes",
     display: "wallet mint-notes",
     description: "Mint one or two private-state notes from the wallet's channel balance.",
+    installMode: "full",
     fields: ["wallet", "network", "amounts", "acknowledgeActionImpact", "txSubmitter"],
     usage: "--wallet, --network, --amounts, --acknowledge-action-impact, and optional --tx-submitter",
     help: [
@@ -621,6 +647,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "wallet-transfer-notes",
     display: "wallet transfer-notes",
     description: "Spend input notes into the registered 1->1, 1->2, or 2->1 private transfer shapes.",
+    installMode: "full",
     fields: ["wallet", "network", "noteIds", "recipients", "amounts", "acknowledgeActionImpact", "txSubmitter"],
     usage: "--wallet, --network, --note-ids, --recipients, --amounts, --acknowledge-action-impact, and optional --tx-submitter",
     help: [
@@ -639,6 +666,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "wallet-redeem-notes",
     display: "wallet redeem-notes",
     description: "Redeem one tracked note back into the wallet's channel balance.",
+    installMode: "full",
     fields: ["wallet", "network", "noteIds", "acknowledgeActionImpact", "txSubmitter"],
     usage: "--wallet, --network, --note-ids, --acknowledge-action-impact, and optional --tx-submitter",
     help: [
@@ -657,6 +685,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "wallet-get-notes",
     display: "wallet get-notes",
     description: "Refresh received notes when the saved recovery index is recent, then show tracked note state.",
+    installMode: "read-only",
     fields: ["wallet", "network", "exportEvidence", "acknowledgeFullNotePlaintextExport"],
     usage: "--wallet, --network, optional --export-evidence, and optional --acknowledge-full-note-plaintext-export",
     help: [
@@ -668,6 +697,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     ],
   },
 ]);
+
+export function privateStateCliCommandInstallMode(command) {
+  return command.installMode ?? "none";
+}
 
 export function privateStateCliCommandDisplay(command) {
   return command.display ?? command.id;

@@ -2,12 +2,15 @@
 
 ## Unreleased
 
+## 2.2.0 - 2026-05-18
+
 - Added `install --read-only` for channel-state read commands and commands that do not depend on channel state. This
   mode installs only the bridge deployment, bridge ABI manifest, DApp deployment, and storage layout artifacts.
 - Kept default `install` as full mode for proof-backed and channel-mutating commands, and made deployment artifact
   validation mode-aware before command execution.
 - Extended `help doctor` with per-command availability so read-only installs clearly report which commands are usable
   and which commands still require full install.
+- Added private-state CLI E2E coverage for the read-only install mode before the full install flow.
 
 ## 2.1.2 - 2026-05-15
 

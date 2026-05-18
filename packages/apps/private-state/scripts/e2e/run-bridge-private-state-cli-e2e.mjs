@@ -88,6 +88,7 @@ const failureDiagnosticsPath = path.resolve(outputRoot, "failure-diagnostics.jso
 const checkpointPath = path.resolve(outputRoot, "resume-checkpoint.json");
 const dappMetadataRoot = path.resolve(outputRoot, "dapp-metadata");
 const workspaceMirrorRoot = path.resolve(outputRoot, "workspace-mirror");
+const catchUpBaselineRoot = path.resolve(outputRoot, "checkpoints", "channel-before-withdraw");
 const providerUrl = process.env.ANVIL_RPC_URL?.trim() || "http://127.0.0.1:8545";
 const workspaceNetworkName = "anvil";
 const anvilMnemonic = process.env.APPS_ANVIL_MNEMONIC?.trim() || "test test test test test test test test test test test junk";
@@ -339,6 +340,9 @@ function createCheckpointManager(initialState) {
     resumed: initialState !== null,
     hasProgress() {
       return Object.keys(state.completed).length > 0;
+    },
+    isComplete(id) {
+      return Boolean(state.completed[id]);
     },
     clear() {
       fs.rmSync(checkpointPath, { force: true });
@@ -1716,6 +1720,29 @@ function deleteWorkspaceDir() {
   });
 }
 
+function channelWorkspaceDir() {
+  return path.join(workspaceDirForName(workspaceRoot, workspaceNetworkName, channelName), "channel");
+}
+
+function snapshotChannelWorkspaceForCatchUp() {
+  cleanDir(catchUpBaselineRoot);
+  fs.cpSync(channelWorkspaceDir(), catchUpBaselineRoot, { recursive: true });
+  return {
+    source: channelWorkspaceDir(),
+    snapshotDir: catchUpBaselineRoot,
+    workspace: readJson(path.join(catchUpBaselineRoot, "workspace.json")),
+  };
+}
+
+function restoreChannelWorkspaceForCatchUp(snapshot) {
+  expect(
+    snapshot?.snapshotDir === catchUpBaselineRoot && fs.existsSync(path.join(snapshot.snapshotDir, "workspace.json")),
+    "Missing pre-withdraw channel workspace checkpoint. Restart the CLI E2E with --reset-checkpoint.",
+  );
+  fs.rmSync(channelWorkspaceDir(), { recursive: true, force: true });
+  fs.cpSync(snapshot.snapshotDir, channelWorkspaceDir(), { recursive: true });
+}
+
 function deleteChannelWorkspaceCache() {
   fs.rmSync(path.join(
     workspaceDirForName(workspaceRoot, workspaceNetworkName, channelName),
@@ -2548,9 +2575,21 @@ async function main() {
 
     checkpoint.run("phase:withdraw-channel", "channel withdraw catch-up scenario", () => {
       l1BalanceBeforeClaim = readErc20Balance(canonicalAsset, participants[2].l1Address);
+      expect(
+        !checkpoint.isComplete("state:participant-c:withdraw-channel")
+          || checkpoint.isComplete("state:channel-workspace-before-withdraw"),
+        "Existing checkpoint already completed withdraw-channel without a pre-withdraw channel workspace snapshot. "
+          + "Restart the CLI E2E with --reset-checkpoint.",
+      );
+      const channelBeforeWithdraw = checkpoint.run(
+        "state:channel-workspace-before-withdraw",
+        "channel workspace checkpoint before withdraw-channel",
+        snapshotChannelWorkspaceForCatchUp,
+      );
       withdrawChannelResult = checkpoint.run("state:participant-c:withdraw-channel", "participant-c wallet withdraw-channel", () =>
         withdrawChannel(participants[2], claimAmountTokens));
       assertWalletCommandUsedCurrentWorkspace(withdrawChannelResult, "withdraw-channel after recovered workspace is current");
+      restoreChannelWorkspaceForCatchUp(channelBeforeWithdraw);
       const indexedRawHistoryRecover = recoverWorkspace({ outputRaw: true });
       assertRawRpcCallHistoryAppended(rawHistoryBeforeCatchUp, indexedRawHistoryRecover);
       bridgeDepositAfterWithdraw = getBridgeFund(participants[2]);

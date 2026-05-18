@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.2.1 - 2026-05-18
+
 - Added `channel recover-workspace --source rpc --output-raw` to append raw JSON-RPC request and response history
   to method-specific JSON files under the channel workspace `rpcCallHistory/` directory, with `eth_getLogs` split by event.
   Indexed recovery appends to existing history; `--from-genesis` overwrites it with one full genesis-to-latest scan.

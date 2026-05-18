@@ -1502,7 +1502,7 @@ function recoverWorkspace({ fromGenesis = false, outputRaw = false } = {}) {
   ]);
 }
 
-function assertRawRpcCallHistory(result, { requireEthGetLogs = true } = {}) {
+function assertRawRpcCallHistory(result) {
   const history = result.rpcCallHistory;
   expect(history?.historyDir, "recover-workspace --output-raw must report the RPC call history directory.");
   expect(history.callCount > 0, "RPC call history must contain at least one captured RPC call.");
@@ -1513,18 +1513,6 @@ function assertRawRpcCallHistory(result, { requireEthGetLogs = true } = {}) {
   const genericHistoryFile = readJson(genericRpcFile.path);
   expect(Array.isArray(genericHistoryFile.entries) && genericHistoryFile.entries.length > 0, "Generic RPC call history must append entries.");
   const rootVectorFile = history.files.find((file) => file.event === "CurrentRootVectorObserved");
-  if (!rootVectorFile) {
-    expect(!requireEthGetLogs, "RPC call history must include an event-specific eth_getLogs file.");
-    return {
-      files: history.files,
-      genericRpcFilePath: genericRpcFile.path,
-      genericRpcEntriesAdded: genericRpcFile.entriesAdded,
-      genericRpcEntries: genericHistoryFile.entries.length,
-      rootVectorFilePath: null,
-      rootVectorEntriesAdded: 0,
-      rootVectorEntries: 0,
-    };
-  }
   expect(rootVectorFile, "RPC call history must include an event-specific eth_getLogs file.");
   expect(rootVectorFile.method === "eth_getLogs", "RPC call history file must record eth_getLogs.");
   expect(rootVectorFile.path?.startsWith(history.historyDir), "RPC call history file must be under the history directory.");
@@ -1547,7 +1535,7 @@ function assertRawRpcCallHistory(result, { requireEthGetLogs = true } = {}) {
 }
 
 function assertRawRpcCallHistoryAppended(previousHistory, result) {
-  const nextHistory = assertRawRpcCallHistory(result, { requireEthGetLogs: false });
+  const nextHistory = assertRawRpcCallHistory(result);
   expect(
     nextHistory.genericRpcFilePath === previousHistory.genericRpcFilePath,
     "Generic RPC call history must append to the same method-specific file.",
@@ -1556,16 +1544,14 @@ function assertRawRpcCallHistoryAppended(previousHistory, result) {
     nextHistory.genericRpcEntries > previousHistory.genericRpcEntries,
     "Generic RPC call history entries must accumulate across indexed --output-raw recovery runs.",
   );
-  if (nextHistory.rootVectorFilePath) {
-    expect(
-      nextHistory.rootVectorFilePath === previousHistory.rootVectorFilePath,
-      "eth_getLogs history must append to the same event-specific file.",
-    );
-    expect(
-      nextHistory.rootVectorEntries >= previousHistory.rootVectorEntries,
-      "eth_getLogs event history must not shrink across indexed --output-raw recovery runs.",
-    );
-  }
+  expect(
+    nextHistory.rootVectorFilePath === previousHistory.rootVectorFilePath,
+    "eth_getLogs catch-up history must append to the same event-specific file.",
+  );
+  expect(
+    nextHistory.rootVectorEntries > previousHistory.rootVectorEntries,
+    "eth_getLogs event history entries must accumulate when indexed recovery catches up new channel events.",
+  );
   return nextHistory;
 }
 
@@ -2258,8 +2244,6 @@ async function main() {
     deleteWorkspaceDir();
     const firstRawHistoryRecover = recoverWorkspace({ fromGenesis: true, outputRaw: true });
     const firstRawHistory = assertRawRpcCallHistoryOverwritten(firstRawHistoryRecover);
-    const indexedRawHistoryRecover = recoverWorkspace({ outputRaw: true });
-    assertRawRpcCallHistoryAppended(firstRawHistory, indexedRawHistoryRecover);
     const recoverWorkspaceAfterNotesResult = recoverWorkspace({ fromGenesis: true, outputRaw: true });
     assertRawRpcCallHistoryOverwritten(recoverWorkspaceAfterNotesResult);
     expect(
@@ -2288,6 +2272,8 @@ async function main() {
     const l1BalanceBeforeClaim = readErc20Balance(canonicalAsset, participants[2].l1Address);
     const withdrawChannelResult = withdrawChannel(participants[2], claimAmountTokens);
     assertWalletCommandUsedCurrentWorkspace(withdrawChannelResult, "withdraw-channel after recovered workspace is current");
+    const indexedRawHistoryRecover = recoverWorkspace({ outputRaw: true });
+    assertRawRpcCallHistoryAppended(firstRawHistory, indexedRawHistoryRecover);
     const bridgeDepositAfterWithdraw = getBridgeFund(participants[2]);
     const channelDepositAfterWithdraw = getChannelFund(participants[2]);
     assertBigIntEq(

@@ -1509,29 +1509,32 @@ function assertRawRpcCallHistory(result) {
   expect(Array.isArray(history.files) && history.files.length > 0, "RPC call history must report at least one history file.");
   const genericRpcFile = history.files.find((file) => file.method === "eth_call");
   expect(genericRpcFile, "RPC call history must include method-specific files for non-log calls.");
-  expect(fs.existsSync(genericRpcFile.path), `Missing RPC call history file: ${genericRpcFile.path}`);
-  const genericHistoryFile = readJson(genericRpcFile.path);
-  expect(Array.isArray(genericHistoryFile.entries) && genericHistoryFile.entries.length > 0, "Generic RPC call history must append entries.");
+  const genericRpcEntries = readRpcCallHistoryEntries(genericRpcFile, "Generic RPC call history");
   const rootVectorFile = history.files.find((file) => file.event === "CurrentRootVectorObserved");
   expect(rootVectorFile, "RPC call history must include an event-specific eth_getLogs file.");
   expect(rootVectorFile.method === "eth_getLogs", "RPC call history file must record eth_getLogs.");
   expect(rootVectorFile.path?.startsWith(history.historyDir), "RPC call history file must be under the history directory.");
-  expect(fs.existsSync(rootVectorFile.path), `Missing RPC call history file: ${rootVectorFile.path}`);
-  const historyFile = readJson(rootVectorFile.path);
-  expect(historyFile.method === "eth_getLogs", "RPC call history document must record eth_getLogs.");
-  expect(Array.isArray(historyFile.entries) && historyFile.entries.length > 0, "RPC call history document must append entries.");
-  const latestEntry = historyFile.entries.at(-1);
+  const rootVectorEntries = readRpcCallHistoryEntries(rootVectorFile, "eth_getLogs event history");
+  const latestEntry = rootVectorEntries.at(-1);
   expect(Array.isArray(latestEntry.request?.params), "RPC call history entry must include JSON-RPC params.");
   expect(Array.isArray(latestEntry.response), "RPC call history entry must include the raw response array.");
   return {
     files: history.files,
     genericRpcFilePath: genericRpcFile.path,
     genericRpcEntriesAdded: genericRpcFile.entriesAdded,
-    genericRpcEntries: genericHistoryFile.entries.length,
+    genericRpcEntries: genericRpcEntries.length,
     rootVectorFilePath: rootVectorFile.path,
     rootVectorEntriesAdded: rootVectorFile.entriesAdded,
-    rootVectorEntries: historyFile.entries.length,
+    rootVectorEntries: rootVectorEntries.length,
   };
+}
+
+function readRpcCallHistoryEntries(file, label) {
+  expect(fs.existsSync(file.path), `Missing RPC call history file: ${file.path}`);
+  const document = readJson(file.path);
+  expect(document.method === file.method, `${label} method mismatch.`);
+  expect(Array.isArray(document.entries) && document.entries.length > 0, `${label} must append entries.`);
+  return document.entries;
 }
 
 function assertRawRpcCallHistoryAppended(previousHistory, result) {
@@ -2243,9 +2246,9 @@ async function main() {
 
     deleteWorkspaceDir();
     const firstRawHistoryRecover = recoverWorkspace({ fromGenesis: true, outputRaw: true });
-    const firstRawHistory = assertRawRpcCallHistoryOverwritten(firstRawHistoryRecover);
+    assertRawRpcCallHistoryOverwritten(firstRawHistoryRecover);
     const recoverWorkspaceAfterNotesResult = recoverWorkspace({ fromGenesis: true, outputRaw: true });
-    assertRawRpcCallHistoryOverwritten(recoverWorkspaceAfterNotesResult);
+    const rawHistoryBeforeCatchUp = assertRawRpcCallHistoryOverwritten(recoverWorkspaceAfterNotesResult);
     expect(
       recoverWorkspaceAfterNotesResult.channelName === channelName,
       "recover-workspace must rebuild the deleted workspace after note activity.",
@@ -2273,7 +2276,7 @@ async function main() {
     const withdrawChannelResult = withdrawChannel(participants[2], claimAmountTokens);
     assertWalletCommandUsedCurrentWorkspace(withdrawChannelResult, "withdraw-channel after recovered workspace is current");
     const indexedRawHistoryRecover = recoverWorkspace({ outputRaw: true });
-    assertRawRpcCallHistoryAppended(firstRawHistory, indexedRawHistoryRecover);
+    assertRawRpcCallHistoryAppended(rawHistoryBeforeCatchUp, indexedRawHistoryRecover);
     const bridgeDepositAfterWithdraw = getBridgeFund(participants[2]);
     const channelDepositAfterWithdraw = getChannelFund(participants[2]);
     assertBigIntEq(

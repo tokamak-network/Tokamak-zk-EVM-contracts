@@ -2002,7 +2002,7 @@ async function syncChannelWorkspace({
     ? createRpcCallHistoryRecorder({ workspaceDir })
     : null;
   const activeProvider = rpcCallHistoryRecorder
-    ? createRpcCallHistoryProvider(provider, rpcCallHistoryRecorder)
+    ? attachRpcCallHistoryRecorderToProvider(provider, rpcCallHistoryRecorder)
     : provider;
 
   const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
@@ -2715,7 +2715,7 @@ function createRpcCallHistoryRecorder({ workspaceDir }) {
         method,
         entry: {
           recordedAt: new Date().toISOString(),
-          request: buildRawJsonRpcRequest({ method, params }),
+          request: buildRawJsonRpcRequest(method, params),
           ...(error ? { error } : { response }),
         },
       });
@@ -2753,7 +2753,7 @@ function createRpcCallHistoryRecorder({ workspaceDir }) {
   };
 }
 
-function createRpcCallHistoryProvider(provider, recorder) {
+function attachRpcCallHistoryRecorderToProvider(provider, recorder) {
   const send = provider.send.bind(provider);
   provider.send = async (method, params) => {
     try {
@@ -2802,7 +2802,7 @@ function appendRpcCallHistoryEntries({ historyDir, file, entries }) {
   };
 }
 
-function buildRawJsonRpcRequest({ method, params }) {
+function buildRawJsonRpcRequest(method, params = []) {
   return {
     jsonrpc: "2.0",
     method,
@@ -2864,11 +2864,7 @@ function buildRawEthGetLogsRequest(request) {
     fromBlock: ethers.toQuantity(request.fromBlock),
     toBlock: ethers.toQuantity(request.toBlock),
   };
-  return {
-    jsonrpc: "2.0",
-    method: "eth_getLogs",
-    params: [filter],
-  };
+  return buildRawJsonRpcRequest("eth_getLogs", [filter]);
 }
 
 function nextAvailablePath(basePath) {

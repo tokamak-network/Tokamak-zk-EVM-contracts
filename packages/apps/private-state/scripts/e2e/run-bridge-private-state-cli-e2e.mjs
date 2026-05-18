@@ -1509,6 +1509,9 @@ function assertRawRpcCallHistory(result) {
   expect(Array.isArray(history.files) && history.files.length > 0, "RPC call history must report at least one event file.");
   const genericRpcFile = history.files.find((file) => file.method === "eth_call");
   expect(genericRpcFile, "RPC call history must include method-specific files for non-log calls.");
+  expect(fs.existsSync(genericRpcFile.path), `Missing RPC call history file: ${genericRpcFile.path}`);
+  const genericHistoryFile = readJson(genericRpcFile.path);
+  expect(Array.isArray(genericHistoryFile.entries) && genericHistoryFile.entries.length > 0, "Generic RPC call history must append entries.");
   const rootVectorFile = history.files.find((file) => file.event === "CurrentRootVectorObserved");
   expect(rootVectorFile, "RPC call history must include an event-specific eth_getLogs file.");
   expect(rootVectorFile.method === "eth_getLogs", "RPC call history file must record eth_getLogs.");
@@ -1520,6 +1523,33 @@ function assertRawRpcCallHistory(result) {
   const latestEntry = historyFile.entries.at(-1);
   expect(Array.isArray(latestEntry.request?.params), "RPC call history entry must include JSON-RPC params.");
   expect(Array.isArray(latestEntry.response), "RPC call history entry must include the raw response array.");
+  return {
+    genericRpcFilePath: genericRpcFile.path,
+    genericRpcEntries: genericHistoryFile.entries.length,
+    rootVectorFilePath: rootVectorFile.path,
+    rootVectorEntries: historyFile.entries.length,
+  };
+}
+
+function assertRawRpcCallHistoryAccumulated(previousHistory, result) {
+  const nextHistory = assertRawRpcCallHistory(result);
+  expect(
+    nextHistory.genericRpcFilePath === previousHistory.genericRpcFilePath,
+    "Generic RPC call history must append to the same method-specific file.",
+  );
+  expect(
+    nextHistory.rootVectorFilePath === previousHistory.rootVectorFilePath,
+    "eth_getLogs history must append to the same event-specific file.",
+  );
+  expect(
+    nextHistory.genericRpcEntries > previousHistory.genericRpcEntries,
+    "Generic RPC call history entries must accumulate across --output-raw runs.",
+  );
+  expect(
+    nextHistory.rootVectorEntries > previousHistory.rootVectorEntries,
+    "eth_getLogs event history entries must accumulate across --output-raw runs.",
+  );
+  return nextHistory;
 }
 
 function recoverWorkspaceFromMirror() {
@@ -2196,8 +2226,10 @@ async function main() {
     );
 
     deleteWorkspaceDir();
+    const firstRawHistoryRecover = recoverWorkspace({ fromGenesis: true, outputRaw: true });
+    const firstRawHistory = assertRawRpcCallHistory(firstRawHistoryRecover);
     const recoverWorkspaceAfterNotesResult = recoverWorkspace({ fromGenesis: true, outputRaw: true });
-    assertRawRpcCallHistory(recoverWorkspaceAfterNotesResult);
+    assertRawRpcCallHistoryAccumulated(firstRawHistory, recoverWorkspaceAfterNotesResult);
     expect(
       recoverWorkspaceAfterNotesResult.channelName === channelName,
       "recover-workspace must rebuild the deleted workspace after note activity.",

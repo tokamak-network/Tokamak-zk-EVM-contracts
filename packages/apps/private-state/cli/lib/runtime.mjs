@@ -1978,12 +1978,6 @@ async function syncChannelWorkspace({
 }) {
   const workspaceDir = channelWorkspacePath(networkNameFromChainId(network.chainId), workspaceName);
   const channelDir = channelDataPath(workspaceDir);
-  const rpcCallHistoryRecorder = outputRawRpcCallHistory
-    ? createRpcCallHistoryRecorder({ workspaceDir })
-    : null;
-  const activeProvider = rpcCallHistoryRecorder
-    ? createRpcCallHistoryProvider(provider, rpcCallHistoryRecorder)
-    : provider;
   let cleanRebuildBackup = null;
   const hasPersistedChannelData = fs.existsSync(channelWorkspaceConfigPath(workspaceDir))
     || fs.existsSync(channelWorkspaceCurrentPath(workspaceDir))
@@ -2002,7 +1996,17 @@ async function syncChannelWorkspace({
       networkName: networkNameFromChainId(network.chainId),
       channelName,
     });
+    if (outputRawRpcCallHistory) {
+      restoreChannelRpcCallHistoryFromBackup({ workspaceDir, backupPath: cleanRebuildBackup.backupPath });
+    }
   }
+
+  const rpcCallHistoryRecorder = outputRawRpcCallHistory
+    ? createRpcCallHistoryRecorder({ workspaceDir })
+    : null;
+  const activeProvider = rpcCallHistoryRecorder
+    ? createRpcCallHistoryProvider(provider, rpcCallHistoryRecorder)
+    : provider;
 
   const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
   const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, activeProvider);
@@ -2676,6 +2680,17 @@ function persistChannelWorkspaceFiles({
 
 function channelWorkspaceRpcCallHistoryPath(workspaceDir) {
   return path.join(channelDataPath(workspaceDir), "rpcCallHistory");
+}
+
+function restoreChannelRpcCallHistoryFromBackup({ workspaceDir, backupPath }) {
+  const backupHistoryDir = channelWorkspaceRpcCallHistoryPath(backupPath);
+  if (!fs.existsSync(backupHistoryDir)) {
+    return;
+  }
+  fs.cpSync(backupHistoryDir, channelWorkspaceRpcCallHistoryPath(workspaceDir), {
+    recursive: true,
+    force: true,
+  });
 }
 
 function createRpcCallHistoryRecorder({ workspaceDir }) {

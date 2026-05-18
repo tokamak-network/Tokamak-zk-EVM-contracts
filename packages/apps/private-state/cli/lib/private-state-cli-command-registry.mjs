@@ -202,6 +202,13 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     option: "--from-genesis",
     optional: true,
   },
+  outputRaw: {
+    label: "Output Raw RPC History",
+    type: "checkbox",
+    hint: "With channel recover-workspace --source rpc, preserve raw JSON-RPC request and response history under the channel workspace.",
+    option: "--output-raw",
+    optional: true,
+  },
   source: {
     label: "Recovery Source",
     type: "select",
@@ -383,8 +390,8 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     display: "channel recover-workspace",
     description: "Rebuild the local channel workspace from bridge state.",
     installMode: "read-only",
-    fields: ["channelName", "network", "source", "fromGenesis"],
-    usage: "--channel-name, --network, optional --source, optional --from-genesis",
+    fields: ["channelName", "network", "source", "fromGenesis", "outputRaw"],
+    usage: "--channel-name, --network, optional --source, optional --from-genesis, optional --output-raw",
     help: [
       "By default, --source rpc resumes RPC log scanning from the workspace recovery index when available",
       "--source mirror validates the channel leader's registered checkpoint manifest, downloads only the needed checkpoint or delta bundle, and then replays RPC logs to latest",
@@ -392,6 +399,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "Mirror recovery uses a matching delta bundle when available; otherwise a newer verified full checkpoint replaces the local checkpoint before RPC catch-up",
       "Fails instead of falling back to genesis when no usable recovery index exists",
       "Use --source rpc --from-genesis to ignore the recovery index and replay logs from channel genesis",
+      "--output-raw with --source rpc appends raw JSON-RPC request and response history to method-specific JSON files under the channel workspace rpcCallHistory directory; eth_getLogs is split by event",
       "--from-genesis moves the existing local channel workspace to workspace-rebuild-backups before writing the current-format workspace; local secrets are preserved",
       "Prints RPC log scan progress while rebuilding the workspace",
     ],

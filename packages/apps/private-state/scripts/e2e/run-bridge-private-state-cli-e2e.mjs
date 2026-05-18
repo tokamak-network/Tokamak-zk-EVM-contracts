@@ -1493,12 +1493,33 @@ function importWalletKey(inputPath, keyKind) {
   ]);
 }
 
-function recoverWorkspace({ fromGenesis = false } = {}) {
+function recoverWorkspace({ fromGenesis = false, outputRaw = false } = {}) {
   return runAnvilBridgeCliCommand("channel recover-workspace", [
     "--channel-name", channelName,
     ...(fromGenesis ? ["--source", "rpc"] : []),
     ...(fromGenesis ? ["--from-genesis"] : []),
+    ...(outputRaw ? ["--output-raw"] : []),
   ]);
+}
+
+function assertRawRpcCallHistory(result) {
+  const history = result.rpcCallHistory;
+  expect(history?.historyDir, "recover-workspace --output-raw must report the RPC call history directory.");
+  expect(history.callCount > 0, "RPC call history must contain at least one captured RPC call.");
+  expect(Array.isArray(history.files) && history.files.length > 0, "RPC call history must report at least one event file.");
+  const genericRpcFile = history.files.find((file) => file.method === "eth_call");
+  expect(genericRpcFile, "RPC call history must include method-specific files for non-log calls.");
+  const rootVectorFile = history.files.find((file) => file.event === "CurrentRootVectorObserved");
+  expect(rootVectorFile, "RPC call history must include an event-specific eth_getLogs file.");
+  expect(rootVectorFile.method === "eth_getLogs", "RPC call history file must record eth_getLogs.");
+  expect(rootVectorFile.path?.startsWith(history.historyDir), "RPC call history file must be under the history directory.");
+  expect(fs.existsSync(rootVectorFile.path), `Missing RPC call history file: ${rootVectorFile.path}`);
+  const historyFile = readJson(rootVectorFile.path);
+  expect(historyFile.method === "eth_getLogs", "RPC call history document must record eth_getLogs.");
+  expect(Array.isArray(historyFile.entries) && historyFile.entries.length > 0, "RPC call history document must append entries.");
+  const latestEntry = historyFile.entries.at(-1);
+  expect(Array.isArray(latestEntry.request?.params), "RPC call history entry must include JSON-RPC params.");
+  expect(Array.isArray(latestEntry.response), "RPC call history entry must include the raw response array.");
 }
 
 function recoverWorkspaceFromMirror() {
@@ -2175,7 +2196,8 @@ async function main() {
     );
 
     deleteWorkspaceDir();
-    const recoverWorkspaceAfterNotesResult = recoverWorkspace({ fromGenesis: true });
+    const recoverWorkspaceAfterNotesResult = recoverWorkspace({ fromGenesis: true, outputRaw: true });
+    assertRawRpcCallHistory(recoverWorkspaceAfterNotesResult);
     expect(
       recoverWorkspaceAfterNotesResult.channelName === channelName,
       "recover-workspace must rebuild the deleted workspace after note activity.",

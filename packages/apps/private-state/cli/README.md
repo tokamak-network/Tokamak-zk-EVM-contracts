@@ -192,6 +192,11 @@ run is interrupted, the next non-`--from-genesis` RPC recovery resumes from the 
 can also start from that local checkpoint: it uses a matching delta bundle when one is available, otherwise a newer
 verified full mirror checkpoint replaces the local checkpoint before RPC catch-up.
 
+Use `channel recover-workspace --source rpc --output-raw` when you need to preserve the raw JSON-RPC request and
+response history for inspection. The CLI appends calls to method-specific JSON files, and splits `eth_getLogs` into
+event-specific files such as `eth_getLogs.CurrentRootVectorObserved.json`, under
+`~/tokamak-private-channels/workspace/<network>/<channel>/channel/rpcCallHistory/`.
+
 `channel create` is the exception: after the channel is created on-chain, the CLI initializes that new local workspace
 by replaying from the channel's genesis block because no prior recovery index can exist for a new channel.
 

@@ -721,12 +721,14 @@ async function handleWorkspaceInit({ args, network, provider }) {
   const workspaceName = channelName;
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
   const recoverySource = resolveWorkspaceRecoverySource(args);
+  const outputRawRpcCallHistory = args.outputRaw === true;
 
   const {
     workspaceDir,
     workspace,
     currentSnapshot,
     cleanRebuildBackup,
+    rpcCallHistory,
   } = await syncChannelWorkspace({
     workspaceName,
     channelName,
@@ -738,6 +740,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     useWorkspaceRecoveryIndex: true,
     fromGenesis: args.fromGenesis === true,
     recoverySource,
+    outputRawRpcCallHistory,
     progressAction: "channel recover-workspace",
   });
 
@@ -757,6 +760,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     recoveryLastScannedBlock: workspace.recoveryLastScannedBlock,
     recoveryRootVectorHash: workspace.recoveryRootVectorHash,
     recoveryScanRange: workspace.recoveryScanRange,
+    rpcCallHistory,
     workspaceMirror: workspace.workspaceMirror ?? null,
   });
 }
@@ -1968,11 +1972,18 @@ async function syncChannelWorkspace({
   useWorkspaceRecoveryIndex = false,
   fromGenesis = false,
   recoverySource = "rpc",
+  outputRawRpcCallHistory = false,
   minimumToBlock = null,
   progressAction = null,
 }) {
   const workspaceDir = channelWorkspacePath(networkNameFromChainId(network.chainId), workspaceName);
   const channelDir = channelDataPath(workspaceDir);
+  const rpcCallHistoryRecorder = outputRawRpcCallHistory
+    ? createRpcCallHistoryRecorder({ workspaceDir })
+    : null;
+  const activeProvider = rpcCallHistoryRecorder
+    ? createRpcCallHistoryProvider(provider, rpcCallHistoryRecorder)
+    : provider;
   let cleanRebuildBackup = null;
   const hasPersistedChannelData = fs.existsSync(channelWorkspaceConfigPath(workspaceDir))
     || fs.existsSync(channelWorkspaceCurrentPath(workspaceDir))
@@ -1994,7 +2005,7 @@ async function syncChannelWorkspace({
   }
 
   const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
-  const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, provider);
+  const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, activeProvider);
   const channelId = deriveChannelIdFromName(channelName);
   const channelInfo = await bridgeCore.getChannel(channelId);
   if (!channelInfo.exists) {
@@ -2004,13 +2015,13 @@ async function syncChannelWorkspace({
   const channelManager = new Contract(
     channelInfo.manager,
     bridgeAbiManifest.contracts.channelManager.abi,
-    provider,
+    activeProvider,
   );
   const canonicalAsset = getAddress(channelInfo.asset);
-  const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
+  const canonicalAssetDecimals = await fetchTokenDecimals(activeProvider, canonicalAsset);
   const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
   const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
-  const observedLatestBlock = await provider.getBlockNumber();
+  const observedLatestBlock = await activeProvider.getBlockNumber();
   const latestBlock = minimumToBlock === null
     ? observedLatestBlock
     : Math.max(observedLatestBlock, Number(minimumToBlock));
@@ -2038,8 +2049,8 @@ async function syncChannelWorkspace({
     `Managed storage vector does not include L2 accounting vault ${l2AccountingVaultAddress}.`,
   );
 
-  const contractCodes = await fetchContractCodes(provider, managedStorageAddresses);
-  const blockInfo = await fetchChannelBlockInfo(provider, genesisBlockNumber);
+  const contractCodes = await fetchContractCodes(activeProvider, managedStorageAddresses);
+  const blockInfo = await fetchChannelBlockInfo(activeProvider, genesisBlockNumber);
   const derivedAPubBlockHash = normalizeBytes32Hex(hashTokamakPublicInputs(encodeTokamakBlockInfo(blockInfo)));
   expect(
     ethers.toBigInt(derivedAPubBlockHash) === ethers.toBigInt(normalizeBytes32Hex(channelInfo.aPubBlockHash)),
@@ -2154,6 +2165,10 @@ async function syncChannelWorkspace({
       });
     }
     : null;
+  rpcCallHistoryRecorder?.setScanRange({
+    fromBlock: selectedRecoveryIndex?.nextBlock ?? genesisBlockNumber,
+    toBlock: latestBlock,
+  });
   const reconstruction = localSnapshotReusable
     ? {
       currentSnapshot: existingArtifacts.stateSnapshot,
@@ -2173,7 +2188,7 @@ async function syncChannelWorkspace({
         },
       }
     : await reconstructChannelSnapshot({
-      provider,
+      provider: activeProvider,
       bridgeAbiManifest,
       channelInfo,
       channelManager,
@@ -2190,7 +2205,9 @@ async function syncChannelWorkspace({
       toBlock: latestBlock,
       progressAction,
       onCheckpoint: persistWorkspaceCheckpoint,
+      rpcCallHistoryRecorder,
     });
+  rpcCallHistoryRecorder?.setScanRange(reconstruction.scanRange);
   const currentSnapshot = reconstruction.currentSnapshot;
   const workspace = buildWorkspaceForSnapshot({
     currentSnapshot,
@@ -2215,6 +2232,7 @@ async function syncChannelWorkspace({
     blockInfo,
     contractCodes,
     cleanRebuildBackup,
+    rpcCallHistory: rpcCallHistoryRecorder?.finish() ?? null,
   };
 }
 
@@ -2654,6 +2672,202 @@ function persistChannelWorkspaceFiles({
   writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"), blockInfo);
   writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"), contractCodes);
   writeJsonIfChanged(channelWorkspaceConfigPath(workspaceDir), workspace);
+}
+
+function channelWorkspaceRpcCallHistoryPath(workspaceDir) {
+  return path.join(channelDataPath(workspaceDir), "rpcCallHistory");
+}
+
+function createRpcCallHistoryRecorder({ workspaceDir }) {
+  const historyDir = channelWorkspaceRpcCallHistoryPath(workspaceDir);
+  const entriesByFile = new Map();
+  let scanRange = null;
+  let callCount = 0;
+  ensureDir(historyDir);
+
+  const pushEntry = ({ method, eventName = null, entry }) => {
+    const file = rpcCallHistoryFileName(method, eventName);
+    const entries = entriesByFile.get(file) ?? [];
+    entries.push({
+      method,
+      ...(eventName ? { event: eventName } : {}),
+      ...entry,
+    });
+    entriesByFile.set(file, entries);
+  };
+
+  return {
+    historyDir,
+    setScanRange(nextScanRange) {
+      scanRange = {
+        fromBlock: Number(nextScanRange.fromBlock),
+        toBlock: Number(nextScanRange.toBlock),
+        ...(nextScanRange.mode ? { mode: nextScanRange.mode } : {}),
+      };
+    },
+    recordRpcCall({ method, params, response, error = null }) {
+      if (method === "eth_getLogs") {
+        return;
+      }
+      callCount += 1;
+      pushEntry({
+        method,
+        entry: {
+          recordedAt: new Date().toISOString(),
+          request: buildRawJsonRpcRequest({ method, params }),
+          ...(error ? { error } : { response }),
+        },
+      });
+    },
+    recordEthGetLogs({ request, logs, groupedValues, chunkFromBlock, chunkToBlock }) {
+      callCount += 1;
+      const eventBuckets = groupRawEthGetLogsByRecoveryEvent({ logs, groupedValues });
+      for (const [eventName, response] of eventBuckets.entries()) {
+        pushEntry({
+          method: "eth_getLogs",
+          eventName,
+          entry: {
+            recordedAt: new Date().toISOString(),
+            chunkRange: { fromBlock: Number(chunkFromBlock), toBlock: Number(chunkToBlock) },
+            request: buildRawEthGetLogsRequest(request),
+            response,
+          },
+        });
+      }
+    },
+    finish() {
+      const files = [...entriesByFile.entries()].map(([file, entries]) =>
+        appendRpcCallHistoryEntries({
+          historyDir,
+          file,
+          entries: entries.map((entry) => ({ scanRange, ...entry })),
+        }));
+      return {
+        historyDir,
+        scanRange,
+        callCount,
+        files: files.sort((left, right) => left.file.localeCompare(right.file)),
+      };
+    },
+  };
+}
+
+function createRpcCallHistoryProvider(provider, recorder) {
+  const send = provider.send.bind(provider);
+  provider.send = async (method, params) => {
+    try {
+      const response = await send(method, params);
+      recorder.recordRpcCall({ method, params, response });
+      return response;
+    } catch (error) {
+      recorder.recordRpcCall({ method, params, error: normalizeRpcCallHistoryError(error) });
+      throw error;
+    }
+  };
+  return provider;
+}
+
+function normalizeRpcCallHistoryError(error) {
+  return {
+    name: error?.name ?? "Error",
+    code: error?.code ?? null,
+    message: error?.message ?? String(error),
+  };
+}
+
+function appendRpcCallHistoryEntries({ historyDir, file, entries }) {
+  const filePath = path.join(historyDir, file);
+  const { method, event: eventName = null } = entries[0];
+  const current = readJsonIfExists(filePath) ?? {
+    method,
+    ...(eventName ? { event: eventName } : {}),
+    entries: [],
+  };
+  expect(current.method === method, `RPC call history file method mismatch: ${filePath}.`);
+  expect(Array.isArray(current.entries), `RPC call history file entries must be an array: ${filePath}.`);
+  if (eventName) {
+    expect(current.event === eventName, `RPC call history file event mismatch: ${filePath}.`);
+  }
+  current.updatedAt = new Date().toISOString();
+  current.entries.push(...entries);
+  writeJson(filePath, current);
+  return {
+    method,
+    ...(eventName ? { event: eventName } : {}),
+    file,
+    path: filePath,
+    entriesAdded: entries.length,
+    totalEntries: current.entries.length,
+  };
+}
+
+function buildRawJsonRpcRequest({ method, params }) {
+  return {
+    jsonrpc: "2.0",
+    method,
+    params: params ?? [],
+  };
+}
+
+function rpcCallHistoryFileName(method, eventName = null) {
+  const suffix = eventName ? `.${safeRpcCallHistoryFileToken(eventName)}` : "";
+  return `${safeRpcCallHistoryFileToken(method)}${suffix}.json`;
+}
+
+function safeRpcCallHistoryFileToken(value) {
+  return String(value).replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "unknown";
+}
+
+function groupRawEthGetLogsByRecoveryEvent({ logs, groupedValues }) {
+  if (logs.length === 0) {
+    return new Map([["noLogs", []]]);
+  }
+  const eventNamesByLog = new Map();
+  for (const group of groupedValues) {
+    for (const event of group) {
+      eventNamesByLog.set(recoveryLogHistoryKey(event), channelRecoveryEventName(event));
+    }
+  }
+  const buckets = new Map();
+  for (const log of logs) {
+    const eventName = eventNamesByLog.get(recoveryLogHistoryKey(log)) ?? "unknown";
+    const bucket = buckets.get(eventName) ?? [];
+    bucket.push(log);
+    buckets.set(eventName, bucket);
+  }
+  return buckets;
+}
+
+function recoveryLogHistoryKey(log) {
+  return `${normalizeBytes32Hex(log.transactionHash)}:${Number(log.index ?? log.logIndex)}`;
+}
+
+function channelRecoveryEventName(event) {
+  if (event.fragment?.name) {
+    return event.fragment.name;
+  }
+  const topic0 = event.topics[0] ? normalizeBytes32Hex(event.topics[0]) : null;
+  if (topic0 === normalizeBytes32Hex(CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC)) {
+    return "StorageKeyObserved";
+  }
+  if (topic0 === normalizeBytes32Hex(VAULT_STORAGE_WRITE_OBSERVED_TOPIC)) {
+    return "LiquidBalanceStorageWriteObserved";
+  }
+  return "unknown";
+}
+
+function buildRawEthGetLogsRequest(request) {
+  const filter = {
+    address: request.address,
+    topics: request.topics,
+    fromBlock: ethers.toQuantity(request.fromBlock),
+    toBlock: ethers.toQuantity(request.toBlock),
+  };
+  return {
+    jsonrpc: "2.0",
+    method: "eth_getLogs",
+    params: [filter],
+  };
 }
 
 function nextAvailablePath(basePath) {
@@ -8510,6 +8724,7 @@ async function fetchChannelRecoveryEventGroupsChunked({
   fromBlock,
   toBlock,
   progressAction = null,
+  rpcCallHistoryRecorder = null,
   onChunk,
 }) {
   const recoveryFilter = buildChannelRecoveryLogFilter({
@@ -8527,13 +8742,20 @@ async function fetchChannelRecoveryEventGroupsChunked({
     onProgress: progressAction
       ? createRpcLogScanProgress({ action: progressAction, label: "channel-recovery chunks" })
       : null,
-    onChunk: async ({ logs, chunkFromBlock, chunkToBlock }) => {
+    onChunk: async ({ request, logs, chunkFromBlock, chunkToBlock }) => {
       const groupedValues = normalizeWorkspaceMirrorDeltaEventGroups({
         logs,
         channelInfo,
         bridgeAbiManifest,
         fromBlock: chunkFromBlock,
         toBlock: chunkToBlock,
+      });
+      rpcCallHistoryRecorder?.recordEthGetLogs({
+        request,
+        logs,
+        groupedValues,
+        chunkFromBlock,
+        chunkToBlock,
       });
       await onChunk?.({
         groupedValues,
@@ -8591,6 +8813,7 @@ async function reconstructChannelSnapshot({
   toBlock = null,
   progressAction = null,
   onCheckpoint = null,
+  rpcCallHistoryRecorder = null,
 }) {
   let startingSnapshot = baseSnapshot;
   if (!startingSnapshot) {
@@ -8627,6 +8850,7 @@ async function reconstructChannelSnapshot({
     fromBlock: scanFromBlock,
     toBlock: latestBlock,
     progressAction,
+    rpcCallHistoryRecorder,
     onChunk: async ({ groupedValues, chunkFromBlock, chunkToBlock }) => {
       currentSnapshot = await applyChannelRecoveryEventGroupsToStateManager({
         stateManager,
@@ -8979,13 +9203,14 @@ async function fetchLogsChunked(provider, {
   while (cursor <= resolvedToBlock) {
     const chunkToBlock = Math.min(resolvedToBlock, cursor + chunkSize - 1);
     let logs;
+    const request = {
+      address,
+      topics,
+      fromBlock: cursor,
+      toBlock: chunkToBlock,
+    };
     try {
-      logs = await fetchLogsRateLimited(provider, {
-        address,
-        topics,
-        fromBlock: cursor,
-        toBlock: chunkToBlock,
-      });
+      logs = await fetchLogsRateLimited(provider, request);
     } catch (error) {
       throw buildRpcLogQueryConfigError({
         error,
@@ -9019,6 +9244,7 @@ async function fetchLogsChunked(provider, {
       totalBlocks,
       logsFound,
       chunkLogs: logs.length,
+      request,
       logs,
     });
     cursor = chunkToBlock + 1;
@@ -10154,9 +10380,15 @@ function assertCreateChannelArgs(args) {
 
 function assertRecoverWorkspaceArgs(args) {
   assertAllowedCommandSchema(args, "channel-recover-workspace");
-  resolveWorkspaceRecoverySource(args);
+  const source = resolveWorkspaceRecoverySource(args);
   if (args.fromGenesis !== undefined && args.fromGenesis !== true) {
     throw new Error("channel recover-workspace option --from-genesis does not accept a value.");
+  }
+  if (args.outputRaw !== undefined && args.outputRaw !== true) {
+    throw new Error("channel recover-workspace option --output-raw does not accept a value.");
+  }
+  if (args.outputRaw === true && source !== "rpc") {
+    throw new Error("channel recover-workspace option --output-raw requires --source rpc.");
   }
 }
 

@@ -195,8 +195,8 @@ verified full mirror checkpoint replaces the local checkpoint before RPC catch-u
 Use `channel recover-workspace --source rpc --output-raw` when you need to preserve the raw JSON-RPC request and
 response history for inspection. The CLI appends calls to method-specific JSON files, and splits `eth_getLogs` into
 event-specific files such as `eth_getLogs.CurrentRootVectorObserved.json`, under
-`~/tokamak-private-channels/workspace/<network>/<channel>/channel/rpcCallHistory/`. A clean `--from-genesis` rebuild
-restores the existing history before appending the new run.
+`~/tokamak-private-channels/workspace/<network>/<channel>/channel/rpcCallHistory/`. Indexed recovery appends to the
+existing history, while `--from-genesis` overwrites it with one full genesis-to-latest scan.
 
 `channel create` is the exception: after the channel is created on-chain, the CLI initializes that new local workspace
 by replaying from the channel's genesis block because no prior recovery index can exist for a new channel.

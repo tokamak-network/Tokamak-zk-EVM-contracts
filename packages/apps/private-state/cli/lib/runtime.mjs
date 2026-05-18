@@ -1996,9 +1996,6 @@ async function syncChannelWorkspace({
       networkName: networkNameFromChainId(network.chainId),
       channelName,
     });
-    if (outputRawRpcCallHistory) {
-      restoreChannelRpcCallHistoryFromBackup({ workspaceDir, backupPath: cleanRebuildBackup.backupPath });
-    }
   }
 
   const rpcCallHistoryRecorder = outputRawRpcCallHistory
@@ -2680,17 +2677,6 @@ function persistChannelWorkspaceFiles({
 
 function channelWorkspaceRpcCallHistoryPath(workspaceDir) {
   return path.join(channelDataPath(workspaceDir), "rpcCallHistory");
-}
-
-function restoreChannelRpcCallHistoryFromBackup({ workspaceDir, backupPath }) {
-  const backupHistoryDir = channelWorkspaceRpcCallHistoryPath(backupPath);
-  if (!fs.existsSync(backupHistoryDir)) {
-    return;
-  }
-  fs.cpSync(backupHistoryDir, channelWorkspaceRpcCallHistoryPath(workspaceDir), {
-    recursive: true,
-    force: true,
-  });
 }
 
 function createRpcCallHistoryRecorder({ workspaceDir }) {

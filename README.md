@@ -54,8 +54,13 @@ Tokamak Private App Channels are not an exchange deposit network. Exchange-facin
 entry or exit remain public L1 activity. Internal private-state note counterparty relationships and note provenance are
 not public by default and are not reconstructed by Tokamak on a user's behalf.
 
-Audit materials for exchange-facing monitoring are kept under
-[docs/audit/monitoring/](./docs/audit/monitoring/).
+Tokamak does not hold a master viewing key, user spending key, viewing secret, or wallet secret for
+the private-state DApp.
+
+For the detailed public/private boundary, read [docs/whitepaper.md](./docs/whitepaper.md). For
+monitoring, contract addresses, admin wallets, upgrade policy, and incident-response materials, use
+the [public documentation index](./docs/index.md) and the
+[Monitoring Packet](./docs/audit/monitoring/Monitoring-Packet.md).
 
 ## What Is In This Repository
 

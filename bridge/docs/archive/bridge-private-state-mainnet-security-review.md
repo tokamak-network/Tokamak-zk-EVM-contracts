@@ -416,7 +416,7 @@ $$
 
 with `t` measured in days.
 
-![Future nullifier collision probability by Merkle depth](assets/future_nullifier_collision_probability_days_d12_36_step6_logy.svg)
+![Future nullifier collision probability by Merkle depth](../../../docs/assets/future_nullifier_collision_probability_days_d12_36_step6_logy.svg)
 
 Why this is deployment-blocking:
 

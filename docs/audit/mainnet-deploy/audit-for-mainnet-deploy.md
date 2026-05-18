@@ -339,7 +339,7 @@ Evidence:
   `bridge/scripts/admin-add-dapp.mjs`,
   `packages/apps/private-state/cli/commands/channel.mjs`, and
   `packages/apps/private-state/cli/lib/runtime.mjs`.
-- Gas documentation: `bridge/docs/gas-assessment.md` records current `createChannel` full-path gas
+- Gas documentation: `docs/bridge/gas-assessment.md` records current `createChannel` full-path gas
   as `2,731,347`, down from the earlier `3,884,651` deep-copy design measurement.
 
 Security note: calldata-supplied function metadata is not trusted unless it proves against the

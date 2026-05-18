@@ -4,16 +4,16 @@ Command-line client for the Tokamak private-state DApp.
 
 The full private-state DApp documentation is published with the repository:
 
-- https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/tree/main/packages/apps/private-state/docs
+- https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/tree/main/docs/dapps/private-state
 
-## Terminology And CEX Boundary
+## Terminology And Exchange Boundary
 
 This npm README uses the same terminology as the repository README:
 
 - `Tokamak Private App Channels`: Ethereum-settled, validity-proven execution domains for bridge-coupled DApps.
 - `private-state DApp`: the current reference DApp that programs confidential application state inside a channel.
 - `canonical Tokamak Network Token`: the L1 asset whose custody remains anchored on Ethereum.
-- `self-custody L1 wallet`: a user-controlled L1 account, not a centralized-exchange deposit address.
+- `self-custody L1 wallet`: a user-controlled L1 account, not an exchange deposit address.
 - `L1-transparent bridge edge`: public bridge deposit and withdrawal transactions involving the canonical token.
 - `channel-local accounting balance`: liquid application balance inside a channel before or after note use.
 - `private-state note`: a channel-local application note, not an exchange-supported token or deposit asset.
@@ -22,9 +22,19 @@ This npm README uses the same terminology as the repository README:
 - `viewing key`: the note-receive private key used to decrypt note-delivery events for the registered note-receive public key.
 - `spending key`: the channel-bound L2 private key used to authorize proof-backed note use.
 
-Tokamak Private App Channels are not a centralized-exchange deposit network. CEX-facing token transfers and bridge
+Tokamak Private App Channels are not an exchange deposit network. Exchange-facing token transfers and bridge
 entry or exit remain public L1 activity. Internal private-state note counterparty relationships and note provenance are
 not public by default and are not reconstructed by Tokamak on a user's behalf.
+
+## Address And Key-Safety Warnings
+
+Do not use an exchange deposit address as a private-state wallet address. Private-state notes are not
+supported exchange assets. Always withdraw TON to a self-custody L1 wallet before using a channel.
+
+Bridge deposits and withdrawals are public L1 events. Internal note transfers are private by design and are not
+automatically reconstructible by Tokamak, exchanges, or public observers.
+
+This CLI does not send your spending key, wallet secret, or private note plaintext to Tokamak.
 
 ## Tokamak-Operated Mainnet Channels
 
@@ -147,8 +157,8 @@ Static warning scope:
 | `wallet redeem-notes` | L1 submitter, input nullifier, accounting update, root update | Consumes notes | Prior path by which the note was received |
 | `wallet withdraw-channel` | L1 submitter, registered L2 address, amount, channel id, accounting update | No direct note spend | Prior private-state note path behind the liquid balance |
 
-`account deposit-bridge` and `account withdraw-bridge` also print a centralized-exchange address warning. Do not use a
-centralized-exchange controlled address as a self-custody bridge source or as the direct bridge withdrawal target
+`account deposit-bridge` and `account withdraw-bridge` also print an exchange-controlled address warning. Do not use an
+exchange-controlled address as a self-custody bridge source or as the direct bridge withdrawal target
 unless the user explicitly understands the compliance implications. Prefer a self-custody L1 wallet.
 
 Workspace recovery commands use saved recovery indexes by default. If the local channel workspace is missing,
@@ -208,7 +218,7 @@ already exists. The channel leader can build the static mirror files with
 host. If the existing mirror manifest is unreadable or invalid, the leader can use
 `channel publish-workspace-mirror --force` to write a full checkpoint without trusting that remote
 manifest as a delta base. The CLI protocol is documented at
-https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/packages/apps/private-state/docs/channel-workspace-mirror-protocol.md.
+https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/docs/dapps/private-state/channel-workspace-mirror-protocol.md.
 
 Back up a local wallet with:
 

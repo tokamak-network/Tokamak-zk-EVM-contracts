@@ -27,7 +27,7 @@ the DApp-programmed public disclosure surface.
 
 For the current protocol, contract, security, and bridge-coupling design, start from:
 
-- [docs/index.md](docs/index.md)
+- [docs/dapps/private-state/index.md](../../../docs/dapps/private-state/index.md)
 
 ## Contract Layout
 
@@ -145,8 +145,8 @@ Important rules:
 ## Recipient Note Delivery
 
 The protocol-level recipient note delivery design is documented in
-[docs/security-model.md](docs/security-model.md) and
-[docs/workflow.md](docs/workflow.md).
+[docs/dapps/private-state/security-model.md](../../../docs/dapps/private-state/security-model.md) and
+[docs/dapps/private-state/workflow.md](../../../docs/dapps/private-state/workflow.md).
 
 The current implementation includes:
 

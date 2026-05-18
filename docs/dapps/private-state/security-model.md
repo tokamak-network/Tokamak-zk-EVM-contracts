@@ -68,7 +68,7 @@ rewritten by a later bridge upgrade.
 
 The current `private-state` DApp adopts a user-controlled privacy and disclosure model. It should be
 presented as an opt-in application channel used from self-custody wallets, not as a private
-centralized-exchange deposit network and not as a change to TON's L1 transfer rules.
+exchange deposit network and not as a change to TON's L1 transfer rules.
 
 For this DApp, the public monitoring surface includes:
 
@@ -96,7 +96,7 @@ services are availability aids rather than custody or viewing authorities.
 
 Selective disclosure is therefore user-controlled in the current DApp. A user may disclose selected
 wallet-derived evidence where implemented tooling supports it. Documentation and external
-communication should not imply that Tokamak, a channel leader, a centralized exchange, or an auditor
+communication should not imply that Tokamak, a channel leader, an exchange, or an auditor
 can reconstruct every private-state transfer from public logs alone.
 
 ## 4. Finite Leaf Projection Inherited From The Bridge
@@ -147,7 +147,7 @@ $$
 
 The graph below uses `lambda = 1/minute`, so `mu(t) = 1440t` when `t` is measured in days.
 
-![General channel lifespan leaf collision probability](../../../../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
+![General channel lifespan leaf collision probability](../../assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 
 For the current `d = 36` setting, this model gives a materially longer but still finite
 channel-lifespan capacity limit. It is not a statement that any particular note is likely to fail

@@ -17,7 +17,7 @@ import {
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "../..");
 const DEFAULT_INTERNAL_OUTPUT_DIR = path.join(SCRIPT_DIR, "output");
-const PUBLIC_OUTPUT_DIR = path.join(REPO_ROOT, "docs/audit/cex-monitoring/data");
+const PUBLIC_OUTPUT_DIR = path.join(REPO_ROOT, "docs/audit/monitoring/data");
 const DEFAULT_CHAIN_ID = 1;
 const DEFAULT_DAPP = "private-state";
 const DEFAULT_CHANNEL = "the-great-first-channel";
@@ -45,15 +45,15 @@ const CURRENT_ROOT_VECTOR_OBSERVED_ABI = [
 const DEFAULT_RPC_LOG_CHUNK_SIZE = 10;
 
 function printHelp() {
-  console.log(`Usage: node scripts/cex-monitoring-packet/generate.mjs [options]
+  console.log(`Usage: node scripts/monitoring-packet/generate.mjs [options]
 
-Generates the data-backed CEX Monitoring Packet files.
+Generates the data-backed Monitoring Packet files.
 
 Public packet output:
-  docs/audit/cex-monitoring/data/
+  docs/audit/monitoring/data/
 
 Internal validation output:
-  scripts/cex-monitoring-packet/output/*.json
+  scripts/monitoring-packet/output/*.json
 
 Options:
   --chain-id <id>              Ethereum chain ID. Default: 1.
@@ -61,7 +61,7 @@ Options:
   --channel <name>             Channel name. Default: the-great-first-channel.
   --rpc-url <url>              Mainnet RPC URL. Defaults to RPC_URL, MAINNET_RPC_URL, ETHEREUM_RPC_URL, or Alchemy env keys.
   --drive-folder-id <id>       Google Drive root folder ID. Defaults to TOKAMAK_MPC_DRIVE_FOLDER_ID.
-  --output <dir>               Internal validation output directory. Default: scripts/cex-monitoring-packet/output.
+  --output <dir>               Internal validation output directory. Default: scripts/monitoring-packet/output.
   --skip-drive                 Skip Google Drive artifact metadata reads.
   --allow-missing-drive        Continue with a warning if Drive metadata cannot be read.
   --skip-etherscan             Skip source verification status reads.
@@ -1179,7 +1179,7 @@ function buildChannelPolicySnapshot({ args, artifacts, onchain }) {
     storageLayoutHash,
     storageLayoutHashAlgorithm: "keccak256(file bytes)",
     latestPolicyVersion,
-    policyExplanationSource: "bridge/docs/whitepaper.md#82-policy-surfaces",
+    policyExplanationSource: "docs/whitepaper.md#82-policy-surfaces",
   };
 }
 
@@ -1195,7 +1195,7 @@ function buildObservabilityMatrix(eventCoverage) {
   return `# Private-State Observability Matrix
 
 This file maps the Monitoring Packet event checklist to the current public event surface. The policy
-meaning of this matrix is described in \`bridge/docs/whitepaper.md\`; this file records
+meaning of this matrix is described in \`docs/whitepaper.md\`; this file records
 the current ABI-derived monitoring details.
 
 ${markdownTable([
@@ -1244,7 +1244,7 @@ function buildAdminPolicy({ pack }) {
 
 This file records the current on-chain owner and proxy-slot state for the monitored mainnet bridge
 deployment. The external policy model for upgrades and per-channel immutability is described in
-\`bridge/docs/whitepaper.md\`.
+\`docs/whitepaper.md\`.
 
 ## Owners
 
@@ -1388,7 +1388,7 @@ async function main() {
   const summary = buildSummary({ args, artifacts, onchain, driveArtifacts, sourceVerification, publicFiles, internalFiles });
   writeJson(path.join(internalDir, "packet-summary.json"), summary);
 
-  console.log(`Wrote public CEX monitoring packet files to ${path.relative(REPO_ROOT, publicDir)}`);
+  console.log(`Wrote public monitoring packet files to ${path.relative(REPO_ROOT, publicDir)}`);
   for (const file of publicFiles) console.log(`- ${file}`);
   console.log(`Wrote internal validation files to ${path.relative(REPO_ROOT, internalDir)}`);
   for (const file of internalFiles) console.log(`- ${file}`);

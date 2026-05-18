@@ -1,7 +1,7 @@
 # Private-State Observability Matrix
 
 This file maps the Monitoring Packet event checklist to the current public event surface. The policy
-meaning of this matrix is described in `bridge/docs/whitepaper.md`; this file records
+meaning of this matrix is described in `docs/whitepaper.md`; this file records
 the current ABI-derived monitoring details.
 
 | Checklist item | Observable as | Contract | Event | Availability | Indexed fields | Non-indexed fields | Explorer query | Known from event | Not known from event | Monitoring meaning |

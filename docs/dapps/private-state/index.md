@@ -19,11 +19,11 @@ disclosure surface that this DApp programs: accepted bridge transitions, changed
 commitments, nullifier usage, and encrypted note-delivery events. Recipients need local secret
 material to decide which encrypted notes are theirs.
 
-### Is it a centralized-exchange deposit network?
+### Is it an exchange deposit network?
 
 No. TON custody and exchange-facing TON transfers remain on the transparent L1 token surface.
 `private-state` is an opt-in application channel used from a self-custody L1 wallet after the user
-has left any centralized-exchange custody path. Private-state notes are channel-local application
+has left any exchange custody path. Private-state notes are channel-local application
 state, not exchange-supported deposit assets.
 
 ### Who controls disclosure in the current private-state DApp?
@@ -55,7 +55,7 @@ Use the following positioning terms consistently:
   secrets.
 - `selective disclosure capable architecture`: disclosure is user-controlled where implemented
   wallet tooling supports selected evidence export.
-- `privacy-preserving DApp channel`: this is an opt-in DApp channel, not a centralized-exchange
+- `privacy-preserving DApp channel`: this is an opt-in DApp channel, not an exchange
   deposit network and not a change to TON's L1 transfer rules.
 - `TON custody remains anchored on L1`: the canonical token stays under the bridge's L1 custody
   boundary while channel-local state records accounting and notes.

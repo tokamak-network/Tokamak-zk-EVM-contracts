@@ -239,7 +239,7 @@ const ACTION_IMPACT_HELP = Object.freeze({
   acknowledgement: "Requires --acknowledge-action-impact after the user reviews the action-impact warning.",
   illegalUse: "The command must not be used for money laundering, sanctions evasion, terrorist financing, illegal gambling, criminal-proceeds concealment, or regulatory evasion.",
   secretRecovery: "Losing wallet secrets, viewing keys, or spending keys can prevent note discovery or note use; the CLI cannot recover lost secrets.",
-  cexAddress: "Do not use a centralized-exchange controlled address as a self-custody bridge source or direct bridge withdrawal target.",
+  exchangeControlledAddress: "Do not use an exchange-controlled address as a self-custody bridge source or direct bridge withdrawal target.",
   policy: "The user must review the channel policy snapshot before accepting channel-bound actions.",
   provenance: "Public observers cannot reconstruct private note counterparty relationships or note provenance from public contract state alone.",
 });
@@ -423,7 +423,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Action impact: emits public L1 approval and bridge funding events that expose the local L1 account, bridge vault, amount, and transaction hashes.",
       "Private note state is not changed by this command.",
-      ACTION_IMPACT_HELP.cexAddress,
+      ACTION_IMPACT_HELP.exchangeControlledAddress,
       ACTION_IMPACT_HELP.illegalUse,
       ACTION_IMPACT_HELP.acknowledgement,
     ],
@@ -437,7 +437,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Action impact: emits a public L1 bridge withdrawal event that exposes the local L1 recipient, bridge vault, amount, and transaction hash.",
       "Private note state is not changed by this command; prior note provenance is not public by default.",
-      ACTION_IMPACT_HELP.cexAddress,
+      ACTION_IMPACT_HELP.exchangeControlledAddress,
       ACTION_IMPACT_HELP.illegalUse,
       ACTION_IMPACT_HELP.acknowledgement,
     ],

@@ -34,14 +34,14 @@ The current model assumes sound Tokamak and Groth16 verifiers, correct DApp meta
 upgradeable root contracts, exact-transfer behavior of the canonical token, and user review of immutable channel policy
 before channel creation or joining.
 
-## Terminology And CEX Boundary
+## Terminology And Exchange Boundary
 
 This repository and the npm CLI use the same terminology for the private-state flow:
 
 - `Tokamak Private App Channels`: Ethereum-settled, validity-proven execution domains for bridge-coupled DApps.
 - `private-state DApp`: the current reference DApp that programs confidential application state inside a channel.
 - `canonical Tokamak Network Token`: the L1 asset whose custody remains anchored on Ethereum.
-- `self-custody L1 wallet`: a user-controlled L1 account, not a centralized-exchange deposit address.
+- `self-custody L1 wallet`: a user-controlled L1 account, not an exchange deposit address.
 - `L1-transparent bridge edge`: public bridge deposit and withdrawal transactions involving the canonical token.
 - `channel-local accounting balance`: liquid application balance inside a channel before or after note use.
 - `private-state note`: a channel-local application note, not an exchange-supported token or deposit asset.
@@ -50,9 +50,17 @@ This repository and the npm CLI use the same terminology for the private-state f
 - `viewing key`: the note-receive private key used to decrypt note-delivery events for the registered note-receive public key.
 - `spending key`: the channel-bound L2 private key used to authorize proof-backed note use.
 
-Tokamak Private App Channels are not a centralized-exchange deposit network. CEX-facing token transfers and bridge
+Tokamak Private App Channels are not an exchange deposit network. Exchange-facing token transfers and bridge
 entry or exit remain public L1 activity. Internal private-state note counterparty relationships and note provenance are
 not public by default and are not reconstructed by Tokamak on a user's behalf.
+
+Tokamak does not hold a master viewing key, user spending key, viewing secret, or wallet secret for
+the private-state DApp.
+
+For the detailed public/private boundary, read [docs/whitepaper.md](./docs/whitepaper.md). For
+monitoring, contract addresses, admin wallets, upgrade policy, and incident-response materials, use
+the [public documentation index](./docs/index.md) and the
+[Monitoring Packet](./docs/audit/monitoring/Monitoring-Packet.md).
 
 ## What Is In This Repository
 
@@ -67,8 +75,8 @@ not public by default and are not reconstructed by Tokamak on a user's behalf.
 ## Where To Start
 
 - Bridge overview: [bridge/README.md](./bridge/README.md)
-- Bridge docs index: [bridge/docs/index.md](./bridge/docs/index.md)
-- Bridge white paper: [bridge/docs/whitepaper.md](./bridge/docs/whitepaper.md)
+- Public documentation index: [docs/index.md](./docs/index.md)
+- Bridge white paper: [docs/whitepaper.md](./docs/whitepaper.md)
 - Bridge developer references: [bridge/docs/dev/](./bridge/docs/dev/)
 - App workspace guide: [packages/apps/README.md](./packages/apps/README.md)
 - Private-state DApp guide: [packages/apps/private-state/README.md](./packages/apps/private-state/README.md)
@@ -219,7 +227,7 @@ The private-state DApp is the reference app integration for the bridge. It conta
 - DApp contracts under [packages/apps/private-state/src/](./packages/apps/private-state/src/)
 - bridge-coupled CLI tooling under [packages/apps/private-state/cli/](./packages/apps/private-state/cli/)
 - app deployment and registration scripts that publish artifacts to Google Drive
-- protocol and security documents under [packages/apps/private-state/docs/](./packages/apps/private-state/docs/)
+- protocol and security documents under [docs/dapps/private-state/](./docs/dapps/private-state/)
 
 ### Tokamak Verifier Artifacts
 

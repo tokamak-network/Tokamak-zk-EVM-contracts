@@ -2755,24 +2755,18 @@ function createRpcCallHistoryRecorder({ workspaceDir }) {
 }
 
 function attachRpcCallHistoryRecorderToProvider(provider, recorder) {
-  return new Proxy(provider, {
-    get(target, property, receiver) {
-      if (property === "send") {
-        return async (method, params) => {
-          try {
-            const response = await target.send(method, params);
-            recorder.recordRpcCall({ method, params, response });
-            return response;
-          } catch (error) {
-            recorder.recordRpcCall({ method, params, error: normalizeRpcCallHistoryError(error) });
-            throw error;
-          }
-        };
-      }
-      const value = Reflect.get(target, property, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  });
+  const send = provider.send.bind(provider);
+  provider.send = async (method, params) => {
+    try {
+      const response = await send(method, params);
+      recorder.recordRpcCall({ method, params, response });
+      return response;
+    } catch (error) {
+      recorder.recordRpcCall({ method, params, error: normalizeRpcCallHistoryError(error) });
+      throw error;
+    }
+  };
+  return provider;
 }
 
 function normalizeRpcCallHistoryError(error) {

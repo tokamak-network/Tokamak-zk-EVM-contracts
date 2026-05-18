@@ -33,7 +33,7 @@ The chart below summarizes Ethereum mainnet block-level fee history from 2025-11
 generated at 2026-05-01T02:48:26Z. It covers blocks 23,701,606 through 24,997,205, for 1,295,600
 blocks total.
 
-![Ethereum mainnet gas fee distribution](assets/ethereum-gas-fee-distribution-2025-11-01-to-2026-05-01.svg)
+![Ethereum mainnet gas fee distribution](../assets/ethereum-gas-fee-distribution-2025-11-01-to-2026-05-01.svg)
 
 The historical data comes from Ethereum JSON-RPC `eth_feeHistory` with reward percentiles 10, 50,
 and 90. Effective gas price is calculated as `block base fee + priority reward percentile`. This is
@@ -54,7 +54,7 @@ in-block p90 priority reward.
 | Fast effective gas price | 0.237 gwei | 1.425 gwei | 3.030 gwei | 21.873 gwei | 13,492.028 gwei |
 
 The raw RPC response chunks used to generate the chart are stored at
-`assets/ethereum-gas-fee-history-2025-11-01-to-2026-05-01.eth-fee-history.raw.jsonl.gz`. Each JSONL
+`../assets/ethereum-gas-fee-history-2025-11-01-to-2026-05-01.eth-fee-history.raw.jsonl.gz`. Each JSONL
 record stores the original `eth_feeHistory` request parameters and result payload; gas quantities
 remain in the original hex-encoded wei format returned by the RPC endpoint.
 
@@ -97,7 +97,7 @@ input.
 | `packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/summary.json` | Actual local EOA transaction receipts for the private-state bridge CLI flow, generated after the function metadata root/proof update. |
 | `forge test --root bridge --gas-report` | Current-worktree function gas measurements for calls that do not have current CLI E2E receipts. |
 | MetaMask gas API, Ethereum mainnet network 1 | Timestamped low/medium/high fee inputs. |
-| Ethereum JSON-RPC `eth_feeHistory` | Six-month block-level base fee and priority reward percentile distribution for the embedded chart; raw chunk responses are stored under `bridge/docs/assets`. |
+| Ethereum JSON-RPC `eth_feeHistory` | Six-month block-level base fee and priority reward percentile distribution for the embedded chart; raw chunk responses are stored under `docs/assets`. |
 | CoinGecko simple price API | Timestamped ETH/USD input. |
 
 ## Latest Function Metadata Root/Proof Delta

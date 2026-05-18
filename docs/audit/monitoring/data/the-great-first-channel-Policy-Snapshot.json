@@ -56,5 +56,5 @@
     "dappMetadataDigest": "0x24ce1b24d4b0c085b713574c3f1eb8861ac18200263a3d20da1b87ce56c2fe04",
     "dappFunctionRoot": "0x6954ea4661cff62a888de1898b69fa5b9861bcebc33a966c7b02b65ac10f1f6e"
   },
-  "policyExplanationSource": "bridge/docs/whitepaper.md#82-policy-surfaces"
+  "policyExplanationSource": "docs/whitepaper.md#82-policy-surfaces"
 }

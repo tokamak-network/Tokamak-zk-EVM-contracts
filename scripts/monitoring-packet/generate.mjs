@@ -1179,7 +1179,7 @@ function buildChannelPolicySnapshot({ args, artifacts, onchain }) {
     storageLayoutHash,
     storageLayoutHashAlgorithm: "keccak256(file bytes)",
     latestPolicyVersion,
-    policyExplanationSource: "bridge/docs/whitepaper.md#82-policy-surfaces",
+    policyExplanationSource: "docs/whitepaper.md#82-policy-surfaces",
   };
 }
 
@@ -1195,7 +1195,7 @@ function buildObservabilityMatrix(eventCoverage) {
   return `# Private-State Observability Matrix
 
 This file maps the Monitoring Packet event checklist to the current public event surface. The policy
-meaning of this matrix is described in \`bridge/docs/whitepaper.md\`; this file records
+meaning of this matrix is described in \`docs/whitepaper.md\`; this file records
 the current ABI-derived monitoring details.
 
 ${markdownTable([
@@ -1244,7 +1244,7 @@ function buildAdminPolicy({ pack }) {
 
 This file records the current on-chain owner and proxy-slot state for the monitored mainnet bridge
 deployment. The external policy model for upgrades and per-channel immutability is described in
-\`bridge/docs/whitepaper.md\`.
+\`docs/whitepaper.md\`.
 
 ## Owners
 

@@ -70,8 +70,8 @@ Audit materials for exchange-facing monitoring are kept under
 ## Where To Start
 
 - Bridge overview: [bridge/README.md](./bridge/README.md)
-- Bridge docs index: [bridge/docs/index.md](./bridge/docs/index.md)
-- Bridge white paper: [bridge/docs/whitepaper.md](./bridge/docs/whitepaper.md)
+- Public documentation index: [docs/index.md](./docs/index.md)
+- Bridge white paper: [docs/whitepaper.md](./docs/whitepaper.md)
 - Bridge developer references: [bridge/docs/dev/](./bridge/docs/dev/)
 - App workspace guide: [packages/apps/README.md](./packages/apps/README.md)
 - Private-state DApp guide: [packages/apps/private-state/README.md](./packages/apps/private-state/README.md)
@@ -222,7 +222,7 @@ The private-state DApp is the reference app integration for the bridge. It conta
 - DApp contracts under [packages/apps/private-state/src/](./packages/apps/private-state/src/)
 - bridge-coupled CLI tooling under [packages/apps/private-state/cli/](./packages/apps/private-state/cli/)
 - app deployment and registration scripts that publish artifacts to Google Drive
-- protocol and security documents under [packages/apps/private-state/docs/](./packages/apps/private-state/docs/)
+- protocol and security documents under [docs/dapps/private-state/](./docs/dapps/private-state/)
 
 ### Tokamak Verifier Artifacts
 

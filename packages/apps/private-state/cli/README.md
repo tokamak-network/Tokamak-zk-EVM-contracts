@@ -4,7 +4,7 @@ Command-line client for the Tokamak private-state DApp.
 
 The full private-state DApp documentation is published with the repository:
 
-- https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/tree/main/packages/apps/private-state/docs
+- https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/tree/main/docs/dapps/private-state
 
 ## Terminology And Exchange Boundary
 
@@ -218,7 +218,7 @@ already exists. The channel leader can build the static mirror files with
 host. If the existing mirror manifest is unreadable or invalid, the leader can use
 `channel publish-workspace-mirror --force` to write a full checkpoint without trusting that remote
 manifest as a delta base. The CLI protocol is documented at
-https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/packages/apps/private-state/docs/channel-workspace-mirror-protocol.md.
+https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/docs/dapps/private-state/channel-workspace-mirror-protocol.md.
 
 Back up a local wallet with:
 

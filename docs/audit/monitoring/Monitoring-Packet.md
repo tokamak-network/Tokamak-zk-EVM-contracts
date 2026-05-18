@@ -4,7 +4,7 @@ This document explains how the repository generates the public, data-backed Moni
 
 The packet generator is [scripts/monitoring-packet/generate.mjs](../../../scripts/monitoring-packet/generate.mjs). It is a read-only script that collects current evidence from the mainnet bridge deployment artifacts, Ethereum RPC, Etherscan, and the configured Google Drive artifact folder.
 
-The external policy model for monitoring, public disclosure boundaries, user-controlled selective disclosure, and channel policy is described in [bridge/docs/whitepaper.md](../../../bridge/docs/whitepaper.md). The generator creates data files that support the white paper's policy statements. The packet may also include manually maintained companion files for narrow audit or exchange-dispute scopes.
+The external policy model for monitoring, public disclosure boundaries, user-controlled selective disclosure, and channel policy is described in [docs/whitepaper.md](../../../docs/whitepaper.md). The generator creates data files that support the white paper's policy statements. The packet may also include manually maintained companion files for narrow audit or exchange-dispute scopes.
 
 ## How To Generate
 

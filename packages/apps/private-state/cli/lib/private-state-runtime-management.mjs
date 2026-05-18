@@ -108,10 +108,6 @@ function runCaptured(command, args, { cwd = defaultCommandCwd, env = process.env
   };
 }
 
-function requireSemverVersion(value, label) {
-  return requireExactSemverVersion(value, label);
-}
-
 function readTokamakCliPackageReport(packageRoot = null) {
   try {
     const resolvedPackageRoot = packageRoot ?? resolveActiveTokamakCliPackageRoot();
@@ -234,17 +230,15 @@ function buildDoctorHumanRows(report) {
       check: `${report.installManifest.mode} deployment artifacts`,
       status: doctorStatus(report.checks.find((check) => check.name === `${report.installManifest.mode} deployment artifacts`)?.ok),
       detail: [
-        `readOnlyChains=${report.deploymentArtifacts.chains
-          .filter((entry) => entry.modes[PRIVATE_STATE_INSTALL_MODES.READ_ONLY].ok)
-          .map((entry) => entry.chainId)
-          .join(",") || "none"}`,
-        `fullChains=${report.deploymentArtifacts.chains
-          .filter((entry) => entry.modes[PRIVATE_STATE_INSTALL_MODES.FULL].ok)
-          .map((entry) => entry.chainId)
-          .join(",") || "none"}`,
+        `readOnlyChains=${formatInstalledArtifactChains(report.deploymentArtifacts, PRIVATE_STATE_INSTALL_MODES.READ_ONLY)}`,
+        `fullChains=${formatInstalledArtifactChains(report.deploymentArtifacts, PRIVATE_STATE_INSTALL_MODES.FULL)}`,
       ].join(" "),
     },
   ];
+}
+
+function formatInstalledArtifactChains(artifactReadiness, mode) {
+  return installedArtifactChainIds(artifactReadiness, mode).join(",") || "none";
 }
 
 function formatDoctorTable(rows) {
@@ -660,17 +654,18 @@ function buildCommandAvailability({ artifactReadiness, installMode, tokamakCli, 
       requiredInstallMode,
       available,
       chains: requiredInstallMode === PRIVATE_STATE_INSTALL_MODES.FULL
-        ? artifactReadiness.chains
-          .filter((entry) => entry.modes[PRIVATE_STATE_INSTALL_MODES.FULL].ok)
-          .map((entry) => entry.chainId)
-        : requiredInstallMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY
-          ? artifactReadiness.chains
-            .filter((entry) => entry.modes[PRIVATE_STATE_INSTALL_MODES.READ_ONLY].ok)
-            .map((entry) => entry.chainId)
-          : [],
+        || requiredInstallMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY
+        ? installedArtifactChainIds(artifactReadiness, requiredInstallMode)
+        : [],
       reasons,
     };
   });
+}
+
+function installedArtifactChainIds(artifactReadiness, mode) {
+  return artifactReadiness.chains
+    .filter((entry) => entry.modes[mode]?.ok)
+    .map((entry) => entry.chainId);
 }
 
 function buildSelectedRuntimeVersionCheck({ installManifest, installMode, tokamakCli, groth16Runtime }) {
@@ -752,16 +747,16 @@ async function resolveRequestedGroth16PackageVersion(requestedVersion) {
   }
 
   const bundledPackageJson = readJson(path.join(resolveGroth16PackageRoot(), "package.json"));
-  return requireSemverVersion(bundledPackageJson.version, `${GROTH16_PACKAGE_NAME} bundled package version`);
+  return requireExactSemverVersion(bundledPackageJson.version, `${GROTH16_PACKAGE_NAME} bundled package version`);
 }
 
 async function resolveRequestedNpmPackageVersion({ packageName, requestedVersion, optionName }) {
   const metadata = await fetchNpmPackageMetadata(packageName);
   if (requestedVersion === undefined || requestedVersion === null) {
-    return requireSemverVersion(metadata?.["dist-tags"]?.latest, `${packageName} npm latest version`);
+    return requireExactSemverVersion(metadata?.["dist-tags"]?.latest, `${packageName} npm latest version`);
   }
 
-  const normalizedVersion = requireSemverVersion(requestedVersion, optionName);
+  const normalizedVersion = requireExactSemverVersion(requestedVersion, optionName);
   if (!metadata.versions?.[normalizedVersion]) {
     throw new Error(`npm package ${packageName} does not contain version ${normalizedVersion}.`);
   }
@@ -832,7 +827,7 @@ async function installGroth16RuntimeForPrivateState({ version, docker }) {
 }
 
 function resolveGroth16RuntimePackageInstall(version) {
-  const normalizedVersion = requireSemverVersion(version, `${GROTH16_PACKAGE_NAME} version`);
+  const normalizedVersion = requireExactSemverVersion(version, `${GROTH16_PACKAGE_NAME} version`);
   const bundledPackageRoot = resolveGroth16PackageRoot();
   const bundledPackageJson = readJson(path.join(bundledPackageRoot, "package.json"));
   if (bundledPackageJson.name === GROTH16_PACKAGE_NAME && bundledPackageJson.version === normalizedVersion) {
@@ -930,7 +925,7 @@ function parseDriveFileIdFromDownloadUrl(value) {
 
 function installManagedNpmPackage({ packageName, version, cacheBaseRoot = resolveArtifactCacheBaseRoot() }) {
   const normalizedPackageName = requireNonEmptyString(packageName, "packageName");
-  const normalizedVersion = requireSemverVersion(version, `${normalizedPackageName} version`);
+  const normalizedVersion = requireExactSemverVersion(version, `${normalizedPackageName} version`);
   const installPrefix = managedNpmPackageInstallPrefix({
     packageName: normalizedPackageName,
     version: normalizedVersion,
@@ -965,7 +960,7 @@ function managedNpmPackageInstallPrefix({ packageName, version, cacheBaseRoot = 
   const safePackageName = requireNonEmptyString(packageName, "packageName")
     .replace(/^@/, "")
     .replace(/[^A-Za-z0-9._-]+/g, "__");
-  return path.join(privateStateCliRuntimeRoot(cacheBaseRoot), "npm", safePackageName, requireSemverVersion(version, "version"));
+  return path.join(privateStateCliRuntimeRoot(cacheBaseRoot), "npm", safePackageName, requireExactSemverVersion(version, "version"));
 }
 
 async function downloadGroth16CrsArtifactsForPrivateState({

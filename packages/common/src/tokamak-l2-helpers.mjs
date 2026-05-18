@@ -129,6 +129,9 @@ export async function initializePrivateStateSnapshot({ controllerAddress, vaultA
 export async function getBlockInfoAt(provider, blockNumber, { send = (method, params) => provider.send(method, params) } = {}) {
   const blockTag = ethers.toQuantity(blockNumber);
   const block = await send("eth_getBlockByNumber", [blockTag, false]);
+  if (!block) {
+    throw new Error(`Unable to fetch block ${blockNumber}.`);
+  }
   const prevBlockHashes = [];
   for (let offset = 1; offset <= tokamakPrevBlockHashCount; offset += 1) {
     if (blockNumber <= offset) {
@@ -136,6 +139,9 @@ export async function getBlockInfoAt(provider, blockNumber, { send = (method, pa
       continue;
     }
     const previousBlock = await send("eth_getBlockByNumber", [ethers.toQuantity(blockNumber - offset), false]);
+    if (!previousBlock) {
+      throw new Error(`Unable to fetch previous block hash for block ${blockNumber - offset}.`);
+    }
     prevBlockHashes.push(previousBlock.hash);
   }
   const chainId = await send("eth_chainId", []);

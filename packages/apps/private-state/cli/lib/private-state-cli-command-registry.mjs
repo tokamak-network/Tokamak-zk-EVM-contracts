@@ -739,7 +739,7 @@ export function privateStateCliCommandSynopsis(command) {
         return null;
       }
       const valueLabel = field.valueLabel ?? field.placeholderLabel ?? `<${field.label?.toUpperCase().replace(/\s+/g, "_") ?? "VALUE"}>`;
-      const option = field.type === "checkbox" || fieldKey === "fromGenesis"
+      const option = field.type === "checkbox"
         ? field.option
         : `${field.option} ${valueLabel}`;
       return field.optional || optionalFields.has(fieldKey) ? `[${option}]` : option;

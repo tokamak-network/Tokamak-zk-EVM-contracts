@@ -52,6 +52,7 @@ import {
   deriveChannelTokenVaultLeafIndex,
   deriveLiquidBalanceStorageKey,
   fetchContractCodes,
+  getBlockInfoAt,
   normalizeBytesHex,
   normalizeBytes32Hex,
   serializeBigInts,
@@ -554,25 +555,25 @@ function requireFlatDeploymentArtifactPathsForChainId(chainId) {
 }
 
 function requireInstalledDeploymentArtifacts(artifactPaths, chainId, mode) {
-  const requiredFiles = privateStateCliArtifactRequiredFiles(artifactPaths, mode);
-  try {
-    for (const entry of requiredFiles) {
-      if (!fs.existsSync(entry.path)) {
-        throw new Error(`Missing ${entry.label}: ${entry.path}.`);
-      }
-    }
-  } catch (error) {
-    throw cliError(
-      CLI_ERROR_CODES.MISSING_DEPLOYMENT_ARTIFACTS,
-      [
-        `Missing ${mode} installed deployment artifacts for chain ${chainId} under ${artifactPaths.rootDir}.`,
-        mode === PRIVATE_STATE_INSTALL_MODES.FULL
-          ? "Run install before running private-state CLI commands that write channel state."
-          : "Run install --read-only before running private-state CLI commands that read channel state.",
-        `Original error: ${error.message}`,
-      ].join(" "),
-    );
+  const missingFiles = missingInstalledDeploymentArtifactFiles(artifactPaths, mode);
+  if (missingFiles.length === 0) {
+    return;
   }
+  throw cliError(
+    CLI_ERROR_CODES.MISSING_DEPLOYMENT_ARTIFACTS,
+    [
+      `Missing ${mode} installed deployment artifacts for chain ${chainId} under ${artifactPaths.rootDir}.`,
+      mode === PRIVATE_STATE_INSTALL_MODES.FULL
+        ? "Run install before running private-state CLI commands that write channel state."
+        : "Run install --read-only before running private-state CLI commands that read channel state.",
+      `Original error: ${missingFiles.map((entry) => `Missing ${entry.label}: ${entry.path}.`).join(" ")}`,
+    ].join(" "),
+  );
+}
+
+function missingInstalledDeploymentArtifactFiles(artifactPaths, mode) {
+  return privateStateCliArtifactRequiredFiles(artifactPaths, mode)
+    .filter((entry) => !fs.existsSync(entry.path));
 }
 
 async function handleChannelCreate({ args, network, provider }) {
@@ -2051,7 +2052,7 @@ async function syncChannelWorkspace({
   );
 
   const contractCodes = await fetchContractCodes(activeProvider, managedStorageAddresses);
-  const blockInfo = await fetchChannelBlockInfo(activeProvider, genesisBlockNumber);
+  const blockInfo = await getBlockInfoAt(activeProvider, genesisBlockNumber);
   const derivedAPubBlockHash = normalizeBytes32Hex(hashTokamakPublicInputs(encodeTokamakBlockInfo(blockInfo)));
   expect(
     ethers.toBigInt(derivedAPubBlockHash) === ethers.toBigInt(normalizeBytes32Hex(channelInfo.aPubBlockHash)),
@@ -2754,18 +2755,24 @@ function createRpcCallHistoryRecorder({ workspaceDir }) {
 }
 
 function attachRpcCallHistoryRecorderToProvider(provider, recorder) {
-  const send = provider.send.bind(provider);
-  provider.send = async (method, params) => {
-    try {
-      const response = await send(method, params);
-      recorder.recordRpcCall({ method, params, response });
-      return response;
-    } catch (error) {
-      recorder.recordRpcCall({ method, params, error: normalizeRpcCallHistoryError(error) });
-      throw error;
-    }
-  };
-  return provider;
+  return new Proxy(provider, {
+    get(target, property, receiver) {
+      if (property === "send") {
+        return async (method, params) => {
+          try {
+            const response = await target.send(method, params);
+            recorder.recordRpcCall({ method, params, response });
+            return response;
+          } catch (error) {
+            recorder.recordRpcCall({ method, params, error: normalizeRpcCallHistoryError(error) });
+            throw error;
+          }
+        };
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
 }
 
 function normalizeRpcCallHistoryError(error) {
@@ -3834,12 +3841,10 @@ function inspectGuideNetworkRuntime(networkName) {
 
 function inspectGuideDeploymentArtifacts(chainId) {
   const paths = privateStateCliArtifactPaths(resolveArtifactCacheBaseRoot(), chainId);
-  const readOnlyMissingFiles = privateStateCliArtifactRequiredFiles(paths, PRIVATE_STATE_INSTALL_MODES.READ_ONLY)
-    .map((entry) => entry.path)
-    .filter((filePath) => !fs.existsSync(filePath));
-  const fullMissingFiles = privateStateCliArtifactRequiredFiles(paths, PRIVATE_STATE_INSTALL_MODES.FULL)
-    .map((entry) => entry.path)
-    .filter((filePath) => !fs.existsSync(filePath));
+  const readOnlyMissingFiles = missingInstalledDeploymentArtifactFiles(paths, PRIVATE_STATE_INSTALL_MODES.READ_ONLY)
+    .map((entry) => entry.path);
+  const fullMissingFiles = missingInstalledDeploymentArtifactFiles(paths, PRIVATE_STATE_INSTALL_MODES.FULL)
+    .map((entry) => entry.path);
   return {
     installed: readOnlyMissingFiles.length === 0,
     readOnlyInstalled: readOnlyMissingFiles.length === 0,
@@ -8646,39 +8651,6 @@ function appendSplitWord(target, startIndex, value) {
   const normalized = ethers.toBigInt(value);
   target[startIndex] = normalized & ((1n << 128n) - 1n);
   target[startIndex + 1] = normalized >> 128n;
-}
-
-async function fetchChannelBlockInfo(provider, blockNumber) {
-  const blockTag = ethers.toQuantity(blockNumber);
-  const block = await provider.send("eth_getBlockByNumber", [blockTag, false]);
-  if (!block) {
-    throw new Error(`Unable to fetch channel genesis block ${blockNumber}.`);
-  }
-
-  const prevBlockHashes = [];
-  for (let offset = 1; offset <= TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT; offset += 1) {
-    if (blockNumber <= offset) {
-      prevBlockHashes.push("0x0");
-      continue;
-    }
-    const previousBlock = await provider.send("eth_getBlockByNumber", [ethers.toQuantity(blockNumber - offset), false]);
-    if (!previousBlock) {
-      throw new Error(`Unable to fetch previous block hash for block ${blockNumber - offset}.`);
-    }
-    prevBlockHashes.push(previousBlock.hash);
-  }
-
-  return {
-    coinBase: block.miner,
-    timeStamp: block.timestamp,
-    blockNumber: block.number,
-    prevRanDao: block.prevRandao ?? block.mixHash ?? block.difficulty ?? "0x0",
-    gasLimit: block.gasLimit,
-    chainId: await provider.send("eth_chainId", []),
-    selfBalance: "0x0",
-    baseFee: block.baseFeePerGas ?? "0x0",
-    prevBlockHashes,
-  };
 }
 
 async function fetchChannelRecoveryLogs({

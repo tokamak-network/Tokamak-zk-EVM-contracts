@@ -102,6 +102,7 @@ import {
   PRIVATE_STATE_CLI_COMMANDS,
   PRIVATE_STATE_CLI_FIELD_CATALOG,
   privateStateCliCommandDisplay,
+  privateStateCliCommandInstallMode,
   privateStateCliCommandOptionKeys,
   privateStateCliCommandRequiredOptionKeys,
   privateStateCliCommandSynopsis,
@@ -512,7 +513,7 @@ function normalizeDAppPolicySnapshot({
   };
 }
 
-async function prepareDeploymentArtifacts(chainId, { mode = PRIVATE_STATE_INSTALL_MODES.FULL } = {}) {
+function prepareDeploymentArtifacts(chainId, { mode = PRIVATE_STATE_INSTALL_MODES.FULL } = {}) {
   const normalizedChainId = Number(chainId);
   const normalizedMode = normalizeInstallMode(mode);
   const existingEntry = flatDeploymentArtifactPathsByChainId.get(normalizedChainId);
@@ -530,6 +531,14 @@ async function prepareDeploymentArtifacts(chainId, { mode = PRIVATE_STATE_INSTAL
     preparedModes,
   });
   return artifactPaths.rootDir;
+}
+
+function prepareDeploymentArtifactsForCommand(commandId, chainId) {
+  const command = PRIVATE_STATE_CLI_COMMANDS.find((entry) => entry.id === commandId);
+  expect(command, `Missing CLI command metadata for ${commandId}.`);
+  const mode = privateStateCliCommandInstallMode(command);
+  expect(mode !== "none", `${privateStateCliCommandDisplay(command)} does not require installed deployment artifacts.`);
+  return prepareDeploymentArtifacts(chainId, { mode });
 }
 
 function flatDeploymentArtifactPathsForChainId(chainId) {
@@ -10950,7 +10959,7 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function loadExplicitCommandRuntime(args, { staticNetwork = false } = {}) {
+function loadExplicitCommandRuntime(args, { staticNetwork = false, prepareArtifacts = false } = {}) {
   const networkName = requireNetworkName(args);
   const network = {
     ...resolveCliNetwork(networkName),
@@ -10961,6 +10970,7 @@ function loadExplicitCommandRuntime(args, { staticNetwork = false } = {}) {
   const provider = staticNetwork
     ? new JsonRpcProvider(rpcConfig.rpcUrl, Number(network.chainId), { staticNetwork: true })
     : new JsonRpcProvider(rpcConfig.rpcUrl);
+  if (prepareArtifacts) prepareDeploymentArtifactsForCommand(args.command, network.chainId);
   return {
     network,
     rpcUrl: rpcConfig.rpcUrl,
@@ -10981,7 +10991,7 @@ async function assertProviderChainIdMatchesNetwork({ provider, network, rpcUrl }
   );
 }
 
-function loadWalletCommandRuntime(args) {
+function loadWalletCommandRuntime(args, { prepareArtifacts = false } = {}) {
   const networkName = requireNetworkName(args);
   loadWalletMetadata(requireWalletName(args), networkName);
   const network = {
@@ -10990,6 +11000,7 @@ function loadWalletCommandRuntime(args) {
   };
   const rpcConfig = resolveCommandRpcConfig(args);
   setActiveRpcLogConfig(rpcConfig);
+  if (prepareArtifacts) prepareDeploymentArtifactsForCommand(args.command, network.chainId);
   return {
     network,
     rpcConfig,
@@ -11556,7 +11567,6 @@ export {
   handleJoinChannel,
   loadExplicitCommandRuntime,
   loadWalletCommandRuntime,
-  prepareDeploymentArtifacts,
   assertProviderChainIdMatchesNetwork,
   formatCliErrorForDisplay,
 };

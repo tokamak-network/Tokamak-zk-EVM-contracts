@@ -493,16 +493,18 @@ function buildDoctorReport({ probeGpu = false } = {}) {
   const installManifestPath = privateStateCliInstallManifestPath(cacheBaseRoot);
   const installManifest = readJsonIfExists(installManifestPath);
   const installMode = normalizeInstallMode(installManifest?.install?.mode ?? PRIVATE_STATE_INSTALL_MODES.FULL);
+  const requiresProofRuntime = installMode === PRIVATE_STATE_INSTALL_MODES.FULL;
   const dependencyReports = collectDependencyPackageReports(installManifest);
-  const tokamakCli = inspectTokamakCliRuntime();
-  const groth16Runtime = inspectGroth16Runtime();
-  const gpuDockerReadiness = probeGpu
+  const tokamakCli = requiresProofRuntime ? inspectTokamakCliRuntime() : { installed: false, doctor: { status: null }, installations: [] };
+  const groth16Runtime = requiresProofRuntime ? inspectGroth16Runtime() : { installed: false, doctor: { status: null }, checks: [] };
+  const gpuDockerReadiness = probeGpu && requiresProofRuntime
     ? inspectGpuDockerReadiness(tokamakCli)
     : buildSkippedGpuDockerReadiness(tokamakCli);
   const artifactReadiness = inspectPrivateStateCliArtifactReadiness({ cacheBaseRoot, installManifest });
   const commandAvailability = buildCommandAvailability({
     artifactReadiness,
     groth16Runtime,
+    installMode,
     tokamakCli,
   });
   const selectedRuntimeVersionCheck = buildSelectedRuntimeVersionCheck({
@@ -626,7 +628,7 @@ function buildSkippedGpuDockerReadiness(tokamakCli) {
   };
 }
 
-function buildCommandAvailability({ artifactReadiness, tokamakCli, groth16Runtime }) {
+function buildCommandAvailability({ artifactReadiness, installMode, tokamakCli, groth16Runtime }) {
   const proofRuntimeReady = tokamakCli.installed && groth16Runtime.installed;
   return PRIVATE_STATE_CLI_COMMANDS.map((command) => {
     const requiredInstallMode = privateStateCliCommandInstallMode(command);
@@ -637,6 +639,9 @@ function buildCommandAvailability({ artifactReadiness, tokamakCli, groth16Runtim
       if (!artifactReadiness.readOnlyInstalled) {
         reasons.push("missing read-only deployment artifacts");
       }
+    } else if (requiredInstallMode === PRIVATE_STATE_INSTALL_MODES.FULL && installMode === PRIVATE_STATE_INSTALL_MODES.READ_ONLY) {
+      available = false;
+      reasons.push("full install required");
     } else if (requiredInstallMode === PRIVATE_STATE_INSTALL_MODES.FULL) {
       available = artifactReadiness.fullInstalled && proofRuntimeReady;
       if (!artifactReadiness.fullInstalled) {

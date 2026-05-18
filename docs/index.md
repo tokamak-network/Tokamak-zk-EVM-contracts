@@ -4,14 +4,17 @@ This index is the public entrypoint for repository documentation. It links only 
 documents: either a section index or a document that links onward to the other public documents in
 its folder.
 
-## Core Documents
+## Main Document
 
 - [Tokamak Private App Channels White Paper](whitepaper.md)
   - Public narrative for the bridge model, DApp/channel policy surface, custody boundary, privacy
     model, security posture, and current operational policy.
-- [Bridge Gas Assessment](bridge/gas-assessment.md)
-  - Public gas-cost reference for bridge owner, operator, and user-facing calls, including the
-    historical Ethereum gas-fee distribution used for USD estimates.
+
+## Bridge Documents
+
+- [Bridge Documentation](bridge/index.md)
+  - Public bridge component documentation hub. It currently links to the bridge gas assessment and
+    can be extended as additional bridge public documents are added.
 
 ## DApp Documents
 

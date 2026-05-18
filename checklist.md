@@ -395,19 +395,19 @@ Tokamak의 권장 정책은 다음이다.
 
 Tokamak 공개 repo와 NPM 패키지는 “비수탁·사용자 로컬 실행” 논리를 뒷받침해야 한다. 문서가 불명확하면 거래소가 운영자 중개로 오해할 수 있다.
 
-### 8.1 GitHub README에 추가해야 할 섹션
+### 8.1 GitHub README의 역할
 
-- [ ] `Exchange Boundary and Monitoring`
-- [ ] `What is public and what is private`
-- [ ] `Not a mixer / not an exchange deposit network`
-- [ ] `User-controlled selective disclosure`
-- [ ] `No operator-held viewing key`
-- [ ] `No custody by Tokamak`
-- [ ] `Known limitations`
-- [ ] `AML / sanctions / illegal-use prohibition`
-- [ ] `Contract addresses and monitoring`
-- [ ] `the-great-first-channel public profile`
-- [ ] `Upgrade and incident response policy`
+GitHub README는 거래소 제출용 정책 문서가 아니라 사용자와 개발자를 위한 진입점이다.
+따라서 README에는 짧은 boundary summary와 공식 문서 링크만 둔다.
+
+- [ ] README에 `Terminology And Exchange Boundary` 또는 동등한 짧은 요약 섹션을 둔다.
+- [ ] README에서 Tokamak Private App Channels가 exchange deposit network가 아님을 짧게 명시한다.
+- [ ] README에서 private-state note가 exchange-supported asset이 아님을 짧게 명시한다.
+- [ ] README에서 bridge entry/exit는 public L1 activity이고, 내부 note provenance는 기본적으로 public observer가 복원하지 못한다고 짧게 명시한다.
+- [ ] README에서 Tokamak이 master viewing key 또는 사용자 spending/viewing secret을 보유하지 않는다는 점을 짧게 명시한다.
+- [ ] README에서 자세한 public/private boundary는 `docs/whitepaper.md`로 안내한다.
+- [ ] README에서 monitoring, contract addresses, admin wallets, upgrade policy, incident response 등 거래소/감사 세부 자료는 `docs/audit/monitoring/Monitoring-Packet.md` 또는 `docs/index.md`로 안내한다.
+- [ ] README에는 거래소 제출용 세부 정책, AML 상세 논리, monitoring matrix, public profile 세부표를 직접 넣지 않는다.
 
 ### 8.2 NPM README에 추가해야 할 문구
 

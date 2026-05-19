@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.3.0 - 2026-05-20
+
+- Added `help observer` to print the deployed public observer URL for the private-state monitoring
+  surface.
+- Documented the deployed public observer in the monitoring audit packet and observability matrix.
+
 ## 2.2.1 - 2026-05-18
 
 - Added `channel recover-workspace --source rpc --output-raw` to append raw JSON-RPC request and response history

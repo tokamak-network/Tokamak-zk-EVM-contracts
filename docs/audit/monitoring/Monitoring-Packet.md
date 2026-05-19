@@ -6,6 +6,14 @@ The packet generator is [scripts/monitoring-packet/generate.mjs](../../../script
 
 The external policy model for monitoring, public disclosure boundaries, user-controlled selective disclosure, and channel policy is described in [docs/whitepaper.md](../../../docs/whitepaper.md). The generator creates data files that support the white paper's policy statements. The packet may also include manually maintained companion files for narrow audit or exchange-dispute scopes.
 
+## Public Observer
+
+The public observer for this monitoring packet is deployed at
+<https://project-scw1r.vercel.app>. CLI users can print the same clickable URL with
+`private-state-cli help observer`. The observer gives users, reviewers, and external monitors a
+browser entrypoint for the public monitoring surface described by this packet. It does not receive
+wallet secrets, spending keys, viewing keys, or private note plaintext.
+
 ## How To Generate
 
 ```bash

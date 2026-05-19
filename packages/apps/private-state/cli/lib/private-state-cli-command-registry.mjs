@@ -330,6 +330,17 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: ["Does not accept --rpc-url and never writes RPC configuration"],
   },
   {
+    id: "help-observer",
+    display: "help observer",
+    description: "Show the deployed public observer URL.",
+    fields: [],
+    usage: "no options",
+    help: [
+      "Prints the deployed observer URL so terminals can present it as a clickable link",
+      "The observer is a public monitoring surface; it is not a wallet, key manager, or disclosure authority",
+    ],
+  },
+  {
     id: "help-transaction-fees",
     display: "help transaction-fees",
     description: "Estimate ETH and USD fees for transaction-sending commands from packaged measured gas data and live network fee data.",

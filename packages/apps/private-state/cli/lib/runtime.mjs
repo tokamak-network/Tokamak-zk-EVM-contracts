@@ -137,6 +137,7 @@ const PRIVATE_STATE_UNINSTALL_CONFIRMATION =
 const ACTION_IMPACT_CONFIRMATION =
   "I understand the public and private impact of this action";
 const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
+const PRIVATE_STATE_OBSERVER_URL = "https://project-scw1r.vercel.app";
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const WALLET_BACKUP_EXPORT_FORMAT = "tokamak-private-state-wallet-backup-export";
@@ -3076,6 +3077,18 @@ async function handleDoctor({ args }) {
   if (!report.ok) {
     process.exitCode = 1;
   }
+}
+
+function handleObserver() {
+  printJson({
+    action: "observer",
+    url: PRIVATE_STATE_OBSERVER_URL,
+    scope: "Public monitoring observer for Tokamak Private App Channels and the private-state DApp.",
+    notes: [
+      "The observer helps users and reviewers inspect public monitoring surfaces.",
+      "The observer does not receive wallet secrets, spending keys, viewing keys, or private note plaintext.",
+    ],
+  });
 }
 
 function handleInvestigator() {
@@ -10255,6 +10268,10 @@ function assertGuideArgs(args) {
   assertAllowedCommandSchema(args, "help-guide");
 }
 
+function assertObserverArgs(args) {
+  assertAllowedCommandSchema(args, "help-observer");
+}
+
 function assertTransactionFeesArgs(args) {
   assertAllowedCommandSchema(args, "help-transaction-fees");
 }
@@ -11206,6 +11223,7 @@ function loadWalletCommandRuntime(args, { prepareArtifacts = false } = {}) {
 const HUMAN_RESULT_RENDERERS = Object.freeze({
   guide: printGuideHumanResult,
   investigator: printInvestigatorHumanResult,
+  observer: printObserverHumanResult,
   "transaction-fees": printTransactionFeesHumanResult,
   update: printUpdateHumanResult,
 });
@@ -11283,6 +11301,24 @@ function printInvestigatorHumanResult(result) {
       "",
       "Next Steps",
       ...result.nextSteps.map((step) => `- ${step}`),
+    );
+  }
+  console.log(lines.join("\n"));
+}
+
+function printObserverHumanResult(result) {
+  const lines = [
+    "Private-State Public Observer",
+    `URL: ${formatHumanValue(result.url)}`,
+  ];
+  if (result.scope) {
+    lines.push(`Scope: ${formatHumanValue(result.scope)}`);
+  }
+  if (Array.isArray(result.notes) && result.notes.length > 0) {
+    lines.push(
+      "",
+      "Notes",
+      ...result.notes.map((note) => `- ${note}`),
     );
   }
   console.log(lines.join("\n"));
@@ -11700,6 +11736,7 @@ export {
   assertUpdateArgs,
   assertDoctorArgs,
   assertGuideArgs,
+  assertObserverArgs,
   assertTransactionFeesArgs,
   assertInvestigatorArgs,
   assertAccountGetL1AddressArgs,
@@ -11733,6 +11770,7 @@ export {
   handleUpdate,
   handleDoctor,
   handleGuide,
+  handleObserver,
   handleTransactionFees,
   handleInvestigator,
   handleAccountGetL1Address,

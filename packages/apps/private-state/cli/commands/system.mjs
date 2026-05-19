@@ -1,6 +1,7 @@
 import {
   assertDoctorArgs,
   assertGuideArgs,
+  assertObserverArgs,
   assertInstallZkEvmArgs,
   assertSetRpcArgs,
   assertTransactionFeesArgs,
@@ -8,6 +9,7 @@ import {
   assertUpdateArgs,
   handleDoctor,
   handleGuide,
+  handleObserver,
   handleInstallZkEvm,
   handleSetRpc,
   handleTransactionFees,
@@ -40,6 +42,10 @@ export const systemCommands = Object.freeze({
   "help-guide": async (args) => {
     assertGuideArgs(args);
     await handleGuide({ args });
+  },
+  "help-observer": async (args) => {
+    assertObserverArgs(args);
+    handleObserver();
   },
   "help-transaction-fees": async (args) => {
     assertTransactionFeesArgs(args);

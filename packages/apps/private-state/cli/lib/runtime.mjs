@@ -2402,66 +2402,8 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       walletDir,
     })
     : null;
-
-  if (existingWallet) {
-    existingWallet.wallet.noteReceivePrivateKey = noteReceiveKeyMaterial.privateKey;
-    applyWalletLifecycleEpoch(existingWallet.wallet, lifecycleEpoch);
-    if (recoveredSpendingIdentity) {
-      existingWallet.wallet.l2PrivateKey = ethers.hexlify(recoveredSpendingIdentity.l2PrivateKey);
-      existingWallet.wallet.l2PublicKey = ethers.hexlify(recoveredSpendingIdentity.l2PublicKey);
-      existingWallet.wallet.l2Address = recoveredSpendingIdentity.l2Address;
-      existingWallet.wallet.l2DerivationMode = CHANNEL_BOUND_L2_DERIVATION_MODE;
-      existingWallet.wallet.l2DerivationChannelName = channelName;
-      existingWallet.wallet.l2StorageKey = storageKey;
-    }
-    persistWalletKeys(existingWallet);
-    persistWallet(existingWallet);
-    persistWalletIndexForContext(existingWallet);
-    const noteScanStartBlock = args.fromGenesis === true
-      ? Number(context.workspace.genesisBlockNumber)
-      : requireUsableWalletNoteReceiveRecoveryIndex({
-        walletContext: existingWallet,
-        context,
-        targetNextBlock: recoveryEventScan.scanRange.toBlock + 1,
-      });
-    const recoveredDeliveryState = await recoverDeliveredNotesFromCollectedLogs({
-      walletContext: existingWallet,
-      context,
-      noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
-      logs: recoveryEventScan.deliveryLogs,
-      storageObservationLogs: recoveryEventScan.storageObservationLogs,
-      scanStartBlock: noteScanStartBlock,
-      latestBlock: recoveryEventScan.scanRange.toBlock,
-    });
-    printJson({
-      action: "wallet recover-workspace",
-      status: "already-recovered",
-      wallet: walletName,
-      walletDir: existingWallet.walletDir,
-      recoveredChannelWorkspace: channelContextResult.recoveredWorkspace,
-      channelAutoRecoveryBlockDelta: channelContextResult.autoRecoveryBlockDelta,
-      workspace: context.workspaceName,
-      channelName: context.workspace.channelName,
-      channelId: context.workspace.channelId,
-      l1Address: signer.address,
-      l2Address: l2Identity.l2Address,
-      l2StorageKey: storageKey,
-      spendingKeyRecovered: Boolean(recoveredSpendingIdentity),
-      leafIndex: lifecycleEpoch.leafIndex.toString(),
-      epochId: lifecycleEpoch.epochId,
-      lifecycleStatus: lifecycleEpoch.lifecycleStatus,
-      exitedAtTxHash: lifecycleEpoch.exitedAtTxHash,
-      noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
-      l2Nonce: existingWallet.wallet.l2Nonce,
-      recoveredFromLogs: recoveredDeliveryState.importedNotes,
-      scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
-      linkedEvidence: recoveredDeliveryState.linkedEvidence,
-      noteReceiveScanRange: recoveredDeliveryState.scanRange,
-    });
-    return;
-  }
-
-  const walletContext = ensureWallet({
+  const status = existingWallet ? "already-recovered" : "recovered";
+  const walletContext = existingWallet ?? ensureWallet({
     channelContext: context,
     signerAddress: signer.address,
     signerPrivateKey: signer.privateKey,
@@ -2473,16 +2415,29 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     lifecycleEpoch,
     rpcUrl,
   });
-  walletContext.wallet.l2Nonce = 0;
-  persistWallet(walletContext);
+  if (existingWallet) {
+    walletContext.wallet.noteReceivePrivateKey = noteReceiveKeyMaterial.privateKey;
+    applyWalletLifecycleEpoch(walletContext.wallet, lifecycleEpoch);
+    if (recoveredSpendingIdentity) {
+      walletContext.wallet.l2PrivateKey = ethers.hexlify(recoveredSpendingIdentity.l2PrivateKey);
+      walletContext.wallet.l2PublicKey = ethers.hexlify(recoveredSpendingIdentity.l2PublicKey);
+      walletContext.wallet.l2Address = recoveredSpendingIdentity.l2Address;
+      walletContext.wallet.l2DerivationMode = CHANNEL_BOUND_L2_DERIVATION_MODE;
+      walletContext.wallet.l2DerivationChannelName = channelName;
+      walletContext.wallet.l2StorageKey = storageKey;
+    }
+    persistWalletKeys(walletContext);
+    persistWallet(walletContext);
+    persistWalletIndexForContext(walletContext);
+  }
 
   const noteScanStartBlock = args.fromGenesis === true
     ? Number(context.workspace.genesisBlockNumber)
-    : requireUsableWalletNoteReceiveRecoveryIndex({
+    : walletNoteReceiveCursorDelta({
       walletContext,
       context,
       targetNextBlock: recoveryEventScan.scanRange.toBlock + 1,
-    });
+    }).localNextBlock;
   const recoveredDeliveryState = await recoverDeliveredNotesFromCollectedLogs({
     walletContext,
     context,
@@ -2495,7 +2450,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
 
   printJson({
     action: "wallet recover-workspace",
-    status: "recovered",
+    status,
     wallet: walletName,
     walletDir: walletContext.walletDir,
     recoveredChannelWorkspace: channelContextResult.recoveredWorkspace,
@@ -6630,11 +6585,11 @@ async function recoverDeliveredNotesFromEventLogs({
   );
   const scanStartBlock = fromGenesis
     ? Number(context.workspace.genesisBlockNumber)
-    : requireUsableWalletNoteReceiveRecoveryIndex({
+    : walletNoteReceiveCursorDelta({
       walletContext,
       context,
       targetNextBlock: latestBlock + 1,
-    });
+    }).localNextBlock;
   const scanRange = {
     fromBlock: scanStartBlock,
     toBlock: latestBlock,
@@ -6942,11 +6897,11 @@ function computeRecoveryCursorDelta({
   };
 }
 
-function requireUsableWalletNoteReceiveRecoveryIndex({ walletContext, context, targetNextBlock }) {
+function walletNoteReceiveCursorDelta({ walletContext, context, targetNextBlock = channelWorkspaceRecoveryTargetNextBlock(context) }) {
   const nextBlock = Number(walletContext.wallet.noteReceiveLastScannedBlock);
   const genesisBlockNumber = Number(context.workspace.genesisBlockNumber);
   try {
-    computeRecoveryCursorDelta({
+    return computeRecoveryCursorDelta({
       localNextBlock: nextBlock,
       targetNextBlock,
       genesisBlockNumber,
@@ -6960,33 +6915,21 @@ function requireUsableWalletNoteReceiveRecoveryIndex({ walletContext, context, t
       `Details: ${error.message}`,
     ].join(" "));
   }
-  return nextBlock;
 }
 
 function assertWalletNoteReceiveStateFresh({ walletContext, context }) {
-  const targetNextBlock = channelWorkspaceRecoveryTargetNextBlock(context);
-  const nextBlock = requireUsableWalletNoteReceiveRecoveryIndex({
-    walletContext,
-    context,
-    targetNextBlock,
-  });
-  const cursorDelta = computeRecoveryCursorDelta({
-    localNextBlock: nextBlock,
-    targetNextBlock,
-    genesisBlockNumber: Number(context.workspace.genesisBlockNumber),
-    label: `Wallet note workspace ${walletContext.walletName}`,
-  });
+  const cursorDelta = walletNoteReceiveCursorDelta({ walletContext, context });
   if (!cursorDelta.fresh) {
     throw new Error([
       `Wallet note workspace is stale for wallet ${walletContext.walletName}.`,
-      `noteReceiveLastScannedBlock is ${nextBlock}, but channel workspace recovery frontier requires ${targetNextBlock}.`,
+      `noteReceiveLastScannedBlock is ${cursorDelta.localNextBlock}, but channel workspace recovery frontier requires ${cursorDelta.targetNextBlock}.`,
       "Run wallet recover-workspace before using commands that read or spend wallet notes.",
     ].join(" "));
   }
   return {
-    targetBlock: targetNextBlock - 1,
-    targetNextBlock,
-    nextBlock,
+    targetBlock: cursorDelta.toBlock,
+    targetNextBlock: cursorDelta.targetNextBlock,
+    nextBlock: cursorDelta.localNextBlock,
     blockDelta: cursorDelta.blockDelta,
   };
 }
@@ -6999,14 +6942,9 @@ async function ensureWalletNoteReceiveStateCurrent({
   progressAction = null,
   preConsumedBlockDelta = 0,
 }) {
-  const targetNextBlock = channelWorkspaceRecoveryTargetNextBlock(context);
-  let nextBlock;
+  let cursorDelta;
   try {
-    nextBlock = requireUsableWalletNoteReceiveRecoveryIndex({
-      walletContext,
-      context,
-      targetNextBlock,
-    });
+    cursorDelta = walletNoteReceiveCursorDelta({ walletContext, context });
   } catch (indexError) {
     throw new Error([
       `Wallet note recovery index is missing or unusable for wallet ${walletContext.walletName}.`,
@@ -7016,18 +6954,11 @@ async function ensureWalletNoteReceiveStateCurrent({
     ].join(" "));
   }
 
-  const cursorDelta = computeRecoveryCursorDelta({
-    localNextBlock: nextBlock,
-    targetNextBlock,
-    genesisBlockNumber: Number(context.workspace.genesisBlockNumber),
-    label: `wallet note workspace ${walletContext.walletName}`,
-  });
-
   if (cursorDelta.fresh) {
     return {
       targetBlock: cursorDelta.toBlock,
-      targetNextBlock,
-      nextBlock,
+      targetNextBlock: cursorDelta.targetNextBlock,
+      nextBlock: cursorDelta.localNextBlock,
       recoveredWalletWorkspace: false,
       recoveredDeliveryState: null,
       autoRecoveryBlockDelta: 0,
@@ -7062,22 +6993,12 @@ async function ensureWalletNoteReceiveStateCurrent({
       `Details: ${recoveryError.message}`,
     ].join(" "));
   }
-  try {
-    const freshness = assertWalletNoteReceiveStateFresh({ walletContext, context });
-    return {
-      ...freshness,
-      recoveredWalletWorkspace: true,
-      recoveredDeliveryState,
-      autoRecoveryBlockDelta,
-    };
-  } catch (postRecoveryError) {
-    throw new Error([
-      `Wallet workspace is still stale after recovery-index sync for wallet ${walletContext.walletName}.`,
-      "Automatic wallet recovery will not replay from genesis.",
-      `Run wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT> --from-genesis if received-note scanning must restart from channel genesis.`,
-      `Details: ${postRecoveryError.message}`,
-    ].join(" "));
-  }
+  return {
+    ...assertWalletNoteReceiveStateFresh({ walletContext, context }),
+    recoveredWalletWorkspace: true,
+    recoveredDeliveryState,
+    autoRecoveryBlockDelta,
+  };
 }
 
 function extractEncryptedNoteValueFromBridgeLog(log) {
@@ -10364,13 +10285,17 @@ function assertAllowedCommandKeys(args, commandName, allowedKeys, acceptedUsage)
       `${commandName} only accepts ${acceptedUsage}. Unsupported option(s): ${unsupported.join(", ")}.`,
     );
   }
-  if (args.json !== undefined && args.json !== true) {
-    throw new Error(`${commandName} option --json does not accept a value.`);
-  }
+  assertBooleanFlag(args, "json", `${commandName} option --json`);
   expect(
     (args.positional ?? []).length === 1,
     `${commandName} does not accept positional arguments beyond the command name.`,
   );
+}
+
+function assertBooleanFlag(args, key, label) {
+  if (args[key] !== undefined && args[key] !== true) {
+    throw new Error(`${label} does not accept a value.`);
+  }
 }
 
 function assertWalletChannelMoveArgs(args, commandName) {
@@ -10380,9 +10305,7 @@ function assertWalletChannelMoveArgs(args, commandName) {
 
 function assertInstallZkEvmArgs(args) {
   assertAllowedCommandSchema(args, "install");
-  if (args.readOnly !== undefined && args.readOnly !== true) {
-    throw new Error("install option --read-only does not accept a value.");
-  }
+  assertBooleanFlag(args, "readOnly", "install option --read-only");
   if (args.readOnly === true && args.docker !== undefined) {
     throw new Error("install --read-only does not accept --docker because proof runtimes are not installed.");
   }
@@ -10423,9 +10346,7 @@ function assertUpdateArgs(args) {
 
 function assertDoctorArgs(args) {
   assertAllowedCommandSchema(args, "help-doctor");
-  if (args.gpu !== undefined && args.gpu !== true) {
-    throw new Error("help doctor option --gpu does not accept a value.");
-  }
+  assertBooleanFlag(args, "gpu", "help doctor option --gpu");
 }
 
 function assertGuideArgs(args) {
@@ -10501,12 +10422,7 @@ function assertTxSubmitterArg(args) {
 }
 
 function assertActionImpactArg(args, commandName) {
-  if (
-    args.acknowledgeActionImpact !== undefined
-    && args.acknowledgeActionImpact !== true
-  ) {
-    throw new Error(`${commandName} option --acknowledge-action-impact does not accept a value.`);
-  }
+  assertBooleanFlag(args, "acknowledgeActionImpact", `${commandName} option --acknowledge-action-impact`);
   if (args.acknowledgeActionImpact !== true && !process.stdin.isTTY) {
     throw new Error(`${commandName} requires --acknowledge-action-impact after reviewing the action-impact warning.`);
   }
@@ -10522,12 +10438,11 @@ function assertWalletGetNotesArgs(args) {
       );
     }
   }
-  if (
-    args.acknowledgeFullNotePlaintextExport !== undefined
-    && args.acknowledgeFullNotePlaintextExport !== true
-  ) {
-    throw new Error("wallet get-notes option --acknowledge-full-note-plaintext-export does not accept a value.");
-  }
+  assertBooleanFlag(
+    args,
+    "acknowledgeFullNotePlaintextExport",
+    "wallet get-notes option --acknowledge-full-note-plaintext-export",
+  );
 }
 
 function assertCreateChannelArgs(args) {
@@ -10537,12 +10452,8 @@ function assertCreateChannelArgs(args) {
 function assertRecoverWorkspaceArgs(args) {
   assertAllowedCommandSchema(args, "channel-recover-workspace");
   const source = resolveWorkspaceRecoverySource(args);
-  if (args.fromGenesis !== undefined && args.fromGenesis !== true) {
-    throw new Error("channel recover-workspace option --from-genesis does not accept a value.");
-  }
-  if (args.outputRaw !== undefined && args.outputRaw !== true) {
-    throw new Error("channel recover-workspace option --output-raw does not accept a value.");
-  }
+  assertBooleanFlag(args, "fromGenesis", "channel recover-workspace option --from-genesis");
+  assertBooleanFlag(args, "outputRaw", "channel recover-workspace option --output-raw");
   if (args.outputRaw === true && source !== "rpc") {
     throw new Error("channel recover-workspace option --output-raw requires --source rpc.");
   }
@@ -10560,9 +10471,7 @@ function assertSetWorkspaceMirrorArgs(args) {
 function assertPublishWorkspaceMirrorArgs(args) {
   assertAllowedCommandSchema(args, "channel-publish-workspace-mirror");
   requireArg(args.output, "--output");
-  if (args.force !== undefined && args.force !== true) {
-    throw new Error("channel publish-workspace-mirror option --force does not accept a value.");
-  }
+  assertBooleanFlag(args, "force", "channel publish-workspace-mirror option --force");
 }
 
 function assertDepositBridgeArgs(args) {
@@ -10576,9 +10485,7 @@ function assertAccountGetBridgeFundArgs(args) {
 
 function assertRecoverWalletArgs(args) {
   assertAllowedCommandSchema(args, "wallet-recover-workspace");
-  if (args.fromGenesis !== undefined && args.fromGenesis !== true) {
-    throw new Error("wallet recover-workspace option --from-genesis does not accept a value.");
-  }
+  assertBooleanFlag(args, "fromGenesis", "wallet recover-workspace option --from-genesis");
 }
 
 function assertJoinChannelArgs(args) {

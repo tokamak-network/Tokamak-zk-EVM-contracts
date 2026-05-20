@@ -381,6 +381,10 @@ genesis; if the saved index is missing, unusable, or too far behind, the command
 
 - consumes tracked input notes and creates encrypted recipient note payloads
 - accepts `--wallet`, `--network`, `--note-ids`, `--recipients`, and `--amounts`
+- requires `--note-ids` as a JSON array of note commitment IDs from `wallet get-notes`, for example `--note-ids '["0xNOTE1","0xNOTE2"]'`
+- requires `--recipients` as a JSON array of recipient L2 addresses, for example `--recipients '["0xL2RECIPIENT1","0xL2RECIPIENT2"]'`
+- requires `--amounts` as a JSON array of token amounts, preferably quoted for decimals, for example `--amounts '["1.5","2"]'`
+- requires `--recipients` length to equal `--amounts` length, and requires the output amount sum to equal the selected input note value sum
 - accepts optional `--tx-submitter <ACCOUNT>` so a separate local L1 account can submit the L1 transaction and pay gas
 - supports only `1->1`, `1->2`, and `2->1` note transfer shapes
 - refreshes local workspace state after the accepted transaction and relies on recipient-side event-log recovery rather than local recipient inbox files

@@ -323,6 +323,23 @@ note ownership and builds the ZK proof, but the selected local account submits `
 Use this option when a separate imported local account should submit the L1 transaction and pay gas for a proof-backed
 note command.
 
+`wallet transfer-notes` takes JSON arrays for note selection and outputs. `--note-ids` is a JSON array of input note
+commitment IDs from `wallet get-notes`; `--recipients` is a JSON array of recipient L2 addresses; `--amounts` is a JSON
+array of token amounts. Quote decimal amounts to avoid shell or JSON ambiguity. The recipient count must match the
+amount count, only `1->1`, `1->2`, and `2->1` transfer shapes are supported, and the output amount sum must equal the
+selected input note value sum.
+
+```bash
+private-state-cli wallet transfer-notes \
+  --wallet <WALLET> \
+  --network mainnet \
+  --note-ids '["0xNOTE1","0xNOTE2"]' \
+  --recipients '["0xL2RECIPIENT1","0xL2RECIPIENT2"]' \
+  --amounts '["1.5","2"]' \
+  --acknowledge-action-impact \
+  --tx-submitter <ACCOUNT>
+```
+
 Channel policy warning:
 
 - `channel create` commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout,
@@ -580,7 +597,7 @@ Suggested interaction flow:
 6. If needed, guide the user through `channel create`, `account deposit-bridge`, `channel join`, `wallet deposit-channel`, and
    `wallet mint-notes`.
 7. For a confidential note transfer, select available note IDs from `wallet get-notes`, find the recipient L2 address from
-   `wallet get-meta`, then build `wallet transfer-notes`.
+   `wallet get-meta`, then build `wallet transfer-notes` with JSON arrays for `--note-ids`, `--recipients`, and `--amounts`.
 8. After transfer, guide the recipient to run `wallet get-notes`; it refreshes received notes from the saved recovery index when the delta fits the 7,200-block pre-command budget. If the index is missing or too far behind, explain `wallet recover-workspace`.
 
 Example onboarding explanation for `channel join`:

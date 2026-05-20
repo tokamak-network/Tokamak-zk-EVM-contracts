@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 2.3.1 - 2026-05-20
+
+- Added `wallet recover-workspace --wallet-secret-path` support for rederiving and storing an active
+  wallet spending key from the original L1 account and wallet secret source.
+- Validated recovered spending keys against the current on-chain L2 address and channel token-vault
+  storage key before received-note recovery starts.
+- Documented the active-wallet-only spending-key recovery policy in the CLI README and private-state
+  DApp README.
+
 ## 2.3.0 - 2026-05-20
 
 - Added `help observer` to print the deployed public observer URL for the private-state monitoring

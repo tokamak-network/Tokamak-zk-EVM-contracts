@@ -2405,12 +2405,11 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     existingWallet.wallet.noteReceivePrivateKey = noteReceiveKeyMaterial.privateKey;
     applyWalletLifecycleEpoch(existingWallet.wallet, lifecycleEpoch);
     if (recoveredSpendingIdentity) {
-      existingWallet.wallet.l2PrivateKey = ethers.hexlify(recoveredSpendingIdentity.l2PrivateKey);
-      existingWallet.wallet.l2PublicKey = ethers.hexlify(recoveredSpendingIdentity.l2PublicKey);
-      existingWallet.wallet.l2Address = recoveredSpendingIdentity.l2Address;
-      existingWallet.wallet.l2DerivationMode = CHANNEL_BOUND_L2_DERIVATION_MODE;
-      existingWallet.wallet.l2DerivationChannelName = channelName;
-      existingWallet.wallet.l2StorageKey = storageKey;
+      applyWalletSpendingIdentity(existingWallet.wallet, {
+        l2Identity: recoveredSpendingIdentity,
+        channelName,
+        storageKey,
+      });
     }
     persistWalletKeys(existingWallet);
     persistWallet(existingWallet);
@@ -2536,8 +2535,7 @@ async function deriveRecoverWalletSpendingIdentity({
       "Run wallet recover-workspace without --wallet-secret-path to recover viewing/evidence history for exited wallets.",
     ].join(" "),
   );
-  const walletSecretSourcePath = path.resolve(String(requireArg(args.walletSecretPath, "--wallet-secret-path")));
-  const walletSecret = readImportSecretSourceFile(walletSecretSourcePath, "--wallet-secret-path");
+  const walletSecret = readWalletSecretSourceFile(args);
   const l2Identity = await deriveParticipantIdentityFromSigner({
     channelName,
     walletSecret,
@@ -2548,13 +2546,8 @@ async function deriveRecoverWalletSpendingIdentity({
     context.workspace.liquidBalancesSlot,
   );
   expect(
-    ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
-    "The recovered spending key does not match the current registered L2 address.",
-  );
-  expect(
-    ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
-      === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey)),
-    "The recovered spending key does not match the current registered channel token vault key.",
+    walletRegistrationMatchesIdentity({ registration, l2Identity, expectedStorageKey }),
+    "The recovered spending key does not match the current registered L2 address or channel token vault key.",
   );
   return l2Identity;
 }
@@ -4386,10 +4379,7 @@ async function loadWalletChannelRegistrationState({
   const l2Identity = restoreParticipantIdentityFromWallet(walletContext.wallet);
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
-  const matchesWallet = registration.exists
-    && ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address))
-    && ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
-      === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey));
+  const matchesWallet = walletRegistrationMatchesIdentity({ registration, l2Identity, expectedStorageKey });
 
   if (requireRegistration) {
     expect(
@@ -4412,6 +4402,13 @@ async function loadWalletChannelRegistrationState({
     expectedStorageKey,
     matchesWallet,
   };
+}
+
+function walletRegistrationMatchesIdentity({ registration, l2Identity, expectedStorageKey }) {
+  return registration.exists
+    && ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address))
+    && ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+      === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey));
 }
 
 function selectWalletLifecycleEpoch({ epochs, registration = null }) {
@@ -6292,6 +6289,15 @@ function applyWalletLifecycleEpoch(wallet, epoch) {
   wallet.exitedAtLogIndex = epoch.exitedAtLogIndex;
   wallet.exitedAtBlockTimestamp = epoch.exitedAtBlockTimestamp;
   wallet.exitedAtBlockTimestampIso = epoch.exitedAtBlockTimestampIso;
+}
+
+function applyWalletSpendingIdentity(wallet, { l2Identity, channelName, storageKey }) {
+  wallet.l2PrivateKey = ethers.hexlify(l2Identity.l2PrivateKey);
+  wallet.l2PublicKey = ethers.hexlify(l2Identity.l2PublicKey);
+  wallet.l2Address = l2Identity.l2Address;
+  wallet.l2DerivationMode = CHANNEL_BOUND_L2_DERIVATION_MODE;
+  wallet.l2DerivationChannelName = channelName;
+  wallet.l2StorageKey = storageKey;
 }
 
 function walletLifecycleMetadata(wallet) {
@@ -9813,6 +9819,10 @@ function prepareJoinWalletSecretForName({
       `For exited history, keep using wallet recover-workspace --channel-name ${channelName} --network ${networkName} --account ${args.account ?? "<ACCOUNT>"}.`,
     ].join(" "),
   );
+  return readWalletSecretSourceFile(args);
+}
+
+function readWalletSecretSourceFile(args) {
   const sourcePath = path.resolve(String(requireArg(args.walletSecretPath, "--wallet-secret-path")));
   return readImportSecretSourceFile(sourcePath, "--wallet-secret-path");
 }

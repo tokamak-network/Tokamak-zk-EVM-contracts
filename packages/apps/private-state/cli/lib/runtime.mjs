@@ -2405,11 +2405,12 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     existingWallet.wallet.noteReceivePrivateKey = noteReceiveKeyMaterial.privateKey;
     applyWalletLifecycleEpoch(existingWallet.wallet, lifecycleEpoch);
     if (recoveredSpendingIdentity) {
-      applyWalletSpendingIdentity(existingWallet.wallet, {
-        l2Identity: recoveredSpendingIdentity,
-        channelName,
-        storageKey,
-      });
+      existingWallet.wallet.l2PrivateKey = ethers.hexlify(recoveredSpendingIdentity.l2PrivateKey);
+      existingWallet.wallet.l2PublicKey = ethers.hexlify(recoveredSpendingIdentity.l2PublicKey);
+      existingWallet.wallet.l2Address = recoveredSpendingIdentity.l2Address;
+      existingWallet.wallet.l2DerivationMode = CHANNEL_BOUND_L2_DERIVATION_MODE;
+      existingWallet.wallet.l2DerivationChannelName = channelName;
+      existingWallet.wallet.l2StorageKey = storageKey;
     }
     persistWalletKeys(existingWallet);
     persistWallet(existingWallet);
@@ -6289,15 +6290,6 @@ function applyWalletLifecycleEpoch(wallet, epoch) {
   wallet.exitedAtLogIndex = epoch.exitedAtLogIndex;
   wallet.exitedAtBlockTimestamp = epoch.exitedAtBlockTimestamp;
   wallet.exitedAtBlockTimestampIso = epoch.exitedAtBlockTimestampIso;
-}
-
-function applyWalletSpendingIdentity(wallet, { l2Identity, channelName, storageKey }) {
-  wallet.l2PrivateKey = ethers.hexlify(l2Identity.l2PrivateKey);
-  wallet.l2PublicKey = ethers.hexlify(l2Identity.l2PublicKey);
-  wallet.l2Address = l2Identity.l2Address;
-  wallet.l2DerivationMode = CHANNEL_BOUND_L2_DERIVATION_MODE;
-  wallet.l2DerivationChannelName = channelName;
-  wallet.l2StorageKey = storageKey;
 }
 
 function walletLifecycleMetadata(wallet) {

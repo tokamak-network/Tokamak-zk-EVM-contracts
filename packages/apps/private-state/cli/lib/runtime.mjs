@@ -4202,18 +4202,18 @@ function applyGuideNextAction(guide) {
   }
   if (guide.state.wallet?.exists && channelBalance !== null && channelBalance > 0n && unusedNotes === 0) {
     setGuideNextAction(guide, {
-      command: `wallet mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <A,B> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
+      command: `wallet mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <JSON_ARRAY> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
       why: "The wallet has channel L2 balance and no unused private notes yet. Use --tx-submitter for stronger transaction-submission privacy.",
     });
     return;
   }
   if (guide.state.wallet?.exists && unusedNotes !== null && unusedNotes > 0) {
     setGuideNextAction(guide, {
-      command: `wallet transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID,ID> --recipients <ADDR,ADDR> --amounts <A,B> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
+      command: `wallet transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <JSON_ARRAY> --recipients <JSON_ARRAY> --amounts <JSON_ARRAY> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
       why: "The wallet has unused private notes. It can transfer or redeem those notes. Use --tx-submitter for stronger transaction-submission privacy.",
       candidates: [
         `wallet get-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
-        `wallet redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
+        `wallet redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <JSON_ARRAY> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
       ],
     });
     return;

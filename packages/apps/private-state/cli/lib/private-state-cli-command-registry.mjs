@@ -511,7 +511,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["channelName", "network", "account", "walletSecretPath", "acknowledgeActionImpact"],
     usage: "--channel-name, --network, --account, --wallet-secret-path, --acknowledge-action-impact",
     help: [
-      "Refreshes the local channel workspace through the saved recovery index before joining when the scan fits the 10 second pre-command budget",
+      "Refreshes the local channel workspace through the saved recovery index before joining when the scan fits the 7,200-block pre-command budget",
       "Fails instead of replaying from genesis; run channel recover-workspace --source rpc --from-genesis when a genesis rebuild is required",
       "--wallet-secret-path is read once for channel-bound L2 spending-key derivation and is not stored in the wallet workspace",
       "Prints the immutable policy snapshot before first registration",
@@ -531,7 +531,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
     help: [
-      "Refreshes the local channel workspace through the saved recovery index before reading registration metadata when the scan fits the 10 second pre-command budget",
+      "Refreshes the local channel workspace through the saved recovery index before reading registration metadata when the scan fits the 7,200-block pre-command budget",
       "Reports the selected local wallet epoch and lifecycle status when the workspace uses the epoch-aware wallet format",
     ],
   },
@@ -601,7 +601,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network", "amount", "acknowledgeActionImpact"],
     usage: "--wallet, --network, --amount, and --acknowledge-action-impact",
     help: [
-      "Refreshes the local channel workspace through the saved recovery index before proving the deposit when the scan fits the 10 second pre-command budget",
+      "Refreshes the local channel workspace through the saved recovery index before proving the deposit when the scan fits the 7,200-block pre-command budget",
       "Action impact: emits public proof-backed bridge/channel accounting events exposing the L1 submitter, registered L2 address, amount, channel id, and transaction hash.",
       "Private note state is not changed by this command.",
       ACTION_IMPACT_HELP.policy,
@@ -618,7 +618,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network", "amount", "acknowledgeActionImpact"],
     usage: "--wallet, --network, --amount, and --acknowledge-action-impact",
     help: [
-      "Refreshes the local channel workspace through the saved recovery index before proving the withdrawal when the scan fits the 10 second pre-command budget",
+      "Refreshes the local channel workspace through the saved recovery index before proving the withdrawal when the scan fits the 7,200-block pre-command budget",
       "Action impact: emits public proof-backed bridge/channel accounting events exposing the L1 submitter, registered L2 address, amount, channel id, and transaction hash.",
       "Private note state is not changed by this command; prior note provenance is not public by default.",
       ACTION_IMPACT_HELP.provenance,
@@ -635,7 +635,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     installMode: "read-only",
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
-    help: ["Refreshes the local channel workspace through the saved recovery index before reading the L2 accounting balance when the scan fits the 10 second pre-command budget"],
+    help: ["Refreshes the local channel workspace through the saved recovery index before reading the L2 accounting balance when the scan fits the 7,200-block pre-command budget"],
   },
   {
     id: "channel-exit",
@@ -645,7 +645,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network"],
     usage: "--wallet and --network",
     help: [
-      "Refreshes the local channel workspace through the saved recovery index before checking the channel balance when the scan fits the 10 second pre-command budget",
+      "Refreshes the local channel workspace through the saved recovery index before checking the channel balance when the scan fits the 7,200-block pre-command budget",
       "Marks the current local wallet epoch as exited and keeps its note metadata available for historical evidence export",
     ],
   },
@@ -657,7 +657,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network", "amounts", "acknowledgeActionImpact", "txSubmitter"],
     usage: "--wallet, --network, --amounts, --acknowledge-action-impact, and optional --tx-submitter",
     help: [
-      "Refreshes the local channel workspace through the saved recovery index before proving the mint when the scan fits the 10 second pre-command budget",
+      "Refreshes the local channel workspace through the saved recovery index before proving the mint when the scan fits the 7,200-block pre-command budget",
       "Requires both viewing and spending key capability so the accepted mint can be recovered through the normal note event path",
       "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
       "Action impact: emits public accepted-transition, commitment, encrypted note-delivery, root update, and transaction events.",
@@ -682,7 +682,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "--amounts must be a JSON array of token amounts, preferably quoted for decimals, for example '[\"1.5\",\"2\"]'",
       "--recipients length must equal --amounts length; supported transfer shapes are 1->1, 1->2, and 2->1",
       "The sum of output amounts must equal the sum of the selected input note values",
-      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the transfer when scans fit the 10 second pre-command budget",
+      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the transfer when scans fit the 7,200-block pre-command budget",
       "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
       "Action impact: emits public accepted-transition, input nullifier, output commitment, encrypted note-delivery, root update, and transaction events.",
       "Private note state changes by consuming selected input notes and creating output notes; sender-recipient relationship, note plaintext, and note provenance are not public by default.",
@@ -701,7 +701,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network", "noteIds", "acknowledgeActionImpact", "txSubmitter"],
     usage: "--wallet, --network, --note-ids, --acknowledge-action-impact, and optional --tx-submitter",
     help: [
-      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the redeem when scans fit the 10 second pre-command budget",
+      "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the redeem when scans fit the 7,200-block pre-command budget",
       "Use --tx-submitter <ACCOUNT> to let a separate local L1 account pay gas for stronger transaction privacy",
       "Action impact: emits public accepted-transition, note nullifier, accounting update, root update, and transaction events.",
       "Private note state changes by consuming selected notes; prior note provenance is not public by default.",
@@ -720,8 +720,8 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["wallet", "network", "exportEvidence", "acknowledgeFullNotePlaintextExport"],
     usage: "--wallet, --network, optional --export-evidence, and optional --acknowledge-full-note-plaintext-export",
     help: [
-      "Refreshes the local channel workspace through the saved recovery index before reading notes when the scan fits the 10 second pre-command budget",
-      "Refreshes received-note logs through the saved wallet note recovery index when the scan fits the 10 second pre-command budget",
+      "Refreshes the local channel workspace through the saved recovery index before reading notes when the scan fits the 7,200-block pre-command budget",
+      "Refreshes received-note logs through the saved wallet note recovery index when the scan fits the 7,200-block pre-command budget",
       "Fails instead of replaying from genesis; run wallet recover-workspace first when explicit wallet recovery is required",
       "Use --export-evidence <PATH> with --acknowledge-full-note-plaintext-export to write a local full-note evidence ZIP for private-state-cli investigator",
       "Evidence export includes all local epochs for the selected wallet, including exited epochs retained for dispute evidence",

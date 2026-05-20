@@ -299,6 +299,10 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 
 - rebuilds wallet backup metadata from the current channel workspace, channel registration, and bridge-propagated encrypted note logs
 - can recreate the viewing key when the local account signer reproduces the registered viewing public key
+- can rederive and store the spending key only when `--wallet-secret-path <PATH>` is supplied and the account has a current active channel registration
+- rejects `--wallet-secret-path` for exited or non-active accounts; run without that option to recover read-only viewing/evidence history
+- verifies the rederived spending key against the current on-chain L2 address and channel token-vault storage key before received-note recovery starts
+- never stores the wallet secret source file or its plaintext contents
 - can recover an exited registration epoch from historical channel registration and exit events for read-only note inspection and disclosure
 - reclassifies every recovered current-version note into `unused` or `spent` by checking the on-chain commitment and nullifier state
 - resets `l2Nonce` to `0`

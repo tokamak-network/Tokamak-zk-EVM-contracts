@@ -2331,6 +2331,13 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     account: signer.address,
   });
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
+  const recoveredSpendingIdentity = await deriveRecoverWalletSpendingIdentity({
+    args,
+    signer,
+    channelName,
+    context,
+    registration,
+  });
   const recoveryEventScan = await scanWalletRecoveryEvents({
     context,
     provider,
@@ -2358,7 +2365,27 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     Number(registeredNoteReceivePubKey.yParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
     "The existing note-receive public key parity does not match the derived note-receive public key.",
   );
-  const l2Identity = {
+  if (recoveredSpendingIdentity) {
+    const expectedRecoveredStorageKey = deriveLiquidBalanceStorageKey(
+      recoveredSpendingIdentity.l2Address,
+      context.workspace.liquidBalancesSlot,
+    );
+    expect(
+      lifecycleEpoch.lifecycleStatus === "active",
+      "--wallet-secret-path can only recover the spending key for an active wallet epoch.",
+    );
+    expect(
+      ethers.toBigInt(getAddress(lifecycleEpoch.l2Address))
+        === ethers.toBigInt(getAddress(recoveredSpendingIdentity.l2Address)),
+      "The recovered spending key does not match the recovered wallet lifecycle L2 address.",
+    );
+    expect(
+      ethers.toBigInt(normalizeBytes32Hex(lifecycleEpoch.channelTokenVaultKey))
+        === ethers.toBigInt(normalizeBytes32Hex(expectedRecoveredStorageKey)),
+      "The recovered spending key does not match the recovered wallet lifecycle storage key.",
+    );
+  }
+  const l2Identity = recoveredSpendingIdentity ?? {
     l2PrivateKey: null,
     l2PublicKey: null,
     l2Address: getAddress(lifecycleEpoch.l2Address),
@@ -2377,6 +2404,14 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
   if (existingWallet) {
     existingWallet.wallet.noteReceivePrivateKey = noteReceiveKeyMaterial.privateKey;
     applyWalletLifecycleEpoch(existingWallet.wallet, lifecycleEpoch);
+    if (recoveredSpendingIdentity) {
+      existingWallet.wallet.l2PrivateKey = ethers.hexlify(recoveredSpendingIdentity.l2PrivateKey);
+      existingWallet.wallet.l2PublicKey = ethers.hexlify(recoveredSpendingIdentity.l2PublicKey);
+      existingWallet.wallet.l2Address = recoveredSpendingIdentity.l2Address;
+      existingWallet.wallet.l2DerivationMode = CHANNEL_BOUND_L2_DERIVATION_MODE;
+      existingWallet.wallet.l2DerivationChannelName = channelName;
+      existingWallet.wallet.l2StorageKey = storageKey;
+    }
     persistWalletKeys(existingWallet);
     persistWallet(existingWallet);
     persistWalletIndexForContext(existingWallet);
@@ -2409,6 +2444,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       l1Address: signer.address,
       l2Address: l2Identity.l2Address,
       l2StorageKey: storageKey,
+      spendingKeyRecovered: Boolean(recoveredSpendingIdentity),
       leafIndex: lifecycleEpoch.leafIndex.toString(),
       epochId: lifecycleEpoch.epochId,
       lifecycleStatus: lifecycleEpoch.lifecycleStatus,
@@ -2468,6 +2504,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
+    spendingKeyRecovered: Boolean(recoveredSpendingIdentity),
     leafIndex: lifecycleEpoch.leafIndex.toString(),
     epochId: lifecycleEpoch.epochId,
     lifecycleStatus: lifecycleEpoch.lifecycleStatus,
@@ -2479,6 +2516,47 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     linkedEvidence: recoveredDeliveryState.linkedEvidence,
     noteReceiveScanRange: recoveredDeliveryState.scanRange,
   });
+}
+
+async function deriveRecoverWalletSpendingIdentity({
+  args,
+  signer,
+  channelName,
+  context,
+  registration,
+}) {
+  if (args.walletSecretPath === undefined) {
+    return null;
+  }
+  expect(
+    registration.exists,
+    [
+      "--wallet-secret-path can only recover a spending key for an active channel registration.",
+      "This account is not currently registered in the channel.",
+      "Run wallet recover-workspace without --wallet-secret-path to recover viewing/evidence history for exited wallets.",
+    ].join(" "),
+  );
+  const walletSecretSourcePath = path.resolve(String(requireArg(args.walletSecretPath, "--wallet-secret-path")));
+  const walletSecret = readImportSecretSourceFile(walletSecretSourcePath, "--wallet-secret-path");
+  const l2Identity = await deriveParticipantIdentityFromSigner({
+    channelName,
+    walletSecret,
+    signer,
+  });
+  const expectedStorageKey = deriveLiquidBalanceStorageKey(
+    l2Identity.l2Address,
+    context.workspace.liquidBalancesSlot,
+  );
+  expect(
+    ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
+    "The recovered spending key does not match the current registered L2 address.",
+  );
+  expect(
+    ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+      === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey)),
+    "The recovered spending key does not match the current registered channel token vault key.",
+  );
+  return l2Identity;
 }
 
 async function handleInstallZkEvm({ args }) {

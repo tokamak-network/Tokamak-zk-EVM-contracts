@@ -388,6 +388,13 @@ flow. The spending key needs the same L1 private key, the same channel context, 
 spending-key file is lost and the wallet secret source is also lost, the CLI cannot reconstruct the spending key and the
 notes for that wallet cannot be spent, transferred, or redeemed through the normal note flow.
 
+`wallet recover-workspace` restores the viewing key by default. Add `--wallet-secret-path <PATH>` only when the
+account is currently active in the channel and you need to rederive the spending key. In that mode, the CLI checks the
+derived L2 address and channel token-vault storage key against the current on-chain registration before received-note
+recovery starts, then stores the protected spending-key file. Exited or non-active accounts must be recovered without
+`--wallet-secret-path`; that restores viewing/evidence history but not spending authority. The wallet secret source is
+read for derivation and is not stored.
+
 ### Wallet Backup, Viewing, And Spending Authority
 
 The wallet workspace is split so that a backup is not a full-control wallet export. Backup metadata stores the
@@ -405,8 +412,9 @@ transactions and then proves authorized note use when inputs are consumed.
 
 Key recovery is intentionally split. Recreating the viewing key requires the original L1 private key and the same channel
 context. Recreating the spending key requires the original L1 private key, the same channel context, and the same wallet
-secret source used at `channel join`. Importing `wallet-viewing.key` or `wallet-spending.key` restores the corresponding
-capability without rerunning derivation, but a backup ZIP alone never restores either capability.
+secret source used at `channel join`. `wallet recover-workspace --wallet-secret-path <PATH>` performs this spending-key
+rederivation only for active channel registrations. Importing `wallet-viewing.key` or `wallet-spending.key` restores the
+corresponding capability without rerunning derivation, but a backup ZIP alone never restores either capability.
 
 `wallet get-notes --export-evidence <PATH> --acknowledge-full-note-plaintext-export` writes a local raw evidence ZIP.
 The bundle is not a key export. It includes plaintext note facts for locally known notes so that

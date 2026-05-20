@@ -2338,10 +2338,12 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     context,
     registration,
   });
+  const walletRecoveryTargetBlock = walletNoteReceiveTargetBlock(context);
   const recoveryEventScan = await scanWalletRecoveryEvents({
     context,
     provider,
     l1Address: signer.address,
+    toBlock: walletRecoveryTargetBlock,
     progressAction: "wallet recover-workspace",
   });
   const lifecycleEpoch = selectWalletLifecycleEpoch({
@@ -2420,7 +2422,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
       : requireUsableWalletNoteReceiveRecoveryIndex({
         walletContext: existingWallet,
         context,
-        latestBlock: recoveryEventScan.scanRange.toBlock,
+        targetNextBlock: recoveryEventScan.scanRange.toBlock + 1,
       });
     const recoveredDeliveryState = await recoverDeliveredNotesFromCollectedLogs({
       walletContext: existingWallet,
@@ -2479,7 +2481,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     : requireUsableWalletNoteReceiveRecoveryIndex({
       walletContext,
       context,
-      latestBlock: recoveryEventScan.scanRange.toBlock,
+      targetNextBlock: recoveryEventScan.scanRange.toBlock + 1,
     });
   const recoveredDeliveryState = await recoverDeliveredNotesFromCollectedLogs({
     walletContext,
@@ -4500,9 +4502,13 @@ async function walletEpochFromJoinReceipt({ receipt, context, provider, l1Addres
   return epoch;
 }
 
-async function scanWalletRecoveryEvents({ context, provider, l1Address, progressAction = null }) {
+async function scanWalletRecoveryEvents({ context, provider, l1Address, toBlock, progressAction = null }) {
   const fromBlock = Number(context.workspace.genesisBlockNumber ?? 0);
-  const toBlock = await fetchFreshBlockNumber(provider);
+  const normalizedToBlock = Number(toBlock);
+  expect(
+    Number.isInteger(normalizedToBlock) && normalizedToBlock >= fromBlock - 1,
+    "Wallet recovery event scan target block is invalid.",
+  );
   const registeredTopic = context.channelManager.interface.getEvent("ChannelTokenVaultIdentityRegistered").topicHash;
   const exitedTopic = context.channelManager.interface.getEvent("ChannelTokenVaultIdentityExited").topicHash;
   const normalizedRegisteredTopic = normalizeBytes32Hex(registeredTopic);
@@ -4519,7 +4525,7 @@ async function scanWalletRecoveryEvents({ context, provider, l1Address, progress
     address: context.workspace.channelManager,
     topics: [[registeredTopic, exitedTopic, NOTE_VALUE_ENCRYPTED_TOPIC, CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC]],
     fromBlock,
-    toBlock,
+    toBlock: normalizedToBlock,
     collectLogs: false,
     onProgress: progressAction
       ? createRpcLogScanProgress({ action: progressAction, label: "wallet-recovery events" })
@@ -4564,7 +4570,7 @@ async function scanWalletRecoveryEvents({ context, provider, l1Address, progress
     storageObservationLogs,
     scanRange: {
       fromBlock,
-      toBlock,
+      toBlock: normalizedToBlock,
     },
   };
 }
@@ -5268,7 +5274,8 @@ async function handleWalletGetNotes({ args, provider }) {
     })
     : {
       nextBlock: wallet.wallet.noteReceiveLastScannedBlock,
-      latestBlock: await provider.getBlockNumber(),
+      targetBlock: walletNoteReceiveTargetBlock(context),
+      targetNextBlock: channelWorkspaceRecoveryTargetNextBlock(context),
       recoveredWalletWorkspace: false,
       recoveredDeliveryState: null,
     };
@@ -5320,7 +5327,8 @@ async function handleWalletGetNotes({ args, provider }) {
     spentTotalTokens: spentTotal === null ? null : ethers.formatUnits(spentTotal, canonicalAssetDecimals),
     bridgeStatusMismatches: [...unusedNotes, ...spentNotes].filter((note) => !note.walletStatusMatchesBridge).length,
     noteReceiveLastScannedBlock: noteReceiveFreshness.nextBlock,
-    latestBlock: noteReceiveFreshness.latestBlock,
+    noteReceiveTargetBlock: noteReceiveFreshness.targetBlock,
+    noteReceiveTargetNextBlock: noteReceiveFreshness.targetNextBlock,
     viewingKeyAvailable: Boolean(wallet.wallet.noteReceivePrivateKey),
     recoveredWalletWorkspace: noteReceiveFreshness.recoveredWalletWorkspace,
     recoveredFromLogs: noteReceiveFreshness.recoveredDeliveryState?.importedNotes ?? 0,
@@ -6581,6 +6589,7 @@ async function recoverWalletReceivedNotes({
   provider,
   signer,
   noteReceiveKeyMaterial = null,
+  toBlock = null,
   progressAction = null,
   fromGenesis = false,
 }) {
@@ -6594,6 +6603,7 @@ async function recoverWalletReceivedNotes({
     context,
     provider,
     noteReceivePrivateKey: resolvedNoteReceiveKeyMaterial.privateKey,
+    toBlock,
     progressAction,
     fromGenesis,
   });
@@ -6608,17 +6618,22 @@ async function recoverDeliveredNotesFromEventLogs({
   context,
   provider,
   noteReceivePrivateKey,
+  toBlock = null,
   storageObservationLogs = null,
   progressAction = null,
   fromGenesis = false,
 }) {
-  const latestBlock = await fetchFreshBlockNumber(provider);
+  const latestBlock = toBlock === null ? await fetchFreshBlockNumber(provider) : Number(toBlock);
+  expect(
+    Number.isInteger(latestBlock) && latestBlock >= Number(context.workspace.genesisBlockNumber) - 1,
+    "Wallet note recovery target block is invalid.",
+  );
   const scanStartBlock = fromGenesis
     ? Number(context.workspace.genesisBlockNumber)
     : requireUsableWalletNoteReceiveRecoveryIndex({
       walletContext,
       context,
-      latestBlock,
+      targetNextBlock: latestBlock + 1,
     });
   const scanRange = {
     fromBlock: scanStartBlock,
@@ -6636,7 +6651,10 @@ async function recoverDeliveredNotesFromEventLogs({
       context,
       storageObservationLogs: storageObservationLogs ?? [],
     });
-    walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
+    walletContext.wallet.noteReceiveLastScannedBlock = Math.max(
+      Number(walletContext.wallet.noteReceiveLastScannedBlock),
+      latestBlock + 1,
+    );
     persistWallet(walletContext);
     return {
       importedNotes: [],
@@ -6746,7 +6764,10 @@ async function recoverDeliveredNotesFromCollectedLogs({
       context,
       storageObservationLogs,
     });
-    walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
+    walletContext.wallet.noteReceiveLastScannedBlock = Math.max(
+      Number(walletContext.wallet.noteReceiveLastScannedBlock),
+      latestBlock + 1,
+    );
     persistWallet(walletContext);
     return {
       importedNotes: [],
@@ -6873,40 +6894,100 @@ async function recoverDeliveredNoteCandidatesFromLogs({
   return importedCandidates;
 }
 
-function requireUsableWalletNoteReceiveRecoveryIndex({ walletContext, context, latestBlock }) {
-  const nextBlock = Number(walletContext.wallet.noteReceiveLastScannedBlock);
+function channelWorkspaceRecoveryTargetNextBlock(context) {
+  const targetNextBlock = Number(context.workspace.recoveryLastScannedBlock);
   const genesisBlockNumber = Number(context.workspace.genesisBlockNumber);
+  expect(
+    Number.isInteger(targetNextBlock) && targetNextBlock >= genesisBlockNumber,
+    "Channel workspace recovery frontier is missing or unusable.",
+  );
+  return targetNextBlock;
+}
+
+function walletNoteReceiveTargetBlock(context) {
+  return channelWorkspaceRecoveryTargetNextBlock(context) - 1;
+}
+
+function computeRecoveryCursorDelta({
+  localNextBlock,
+  targetNextBlock,
+  genesisBlockNumber,
+  label,
+}) {
+  const normalizedLocalNextBlock = Number(localNextBlock);
+  const normalizedTargetNextBlock = Number(targetNextBlock);
+  const normalizedGenesisBlockNumber = Number(genesisBlockNumber);
   if (
-    !Number.isInteger(nextBlock)
-    || nextBlock < genesisBlockNumber
-    || nextBlock > Number(latestBlock) + 1
+    !Number.isInteger(normalizedLocalNextBlock)
+    || !Number.isInteger(normalizedTargetNextBlock)
+    || !Number.isInteger(normalizedGenesisBlockNumber)
+    || normalizedLocalNextBlock < normalizedGenesisBlockNumber
+    || normalizedTargetNextBlock < normalizedGenesisBlockNumber
   ) {
     throw new Error([
+      `${label} recovery cursor is missing or unusable.`,
+      `Expected localNextBlock and targetNextBlock to be integers greater than or equal to ${normalizedGenesisBlockNumber}.`,
+    ].join(" "));
+  }
+  const fromBlock = normalizedLocalNextBlock;
+  const toBlock = normalizedTargetNextBlock - 1;
+  const blockDelta = Math.max(0, normalizedTargetNextBlock - normalizedLocalNextBlock);
+  return {
+    fresh: normalizedLocalNextBlock >= normalizedTargetNextBlock,
+    localNextBlock: normalizedLocalNextBlock,
+    targetNextBlock: normalizedTargetNextBlock,
+    fromBlock,
+    toBlock,
+    blockDelta,
+  };
+}
+
+function requireUsableWalletNoteReceiveRecoveryIndex({ walletContext, context, targetNextBlock }) {
+  const nextBlock = Number(walletContext.wallet.noteReceiveLastScannedBlock);
+  const genesisBlockNumber = Number(context.workspace.genesisBlockNumber);
+  try {
+    computeRecoveryCursorDelta({
+      localNextBlock: nextBlock,
+      targetNextBlock,
+      genesisBlockNumber,
+      label: `Wallet note workspace ${walletContext.walletName}`,
+    });
+  } catch (error) {
+    throw new Error([
       `Wallet note recovery index is missing or unusable for wallet ${walletContext.walletName}.`,
-      `Expected noteReceiveLastScannedBlock to be an integer between ${genesisBlockNumber} and ${Number(latestBlock) + 1}.`,
+      `Expected noteReceiveLastScannedBlock to be an integer greater than or equal to ${genesisBlockNumber}.`,
       "Run wallet recover-workspace --from-genesis to restart received-note scanning from channel genesis.",
+      `Details: ${error.message}`,
     ].join(" "));
   }
   return nextBlock;
 }
 
-async function assertWalletNoteReceiveStateFresh({ walletContext, context, provider }) {
-  const latestBlock = await fetchFreshBlockNumber(provider);
+function assertWalletNoteReceiveStateFresh({ walletContext, context }) {
+  const targetNextBlock = channelWorkspaceRecoveryTargetNextBlock(context);
   const nextBlock = requireUsableWalletNoteReceiveRecoveryIndex({
     walletContext,
     context,
-    latestBlock,
+    targetNextBlock,
   });
-  if (nextBlock !== latestBlock + 1) {
+  const cursorDelta = computeRecoveryCursorDelta({
+    localNextBlock: nextBlock,
+    targetNextBlock,
+    genesisBlockNumber: Number(context.workspace.genesisBlockNumber),
+    label: `Wallet note workspace ${walletContext.walletName}`,
+  });
+  if (!cursorDelta.fresh) {
     throw new Error([
       `Wallet note workspace is stale for wallet ${walletContext.walletName}.`,
-      `noteReceiveLastScannedBlock is ${nextBlock}, but latest block requires ${latestBlock + 1}.`,
+      `noteReceiveLastScannedBlock is ${nextBlock}, but channel workspace recovery frontier requires ${targetNextBlock}.`,
       "Run wallet recover-workspace before using commands that read or spend wallet notes.",
     ].join(" "));
   }
   return {
-    latestBlock,
+    targetBlock: targetNextBlock - 1,
+    targetNextBlock,
     nextBlock,
+    blockDelta: cursorDelta.blockDelta,
   };
 }
 
@@ -6918,13 +6999,13 @@ async function ensureWalletNoteReceiveStateCurrent({
   progressAction = null,
   preConsumedBlockDelta = 0,
 }) {
-  const latestBlock = await fetchFreshBlockNumber(provider);
+  const targetNextBlock = channelWorkspaceRecoveryTargetNextBlock(context);
   let nextBlock;
   try {
     nextBlock = requireUsableWalletNoteReceiveRecoveryIndex({
       walletContext,
       context,
-      latestBlock,
+      targetNextBlock,
     });
   } catch (indexError) {
     throw new Error([
@@ -6935,9 +7016,17 @@ async function ensureWalletNoteReceiveStateCurrent({
     ].join(" "));
   }
 
-  if (nextBlock === latestBlock + 1) {
+  const cursorDelta = computeRecoveryCursorDelta({
+    localNextBlock: nextBlock,
+    targetNextBlock,
+    genesisBlockNumber: Number(context.workspace.genesisBlockNumber),
+    label: `wallet note workspace ${walletContext.walletName}`,
+  });
+
+  if (cursorDelta.fresh) {
     return {
-      latestBlock,
+      targetBlock: cursorDelta.toBlock,
+      targetNextBlock,
       nextBlock,
       recoveredWalletWorkspace: false,
       recoveredDeliveryState: null,
@@ -6947,8 +7036,8 @@ async function ensureWalletNoteReceiveStateCurrent({
   const remainingBlockBudget = AUTO_RECOVERY_BLOCK_BUDGET - Math.max(0, Number(preConsumedBlockDelta));
   const autoRecoveryBlockDelta = assertAutoRecoveryBlockBudget({
     label: `wallet note workspace ${walletContext.walletName}`,
-    fromBlock: nextBlock,
-    toBlock: latestBlock,
+    fromBlock: cursorDelta.fromBlock,
+    toBlock: cursorDelta.toBlock,
     recoveryCommand: `wallet recover-workspace --channel-name ${context.workspace.channelName} --network ${context.workspace.network} --account <ACCOUNT>`,
     blockBudget: remainingBlockBudget,
   });
@@ -6961,6 +7050,7 @@ async function ensureWalletNoteReceiveStateCurrent({
       context,
       provider,
       signer: resolvedSigner,
+      toBlock: cursorDelta.toBlock,
       progressAction,
       fromGenesis: false,
     }));
@@ -6973,7 +7063,7 @@ async function ensureWalletNoteReceiveStateCurrent({
     ].join(" "));
   }
   try {
-    const freshness = await assertWalletNoteReceiveStateFresh({ walletContext, context, provider });
+    const freshness = assertWalletNoteReceiveStateFresh({ walletContext, context });
     return {
       ...freshness,
       recoveredWalletWorkspace: true,
@@ -7511,13 +7601,19 @@ async function requireChannelWorkspaceRecoveryIndexForAutoRefresh({
   if (!recoveryIndex) {
     fail(`Channel workspace recovery index is unusable for ${channelName} on ${networkName}.`);
   }
-  if (Number(recoveryIndex.nextBlock) > Number(latestBlock)) {
+  const cursorDelta = computeRecoveryCursorDelta({
+    localNextBlock: recoveryIndex.nextBlock,
+    targetNextBlock: Number(latestBlock) + 1,
+    genesisBlockNumber,
+    label: `Channel workspace ${channelName} on ${networkName}`,
+  });
+  if (cursorDelta.fresh) {
     fail(`Channel workspace recovery index has already scanned through block ${recoveryIndex.nextBlock - 1}, but the local snapshot is not current.`);
   }
   const autoRecoveryBlockDelta = assertAutoRecoveryBlockBudget({
     label: `channel workspace ${channelName} on ${networkName}`,
-    fromBlock: recoveryIndex.nextBlock,
-    toBlock: latestBlock,
+    fromBlock: cursorDelta.fromBlock,
+    toBlock: cursorDelta.toBlock,
     recoveryCommand: `channel recover-workspace --channel-name ${channelName} --network ${networkName}`,
   });
   return { alreadyCurrent: false, autoRecoveryBlockDelta };
@@ -7585,19 +7681,19 @@ async function recoverLocalWorkspacesAfterAcceptedNoteTransaction({
     walletContext: wallet,
     context,
     provider,
+    toBlock: walletNoteReceiveTargetBlock(context),
     progressAction,
     fromGenesis: false,
   });
   const freshness = await assertWalletNoteReceiveStateFresh({
     walletContext: wallet,
     context,
-    provider,
   });
   return {
     channelRecoveryLastScannedBlock: context.workspace.recoveryLastScannedBlock,
     channelRecoveryScanRange: context.workspace.recoveryScanRange,
     walletNoteReceiveNextBlock: freshness.nextBlock,
-    walletLatestBlock: freshness.latestBlock,
+    walletTargetBlock: freshness.targetBlock,
     recoveredFromLogs: recoveredDeliveryState.importedNotes,
     scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
     linkedEvidence: recoveredDeliveryState.linkedEvidence,
@@ -11185,7 +11281,14 @@ function getUsableWorkspaceRecoveryIndex({
     return null;
   }
   const recoveryRootVectorHash = normalizeBytes32Hex(workspace.recoveryRootVectorHash);
-  if (!Number.isInteger(nextBlock) || nextBlock < Number(genesisBlockNumber) || nextBlock > Number(latestBlock) + 1) {
+  try {
+    computeRecoveryCursorDelta({
+      localNextBlock: nextBlock,
+      targetNextBlock: Number(latestBlock) + 1,
+      genesisBlockNumber,
+      label: "Channel workspace",
+    });
+  } catch {
     return null;
   }
   if (recoveryRootVectorHash === null) {

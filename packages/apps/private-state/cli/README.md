@@ -209,9 +209,11 @@ saved index instead of silently replaying from genesis.
 Wallet commands that need channel state, including `wallet recover-workspace`, `wallet get-meta`,
 `wallet get-channel-fund`, and `wallet get-notes`, refresh stale local channel workspaces through saved recovery
 indexes before reading state. `wallet get-notes` and `wallet recover-workspace` also refresh received-note logs
-through the saved wallet note recovery index. Automatic refresh never replays from channel genesis and only runs when
-the recovery delta fits within the 7,200-block pre-command budget. If a saved index is missing, unusable, or too far
-behind, the command stops and asks the user to run the appropriate recovery command first.
+through the saved wallet note recovery index. Wallet note freshness is measured against the fresh channel workspace
+frontier, not the provider's latest L1 block, so unrelated new L1 blocks do not make a wallet stale by themselves.
+Automatic refresh never replays from channel genesis and only runs when the recovery delta fits within the 7,200-block
+pre-command budget. If a saved index is missing, unusable, or too far behind, the command stops and asks the user to
+run the appropriate recovery command first.
 
 Wallet note-delivery recovery checkpoints after each RPC log chunk by updating
 `noteReceiveLastScannedBlock`. If an ordinary `wallet recover-workspace` run is interrupted during note recovery, the

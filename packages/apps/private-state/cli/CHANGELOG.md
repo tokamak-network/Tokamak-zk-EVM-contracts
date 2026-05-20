@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.3.2 - 2026-05-21
+
+- Clarified `wallet transfer-notes` JSON-array argument formats in CLI help and README guidance.
+- Changed wallet note freshness to use the fresh channel workspace recovery frontier instead of the
+  provider's latest L1 block, so unrelated L1 blocks do not make wallet workspaces stale.
+- Simplified wallet recovery and command-argument validation logic while preserving the channel-frontier
+  recovery model.
+
 ## 2.3.1 - 2026-05-20
 
 - Added `wallet recover-workspace --wallet-secret-path` support for rederiving and storing an active

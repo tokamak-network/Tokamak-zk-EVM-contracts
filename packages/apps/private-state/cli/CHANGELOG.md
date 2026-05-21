@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Changed `help observer` and monitoring references to use the public observer URL
+  `https://observer.tonnel.io`.
+
 ## 2.3.2 - 2026-05-21
 
 - Clarified `wallet transfer-notes` JSON-array argument formats in CLI help and README guidance.

@@ -9,7 +9,7 @@ The external policy model for monitoring, public disclosure boundaries, user-con
 ## Public Observer
 
 The public observer for this monitoring packet is deployed at
-<https://project-scw1r.vercel.app>. CLI users can print the same clickable URL with
+<https://observer.tonnel.io>. CLI users can print the same clickable URL with
 `private-state-cli help observer`. The observer gives users, reviewers, and external monitors a
 browser entrypoint for the public monitoring surface described by this packet. It does not receive
 wallet secrets, spending keys, viewing keys, or private note plaintext.

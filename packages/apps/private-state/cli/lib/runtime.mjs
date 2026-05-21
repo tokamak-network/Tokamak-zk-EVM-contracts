@@ -137,7 +137,7 @@ const PRIVATE_STATE_UNINSTALL_CONFIRMATION =
 const ACTION_IMPACT_CONFIRMATION =
   "I understand the public and private impact of this action";
 const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
-const PRIVATE_STATE_OBSERVER_URL = "https://project-scw1r.vercel.app";
+const PRIVATE_STATE_OBSERVER_URL = "https://observer.tonnel.io";
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const WALLET_BACKUP_EXPORT_FORMAT = "tokamak-private-state-wallet-backup-export";

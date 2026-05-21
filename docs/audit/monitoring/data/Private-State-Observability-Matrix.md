@@ -3,7 +3,7 @@
 This file maps the Monitoring Packet event checklist to the current public event surface. The policy
 meaning of this matrix is described in `docs/whitepaper.md`; this file records
 the current ABI-derived monitoring details. The deployed public observer for this monitoring surface
-is <https://project-scw1r.vercel.app>.
+is <https://observer.tonnel.io>.
 
 | Checklist item | Observable as | Contract | Event | Availability | Indexed fields | Non-indexed fields | Explorer query | Known from event | Not known from event | Monitoring meaning |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

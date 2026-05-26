@@ -4,6 +4,8 @@
 
 - Changed `help observer` and monitoring references to use the public observer URL
   `https://observer.tonnel.io`.
+- Clarified CLI help, guide output, and README guidance so channel join tolls are paid directly
+  from the L1 wallet, while `account deposit-bridge` is only for channel liquidity.
 
 ## 2.3.2 - 2026-05-21
 

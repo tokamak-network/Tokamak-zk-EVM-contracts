@@ -104,10 +104,6 @@ the published artifacts and mainnet `DAppManager` events. Dates are UTC.
 | --- | ---: | --- | --- | --- | --- |
 | `private-state` | `1` | [Google Drive folder](https://drive.google.com/drive/folders/1DwjAOlryTdWnBi-c7bSlV77IhutRfYXX) | Registered on 2026-05-04 00:33:35 UTC at block `25018081`; no later metadata update event is recorded | [`0xf6130e...23daf`](https://etherscan.io/tx/0xf6130ee7f1a3ec63116369086d907da6d2da27c93ef5bf2eae91400d91323daf) | `the-great-first-channel` |
 
-### Tonnel TON Airdrop
-
-Tonnel is the public name for `the-great-first-channel`, the mainnet private-state channel listed above. The official TON airdrop campaign page is <https://airdrop.tonnel.io>.
-
 ## Repository Model
 
 At a high level, the repository is organized around three layers:

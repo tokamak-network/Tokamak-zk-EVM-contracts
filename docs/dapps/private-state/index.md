@@ -11,9 +11,6 @@ canonical token custody on L1 through the bridge, while channel-local accounting
 commitments, nullifiers, and encrypted note-delivery events live in proof-backed confidential
 application state.
 
-The official TON airdrop campaign for Tonnel, the public name for `the-great-first-channel`, is
-<https://airdrop.tonnel.io>.
-
 ### What privacy does it provide?
 
 The DApp provides privacy-preserving note semantics, not invisible activity. It hides note ownership

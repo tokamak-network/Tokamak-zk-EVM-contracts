@@ -411,7 +411,7 @@ This also means future proving-capacity expansion is expected to produce new cha
 
 ### 6.2 Funding and Vault Participation
 
-Users first fund the shared L1 vault and then register their channel-token-vault identity inside the channel. After that, deposits and withdrawals are expressed as proof-backed updates to the channel-token-vault tree.
+Users register their channel-token-vault identity by paying any join toll directly from the L1 wallet. Bridge funding is a separate liquidity step; deposits and withdrawals then become proof-backed updates to the channel-token-vault tree.
 
 The channel-token-vault identity is the bridge's way to bind an L1 user, a channel-local L2 address,
 and a vault storage key together. This binding is what lets the vault path remain narrower than

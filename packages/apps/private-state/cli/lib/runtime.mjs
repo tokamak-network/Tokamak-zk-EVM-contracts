@@ -327,7 +327,7 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
   },
   "channel-join": {
     display: "channel join",
-    l1PublicEvent: "Yes. Channel join and token-vault registration transactions are public L1 data.",
+    l1PublicEvent: "Yes. Channel join and token-vault registration transactions are public L1 data; any join toll is paid directly from the L1 wallet.",
     privateNoteState: "No. This action registers identity and note-receive metadata; it does not create or spend notes.",
     publicFields: ({ l1Address, l2Address, noteReceivePubKey, joinToll, channelName, channelId }) => [
       `Channel: ${channelName} (${channelId})`,
@@ -4120,7 +4120,7 @@ function applyGuideNextAction(guide) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
       command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH> --acknowledge-action-impact`,
-      why: "The selected local wallet does not exist. Join the channel to create the wallet and register the channel L2 identity.",
+      why: "The selected local wallet does not exist. Join the channel to create the wallet, register the channel L2 identity, and pay any join toll directly from the L1 wallet.",
     });
     return;
   }
@@ -4129,7 +4129,7 @@ function applyGuideNextAction(guide) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
       command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH> --acknowledge-action-impact`,
-      why: "The local wallet exists, but the corresponding L1 address is not registered in the channel.",
+      why: "The local wallet exists, but the corresponding L1 address is not registered in the channel; joining pays any join toll directly from the L1 wallet.",
     });
     return;
   }
@@ -4146,7 +4146,7 @@ function applyGuideNextAction(guide) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
       command: `account deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account} --acknowledge-action-impact`,
-      why: "The wallet is joined, but there is no bridge balance, channel balance, or local unused note to spend.",
+      why: "The wallet is joined, but there is no bridge balance, channel balance, or local unused note to spend; bridge deposits fund channel liquidity and do not pay join tolls.",
     });
     return;
   }

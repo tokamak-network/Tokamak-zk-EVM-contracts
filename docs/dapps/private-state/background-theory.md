@@ -97,9 +97,9 @@ which produces different commitments and nullifiers.
 
 The normal user flow is:
 
-1. deposit canonical token into the shared bridge vault on L1
-2. join a channel-specific L2 identity
-3. move value into the channel L2 accounting balance
+1. join a channel-specific L2 identity, paying any join toll directly from the L1 wallet
+2. deposit canonical token into the shared bridge vault on L1 for channel liquidity
+3. move that value into the channel L2 accounting balance
 4. mint notes from liquid balance
 5. transfer notes by consuming old notes and creating new ones
 6. redeem notes back into liquid balance

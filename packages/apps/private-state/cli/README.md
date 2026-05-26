@@ -131,11 +131,11 @@ and the global CLI npm package when npm reports that it is globally installed.
 
 ## Commands
 
-A common private-state flow is:
+A common note-use flow after channel policy review is:
 
 1. `channel create`
-2. `account deposit-bridge`
-3. `channel join`
+2. `channel join`
+3. `account deposit-bridge`
 4. `wallet deposit-channel`
 5. `wallet mint-notes`
 6. `wallet transfer-notes`
@@ -144,6 +144,8 @@ A common private-state flow is:
 9. `wallet withdraw-channel`
 10. `channel exit`
 11. `account withdraw-bridge`
+
+`channel join` pays any join toll directly from the L1 wallet; `account deposit-bridge` funds later channel liquidity and does not pay the join toll.
 
 Use `private-state-cli help commands` for the full command list and required options. `private-state-cli --help`
 continues to print the same command list for shell compatibility.
@@ -553,7 +555,7 @@ Operating rules:
   8. prepare a wallet secret source file locally, for example with `openssl rand -hex 32 > ./wallet-secret.txt`
   9. inspect the channel with `channel get-meta` if it already exists, or create it with `channel create` if the user is
      the channel creator
-  10. explain the immutable policy warning printed by the CLI
+  10. explain the immutable policy warning and that the join toll is paid directly from the L1 wallet, not bridge-deposited balance
   11. run `channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path <PATH> --acknowledge-action-impact`
 - Before executing any command for a user that requires an `--acknowledge-*` option, strongly warn the user in plain
   language about what that acknowledgement means and ask for explicit confirmation. Do not add
@@ -585,7 +587,7 @@ Operating rules:
 - Do not present one fixed command sequence as universally correct. Some flows start from an existing channel or wallet,
   while others require creating or joining a channel first.
 - When the user asks for a transfer, first determine whether the sender has minted notes available. If not, guide them
-  through funding the bridge, joining or recovering the channel wallet, depositing into the channel, and minting notes.
+  through joining or recovering the channel wallet, funding the bridge for channel liquidity, depositing into the channel, and minting notes.
 - When generating commands, use placeholders for secrets and explicit values for public fields. Show one command at a
   time unless the user asks for a batch.
 
@@ -596,7 +598,7 @@ Suggested interaction flow:
 3. Identify the sender and recipient wallets or local account names.
 4. Run `help doctor`.
 5. Run `wallet list` and relevant metadata or balance checks.
-6. If needed, guide the user through `channel create`, `account deposit-bridge`, `channel join`, `wallet deposit-channel`, and
+6. If needed, guide the user through `channel create`, `channel join`, `account deposit-bridge`, `wallet deposit-channel`, and
    `wallet mint-notes`.
 7. For a confidential note transfer, select available note IDs from `wallet get-notes`, find the recipient L2 address from
    `wallet get-meta`, then build `wallet transfer-notes` with JSON arrays for `--note-ids`, `--recipients`, and `--amounts`.

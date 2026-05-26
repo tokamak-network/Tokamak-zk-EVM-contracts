@@ -330,7 +330,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["network", "channelName", "account", "wallet"],
     optionalFields: ["network", "channelName", "account", "wallet"],
     usage: "optional --network, --channel-name, --account, and --wallet",
-    help: ["Does not accept --rpc-url and never writes RPC configuration"],
+    help: ["Does not accept --rpc-url and never writes RPC configuration", "Recommends bridge deposits only after a wallet is joined and needs channel liquidity"],
   },
   {
     id: "help-observer",
@@ -461,7 +461,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     usage: "--amount, --network, --account, --acknowledge-action-impact",
     help: [
       "Action impact: emits public L1 approval and bridge funding events that expose the local L1 account, bridge vault, amount, and transaction hashes.",
-      "Private note state is not changed by this command.",
+      "Private note state is not changed by this command; it does not pay a channel join toll.",
       ACTION_IMPACT_HELP.exchangeControlledAddress,
       ACTION_IMPACT_HELP.illegalUse,
       ACTION_IMPACT_HELP.acknowledgement,
@@ -514,6 +514,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "Refreshes the local channel workspace through the saved recovery index before joining when the scan fits the 7,200-block pre-command budget",
       "Fails instead of replaying from genesis; run channel recover-workspace --source rpc --from-genesis when a genesis rebuild is required",
       "--wallet-secret-path is read once for channel-bound L2 spending-key derivation and is not stored in the wallet workspace",
+      "Pays any join toll directly from the L1 wallet, not from bridge-deposited balance",
       "Prints the immutable policy snapshot before first registration",
       "Action impact: emits public channel join and token-vault registration events exposing the L1 account, L2 address pair, note-receive public key, join toll, and channel id.",
       "Private note state is not changed by this command.",

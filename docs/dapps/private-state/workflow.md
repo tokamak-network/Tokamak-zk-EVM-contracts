@@ -38,8 +38,8 @@ The normal flow is:
 1. `set rpc`
 2. `account import`
 3. `channel create`
-4. `account deposit-bridge`
-5. `channel join`
+4. `channel join`
+5. `account deposit-bridge`
 6. `wallet deposit-channel`
 7. `wallet mint-notes`
 8. `wallet transfer-notes`
@@ -50,8 +50,7 @@ The normal flow is:
 13. `account withdraw-bridge`
 
 `channel create` is permissionless at the bridge level. The caller becomes the channel leader and
-chooses the initial join toll. `channel join` binds the user's L1 identity to a channel-specific L2
-identity and registers the note-receive public key for encrypted note delivery.
+chooses the initial join toll. `channel join` pays that toll directly from the L1 wallet, binds the user's L1 identity to a channel-specific L2 identity, and registers the note-receive public key for encrypted note delivery.
 
 `set rpc` is the per-network RPC configuration step. It stores the endpoint URL plus fixed
 `eth_getLogs` scan limits under the local workspace. Ordinary bridge-facing and wallet commands read
@@ -73,7 +72,7 @@ The flow moves value through three representations:
 2. liquid L2 accounting balance in `L2AccountingVault`
 3. private notes in `PrivateStateController`
 
-Deposits and withdrawals move between the first two representations. Mint and redeem move between
+Bridge deposits and withdrawals move between the first two representations. Mint and redeem move between
 the second and third. Transfer moves value between notes without touching L1 custody.
 
 `channel exit` is the registration cleanup step. It is separate from `wallet withdraw-channel` because

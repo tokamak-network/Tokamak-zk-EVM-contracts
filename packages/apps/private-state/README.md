@@ -162,7 +162,7 @@ The current implementation includes:
 
 ## CLI Command Flow
 
-The commands below are ordered by the normal execution flow.
+The commands below follow the normal note-use flow; bridge funding is for channel liquidity, not join toll payment.
 
 ### 1. Install, remove, or configure the local CLI runtime
 
@@ -265,25 +265,12 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - reads RPC settings from the per-network `set rpc` configuration
 - is the lightest inspection command when a user or channel creator wants to review policy before joining or creating local wallet state
 
-### 4. Fund the shared L1 bridge vault
-
-`account deposit-bridge`
-
-- deposits Tokamak Network Token into the shared bridge-level `bridgeTokenVault`
-- does not register the user in the channel
-- reads RPC settings from the per-network `set rpc` configuration
-- requires `--acknowledge-action-impact`
-
-`account get-bridge-fund`
-
-- reads the caller's balance in the shared bridge-level `bridgeTokenVault`
-- requires `--network` and `--account`
-
-### 5. Join the channel-specific wallet and L2 identity
+### 4. Join the channel-specific wallet and L2 identity
 
 `channel join`
 
 - derives the channel-specific L2 identity
+- pays any join toll directly from the L1 wallet, not from bridge-deposited balance
 - registers the caller's L2 address, channel token-vault storage key, leaf index, and note-receive public key on-chain
 - creates wallet note metadata, viewing-key metadata, and spending-key metadata
 - requires `--wallet-secret-path <PATH>` to read an existing source secret file once for spending-key derivation
@@ -311,6 +298,21 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - refreshes the channel workspace only when the saved channel recovery index delta fits the pre-command budget
 - fails and asks for `channel recover-workspace` first when the channel workspace is missing, unusable, or too stale for automatic recovery
 - accepts `--from-genesis` to restart received-note scanning from channel genesis; it does not rebuild the channel workspace from genesis
+
+### 5. Fund the shared L1 bridge vault
+
+`account deposit-bridge`
+
+- deposits Tokamak Network Token into the shared bridge-level `bridgeTokenVault`
+- does not register the user in the channel
+- does not pay the channel join toll
+- reads RPC settings from the per-network `set rpc` configuration
+- requires `--acknowledge-action-impact`
+
+`account get-bridge-fund`
+
+- reads the caller's balance in the shared bridge-level `bridgeTokenVault`
+- requires `--network` and `--account`
 
 Wallet getter commands that need channel state, including `wallet get-meta`, `wallet get-channel-fund`, and
 `wallet get-notes`, refresh stale local workspaces through saved recovery indexes before reading state when the

@@ -422,11 +422,12 @@
               <li>
                 <span class="guide-label">Join a channel:</span> <code>channel join</code>
                 <div class="guide-example">
-                  <code>channel join --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --wallet-secret-path '/path/to/wallet-secret'</code>
+                  <code>channel join --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --wallet-secret-path '/path/to/wallet-secret'</code><br />
+                  Pays the join toll directly from the L1 wallet, not from bridge-deposited balance.
                 </div>
               </li>
               <li>
-                <span class="guide-label">Create notes:</span> <code>account deposit-bridge</code> -&gt; <code>wallet deposit-channel</code> -&gt; <code>wallet mint-notes</code>
+                <span class="guide-label">Fund note balance:</span> <code>account deposit-bridge</code> -&gt; <code>wallet deposit-channel</code> -&gt; <code>wallet mint-notes</code>
                 <div class="guide-example">
                   <code>account deposit-bridge --amount '100' --network 'sepolia' --account 'my-account'</code><br />
                   <code>wallet deposit-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '100'</code><br />

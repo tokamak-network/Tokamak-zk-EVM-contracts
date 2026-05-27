@@ -352,6 +352,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Uses packages/apps/private-state/cli/assets/tx-fees.json as the measured gas source packaged with the CLI",
       "Reads live fee data from the selected network RPC and live ETH/USD from CoinGecko",
+      "AI agents should run this command with --json when users ask about gas, transaction fees, transaction cost, or USD cost",
     ],
   },
   {

@@ -314,7 +314,8 @@ private-state-cli help transaction-fees --network mainnet
 `help transaction-fees` uses the measured gas data packaged in `assets/tx-fees.json`, the selected network's live fee data,
 and live ETH/USD pricing to print an ETH/USD fee table for transaction-sending commands. The table separates typical
 cost, based on the RPC `gasPrice`, from worst-case cost, based on `maxFeePerGas` when the network reports EIP-1559 fee
-data.
+data. AI agents answering user questions about gas, transaction fees, transaction cost, or USD cost should run
+`private-state-cli help transaction-fees --network <NETWORK> --json` and answer from the returned table.
 
 Proof-backed note commands can use a separate L1 transaction submitter:
 
@@ -531,6 +532,10 @@ Operating rules:
   recovery can be very slow because it scans channel logs from the creation block. If a channel workspace mirror is
   available, try mirror-based recovery first, and use RPC genesis replay only when mirror recovery is unavailable or
   unsuitable.
+- When the user asks about gas use, transaction fees, transaction cost, or USD cost for private-state CLI commands, run
+  `private-state-cli help transaction-fees --network <NETWORK> --json` and answer from the returned `rows`. If the
+  network is unclear, ask which network to use. Do not tell the user to ask the developer unless the command fails after
+  following the CLI's printed corrective guidance.
 - When `channel recover-workspace` or `wallet recover-workspace` is unexpectedly slow, first inspect the RPC provider
   configured by `set rpc`. Explain that recovery speed is dominated by `eth_getLogs` block range cap and log request
   rate. Suggest re-running `set rpc` with a provider that supports a larger block range cap, such as Ankr or Chainnodes

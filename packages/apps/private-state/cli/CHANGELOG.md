@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.3.4 - 2026-05-29
+
+- Removed the implicit wallet proof context recovery path so proof-backed wallet commands require
+  their channel context to be prepared before proof generation.
+- Added a post-proof, pre-submit channel root check for proof-backed channel state updates so stale
+  proofs are rejected before submitting transactions whenever the root changed during proof generation.
+
 ## 2.3.3 - 2026-05-27
 
 - Changed `help observer` and monitoring references to use the public observer URL

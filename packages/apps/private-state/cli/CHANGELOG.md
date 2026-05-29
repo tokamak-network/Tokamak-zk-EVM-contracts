@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Removed the standalone `channel publish-workspace-mirror` command. Channel leaders now publish
+  mirror files through `channel recover-workspace --publish-workspace-mirror --leader-account <ACCOUNT> --output <PATH>`.
+
 ## 2.3.4 - 2026-05-29
 
 - Removed the implicit wallet proof context recovery path so proof-backed wallet commands require

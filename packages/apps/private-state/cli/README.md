@@ -236,10 +236,10 @@ older CLI and does not contain `wallet-index.metadata.json` plus `epochs/<epoch-
 Channel leaders can optionally register a workspace mirror server so users can bootstrap recovery
 from a signed checkpoint and download only the local-to-checkpoint delta when a local recovery index
 already exists. The channel leader can build the static mirror files with
-`channel publish-workspace-mirror` and then deploy the output directory to the registered mirror
-host. If the existing mirror manifest is unreadable or invalid, the leader can use
-`channel publish-workspace-mirror --force` to write a full checkpoint without trusting that remote
-manifest as a delta base. The CLI protocol is documented at
+`channel recover-workspace --publish-workspace-mirror --leader-account <ACCOUNT> --output <PATH>` after
+recovering the channel workspace, and then deploy the output directory to the registered mirror host.
+If the existing mirror manifest is unreadable or invalid, add `--force` to write a full checkpoint
+without trusting that remote manifest as a delta base. The CLI protocol is documented at
 https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/docs/dapps/private-state/channel-workspace-mirror-protocol.md.
 
 Back up a local wallet with:
@@ -541,6 +541,9 @@ Operating rules:
   rate. Suggest re-running `set rpc` with a provider that supports a larger block range cap, such as Ankr or Chainnodes
   when appropriate, or with explicit `--log-requests-per-second` and `--block-range-cap` values from the provider's
   documentation.
+- When a channel leader needs to refresh workspace mirror files, guide them to run
+  `channel recover-workspace --publish-workspace-mirror --leader-account <ACCOUNT> --output <PATH>`. The standalone
+  `channel publish-workspace-mirror` command is no longer available.
 - When a CLI command fails, read the error message and any printed `Try:` hints first. Prefer the corrective action
   suggested by the CLI before inventing a different recovery sequence.
 - When the user does not have a network RPC URL yet, explain that they need an Ethereum JSON-RPC endpoint for the

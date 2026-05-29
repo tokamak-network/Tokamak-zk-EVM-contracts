@@ -4,14 +4,12 @@ import {
   assertGetChannelArgs,
   assertJoinChannelArgs,
   assertProviderChainIdMatchesNetwork,
-  assertPublishWorkspaceMirrorArgs,
   assertRecoverWorkspaceArgs,
   assertSetWorkspaceMirrorArgs,
   handleChannelCreate,
   handleExitChannel,
   handleGetChannel,
   handleJoinChannel,
-  handlePublishChannelWorkspaceMirror,
   handleSetChannelWorkspaceMirror,
   handleWorkspaceInit,
   loadExplicitCommandRuntime,
@@ -39,11 +37,6 @@ export const channelCommands = Object.freeze({
     assertSetWorkspaceMirrorArgs(args);
     const { network, provider } = loadExplicitCommandRuntime(args, { prepareArtifacts: true });
     await handleSetChannelWorkspaceMirror({ args, network, provider });
-  },
-  "channel-publish-workspace-mirror": async (args) => {
-    assertPublishWorkspaceMirrorArgs(args);
-    const { network, provider } = loadExplicitCommandRuntime(args, { prepareArtifacts: true });
-    await handlePublishChannelWorkspaceMirror({ args, network, provider });
   },
   "channel-join": async (args) => {
     assertJoinChannelArgs(args);

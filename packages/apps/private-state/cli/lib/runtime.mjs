@@ -729,6 +729,8 @@ async function handleWorkspaceInit({ args, network, provider }) {
     workspaceDir,
     workspace,
     currentSnapshot,
+    blockInfo,
+    contractCodes,
     cleanRebuildBackup,
     rpcCallHistory,
   } = await syncChannelWorkspace({
@@ -745,6 +747,24 @@ async function handleWorkspaceInit({ args, network, provider }) {
     outputRawRpcCallHistory,
     progressAction: "channel recover-workspace",
   });
+
+  const publishedWorkspaceMirror = args.publishWorkspaceMirror === true
+    ? await publishChannelWorkspaceMirrorFromRecoveredWorkspace({
+      args,
+      network,
+      provider,
+      bridgeResources,
+      channelName,
+      local: {
+        workspace,
+        stateSnapshot: currentSnapshot,
+        blockInfo,
+        contractCodes,
+        recoveryLastScannedBlock: workspace.recoveryLastScannedBlock,
+        recoveryRootVectorHash: workspace.recoveryRootVectorHash,
+      },
+    })
+    : null;
 
   printJson({
     action: "channel recover-workspace",
@@ -764,6 +784,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     recoveryScanRange: workspace.recoveryScanRange,
     rpcCallHistory,
     workspaceMirror: workspace.workspaceMirror ?? null,
+    publishedWorkspaceMirror,
   });
 }
 
@@ -875,12 +896,17 @@ async function handleSetChannelWorkspaceMirror({ args, network, provider }) {
   });
 }
 
-async function handlePublishChannelWorkspaceMirror({ args, network, provider }) {
-  const channelName = requireArg(args.channelName, "--channel-name");
+async function publishChannelWorkspaceMirrorFromRecoveredWorkspace({
+  args,
+  network,
+  provider,
+  bridgeResources,
+  channelName,
+  local,
+}) {
   const outputRoot = path.resolve(String(requireArg(args.output, "--output")));
   const force = args.force === true;
-  const signer = requireL1Signer(args, provider);
-  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const { signer, account: leaderAccount } = requireLeaderSigner(args, provider);
   const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
   const bridgeCore = new Contract(
     bridgeDeployment.bridgeCore,
@@ -906,13 +932,6 @@ async function handlePublishChannelWorkspaceMirror({ args, network, provider }) 
     channelId,
   });
 
-  const local = await loadPublishableLocalWorkspaceMirrorCheckpoint({
-    channelName,
-    network,
-    provider,
-    bridgeResources,
-    channelInfo,
-  });
   const remote = await readRemoteWorkspaceMirrorCheckpoint({
     manifestUrl,
     chainId: network.chainId,
@@ -927,9 +946,9 @@ async function handlePublishChannelWorkspaceMirror({ args, network, provider }) 
   expect(
     !remote.exists || Number(local.recoveryLastScannedBlock) > Number(remote.recoveryLastScannedBlock),
     [
-      `Local workspace recovery index ${local.recoveryLastScannedBlock} is not ahead of the registered mirror`,
+      `Recovered workspace index ${local.recoveryLastScannedBlock} is not ahead of the registered mirror`,
       `checkpoint ${remote.exists ? remote.recoveryLastScannedBlock : "<missing>"}.`,
-      "Run channel recover-workspace first if the local workspace is stale.",
+      "No newer workspace mirror checkpoint can be published.",
     ].join(" "),
   );
 
@@ -1023,11 +1042,13 @@ async function handlePublishChannelWorkspaceMirror({ args, network, provider }) 
   };
   writeJson(publishTarget.manifestPath, manifest);
 
-  printJson({
-    action: "channel publish-workspace-mirror",
+  return {
+    action: "channel recover-workspace publish-workspace-mirror",
     channelName,
     channelId: channelId.toString(),
     force,
+    leaderAccount,
+    leader: getAddress(signer.address),
     outputRoot,
     mirrorDir,
     manifestPath: publishTarget.manifestPath,
@@ -1053,7 +1074,7 @@ async function handlePublishChannelWorkspaceMirror({ args, network, provider }) 
       sizeBytes: checkpointBundle.bytes.length,
     },
     deltaBundles,
-  });
+  };
 }
 
 function resolveWorkspaceRecoverySource(args) {
@@ -1082,84 +1103,6 @@ function requireWorkspaceMirrorUrl(value) {
 
 async function readChannelWorkspaceMirror({ bridgeCore, channelId }) {
   return String(await bridgeCore.getChannelWorkspaceMirror(channelId));
-}
-
-async function loadPublishableLocalWorkspaceMirrorCheckpoint({
-  channelName,
-  network,
-  provider,
-  bridgeResources,
-  channelInfo,
-}) {
-  const workspaceDir = channelWorkspacePath(networkNameFromChainId(network.chainId), channelName);
-  const existingArtifacts = loadExistingWorkspaceArtifacts(workspaceDir);
-  const workspace = existingArtifacts.workspace;
-  expect(workspace, `Local channel workspace is missing at ${channelWorkspaceConfigPath(workspaceDir)}.`);
-  const stateSnapshot = existingArtifacts.stateSnapshot;
-  expect(stateSnapshot, `Local channel state snapshot is missing under ${channelWorkspaceCurrentPath(workspaceDir)}.`);
-  expect(existingArtifacts.blockInfo, `Local channel block_info.json is missing under ${channelWorkspaceCurrentPath(workspaceDir)}.`);
-  expect(existingArtifacts.contractCodes, `Local channel contract_codes.json is missing under ${channelWorkspaceCurrentPath(workspaceDir)}.`);
-  const channelManager = new Contract(
-    channelInfo.manager,
-    bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
-    provider,
-  );
-  const [
-    currentRootVectorHash,
-    genesisBlockNumber,
-    latestBlock,
-    managedStorageAddresses,
-  ] = await Promise.all([
-    channelManager.currentRootVectorHash(),
-    channelManager.genesisBlockNumber(),
-    provider.getBlockNumber(),
-    channelManager.getManagedStorageAddresses(),
-  ]);
-  const normalizedManagedStorageAddresses = normalizedAddressVector(managedStorageAddresses);
-  const recoveryIndex = getUsableWorkspaceRecoveryIndex({
-    existingArtifacts,
-    genesisBlockNumber: Number(genesisBlockNumber),
-    latestBlock,
-    managedStorageAddresses: normalizedManagedStorageAddresses,
-  });
-  expect(
-    recoveryIndex,
-    [
-      "Local channel workspace does not contain a usable recovery index.",
-      `Run channel recover-workspace --channel-name ${channelName} --network ${networkNameFromChainId(network.chainId)} first.`,
-    ].join(" "),
-  );
-  expect(
-    canReuseLocalWorkspaceSnapshot({
-      existingArtifacts,
-      currentRootVectorHash,
-      managedStorageAddresses: normalizedManagedStorageAddresses,
-    }),
-    [
-      "Local channel workspace is stale relative to the on-chain channel state.",
-      `Run channel recover-workspace --channel-name ${channelName} --network ${networkNameFromChainId(network.chainId)} first.`,
-    ].join(" "),
-  );
-  expect(Number(workspace.chainId) === Number(network.chainId), "Local workspace chainId does not match --network.");
-  expect(ethers.toBigInt(workspace.channelId) === ethers.toBigInt(deriveChannelIdFromName(channelName)), "Local workspace channelId mismatch.");
-  expect(String(workspace.channelName) === channelName, "Local workspace channelName mismatch.");
-  expect(
-    ethers.toBigInt(getAddress(workspace.channelManager)) === ethers.toBigInt(getAddress(channelInfo.manager)),
-    "Local workspace channelManager mismatch.",
-  );
-  expect(
-    ethers.toBigInt(getAddress(workspace.bridgeTokenVault)) === ethers.toBigInt(getAddress(channelInfo.bridgeTokenVault)),
-    "Local workspace bridgeTokenVault mismatch.",
-  );
-
-  return {
-    workspace,
-    stateSnapshot,
-    blockInfo: existingArtifacts.blockInfo,
-    contractCodes: existingArtifacts.contractCodes,
-    recoveryLastScannedBlock: recoveryIndex.nextBlock,
-    recoveryRootVectorHash: recoveryIndex.recoveryRootVectorHash,
-  };
 }
 
 async function readRemoteWorkspaceMirrorCheckpoint({
@@ -3661,6 +3604,7 @@ async function handleGuide({ args }) {
     why: null,
     candidateCommands: [],
     privacyTip: "For wallet mint-notes, wallet transfer-notes, and wallet redeem-notes, add --tx-submitter <ACCOUNT> to let a separate local L1 account submit executeChannelTransaction and pay gas.",
+    mirrorTip: "Channel leaders refresh mirror files with channel recover-workspace --publish-workspace-mirror --leader-account <ACCOUNT> --output <PATH>; the standalone channel publish-workspace-mirror command is no longer available.",
   };
 
   guide.state.local = inspectGuideLocalState(args);
@@ -9764,6 +9708,19 @@ function requireL1Signer(args, provider) {
   return new Wallet(resolvePrivateKeySource(args), provider);
 }
 
+function requireLeaderSigner(args, provider) {
+  const networkName = requireNetworkName(args);
+  const account = String(requireArg(args.leaderAccount, "--leader-account")).trim();
+  expect(account.length > 0, "--leader-account requires a local account name.");
+  return {
+    signer: new Wallet(
+      normalizePrivateKey(readSecretFile(accountPrivateKeyPath(networkName, account), "--leader-account")),
+      provider,
+    ),
+    account,
+  };
+}
+
 function resolveTxSubmitterSigner({ args, ownerSigner, provider }) {
   if (args.txSubmitter === undefined) {
     expect(
@@ -10453,8 +10410,24 @@ function assertRecoverWorkspaceArgs(args) {
   const source = resolveWorkspaceRecoverySource(args);
   assertBooleanFlag(args, "fromGenesis", "channel recover-workspace option --from-genesis");
   assertBooleanFlag(args, "outputRaw", "channel recover-workspace option --output-raw");
+  assertBooleanFlag(args, "publishWorkspaceMirror", "channel recover-workspace option --publish-workspace-mirror");
+  assertBooleanFlag(args, "force", "channel recover-workspace option --force");
   if (args.outputRaw === true && source !== "rpc") {
     throw new Error("channel recover-workspace option --output-raw requires --source rpc.");
+  }
+  if (args.publishWorkspaceMirror === true) {
+    requireArg(args.leaderAccount, "--leader-account");
+    requireArg(args.output, "--output");
+  } else {
+    if (args.leaderAccount !== undefined) {
+      throw new Error("channel recover-workspace option --leader-account requires --publish-workspace-mirror.");
+    }
+    if (args.output !== undefined) {
+      throw new Error("channel recover-workspace option --output requires --publish-workspace-mirror.");
+    }
+    if (args.force !== undefined) {
+      throw new Error("channel recover-workspace option --force requires --publish-workspace-mirror.");
+    }
   }
 }
 
@@ -10465,12 +10438,6 @@ function assertGetChannelArgs(args) {
 function assertSetWorkspaceMirrorArgs(args) {
   assertAllowedCommandSchema(args, "channel-set-workspace-mirror");
   requireWorkspaceMirrorUrl(args.url);
-}
-
-function assertPublishWorkspaceMirrorArgs(args) {
-  assertAllowedCommandSchema(args, "channel-publish-workspace-mirror");
-  requireArg(args.output, "--output");
-  assertBooleanFlag(args, "force", "channel publish-workspace-mirror option --force");
 }
 
 function assertDepositBridgeArgs(args) {
@@ -11369,6 +11336,11 @@ function printGuideHumanResult(guide) {
     "Privacy Tip",
     formatHumanValue(guide.privacyTip),
   );
+  lines.push(
+    "",
+    "Mirror Tip",
+    formatHumanValue(guide.mirrorTip),
+  );
   console.log(lines.join("\n"));
 }
 
@@ -11847,7 +11819,6 @@ export {
   assertRecoverWorkspaceArgs,
   assertGetChannelArgs,
   assertSetWorkspaceMirrorArgs,
-  assertPublishWorkspaceMirrorArgs,
   assertDepositBridgeArgs,
   assertWithdrawBridgeArgs,
   assertAccountGetBridgeFundArgs,
@@ -11881,7 +11852,6 @@ export {
   handleWorkspaceInit,
   handleGetChannel,
   handleSetChannelWorkspaceMirror,
-  handlePublishChannelWorkspaceMirror,
   handleDepositBridge,
   handleWithdrawBridge,
   handleAccountGetBridgeFund,

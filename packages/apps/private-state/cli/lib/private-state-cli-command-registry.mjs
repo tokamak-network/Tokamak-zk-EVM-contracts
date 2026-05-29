@@ -55,6 +55,15 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     valueLabel: "<NAME>",
     option: "--account",
   },
+  leaderAccount: {
+    label: "Channel Leader Account",
+    type: "text",
+    placeholder: "leader-account",
+    valueLabel: "<ACCOUNT>",
+    hint: "Required with --publish-workspace-mirror. Signs the workspace mirror manifest and must match the on-chain channel leader.",
+    option: "--leader-account",
+    optional: true,
+  },
   txSubmitter: {
     label: "Transaction Submitter",
     type: "text",
@@ -212,6 +221,13 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     option: "--output-raw",
     optional: true,
   },
+  publishWorkspaceMirror: {
+    label: "Publish Workspace Mirror",
+    type: "checkbox",
+    hint: "After channel recovery, write the registered workspace mirror manifest, checkpoint, and any delta bundle.",
+    option: "--publish-workspace-mirror",
+    optional: true,
+  },
   source: {
     label: "Recovery Source",
     type: "select",
@@ -330,7 +346,11 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["network", "channelName", "account", "wallet"],
     optionalFields: ["network", "channelName", "account", "wallet"],
     usage: "optional --network, --channel-name, --account, and --wallet",
-    help: ["Does not accept --rpc-url and never writes RPC configuration", "Recommends bridge deposits only after a wallet is joined and needs channel liquidity"],
+    help: [
+      "Does not accept --rpc-url and never writes RPC configuration",
+      "Recommends bridge deposits only after a wallet is joined and needs channel liquidity",
+      "Channel leaders publish workspace mirror files through channel recover-workspace --publish-workspace-mirror, not a standalone publish command",
+    ],
   },
   {
     id: "help-observer",
@@ -405,8 +425,9 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     display: "channel recover-workspace",
     description: "Rebuild the local channel workspace from bridge state.",
     installMode: "read-only",
-    fields: ["channelName", "network", "source", "fromGenesis", "outputRaw"],
-    usage: "--channel-name, --network, optional --source, optional --from-genesis, optional --output-raw",
+    fields: ["channelName", "network", "source", "fromGenesis", "outputRaw", "publishWorkspaceMirror", "leaderAccount", "output", "force"],
+    optionalFields: ["source", "fromGenesis", "outputRaw", "publishWorkspaceMirror", "leaderAccount", "output", "force"],
+    usage: "--channel-name, --network, optional --source, optional --from-genesis, optional --output-raw, optional --publish-workspace-mirror with --leader-account and --output, optional --force",
     help: [
       "By default, --source rpc resumes RPC log scanning from the workspace recovery index when available",
       "--source mirror validates the channel leader's registered checkpoint manifest, downloads only the needed checkpoint or delta bundle, and then replays RPC logs to latest",
@@ -416,6 +437,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "Use --source rpc --from-genesis to ignore the recovery index and replay logs from channel genesis",
       "--output-raw with --source rpc appends raw JSON-RPC request and response history to method-specific JSON files under the channel workspace rpcCallHistory directory; eth_getLogs is split by event",
       "--from-genesis moves the existing local channel workspace to workspace-rebuild-backups before writing the current-format workspace; local secrets are preserved",
+      "--publish-workspace-mirror writes manifest.json, checkpoint.zip, and any needed delta bundle after recovery",
+      "--publish-workspace-mirror requires --leader-account <ACCOUNT> and --output <PATH>; the leader account signs the mirror manifest and must match the on-chain channel leader",
+      "--force with --publish-workspace-mirror ignores an unreadable or invalid existing mirror manifest and publishes a full checkpoint without a delta",
+      "Workspace mirror publishing does not upload files to a remote server; deploy the output directory to the registered mirror host",
       "Prints RPC log scan progress while rebuilding the workspace",
     ],
   },
@@ -429,20 +454,6 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Only the on-chain channel leader can update the registered mirror URL",
       "The URL points to a server implementing the private-state channel workspace mirror protocol",
-    ],
-  },
-  {
-    id: "channel-publish-workspace-mirror",
-    display: "channel publish-workspace-mirror",
-    description: "Build static workspace mirror files for the registered mirror URL.",
-    installMode: "read-only",
-    fields: ["channelName", "network", "account", "output", "force"],
-    usage: "--channel-name, --network, --account, --output, optional --force",
-    help: [
-      "Requires the local channel workspace to be current and ahead of the registered mirror checkpoint",
-      "--force ignores an unreadable or invalid existing mirror manifest and publishes a full checkpoint without a delta",
-      "Writes manifest.json, checkpoint.zip, and any needed delta bundle under the workspace mirror static path",
-      "Does not upload files to a remote server; deploy the output directory to the registered HTTPS mirror host",
     ],
   },
   {

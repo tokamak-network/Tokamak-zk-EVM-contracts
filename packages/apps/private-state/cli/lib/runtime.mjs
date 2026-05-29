@@ -7639,7 +7639,7 @@ async function executeWalletDirectTemplateCommand({
   provider,
   operationName,
   templatePayload,
-  preparedContextResult = null,
+  preparedContextResult,
 }) {
   emitProgress(operationName, "loading");
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
@@ -7653,11 +7653,8 @@ async function executeWalletDirectTemplateCommand({
     ownerSigner: signer,
     provider,
   });
-  const contextResult = preparedContextResult ?? await loadFreshWalletChannelContext({
-    walletContext: wallet,
-    provider,
-    progressAction: operationName,
-  });
+  expect(preparedContextResult?.context, "Internal error: prepared channel context is required before proof generation.");
+  const contextResult = preparedContextResult;
   const execution = await executeWalletTemplateSend({
     wallet,
     signer,

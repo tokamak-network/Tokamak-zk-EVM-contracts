@@ -4909,6 +4909,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   });
 
   const methodName = direction === "deposit" ? "depositToChannelVault" : "withdrawFromChannelVault";
+  await assertWorkspaceAlignedWithChain(context);
   emitProgress(operationName, "submitting");
   const receipt = await waitForReceipt(
     await bridgeTokenVault[methodName](ethers.toBigInt(context.workspace.channelId), transition.proof, transition.update),
@@ -7752,6 +7753,7 @@ async function executeWalletTemplateSend({
     "Generated Tokamak proof does not match the channel aPubBlockHash. Check the workspace block_info.json context.",
   );
 
+  await assertWorkspaceAlignedWithChain(context);
   emitProgress(operationName, "submitting");
   const receipt =
     await waitForReceipt(

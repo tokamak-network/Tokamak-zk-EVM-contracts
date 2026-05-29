@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.0 - 2026-05-29
+
 - Removed the standalone `channel publish-workspace-mirror` command. Channel leaders now publish
   mirror files through `channel recover-workspace --publish-workspace-mirror --leader-account <ACCOUNT> --output <PATH>`.
 

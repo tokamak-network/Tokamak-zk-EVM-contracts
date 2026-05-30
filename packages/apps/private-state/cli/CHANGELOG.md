@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.2 - 2026-05-30
+
 - Changed channel workspace recovery guidance so CLI help, guide output, agent instructions, and documentation direct
   users to registered workspace mirrors before explicit RPC genesis rebuilds.
 

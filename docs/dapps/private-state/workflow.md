@@ -61,10 +61,9 @@ not a private-state wallet address: the exchange does not hold the user's channe
 spending key, viewing key, or recovery context.
 
 Joining an existing channel requires a recovered local channel workspace. If the workspace has no
-usable recovery index, the user must explicitly run
-`channel recover-workspace --source rpc --from-genesis` once or recover from a registered workspace
-mirror; `channel join` then refreshes from that index instead of silently replaying the channel from
-genesis.
+usable recovery index, the user should recover from a registered workspace mirror first. Use
+`channel recover-workspace --source rpc --from-genesis` only when no compatible mirror is available;
+`channel join` then refreshes from that index instead of silently replaying the channel from genesis.
 
 The flow moves value through three representations:
 

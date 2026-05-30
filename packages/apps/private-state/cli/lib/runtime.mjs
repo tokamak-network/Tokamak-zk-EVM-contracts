@@ -2061,7 +2061,8 @@ async function syncChannelWorkspace({
     throw new Error([
       `Workspace recovery index is missing or unusable for channel ${channelName} on ${networkNameFromChainId(network.chainId)}.`,
       "The CLI will not fall back to replaying channel logs from genesis unless explicitly requested.",
-      "Run channel recover-workspace first to refresh the local channel workspace.",
+      `If a workspace mirror is registered, run channel recover-workspace --channel-name ${channelName} --network ${networkNameFromChainId(network.chainId)} --source mirror first.`,
+      `Use channel recover-workspace --channel-name ${channelName} --network ${networkNameFromChainId(network.chainId)} --source rpc --from-genesis only when no compatible mirror is available.`,
     ].join(" "));
   }
   const workspaceBase = {
@@ -3873,12 +3874,14 @@ async function inspectGuideChannel({ channelName, network, provider, artifactsIn
         bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
         provider,
       );
-      const [joinToll, refundSchedule] = await Promise.all([
+      const [joinToll, refundSchedule, workspaceMirror] = await Promise.all([
         channelManager.joinToll(),
         readChannelRefundSchedule(channelManager),
+        readChannelWorkspaceMirror({ bridgeCore, channelId }),
       ]);
       result.onchain.joinTollBaseUnits = joinToll.toString();
       result.onchain.refundSchedule = refundSchedule;
+      result.onchain.workspaceMirror = workspaceMirror;
     }
   } catch (error) {
     result.error = error.message;
@@ -4054,9 +4057,19 @@ function applyGuideNextAction(guide) {
     return;
   }
   if (guide.selectors.channelName && guide.state.channel?.onchain?.exists && !guide.state.channel?.local?.workspaceExists) {
+    const workspaceMirror = typeof guide.state.channel.onchain.workspaceMirror === "string"
+      ? guide.state.channel.onchain.workspaceMirror.trim()
+      : "";
+    if (workspaceMirror) {
+      setGuideNextAction(guide, {
+        command: `channel recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network} --source mirror`,
+        why: "The channel has a registered workspace mirror. Use mirror recovery before considering an explicit RPC genesis rebuild.",
+      });
+      return;
+    }
     setGuideNextAction(guide, {
       command: `channel recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network} --source rpc --from-genesis`,
-      why: "The channel exists on-chain, but the local channel workspace has not been recovered yet, so there is no local recovery index to resume from.",
+      why: "The channel exists on-chain, but the local channel workspace has not been recovered yet and no workspace mirror is registered. RPC genesis rebuild is the remaining explicit bootstrap path.",
     });
     return;
   }
@@ -11802,7 +11815,9 @@ function buildRecoveryHints(error, args = {}) {
   }
 
   if (error?.code === CLI_ERROR_CODES.STALE_WORKSPACE) {
-    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName}`);
+    hints.push(`private-state-cli channel get-meta --channel-name ${channelName} --network ${networkName}`);
+    hints.push(`if workspaceMirror is set: private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName} --source mirror`);
+    hints.push(`otherwise use indexed RPC recovery: private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName}`);
     hints.push(`private-state-cli help guide --network ${networkName} --channel-name ${channelName}`);
   }
 
@@ -11810,7 +11825,9 @@ function buildRecoveryHints(error, args = {}) {
     error?.code === CLI_ERROR_CODES.STALE_CHANNEL_ROOT
     || message.includes("UnexpectedCurrentRootVector")
   ) {
-    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName}`);
+    hints.push(`private-state-cli channel get-meta --channel-name ${channelName} --network ${networkName}`);
+    hints.push(`if workspaceMirror is set: private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName} --source mirror`);
+    hints.push(`otherwise use indexed RPC recovery: private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName}`);
     if (walletName !== "<WALLET>") {
       hints.push(`private-state-cli wallet get-notes --wallet ${walletName} --network ${networkName}`);
     }
@@ -11818,7 +11835,9 @@ function buildRecoveryHints(error, args = {}) {
   }
 
   if (message.includes("Workspace recovery index is missing or unusable")) {
-    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName}`);
+    hints.push(`private-state-cli channel get-meta --channel-name ${channelName} --network ${networkName}`);
+    hints.push(`if workspaceMirror is set: private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName} --source mirror`);
+    hints.push(`only if no compatible workspace mirror is available: private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName} --source rpc --from-genesis`);
   }
 
   if (message.includes("Wallet note recovery index is missing or unusable")) {

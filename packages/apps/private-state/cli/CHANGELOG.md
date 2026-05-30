@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Changed channel workspace recovery guidance so CLI help, guide output, agent instructions, and documentation direct
+  users to registered workspace mirrors before explicit RPC genesis rebuilds.
+
 ## 2.4.1 - 2026-05-30
 
 - Classified `UnexpectedCurrentRootVector()` submit reverts as stale channel-root failures with recovery hints that

@@ -21,12 +21,13 @@ URL. An empty URL clears the mirror. The URI is limited to 2048 bytes.
 
 `channel recover-workspace` supports these sources:
 
-- `--source rpc`: use only RPC log recovery. This is the default when `--source` is omitted.
 - `--source mirror`: require the registered mirror, validate its signed checkpoint manifest, then
   download only the required checkpoint or delta bundle.
+- `--source rpc`: use only RPC log recovery. This is the default when `--source` is omitted, but
+  users should try a registered mirror before an explicit genesis rebuild.
 
 `--from-genesis` intentionally rebuilds from channel genesis and is only valid when paired with
-explicit `--source rpc`.
+explicit `--source rpc`. Use it only when no compatible workspace mirror is available.
 
 ## URL Layout
 

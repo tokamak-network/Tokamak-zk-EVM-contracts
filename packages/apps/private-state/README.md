@@ -257,7 +257,8 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - reads RPC settings from `~/tokamak-private-channels/workspace/<network>/rpc-config.env`
 - resumes RPC log scanning from the saved recovery index by default
 - fails instead of silently replaying from channel genesis when no usable recovery index exists
-- accepts `--source rpc --from-genesis` when the user intentionally wants to ignore the local index and replay the channel from its creation block
+- accepts `--source mirror` to recover from a registered workspace mirror before falling back to a full RPC genesis rebuild
+- accepts `--source rpc --from-genesis` only when no compatible mirror is available and the user intentionally wants to ignore the local index and replay the channel from its creation block
 
 `channel get-meta`
 
@@ -318,7 +319,9 @@ Wallet getter commands that need channel state, including `wallet get-meta`, `wa
 `wallet get-notes`, refresh stale local workspaces through saved recovery indexes before reading state when the
 estimated RPC log scan fits within the 7,200-block pre-command budget. Automatic refresh never replays from channel
 genesis; if the saved index is missing, unusable, or too far behind, the command stops and asks the user to run
-`channel recover-workspace --source rpc --from-genesis` or `wallet recover-workspace --from-genesis` explicitly.
+`channel recover-workspace --source mirror` when a registered mirror is available, or
+`channel recover-workspace --source rpc --from-genesis` only when no compatible mirror exists. Wallet note scanning
+can still be restarted explicitly with `wallet recover-workspace --from-genesis`.
 
 `wallet export backup`
 

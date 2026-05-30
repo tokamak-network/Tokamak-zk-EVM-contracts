@@ -37,12 +37,13 @@ activity or as a bridge-wide disclosure rule for every DApp.
     `private-state-cli set rpc --network <NETWORK> --rpc-url <URL> --provider <PROVIDER>`, or with explicit
     `--log-requests-per-second` and `--block-range-cap` values when the provider is not built in.
   - A workspace recovery index is the saved block pointer and state-root hash that lets the CLI resume log scanning
-    without replaying the channel from its creation block. If it is missing, explain `--from-genesis` before using it
-    because genesis replay can take much longer.
+    without replaying the channel from its creation block. If it is missing, check whether the channel has a registered
+    workspace mirror before explaining or using `--from-genesis`, because genesis replay can take much longer.
 - Before guiding a user to run `channel recover-workspace --source rpc --from-genesis`, explain that RPC genesis
-  recovery can be very slow because it scans channel logs from the creation block. If a channel workspace mirror is
-  available, try mirror-based recovery first, and use RPC genesis replay only when mirror recovery is unavailable or
-  unsuitable.
+  recovery can be very slow because it scans channel logs from the creation block. Run or suggest
+  `channel get-meta --channel-name <CHANNEL> --network <NETWORK>` first; if `workspaceMirror` is set, try
+  `channel recover-workspace --channel-name <CHANNEL> --network <NETWORK> --source mirror`. Use RPC genesis replay only
+  when no compatible workspace mirror is available.
 - When the user asks about gas use, transaction fees, transaction cost, or USD cost for private-state CLI commands, run
   `private-state-cli help transaction-fees --network <NETWORK> --json` and answer from the returned `rows`. If the
   network is unclear, ask which network to use. Do not tell the user to ask the developer unless the command fails after

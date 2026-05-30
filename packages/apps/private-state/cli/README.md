@@ -199,7 +199,14 @@ unless the user explicitly understands the compliance implications. Prefer a sel
 
 Workspace recovery commands use saved recovery indexes by default. If the local channel workspace is missing,
 corrupted, or does not contain a usable index, `channel recover-workspace` stops with an explicit error instead of
-silently replaying logs from channel genesis. Use `channel recover-workspace --source rpc --from-genesis` only when
+silently replaying logs from channel genesis. When the channel has a registered workspace mirror, recover from the
+mirror first:
+
+```bash
+private-state-cli channel recover-workspace --channel-name <CHANNEL> --network mainnet --source mirror
+```
+
+Use `channel recover-workspace --source rpc --from-genesis` only when no compatible workspace mirror is available and
 you intentionally want to rebuild channel workspace state from the channel creation block:
 
 ```bash
@@ -226,9 +233,9 @@ existing history, while `--from-genesis` overwrites it with one full genesis-to-
 by replaying from the channel's genesis block because no prior recovery index can exist for a new channel.
 
 `channel join` refreshes stale channel workspace state through the saved recovery index before submitting the
-registration transaction. For a channel that was created elsewhere, run `channel recover-workspace --source rpc --from-genesis`
-once before joining, or recover from a registered workspace mirror; later joins and wallet commands resume from the
-saved index instead of silently replaying from genesis.
+registration transaction. For a channel that was created elsewhere, recover from a registered workspace mirror first.
+Use `channel recover-workspace --source rpc --from-genesis` only when no compatible mirror is available; later joins
+and wallet commands resume from the saved index instead of silently replaying from genesis.
 
 Wallet commands that need channel state, including `wallet recover-workspace`, `wallet get-meta`,
 `wallet get-channel-fund`, and `wallet get-notes`, refresh stale local channel workspaces through saved recovery

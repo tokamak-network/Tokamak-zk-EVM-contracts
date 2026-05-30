@@ -493,7 +493,7 @@ possible.
 
 LLM agents that guide users through this CLI should read [`agents.md`](agents.md) before suggesting or running
 commands. That file contains the agent-specific operating rules, including secret-handling boundaries, onboarding
-sequence, acknowledgement handling, recovery behavior, and `UnexpectedCurrentRootVector()` response policy.
+sequence, acknowledgement handling, recovery behavior, and error-response policy.
 
 ## Artifacts
 

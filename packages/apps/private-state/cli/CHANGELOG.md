@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.1 - 2026-05-30
+
 - Classified `UnexpectedCurrentRootVector()` submit reverts as stale channel-root failures with recovery hints that
   tell agents to refresh workspace state, re-check affected wallet state, and regenerate the original intended proof
   without changing command semantics.

@@ -5,6 +5,7 @@
 - Classified `UnexpectedCurrentRootVector()` submit reverts as stale channel-root failures with recovery hints that
   tell agents to refresh workspace state, re-check affected wallet state, and regenerate the original intended proof
   without changing command semantics.
+- Moved LLM-agent operating guidance from the CLI README into package-shipped `agents.md`.
 
 ## 2.4.0 - 2026-05-29
 

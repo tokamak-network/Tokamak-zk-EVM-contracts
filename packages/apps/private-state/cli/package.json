@@ -26,6 +26,7 @@
   },
   "files": [
     "README.md",
+    "agents.md",
     "CHANGELOG.md",
     "LICENSE",
     "private-state-bridge-cli.mjs",

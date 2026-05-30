@@ -47,6 +47,28 @@ UTC.
 
 ## Install
 
+### Prerequisites
+
+Before installing this package, prepare the private-state CLI prerequisites:
+
+- Node.js 18 or newer and npm for installing and running `private-state-cli`.
+- Outbound HTTPS access to the npm registry, the public private-state deployment artifact index, and the public
+  Groth16 CRS archive source.
+- A writable home-directory workspace under `~/tokamak-private-channels/` for private-state artifacts, Groth16
+  workspace files, account secrets, wallet key files, channel workspaces, and proof outputs.
+- For `private-state-cli install --read-only`, no proof runtime prerequisites are needed because read-only mode installs
+  only public bridge and private-state DApp artifacts.
+- For `private-state-cli install --include-local-artifacts`, run the command from a repository or deployment workspace
+  that contains the local `deployment/` artifacts you intentionally want to install.
+- For `private-state-cli install --docker`, the private-state Groth16 Docker path requires Docker to be installed and
+  running. The Groth16 Docker path is supported on Linux hosts and Windows hosts with Docker Desktop; macOS hosts should
+  use the native Groth16 path.
+
+Full `private-state-cli install` also installs and invokes `@tokamak-zk-evm/cli`. The operating-system, native build
+toolchain, Docker, CUDA, and network prerequisites for the Tokamak zk-EVM CLI are intentionally not duplicated here.
+Read the [`@tokamak-zk-evm/cli` README](https://github.com/tokamak-network/Tokamak-zk-EVM/tree/main/packages/cli#readme)
+before running full install, especially when using `--docker` or a GPU-enabled host.
+
 ```bash
 npm install -g @tokamak-private-dapps/private-state-cli
 ```

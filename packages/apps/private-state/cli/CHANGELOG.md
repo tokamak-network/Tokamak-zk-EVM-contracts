@@ -7,6 +7,8 @@
   without changing command semantics.
 - Moved LLM-agent operating guidance from the CLI README into package-shipped `agents.md`.
 - Generalized the CLI README's LLM-agent summary to refer to error-response policy instead of naming one revert.
+- Added private-state CLI install prerequisites to the README while delegating Tokamak zk-EVM CLI prerequisites to that
+  package's README.
 
 ## 2.4.0 - 2026-05-29
 

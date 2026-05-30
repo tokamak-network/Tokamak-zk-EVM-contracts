@@ -546,6 +546,12 @@ Operating rules:
   `channel publish-workspace-mirror` command is no longer available.
 - When a CLI command fails, read the error message and any printed `Try:` hints first. Prefer the corrective action
   suggested by the CLI before inventing a different recovery sequence.
+- Treat `UnexpectedCurrentRootVector()` as a stale channel-root or stale-proof failure, not as evidence that the
+  command shape is wrong. Do not recover by changing recipients, changing amounts, changing note counts, changing
+  function arity, or splitting one intended transfer into multiple transfers. Refresh the channel workspace, re-check
+  affected wallet state such as notes and balances, then rerun the user's original intended command so the CLI
+  regenerates a proof from the fresh snapshot. If the original notes or balances are no longer usable after refresh,
+  ask the user to choose a new plan instead of silently substituting one.
 - When the user does not have a network RPC URL yet, explain that they need an Ethereum JSON-RPC endpoint for the
   selected network. They can obtain one from an infrastructure provider such as Alchemy, Ankr, Chainstack, Chainnodes,
   QuickNode, or from their own node. Ask the user to create or select the endpoint in that provider's UI, then paste only

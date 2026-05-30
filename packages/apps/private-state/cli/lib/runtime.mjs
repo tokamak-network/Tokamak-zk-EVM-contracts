@@ -165,6 +165,7 @@ const CLI_ERROR_CODES = Object.freeze({
   MISSING_DEPLOYMENT_ARTIFACTS: "MISSING_DEPLOYMENT_ARTIFACTS",
   MISSING_CHANNEL_REGISTRATION: "MISSING_CHANNEL_REGISTRATION",
   STALE_WORKSPACE: "STALE_WORKSPACE",
+  STALE_CHANNEL_ROOT: "STALE_CHANNEL_ROOT",
 });
 
 class PrivateStateCliError extends Error {
@@ -4855,9 +4856,16 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   const methodName = direction === "deposit" ? "depositToChannelVault" : "withdrawFromChannelVault";
   await assertWorkspaceAlignedWithChain(context);
   emitProgress(operationName, "submitting");
-  const receipt = await waitForReceipt(
-    await bridgeTokenVault[methodName](ethers.toBigInt(context.workspace.channelId), transition.proof, transition.update),
-  );
+  const receipt = await submitProofBackedRootUpdate({
+    context,
+    walletName: walletContext.walletName,
+    operationName,
+    submit: () => bridgeTokenVault[methodName](
+      ethers.toBigInt(context.workspace.channelId),
+      transition.proof,
+      transition.update,
+    ),
+  });
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
     onchainRootVectorHash === normalizeBytes32Hex(hashRootVector(transition.nextSnapshot.stateRoots)),
@@ -7699,10 +7707,12 @@ async function executeWalletTemplateSend({
 
   await assertWorkspaceAlignedWithChain(context);
   emitProgress(operationName, "submitting");
-  const receipt =
-    await waitForReceipt(
-      await context.channelManager.connect(txSubmitter).executeChannelTransaction(payload, functionProof),
-    );
+  const receipt = await submitProofBackedRootUpdate({
+    context,
+    walletName: wallet.walletName,
+    operationName,
+    submit: () => context.channelManager.connect(txSubmitter).executeChannelTransaction(payload, functionProof),
+  });
   await waitForProviderBlockAtLeast(provider, receipt.blockNumber, { action: operationName });
 
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
@@ -8367,6 +8377,56 @@ function isContractError(error, contractInterface, errorName) {
     }
   }
   return false;
+}
+
+function isUnexpectedCurrentRootVectorError(error, context) {
+  if (isContractError(error, context.channelManager.interface, "UnexpectedCurrentRootVector")) {
+    return true;
+  }
+  return String(error?.message ?? error).includes("UnexpectedCurrentRootVector");
+}
+
+async function submitProofBackedRootUpdate({
+  context,
+  walletName,
+  operationName,
+  submit,
+}) {
+  try {
+    return await waitForReceipt(await submit());
+  } catch (error) {
+    if (isUnexpectedCurrentRootVectorError(error, context)) {
+      throw staleChannelRootError({
+        cause: error,
+        context,
+        walletName,
+        operationName,
+      });
+    }
+    throw error;
+  }
+}
+
+function staleChannelRootError({
+  cause,
+  context,
+  walletName,
+  operationName,
+}) {
+  const message = [
+    `${operationName} failed because the submitted proof was generated for an older channel root.`,
+    "The rejected proof cannot be reused.",
+    "Do not change recipients, amounts, note counts, function arity, or split the command as recovery.",
+    "Refresh the channel workspace, re-check affected wallet state when the command uses notes, then rerun the original intended command so the CLI regenerates a proof from a fresh snapshot.",
+  ].join(" ");
+  const error = cliError(CLI_ERROR_CODES.STALE_CHANNEL_ROOT, message, { cause });
+  error.channelName = context.workspace.channelName;
+  error.networkName = context.workspace.network;
+  error.walletName = walletName;
+  error.retryPolicy = "recover_workspace_then_regenerate_proof";
+  error.semanticMutationAllowed = false;
+  error.reuseProofAllowed = false;
+  return error;
 }
 
 function extractContractErrorDataCandidates(error) {
@@ -11690,16 +11750,16 @@ function buildRecoveryHints(error, args = {}) {
   const hints = [];
   const networkName = typeof args.network === "string" && args.network.length > 0
     ? args.network
-    : "<NETWORK>";
+    : error?.networkName ?? "<NETWORK>";
   const channelName = typeof args.channelName === "string" && args.channelName.length > 0
     ? args.channelName
-    : "<CHANNEL>";
+    : error?.channelName ?? "<CHANNEL>";
   const accountName = typeof args.account === "string" && args.account.length > 0
     ? args.account
     : "<ACCOUNT>";
   const walletName = typeof args.wallet === "string" && args.wallet.length > 0
     ? args.wallet
-    : extractUnknownWalletName(message) ?? "<WALLET>";
+    : error?.walletName ?? extractUnknownWalletName(message) ?? "<WALLET>";
 
   if (
     error?.code === CLI_ERROR_CODES.MISSING_RPC_URL
@@ -11744,6 +11804,17 @@ function buildRecoveryHints(error, args = {}) {
   if (error?.code === CLI_ERROR_CODES.STALE_WORKSPACE) {
     hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName}`);
     hints.push(`private-state-cli help guide --network ${networkName} --channel-name ${channelName}`);
+  }
+
+  if (
+    error?.code === CLI_ERROR_CODES.STALE_CHANNEL_ROOT
+    || message.includes("UnexpectedCurrentRootVector")
+  ) {
+    hints.push(`private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName}`);
+    if (walletName !== "<WALLET>") {
+      hints.push(`private-state-cli wallet get-notes --wallet ${walletName} --network ${networkName}`);
+    }
+    hints.push("rerun the original proof-backed command unchanged so the CLI regenerates a fresh proof");
   }
 
   if (message.includes("Workspace recovery index is missing or unusable")) {

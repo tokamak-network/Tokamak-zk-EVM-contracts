@@ -1701,11 +1701,14 @@ function setWorkspaceMirror(url) {
 }
 
 function publishWorkspaceMirror() {
-  return runAnvilBridgeCliCommand("channel publish-workspace-mirror", [
+  const result = runAnvilBridgeCliCommand("channel recover-workspace", [
     "--channel-name", channelName,
-    "--account", txSubmitterAccount,
+    "--publish-workspace-mirror",
+    "--leader-account", txSubmitterAccount,
     "--output", workspaceMirrorRoot,
   ]);
+  expect(result.publishedWorkspaceMirror, "channel recover-workspace did not publish a workspace mirror.");
+  return result.publishedWorkspaceMirror;
 }
 
 function deleteWalletDir(participant) {

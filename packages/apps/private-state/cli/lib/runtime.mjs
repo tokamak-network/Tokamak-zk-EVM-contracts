@@ -7732,7 +7732,7 @@ async function executeWalletTemplateSend({
   functionName,
   templatePayload,
 }) {
-  await assertWorkspaceAlignedWithChain(context, signer.provider);
+  await assertWorkspaceAlignedWithChain(context);
   assertWalletMatchesChannelContext(wallet, l2Identity, context);
   await assertChannelProofBackendVersionCompatibility({ context, operationName });
 
@@ -11645,7 +11645,7 @@ function loadWalletCommandRuntime(args, { prepareArtifacts = false } = {}) {
 }
 
 const HUMAN_RESULT_RENDERERS = Object.freeze({
-  doctor: printDoctorHumanResult,
+  doctor: printDoctorHumanReport,
   guide: printGuideHumanResult,
   "help commands": printHelpCommandsHumanResult,
   investigator: printInvestigatorHumanResult,
@@ -11692,14 +11692,6 @@ const cliOutput = Object.freeze({
   warning(kind, message, details = {}) {
     emitOutputEvent({
       event: "warning",
-      kind,
-      message,
-      details,
-    });
-  },
-  info(kind, message, details = {}) {
-    emitOutputEvent({
-      event: "info",
       kind,
       message,
       details,
@@ -11769,10 +11761,6 @@ Secret source options:
 Options:
 ${globalOptions}
 `);
-}
-
-function printDoctorHumanResult(report) {
-  printDoctorHumanReport(report);
 }
 
 function printGuideHumanResult(guide) {

@@ -56,7 +56,3 @@ export async function runPrivateStateCli(argv) {
     process.exitCode = 1;
   }
 }
-
-export function privateStateCliDispatchTable() {
-  return COMMANDS;
-}

@@ -5,6 +5,7 @@
 - Added pre-submit transaction dry-runs for every transaction-sending CLI command.
 - Added post-proof local prechecks before dry-run for proof-backed commands.
 - Improved dry-run and submit failure messages with decoded revert details when available.
+- Added structured `--json` error output for agent-readable failure handling.
 
 ## 2.4.2 - 2026-05-30
 

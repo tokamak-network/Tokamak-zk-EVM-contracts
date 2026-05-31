@@ -8612,11 +8612,24 @@ function transactionPreflightOrSubmitError({
     details.push(`Decoded contract error: ${decodedError}.`);
   }
   details.push(`Provider error: ${extractProviderErrorMessage(cause)}.`);
-  return cliError(
+  const error = cliError(
     phase === "dry-run" ? CLI_ERROR_CODES.TX_DRY_RUN_FAILED : CLI_ERROR_CODES.TX_SUBMIT_FAILED,
     details.join(" "),
     { cause },
   );
+  error.phase = phase;
+  error.operationName = operationName;
+  error.transactionSubmitted = phase !== "dry-run";
+  error.submittedBefore = submitted;
+  error.walletName = walletName;
+  error.operationDir = operationDir;
+  error.decodedContractError = decodedError;
+  error.providerError = extractProviderErrorMessage(cause);
+  if (context) {
+    error.channelName = context.workspace?.channelName;
+    error.networkName = context.workspace?.network;
+  }
+  return error;
 }
 
 function submittedReceiptSummary(label, receipt) {
@@ -8689,9 +8702,13 @@ function staleChannelRootError({
     "Refresh the channel workspace, re-check affected wallet state when the command uses notes, then rerun the original intended command so the CLI regenerates a proof from a fresh snapshot.",
   ].join(" ");
   const error = cliError(CLI_ERROR_CODES.STALE_CHANNEL_ROOT, message, { cause });
+  error.phase = phase;
+  error.operationName = operationName;
+  error.transactionSubmitted = phase !== "dry-run";
   error.channelName = context.workspace.channelName;
   error.networkName = context.workspace.network;
   error.walletName = walletName;
+  error.providerError = extractProviderErrorMessage(cause);
   error.retryPolicy = "recover_workspace_then_regenerate_proof";
   error.semanticMutationAllowed = false;
   error.reuseProofAllowed = false;
@@ -12014,6 +12031,40 @@ function formatCliErrorForDisplay(error, args = {}) {
   ].join("\n");
 }
 
+function formatCliErrorForJson(error, args = {}) {
+  const message = String(error?.message ?? error);
+  const hints = buildRecoveryHints(error, args);
+  return JSON.stringify(normalizeCliOutput({
+    ok: false,
+    error: {
+      name: error?.name ?? "Error",
+      code: error?.code ?? "ERROR",
+      command: typeof args.command === "string" ? args.command : null,
+      message,
+      hints,
+      phase: error?.phase ?? null,
+      operationName: error?.operationName ?? null,
+      transactionSubmitted: typeof error?.transactionSubmitted === "boolean"
+        ? error.transactionSubmitted
+        : null,
+      submittedBefore: Array.isArray(error?.submittedBefore) ? error.submittedBefore : [],
+      decodedContractError: error?.decodedContractError ?? null,
+      providerError: error?.providerError ?? null,
+      channelName: error?.channelName ?? (typeof args.channelName === "string" ? args.channelName : null),
+      networkName: error?.networkName ?? (typeof args.network === "string" ? args.network : null),
+      walletName: error?.walletName ?? (typeof args.wallet === "string" ? args.wallet : null),
+      operationDir: error?.operationDir ?? null,
+      retryPolicy: error?.retryPolicy ?? null,
+      semanticMutationAllowed: typeof error?.semanticMutationAllowed === "boolean"
+        ? error.semanticMutationAllowed
+        : null,
+      reuseProofAllowed: typeof error?.reuseProofAllowed === "boolean"
+        ? error.reuseProofAllowed
+        : null,
+    },
+  }), null, 2);
+}
+
 function buildRecoveryHints(error, args = {}) {
   const message = String(error?.message ?? error);
   const hints = [];
@@ -12207,4 +12258,5 @@ export {
   loadWalletCommandRuntime,
   assertProviderChainIdMatchesNetwork,
   formatCliErrorForDisplay,
+  formatCliErrorForJson,
 };

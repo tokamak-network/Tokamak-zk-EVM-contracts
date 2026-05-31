@@ -290,7 +290,13 @@ function printImmutableChannelPolicyWarning({
       "Do not sign if any snapshot value is unexpected or has not been reviewed.",
     );
   }
-  console.error(details.join("\n"));
+  cliOutput.warning("channel-policy", details.join("\n"), {
+    action,
+    channelName,
+    channelId: channelId.toString(),
+    channelManager,
+    policySnapshot,
+  });
 }
 
 const ACTION_IMPACT_SUMMARIES = Object.freeze({
@@ -485,7 +491,16 @@ function printActionImpactSummary(summary, details) {
     lines.push(`- Exchange-controlled address warning: ${summary.exchangeControlledAddressWarning}`);
   }
   lines.push(`- Confirmation: pass --acknowledge-action-impact or type the exact confirmation phrase when prompted.`);
-  console.error(lines.join("\n"));
+  cliOutput.warning("action-impact", lines.join("\n"), {
+    command: summary.display,
+    l1PublicEvent: summary.l1PublicEvent,
+    privateNoteState: summary.privateNoteState,
+    publicFields: normalizeImpactLines(summary.publicFields, details),
+    notPublic: normalizeImpactLines(summary.notPublic, details),
+    noteProvenance: summary.noteProvenance,
+    policy: summary.policy,
+    exchangeControlledAddressWarning: summary.exchangeControlledAddressWarning ?? null,
+  });
 }
 
 function normalizeImpactLines(value, details) {
@@ -634,7 +649,7 @@ async function handleChannelCreate({ args, network, provider }) {
     progressAction: "channel create",
   });
 
-  printJson({
+  cliOutput.result({
     action: "channel create",
     channelName,
     channelId: channelId.toString(),
@@ -776,7 +791,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     })
     : null;
 
-  printJson({
+  cliOutput.result({
     action: "channel recover-workspace",
     source: workspace.recoverySource ?? recoverySource,
     workspace: workspaceName,
@@ -813,7 +828,7 @@ async function handleGetChannel({ args, network, provider }) {
     channelInfo = await bridgeCore.getChannel(channelId);
   } catch (error) {
     if (isContractError(error, bridgeCore.interface, "UnknownChannel")) {
-      printJson({
+      cliOutput.result({
         action: "channel get-meta",
         channelName,
         channelId: channelId.toString(),
@@ -852,7 +867,7 @@ async function handleGetChannel({ args, network, provider }) {
     readChannelRefundSchedule(channelManager),
   ]);
 
-  printJson({
+  cliOutput.result({
     action: "channel get-meta",
     channelName,
     channelId: channelId.toString(),
@@ -900,7 +915,7 @@ async function handleSetChannelWorkspaceMirror({ args, network, provider }) {
   });
   const currentUrl = await readChannelWorkspaceMirror({ bridgeCore, channelId });
 
-  printJson({
+  cliOutput.result({
     action: "channel set-workspace-mirror",
     channelName,
     channelId: channelId.toString(),
@@ -2248,7 +2263,7 @@ async function handleDepositBridge({ args, network, provider }) {
   });
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
 
-  printJson({
+  cliOutput.result({
     action: "account deposit-bridge",
     amountInput,
     amountBaseUnits: amount.toString(),
@@ -2276,7 +2291,7 @@ async function handleAccountGetBridgeFund({ args, provider }) {
   );
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
 
-  printJson({
+  cliOutput.result({
     action: "account get-bridge-fund",
     l1Address: signer.address,
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
@@ -2426,7 +2441,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     latestBlock: recoveryEventScan.scanRange.toBlock,
   });
 
-  printJson({
+  cliOutput.result({
     action: "wallet recover-workspace",
     status,
     wallet: walletName,
@@ -2524,7 +2539,7 @@ async function handleInstallZkEvm({ args }) {
     tokamakCliRuntime,
     groth16Runtime,
   });
-  printJson({
+  cliOutput.result({
     action: "install",
     installMode,
     selectedVersions,
@@ -2565,7 +2580,7 @@ async function handleUninstall() {
   });
   const globalPackage = uninstallGlobalPrivateStateCliPackage();
 
-  printJson({
+  cliOutput.result({
     action: "uninstall",
     confirmationAccepted: true,
     removedPrivateStateRoots,
@@ -2592,7 +2607,7 @@ async function handleSetRpc({ args }) {
     LOG_CHUNK_SIZE: rpcScanLimits.blockRangeCap,
     RPC_BLOCK_RANGE_CAP: rpcScanLimits.blockRangeCap,
   });
-  printJson({
+  cliOutput.result({
     action: "set rpc",
     network: networkName,
     rpcConfigPath: rpcConfigEnvPath(networkName),
@@ -2997,12 +3012,12 @@ async function handleUpdate() {
   };
 
   if (!updateAvailable) {
-    printJson(result);
+    cliOutput.result(result);
     return;
   }
 
   if (runningFromRepositoryCheckout) {
-    printJson({
+    cliOutput.result({
       ...result,
       reason: "running from a repository checkout; update the checkout with git/npm instead of mutating source files",
     });
@@ -3010,7 +3025,7 @@ async function handleUpdate() {
   }
 
   if (!globalPackage.installed) {
-    printJson({
+    cliOutput.result({
       ...result,
       reason: "global npm package is not installed; install or update the CLI with the printed command",
     });
@@ -3024,7 +3039,7 @@ async function handleUpdate() {
       stripAnsi(install.stderr || install.stdout).trim(),
     ].filter(Boolean).join(" "));
   }
-  printJson({
+  cliOutput.result({
     ...result,
     attempted: true,
     updated: true,
@@ -3076,18 +3091,14 @@ function isRepositoryCliPackageRoot(packageRoot) {
 
 async function handleDoctor({ args }) {
   const report = buildDoctorReport({ probeGpu: args.gpu === true });
-  if (isJsonOutputRequested()) {
-    printJson(report);
-  } else {
-    printDoctorHumanReport(report);
-  }
+  cliOutput.result(report);
   if (!report.ok) {
     process.exitCode = 1;
   }
 }
 
 function handleObserver() {
-  printJson({
+  cliOutput.result({
     action: "observer",
     url: PRIVATE_STATE_OBSERVER_URL,
     scope: "Public monitoring observer for Tokamak Private App Channels and the private-state DApp.",
@@ -3102,7 +3113,7 @@ function handleInvestigator() {
   const htmlPath = resolveInvestigatorIndexPath();
   const fileUrl = pathToFileURL(htmlPath).href;
   const browser = openFileInDefaultBrowser(fileUrl);
-  printJson({
+  cliOutput.result({
     action: "investigator",
     htmlPath,
     fileUrl,
@@ -3171,7 +3182,7 @@ async function handleTransactionFees({ network, provider, rpcUrl }) {
     ethUsd,
   });
 
-  printJson({
+  cliOutput.result({
     action: "transaction-fees",
     generatedAt: new Date().toISOString(),
     network: network.name,
@@ -3299,7 +3310,7 @@ function trimFixedNumber(value, maxDecimals) {
 
 function handleAccountGetL1Address({ args }) {
   const signer = requireL1Signer(args);
-  printJson({
+  cliOutput.result({
     action: "account get-l1-address",
     l1Address: signer.address,
     account: args.account ?? null,
@@ -3326,7 +3337,7 @@ function handleAccountImport({ args }) {
     l1Address: getAddress(signer.address),
     privateKeyPath,
   }, 0o600);
-  printJson({
+  cliOutput.result({
     action: "account import",
     account,
     network: networkName,
@@ -3347,7 +3358,7 @@ function handleListLocalWallets({ args }) {
     channelFilter,
   });
 
-  printJson({
+  cliOutput.result({
     action: "wallet list",
     workspaceRoot,
     filters: {
@@ -3415,7 +3426,7 @@ function handleWalletExportBackup({ args }) {
   archive.writeZip(outputPath);
   protectSecretFile(outputPath, "wallet export ZIP");
 
-  printJson({
+  cliOutput.result({
     action: "wallet export backup",
     output: outputPath,
     exportMode: manifest.exportMode,
@@ -3440,7 +3451,7 @@ function handleWalletExportKey({ args, keyKind }) {
   validateWalletKeyPayload(payload, keyKind);
   fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
   protectSecretFile(outputPath, `${keyKind} key export`);
-  printJson({
+  cliOutput.result({
     action: `wallet export ${keyKind}-key`,
     wallet: wallet.walletName,
     network: networkName,
@@ -3485,7 +3496,7 @@ function handleWalletImportBackup({ args }) {
 
   commitWalletImportFiles({ targetRoot, plannedWrites });
 
-  printJson({
+  cliOutput.result({
     action: "wallet import backup",
     input: inputPath,
     exportMode: manifest.exportMode,
@@ -3528,7 +3539,7 @@ function handleWalletImportKey({ args, keyKind }) {
       writeJson(metadataPath, metadata);
     }
   }
-  printJson({
+  cliOutput.result({
     action: `wallet import ${keyKind}-key`,
     input: inputPath,
     network: networkName,
@@ -3670,7 +3681,7 @@ async function handleGuide({ args }) {
         "help guide --network anvil",
       ],
     });
-    printJson(guide);
+    cliOutput.result(guide);
     return;
   }
 
@@ -3683,7 +3694,7 @@ async function handleGuide({ args }) {
       command: "help guide --network <NAME>",
       why: `The requested network ${networkName} is not supported by the CLI network config.`,
     });
-    printJson(guide);
+    cliOutput.result(guide);
     return;
   }
 
@@ -3770,7 +3781,7 @@ async function handleGuide({ args }) {
 
   destroyGuideProvider(provider);
   applyGuideNextAction(guide);
-  printJson(guide);
+  cliOutput.result(guide);
 }
 
 function inspectGuideLocalState(args) {
@@ -4259,7 +4270,7 @@ async function handleWalletGetMeta({ args, provider }) {
     provider,
   });
 
-  printJson({
+  cliOutput.result({
     action: "wallet get-meta",
     wallet: wallet.walletName,
     ...walletLifecycleMetadata(wallet.wallet),
@@ -4593,7 +4604,7 @@ async function handleWalletGetChannelFund({ args, provider }) {
     provider,
   });
 
-  printJson({
+  cliOutput.result({
     action: "wallet get-channel-fund",
     wallet: wallet.walletName,
     network: walletMetadata.network,
@@ -4728,7 +4739,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     rpcUrl,
   });
 
-  printJson({
+  cliOutput.result({
     action: "channel join",
     workspace: context.workspaceName,
     wallet: walletContext.walletName,
@@ -4793,7 +4804,7 @@ async function handleExitChannel({ args, provider }) {
     provider,
   });
 
-  printJson({
+  cliOutput.result({
     action: "channel exit",
     wallet: walletContext.walletName,
     network: walletMetadata.network,
@@ -4957,7 +4968,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   });
 
   emitProgress(operationName, "done");
-  printJson({
+  cliOutput.result({
     action: operationName,
     workspace: context.workspaceName,
     wallet: walletContext.walletName,
@@ -5001,7 +5012,7 @@ async function handleWithdrawBridge({ args, network, provider }) {
     ),
   });
 
-  printJson({
+  cliOutput.result({
     action: "account withdraw-bridge",
     l1Address: signer.address,
     amountInput,
@@ -5132,7 +5143,7 @@ async function handleMintNotes({ args, provider }) {
     preparedContextResult,
   });
 
-  printJson({
+  cliOutput.result({
     action: "wallet mint-notes",
     wallet: wallet.walletName,
     workspace: execution.context.workspaceName,
@@ -5207,7 +5218,7 @@ async function handleRedeemNotes({ args, provider }) {
     preparedContextResult,
   });
 
-  printJson({
+  cliOutput.result({
     action: "wallet redeem-notes",
     wallet: wallet.walletName,
     workspace: execution.context.workspaceName,
@@ -5299,7 +5310,7 @@ async function handleWalletGetNotes({ args, provider }) {
     })
     : null;
 
-  printJson({
+  cliOutput.result({
     action: "wallet get-notes",
     wallet: wallet.walletName,
     network: walletMetadata.network,
@@ -6067,7 +6078,7 @@ async function handleTransferNotes({ args, provider }) {
     counterpartyDirection: "sent",
   });
 
-  printJson({
+  cliOutput.result({
     action: "wallet transfer-notes",
     wallet: wallet.walletName,
     workspace: execution.context.workspaceName,
@@ -10015,15 +10026,11 @@ function assertVersionArgs(args) {
 }
 
 function printVersion() {
-  if (isJsonOutputRequested()) {
-    printJson({
-      action: "version",
-      packageName: privateStateCliPackageJson.name,
-      version: privateStateCliPackageJson.version,
-    });
-    return;
-  }
-  console.log(privateStateCliPackageJson.version);
+  cliOutput.result({
+    action: "version",
+    packageName: privateStateCliPackageJson.name,
+    version: privateStateCliPackageJson.version,
+  });
 }
 
 function requireWorkspaceName(args) {
@@ -11068,38 +11075,53 @@ function buildWalletViewingKeyMetadata(wallet) {
 }
 
 function printHelp() {
-  const commandHelp = PRIVATE_STATE_CLI_COMMANDS.map((command) => [
-    `  ${privateStateCliCommandSynopsis(command)}`,
-    `      ${command.description}`,
-    ...(command.help ?? []).map((line) => `      ${line}`),
-  ].join("\n")).join("\n\n");
-  console.log(`
-Commands:
-${commandHelp}
+  cliOutput.result(buildHelpCommandsResult());
+}
 
-Secret source options:
-  Use account import --private-key-file once to create a protected local account secret.
-  L1 signing commands use --account only.
-  A wallet secret source file is arbitrary high-entropy secret text read once by channel join.
-  Create one before joining a channel, for example:
-      openssl rand -hex 32 > ./wallet-secret.txt
-      private-state-cli channel join --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
-  Configure each network RPC endpoint once with set rpc. The CLI reads RPC_URL, LOG_CHUNK_SIZE,
-  and LOG_REQUESTS_PER_SECOND from ~/tokamak-private-channels/workspace/<network>/rpc-config.env.
-  Wallet commands use separate protected viewing-key and spending-key files when those capabilities are needed.
-  Source files passed to --private-key-file and --wallet-secret-path are not required to use 0600 permissions, but
-  canonical CLI secret files remain protected. On macOS/Linux this means 0600; on Windows the CLI repairs ACLs when possible.
+function buildHelpCommandsResult() {
+  return {
+    action: "help commands",
+    commands: PRIVATE_STATE_CLI_COMMANDS.map(buildHelpCommandEntry),
+    secretSourceOptions: [
+      "Use account import --private-key-file once to create a protected local account secret.",
+      "L1 signing commands use --account only.",
+      "A wallet secret source file is arbitrary high-entropy secret text read once by channel join.",
+      "Configure each network RPC endpoint once with set rpc.",
+      "Wallet commands use separate protected viewing-key and spending-key files when those capabilities are needed.",
+      "Source files passed to --private-key-file and --wallet-secret-path are not required to use 0600 permissions, but canonical CLI secret files remain protected.",
+    ],
+    globalOptions: [
+      {
+        option: "--version",
+        description: "Print the private-state CLI package version and exit.",
+      },
+      {
+        option: "--json",
+        description: "Print the final success or failure result as JSON on stdout. Progress, warning, and info events are JSONL on stderr.",
+      },
+      {
+        option: "--help",
+        description: "Show this help. Equivalent to help commands.",
+      },
+    ],
+  };
+}
 
-Options:
-  --version
-      Print the private-state CLI package version and exit.
-
-  --json
-      Print the command result as JSON. Without --json, commands print human-readable output.
-
-  --help
-      Show this help. Equivalent to help commands.
-`);
+function buildHelpCommandEntry(command) {
+  const requiredFields = privateStateCliCommandRequiredOptionKeys(command);
+  const fields = command.fields ?? [];
+  return {
+    id: command.id,
+    display: privateStateCliCommandDisplay(command),
+    synopsis: privateStateCliCommandSynopsis(command),
+    description: command.description,
+    usage: command.usage,
+    fields,
+    requiredFields,
+    optionalFields: fields.filter((field) => !requiredFields.includes(field)),
+    installMode: privateStateCliCommandInstallMode(command),
+    help: command.help ?? [],
+  };
 }
 
 function readJson(filePath) {
@@ -11623,29 +11645,134 @@ function loadWalletCommandRuntime(args, { prepareArtifacts = false } = {}) {
 }
 
 const HUMAN_RESULT_RENDERERS = Object.freeze({
+  doctor: printDoctorHumanResult,
   guide: printGuideHumanResult,
+  "help commands": printHelpCommandsHumanResult,
   investigator: printInvestigatorHumanResult,
   observer: printObserverHumanResult,
   "transaction-fees": printTransactionFeesHumanResult,
   update: printUpdateHumanResult,
+  version: printVersionHumanResult,
 });
 
 function normalizePrivateKey(value) {
   return value.startsWith("0x") ? value : `0x${value}`;
 }
 
-function printJson(value) {
-  const normalized = normalizeCliOutput(value);
+const cliOutput = Object.freeze({
+  result(value) {
+    const normalized = normalizeCliOutput(value);
+    if (isJsonOutputRequested()) {
+      console.log(JSON.stringify(buildJsonSuccessPayload(normalized), null, 2));
+      return;
+    }
+    const renderer = HUMAN_RESULT_RENDERERS[normalized?.action];
+    if (renderer) {
+      renderer(normalized);
+      return;
+    }
+    printHumanResult(normalized);
+  },
+  error(error, args = {}) {
+    if (isJsonOutputRequested()) {
+      console.log(JSON.stringify(normalizeCliOutput(buildJsonErrorPayload(error, args)), null, 2));
+      return;
+    }
+    console.error(formatHumanError(error, args));
+  },
+  progress(action, phase, details = {}) {
+    emitOutputEvent({
+      event: "progress",
+      action,
+      phase,
+      message: details.message ?? `[${action}] ${phase}`,
+      details,
+    });
+  },
+  warning(kind, message, details = {}) {
+    emitOutputEvent({
+      event: "warning",
+      kind,
+      message,
+      details,
+    });
+  },
+  info(kind, message, details = {}) {
+    emitOutputEvent({
+      event: "info",
+      kind,
+      message,
+      details,
+    });
+  },
+});
+
+function buildJsonSuccessPayload(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.hasOwn(value, "ok") ? value : { ok: true, ...value };
+  }
+  return {
+    ok: true,
+    action: "result",
+    value,
+  };
+}
+
+function emitOutputEvent(event) {
+  const normalized = normalizeCliOutput({
+    timestamp: new Date().toISOString(),
+    ...event,
+  });
   if (isJsonOutputRequested()) {
-    console.log(JSON.stringify(normalized, null, 2));
+    console.error(JSON.stringify(normalized));
     return;
   }
-  const renderer = HUMAN_RESULT_RENDERERS[normalized?.action];
-  if (renderer) {
-    renderer(normalized);
+  const message = event.message ?? `[${event.action ?? event.kind ?? "cli"}] ${event.phase ?? event.event}`;
+  if (event.event === "warning") {
+    console.error(message);
     return;
   }
-  printHumanResult(normalized);
+  console.log(message);
+}
+
+function printVersionHumanResult(result) {
+  console.log(result.version);
+}
+
+function printHelpCommandsHumanResult(help) {
+  const commandHelp = (help.commands ?? []).map((command) => [
+    `  ${command.synopsis}`,
+    `      ${command.description}`,
+    ...(command.help ?? []).map((line) => `      ${line}`),
+  ].join("\n")).join("\n\n");
+  const globalOptions = (help.globalOptions ?? []).map((option) => [
+    `  ${option.option}`,
+    `      ${option.description}`,
+  ].join("\n")).join("\n\n");
+  console.log(`
+Commands:
+${commandHelp}
+
+Secret source options:
+  Use account import --private-key-file once to create a protected local account secret.
+  L1 signing commands use --account only.
+  A wallet secret source file is arbitrary high-entropy secret text read once by channel join.
+  Create one before joining a channel, for example:
+      openssl rand -hex 32 > ./wallet-secret.txt
+      private-state-cli channel join --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
+  Configure each network RPC endpoint once with set rpc. The CLI reads RPC_URL, LOG_CHUNK_SIZE,
+  and LOG_REQUESTS_PER_SECOND from ~/tokamak-private-channels/workspace/<network>/rpc-config.env.
+  Wallet commands use separate protected viewing-key and spending-key files when those capabilities are needed.
+  Source files passed to --private-key-file and --wallet-secret-path are not required to use 0600 permissions, but
+  canonical CLI secret files remain protected. On macOS/Linux this means 0600; on Windows the CLI repairs ACLs when possible.
+
+Options:
+${globalOptions}
+`);
+}
+
+function printDoctorHumanResult(report) {
+  printDoctorHumanReport(report);
 }
 
 function printGuideHumanResult(guide) {
@@ -11877,12 +12004,7 @@ function humanizeLabel(value) {
 }
 
 function emitProgress(action, phase) {
-  const line = `[${action}] ${phase}`;
-  if (isJsonOutputRequested()) {
-    console.error(line);
-  } else {
-    console.log(line);
-  }
+  cliOutput.progress(action, phase);
 }
 
 function createByteDownloadProgress({ action, label, url }) {
@@ -12018,7 +12140,7 @@ function createRpcLogScanProgress({ action, label }) {
   };
 }
 
-function formatCliErrorForDisplay(error, args = {}) {
+function formatHumanError(error, args = {}) {
   const message = String(error?.message ?? error);
   const hints = buildRecoveryHints(error, args);
   if (hints.length === 0) {
@@ -12031,11 +12153,12 @@ function formatCliErrorForDisplay(error, args = {}) {
   ].join("\n");
 }
 
-function formatCliErrorForJson(error, args = {}) {
+function buildJsonErrorPayload(error, args = {}) {
   const message = String(error?.message ?? error);
   const hints = buildRecoveryHints(error, args);
-  return JSON.stringify(normalizeCliOutput({
+  return {
     ok: false,
+    action: "error",
     error: {
       name: error?.name ?? "Error",
       code: error?.code ?? "ERROR",
@@ -12062,7 +12185,7 @@ function formatCliErrorForJson(error, args = {}) {
         ? error.reuseProofAllowed
         : null,
     },
-  }), null, 2);
+  };
 }
 
 function buildRecoveryHints(error, args = {}) {
@@ -12257,6 +12380,5 @@ export {
   loadExplicitCommandRuntime,
   loadWalletCommandRuntime,
   assertProviderChainIdMatchesNetwork,
-  formatCliErrorForDisplay,
-  formatCliErrorForJson,
+  cliOutput,
 };

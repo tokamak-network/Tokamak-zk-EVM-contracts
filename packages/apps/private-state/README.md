@@ -120,7 +120,8 @@ The CLI:
 Important rules:
 
 - `--amount` is always a human token amount and is converted with the canonical token decimals
-- commands print human-readable output by default; pass `--json` when automation needs a machine-readable result
+- commands print human-readable output by default; pass `--json` when automation needs a machine-readable final
+  success or failure result on stdout
 - L1 signing commands use `--account`; create the local account secret once with `account import --private-key-file`
 - wallet commands load viewing and spending authority from separate protected key files when those capabilities are needed
 - `channel join` requires `--wallet-secret-path <PATH>` and reads that source file once for spending-key derivation
@@ -137,7 +138,8 @@ Important rules:
   `wallet recover-workspace`
 - recipient note delivery is recovered from bridge-propagated Ethereum event logs through `wallet recover-workspace`
 - `anvil` support exists only for command-driven local end-to-end testing
-- proof-backed commands print four progress phases, `loading`, `proving`, `submitting`, and `persisting`, followed by `done`
+- proof-backed commands print four progress phases, `loading`, `proving`, `submitting`, and `persisting`, followed by `done`;
+  in `--json` mode, progress, warning, and informational events are emitted as JSON Lines on stderr
 - common failures print `Try:` recovery actions after the root error message
 - LLM agents that guide human users should read the CLI package's
   [LLM Agent Guidance](cli/README.md#llm-agent-guidance). That section explains how to introduce

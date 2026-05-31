@@ -313,8 +313,11 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "help-commands",
     display: "help commands",
     description: "Show the private-state CLI command reference.",
-    fields: [],
-    usage: "no options",
+    fields: ["json"],
+    usage: "optional --json",
+    help: [
+      "Use --json to emit the full command reference as structured JSON on stdout.",
+    ],
   },
   {
     id: "help-update",

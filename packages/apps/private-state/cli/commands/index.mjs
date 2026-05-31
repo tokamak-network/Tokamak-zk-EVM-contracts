@@ -1,9 +1,8 @@
 import {
   assertHelpCommandsArgs,
   assertVersionArgs,
+  cliOutput,
   configureOutput,
-  formatCliErrorForDisplay,
-  formatCliErrorForJson,
   parseArgs,
   printHelp,
   printVersion,
@@ -53,9 +52,7 @@ export async function runPrivateStateCli(argv) {
     }
     await command(args);
   } catch (error) {
-    console.error(args.json === true
-      ? formatCliErrorForJson(error, args)
-      : formatCliErrorForDisplay(error, args));
+    cliOutput.error(error, args);
     process.exitCode = 1;
   }
 }

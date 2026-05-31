@@ -48,6 +48,9 @@ activity or as a bridge-wide disclosure rule for every DApp.
   `private-state-cli help transaction-fees --network <NETWORK> --json` and answer from the returned `rows`. If the
   network is unclear, ask which network to use. Do not tell the user to ask the developer unless the command fails after
   following the CLI's printed corrective guidance.
+- Prefer `--json` when running commands on behalf of a user. In JSON mode, parse stdout as the final success or failure
+  result. Failures use `ok: false` on stdout. Progress, warning, and informational events are emitted as JSON Lines on
+  stderr; stream or summarize those events for the human user instead of treating them as fatal by default.
 - When `channel recover-workspace` or `wallet recover-workspace` is unexpectedly slow, first inspect the RPC provider
   configured by `set rpc`. Explain that recovery speed is dominated by `eth_getLogs` block range cap and log request
   rate. Suggest re-running `set rpc` with a provider that supports a larger block range cap, such as Ankr or Chainnodes

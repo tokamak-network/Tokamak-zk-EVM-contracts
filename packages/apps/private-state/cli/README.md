@@ -170,7 +170,8 @@ A common note-use flow after channel policy review is:
 `channel join` pays any join toll directly from the L1 wallet; `account deposit-bridge` funds later channel liquidity and does not pay the join toll.
 
 Use `private-state-cli help commands` for the full command list and required options. `private-state-cli --help`
-continues to print the same command list for shell compatibility.
+continues to print the same command list for shell compatibility. Add `--json` to either form to print the command
+reference as structured JSON on stdout.
 
 ### Action-impact acknowledgement
 
@@ -523,6 +524,15 @@ possible.
 LLM agents that guide users through this CLI should read [`agents.md`](agents.md) before suggesting or running
 commands. That file contains the agent-specific operating rules, including secret-handling boundaries, onboarding
 sequence, acknowledgement handling, recovery behavior, and error-response policy.
+
+When `--json` is used, the CLI follows one output contract for all commands:
+
+- the final success result is one JSON object on stdout
+- command failures are one JSON object on stdout with `ok: false`
+- progress, warning, and informational events are JSON Lines on stderr
+- human-readable mode remains the default when `--json` is omitted
+
+Agents should parse stdout for the final result and may stream stderr JSONL events to explain progress to the user.
 
 ## Artifacts
 

@@ -166,6 +166,8 @@ const CLI_ERROR_CODES = Object.freeze({
   MISSING_CHANNEL_REGISTRATION: "MISSING_CHANNEL_REGISTRATION",
   STALE_WORKSPACE: "STALE_WORKSPACE",
   STALE_CHANNEL_ROOT: "STALE_CHANNEL_ROOT",
+  TX_DRY_RUN_FAILED: "TX_DRY_RUN_FAILED",
+  TX_SUBMIT_FAILED: "TX_SUBMIT_FAILED",
 });
 
 class PrivateStateCliError extends Error {
@@ -609,8 +611,15 @@ async function handleChannelCreate({ args, network, provider }) {
     channelId,
     policySnapshot,
   });
-  const receipt =
-    await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, joinToll, dapp.metadataDigest));
+  const receipt = await dryRunThenSubmitTransaction({
+    operationName: "channel create",
+    call: contractTxCall(
+      bridgeCore.createChannel,
+      [channelId, dappId, joinToll, dapp.metadataDigest],
+      undefined,
+      bridgeCore.interface,
+    ),
+  });
   const channelInfo = await bridgeCore.getChannel(channelId);
 
   const workspaceResult = await syncChannelWorkspace({
@@ -880,7 +889,15 @@ async function handleSetChannelWorkspaceMirror({ args, network, provider }) {
   );
   const channelId = deriveChannelIdFromName(channelName);
   const previousUrl = await readChannelWorkspaceMirror({ bridgeCore, channelId });
-  const receipt = await waitForReceipt(await bridgeCore.setChannelWorkspaceMirror(channelId, url));
+  const receipt = await dryRunThenSubmitTransaction({
+    operationName: "channel set-workspace-mirror",
+    call: contractTxCall(
+      bridgeCore.setChannelWorkspaceMirror,
+      [channelId, url],
+      undefined,
+      bridgeCore.interface,
+    ),
+  });
   const currentUrl = await readChannelWorkspaceMirror({ bridgeCore, channelId });
 
   printJson({
@@ -2210,9 +2227,25 @@ async function handleDepositBridge({ args, network, provider }) {
     signer,
   );
   let nextNonce = await provider.getTransactionCount(signer.address, "pending");
-  const approveReceipt =
-    await waitForReceipt(await asset.approve(bridgeVaultContext.bridgeTokenVaultAddress, amount, { nonce: nextNonce++ }));
-  const fundReceipt = await waitForReceipt(await bridgeTokenVault.fund(amount, { nonce: nextNonce++ }));
+  const approveReceipt = await dryRunThenSubmitTransaction({
+    operationName: "account deposit-bridge approve",
+    call: contractTxCall(
+      asset.approve,
+      [bridgeVaultContext.bridgeTokenVaultAddress, amount],
+      { nonce: nextNonce++ },
+      asset.interface,
+    ),
+  });
+  const fundReceipt = await dryRunThenSubmitTransaction({
+    operationName: "account deposit-bridge fund",
+    call: contractTxCall(
+      bridgeTokenVault.fund,
+      [amount],
+      { nonce: nextNonce++ },
+      bridgeTokenVault.interface,
+    ),
+    submittedBefore: [submittedReceiptSummary("account deposit-bridge approve", approveReceipt)],
+  });
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
 
   printJson({
@@ -4641,20 +4674,32 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     channelId: context.workspace.channelId,
   });
   if (joinToll !== 0n) {
-    approveReceipt = await waitForReceipt(
-      await asset.approve(context.workspace.bridgeTokenVault, joinToll, { nonce: nextNonce++ }),
-    );
+    approveReceipt = await dryRunThenSubmitTransaction({
+      operationName: "channel join approve",
+      call: contractTxCall(
+        asset.approve,
+        [context.workspace.bridgeTokenVault, joinToll],
+        { nonce: nextNonce++ },
+        asset.interface,
+      ),
+    });
   }
-  receipt = await waitForReceipt(
-    await context.bridgeTokenVault.connect(signer).joinChannel(
-      ethers.toBigInt(context.workspace.channelId),
-      l2Identity.l2Address,
-      storageKey,
-      leafIndex,
-      noteReceiveKeyMaterial.noteReceivePubKey,
+  receipt = await dryRunThenSubmitTransaction({
+    operationName: "channel join",
+    call: contractTxCall(
+      context.bridgeTokenVault.connect(signer).joinChannel,
+      [
+        ethers.toBigInt(context.workspace.channelId),
+        l2Identity.l2Address,
+        storageKey,
+        leafIndex,
+        noteReceiveKeyMaterial.noteReceivePubKey,
+      ],
       { nonce: nextNonce++ },
+      context.bridgeTokenVault.interface,
     ),
-  );
+    submittedBefore: approveReceipt ? [submittedReceiptSummary("channel join approve", approveReceipt)] : [],
+  });
   const registered = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   const lifecycleEpoch = await walletEpochFromJoinReceipt({
     receipt,
@@ -4733,9 +4778,15 @@ async function handleExitChannel({ args, provider }) {
     ].join(" "),
   );
   const [refundAmount, refundBps] = await context.channelManager.getExitTollRefundQuote(ownerSigner.address);
-  const receipt = await waitForReceipt(
-    await context.bridgeTokenVault.connect(ownerSigner).exitChannel(ethers.toBigInt(context.workspace.channelId)),
-  );
+  const receipt = await dryRunThenSubmitTransaction({
+    operationName: "channel exit",
+    call: contractTxCall(
+      context.bridgeTokenVault.connect(ownerSigner).exitChannel,
+      [ethers.toBigInt(context.workspace.channelId)],
+      undefined,
+      context.bridgeTokenVault.interface,
+    ),
+  });
   const lifecycleEpoch = await markWalletEpochExited({
     walletContext,
     receipt,
@@ -4867,16 +4918,22 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   });
 
   const methodName = direction === "deposit" ? "depositToChannelVault" : "withdrawFromChannelVault";
-  await assertWorkspaceAlignedWithChain(context);
   emitProgress(operationName, "submitting");
-  const receipt = await submitProofBackedRootUpdate({
+  const receipt = await dryRunThenSubmitTransaction({
+    operationName,
     context,
     walletName: walletContext.walletName,
-    operationName,
-    submit: () => bridgeTokenVault[methodName](
-      ethers.toBigInt(context.workspace.channelId),
-      transition.proof,
-      transition.update,
+    operationDir,
+    precheck: () => precheckGrothRootUpdate({ context, transition, operationName }),
+    call: contractTxCall(
+      bridgeTokenVault[methodName],
+      [
+        ethers.toBigInt(context.workspace.channelId),
+        transition.proof,
+        transition.update,
+      ],
+      undefined,
+      bridgeTokenVault.interface,
     ),
   });
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
@@ -4934,7 +4991,15 @@ async function handleWithdrawBridge({ args, network, provider }) {
     bridgeVaultContext.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
     signer,
   );
-  const receipt = await waitForReceipt(await bridgeTokenVault.claimToWallet(amount));
+  const receipt = await dryRunThenSubmitTransaction({
+    operationName: "account withdraw-bridge",
+    call: contractTxCall(
+      bridgeTokenVault.claimToWallet,
+      [amount],
+      undefined,
+      bridgeTokenVault.interface,
+    ),
+  });
 
   printJson({
     action: "account withdraw-bridge",
@@ -7712,19 +7777,26 @@ async function executeWalletTemplateSend({
     expectedFunctionRoot: context.workspace.functionRoot ?? context.workspace.policySnapshot?.functionRoot,
   });
   const aPubBlockHash = hashTokamakPublicInputs(payload.aPubBlock);
-  expect(
-    ethers.toBigInt(normalizeBytes32Hex(aPubBlockHash))
-      === ethers.toBigInt(normalizeBytes32Hex(context.workspace.aPubBlockHash)),
-    "Generated Tokamak proof does not match the channel aPubBlockHash. Check the workspace block_info.json context.",
-  );
 
-  await assertWorkspaceAlignedWithChain(context);
   emitProgress(operationName, "submitting");
-  const receipt = await submitProofBackedRootUpdate({
+  const receipt = await dryRunThenSubmitTransaction({
+    operationName,
     context,
     walletName: wallet.walletName,
-    operationName,
-    submit: () => context.channelManager.connect(txSubmitter).executeChannelTransaction(payload, functionProof),
+    operationDir,
+    precheck: () => precheckTokamakExecution({
+      context,
+      payload,
+      functionProof,
+      aPubBlockHash,
+      operationName,
+    }),
+    call: contractTxCall(
+      context.channelManager.connect(txSubmitter).executeChannelTransaction,
+      [payload, functionProof],
+      undefined,
+      context.channelManager.interface,
+    ),
   });
   await waitForProviderBlockAtLeast(provider, receipt.blockNumber, { action: operationName });
 
@@ -8399,25 +8471,206 @@ function isUnexpectedCurrentRootVectorError(error, context) {
   return String(error?.message ?? error).includes("UnexpectedCurrentRootVector");
 }
 
-async function submitProofBackedRootUpdate({
-  context,
-  walletName,
-  operationName,
-  submit,
-}) {
-  try {
-    return await waitForReceipt(await submit());
-  } catch (error) {
-    if (isUnexpectedCurrentRootVectorError(error, context)) {
-      throw staleChannelRootError({
-        cause: error,
-        context,
-        walletName,
-        operationName,
-      });
-    }
-    throw error;
+function precheckGrothRootUpdate({ context, transition, operationName }) {
+  expect(transition && typeof transition === "object", `${operationName} proof precheck failed: missing transition.`);
+  expect(transition.proof && typeof transition.proof === "object", `${operationName} proof precheck failed: missing Groth16 proof.`);
+  expect(transition.update && typeof transition.update === "object", `${operationName} proof precheck failed: missing root update.`);
+  expect(
+    Array.isArray(transition.update.currentRootVector) && transition.update.currentRootVector.length > 0,
+    `${operationName} proof precheck failed: missing current root vector.`,
+  );
+  expect(
+    normalizeBytes32Hex(hashRootVector(transition.update.currentRootVector))
+      === normalizeBytes32Hex(hashRootVector(context.currentSnapshot.stateRoots)),
+    `${operationName} proof precheck failed: root update does not match the local workspace snapshot.`,
+  );
+  normalizeBytes32Hex(transition.update.updatedRoot);
+  normalizeBytes32Hex(transition.update.currentUserKey);
+  normalizeBytes32Hex(transition.update.updatedUserKey);
+  expect(transition.nextSnapshot?.stateRoots, `${operationName} proof precheck failed: missing next snapshot roots.`);
+}
+
+function precheckTokamakExecution({ context, payload, functionProof, aPubBlockHash, operationName }) {
+  expect(payload && typeof payload === "object", `${operationName} proof precheck failed: missing Tokamak payload.`);
+  for (const key of [
+    "proofPart1",
+    "proofPart2",
+    "functionPreprocessPart1",
+    "functionPreprocessPart2",
+    "aPubUser",
+    "aPubBlock",
+  ]) {
+    expect(Array.isArray(payload[key]) && payload[key].length > 0, `${operationName} proof precheck failed: payload.${key} is missing.`);
   }
+  expect(functionProof?.metadata, `${operationName} proof precheck failed: missing function metadata proof.`);
+  expect(Array.isArray(functionProof?.siblings), `${operationName} proof precheck failed: missing function metadata proof siblings.`);
+  expect(
+    ethers.toBigInt(normalizeBytes32Hex(aPubBlockHash))
+      === ethers.toBigInt(normalizeBytes32Hex(context.workspace.aPubBlockHash)),
+    `${operationName} proof precheck failed: generated aPubBlockHash does not match the channel aPubBlockHash.`,
+  );
+}
+
+function contractTxCall(contractMethod, args = [], overrides = undefined, contractInterface = null) {
+  expect(typeof contractMethod === "function", "Internal error: contract transaction method must be callable.");
+  expect(
+    typeof contractMethod.staticCall === "function",
+    "Internal error: contract transaction method must support staticCall.",
+  );
+  const finalArgs = overrides === undefined ? [...args] : [...args, overrides];
+  return {
+    contractInterface,
+    dryRun: () => contractMethod.staticCall(...finalArgs),
+    submit: () => contractMethod(...finalArgs),
+  };
+}
+
+async function dryRunThenSubmitTransaction({
+  operationName,
+  call,
+  precheck = null,
+  context = null,
+  walletName = null,
+  operationDir = null,
+  submittedBefore = [],
+}) {
+  expect(typeof call?.dryRun === "function", "Internal error: transaction dry-run callback is required.");
+  expect(typeof call?.submit === "function", "Internal error: transaction submit callback is required.");
+  if (precheck) {
+    await precheck();
+  }
+  try {
+    await call.dryRun();
+  } catch (error) {
+    throw transactionPreflightOrSubmitError({
+      phase: "dry-run",
+      operationName,
+      cause: error,
+      context,
+      walletName,
+      operationDir,
+      submittedBefore,
+      contractInterface: call.contractInterface,
+    });
+  }
+  try {
+    return await waitForReceipt(await call.submit());
+  } catch (error) {
+    throw transactionPreflightOrSubmitError({
+      phase: "submit",
+      operationName,
+      cause: error,
+      context,
+      walletName,
+      operationDir,
+      submittedBefore,
+      contractInterface: call.contractInterface,
+    });
+  }
+}
+
+function transactionPreflightOrSubmitError({
+  phase,
+  operationName,
+  cause,
+  context = null,
+  walletName = null,
+  operationDir = null,
+  submittedBefore = [],
+  contractInterface = null,
+}) {
+  if (context && isUnexpectedCurrentRootVectorError(cause, context)) {
+    return staleChannelRootError({
+      cause,
+      context,
+      walletName,
+      operationName,
+      phase,
+    });
+  }
+  const decodedError = decodeTransactionContractError(cause, [
+    contractInterface,
+    context?.channelManager?.interface,
+    context?.bridgeTokenVault?.interface,
+  ]);
+  const details = [
+    phase === "dry-run"
+      ? `${operationName} pre-submit dry-run failed. No ${operationName} transaction was submitted.`
+      : `${operationName} transaction submission failed.`,
+  ];
+  const submitted = normalizeSubmittedBefore(submittedBefore);
+  if (submitted.length > 0) {
+    details.push(`Already submitted before this failure: ${submitted.join("; ")}.`);
+  }
+  if (walletName) {
+    details.push(`Wallet: ${walletName}.`);
+  }
+  if (operationDir) {
+    details.push(`Operation directory: ${operationDir}.`);
+  }
+  if (decodedError) {
+    details.push(`Decoded contract error: ${decodedError}.`);
+  }
+  details.push(`Provider error: ${extractProviderErrorMessage(cause)}.`);
+  return cliError(
+    phase === "dry-run" ? CLI_ERROR_CODES.TX_DRY_RUN_FAILED : CLI_ERROR_CODES.TX_SUBMIT_FAILED,
+    details.join(" "),
+    { cause },
+  );
+}
+
+function submittedReceiptSummary(label, receipt) {
+  return `${label} tx ${receipt?.hash ?? "<unknown>"} in block ${receipt?.blockNumber ?? "<unknown>"}`;
+}
+
+function normalizeSubmittedBefore(entries) {
+  return entries
+    .filter(Boolean)
+    .map((entry) => {
+      if (typeof entry === "string") {
+        return entry;
+      }
+      if (entry?.hash) {
+        return submittedReceiptSummary(entry.label ?? "transaction", entry);
+      }
+      return String(entry);
+    });
+}
+
+function decodeTransactionContractError(error, contractInterfaces) {
+  if (error?.revert?.name) {
+    return formatDecodedContractError(error.revert.name, error.revert.args ?? []);
+  }
+  for (const contractInterface of contractInterfaces.filter(Boolean)) {
+    for (const errorData of extractContractErrorDataCandidates(error)) {
+      try {
+        const parsed = contractInterface.parseError(errorData);
+        if (parsed) {
+          return formatDecodedContractError(parsed.name, parsed.args ?? []);
+        }
+      } catch {
+        // Keep scanning provider error payloads and interfaces.
+      }
+    }
+  }
+  return null;
+}
+
+function formatDecodedContractError(name, args) {
+  const renderedArgs = Array.from(args ?? [])
+    .map((value) => serializeBigInts(normalizeCliOutputValue(value, [])));
+  return `${name}(${renderedArgs.map((value) => JSON.stringify(value)).join(", ")})`;
+}
+
+function extractProviderErrorMessage(error) {
+  return String(
+    error?.shortMessage
+      ?? error?.reason
+      ?? error?.info?.error?.message
+      ?? error?.error?.message
+      ?? error?.message
+      ?? error,
+  );
 }
 
 function staleChannelRootError({
@@ -8425,9 +8678,12 @@ function staleChannelRootError({
   context,
   walletName,
   operationName,
+  phase = "submit",
 }) {
   const message = [
-    `${operationName} failed because the submitted proof was generated for an older channel root.`,
+    phase === "dry-run"
+      ? `${operationName} pre-submit dry-run failed because the generated proof targets an older channel root. No ${operationName} transaction was submitted.`
+      : `${operationName} failed because the submitted proof was generated for an older channel root.`,
     "The rejected proof cannot be reused.",
     "Do not change recipients, amounts, note counts, function arity, or split the command as recovery.",
     "Refresh the channel workspace, re-check affected wallet state when the command uses notes, then rerun the original intended command so the CLI regenerates a proof from a fresh snapshot.",

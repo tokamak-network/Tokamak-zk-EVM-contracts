@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.3 - 2026-06-01
+
 - Added pre-submit transaction dry-runs for every transaction-sending CLI command.
 - Added post-proof local prechecks before dry-run for proof-backed commands.
 - Improved dry-run and submit failure messages with decoded revert details when available.

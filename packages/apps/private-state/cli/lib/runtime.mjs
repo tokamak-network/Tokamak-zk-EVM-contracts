@@ -11991,12 +11991,13 @@ function humanizeLabel(value) {
     .replace(/^./u, (letter) => letter.toUpperCase());
 }
 
-function emitProgress(action, phase) {
-  cliOutput.progress(action, phase);
+function emitProgress(action, phase, details = {}) {
+  cliOutput.progress(action, phase, details);
 }
 
 function createByteDownloadProgress({ action, label, url }) {
   const startedAtMs = Date.now();
+  const estimateProgress = createProgressEstimator({ startedAtMs });
   const useInlineProgress = process.stderr.isTTY && !isJsonOutputRequested();
   let lastLineLength = 0;
   const writeInline = (line, done = false) => {
@@ -12017,20 +12018,18 @@ function createByteDownloadProgress({ action, label, url }) {
   return (event) => {
     const downloadedBytes = Number(event.downloadedBytes ?? 0);
     const totalBytes = Number.isFinite(Number(event.totalBytes)) ? Number(event.totalBytes) : null;
-    const elapsedSeconds = Math.max(0.001, (Date.now() - startedAtMs) / 1000);
-    const bytesPerSecond = downloadedBytes / elapsedSeconds;
-    const remainingBytes = totalBytes !== null ? Math.max(0, totalBytes - downloadedBytes) : null;
-    const etaSeconds = remainingBytes !== null && bytesPerSecond > 0
-      ? remainingBytes / bytesPerSecond
-      : null;
-    const percent = totalBytes && totalBytes > 0
-      ? `${Math.min(100, (downloadedBytes * 100) / totalBytes).toFixed(1)}%`
+    const metrics = estimateProgress({
+      completedUnits: downloadedBytes,
+      totalUnits: totalBytes,
+    });
+    const percent = metrics.percent !== null
+      ? `${metrics.percent.toFixed(1)}%`
       : "unknown";
     const base = [
       `${label}: ${percent}`,
       `${formatByteCount(downloadedBytes)}/${totalBytes !== null ? formatByteCount(totalBytes) : "unknown"}`,
-      `${formatByteRate(bytesPerSecond)}`,
-      `ETA ${etaSeconds !== null ? formatDurationSeconds(etaSeconds) : "unknown"}`,
+      `${formatByteRate(metrics.ratePerSecond)}`,
+      `ETA ${metrics.etaSeconds !== null ? formatDurationSeconds(metrics.etaSeconds) : "unknown"}`,
     ].join(" ");
     if (event.status === "start") {
       writeInline(`${base} from ${url}`);
@@ -12048,6 +12047,45 @@ function createByteDownloadProgress({ action, label, url }) {
       writeInline(base);
     }
   };
+}
+
+function createProgressEstimator({ startedAtMs = Date.now() } = {}) {
+  return ({ completedUnits, totalUnits, nowMs = Date.now() }) => {
+    const completed = Math.max(0, finiteNumberOrZero(completedUnits));
+    const total = finiteNumberOrNull(totalUnits);
+    const resolvedNowMs = Number.isFinite(Number(nowMs)) ? Number(nowMs) : Date.now();
+    const elapsedSeconds = Math.max(0.001, (resolvedNowMs - startedAtMs) / 1000);
+    const ratePerSecond = completed / elapsedSeconds;
+    const remainingUnits = total !== null ? Math.max(0, total - completed) : null;
+    const etaSeconds = remainingUnits !== null && ratePerSecond > 0
+      ? remainingUnits / ratePerSecond
+      : null;
+    const percent = total !== null && total > 0
+      ? Math.min(100, (completed * 100) / total)
+      : null;
+    return {
+      elapsedSeconds,
+      ratePerSecond,
+      remainingUnits,
+      etaSeconds,
+      percent,
+    };
+  };
+}
+
+function finiteNumberOrZero(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function finiteNumberOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function roundedNumberOrNull(value, decimals = 2) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Number(number.toFixed(decimals)) : null;
 }
 
 function formatByteCount(bytes) {
@@ -12084,13 +12122,22 @@ function formatDurationSeconds(seconds) {
 }
 
 function createRpcLogScanProgress({ action, label }) {
+  const estimateProgress = createProgressEstimator();
   let lastBucket = -1;
   return (event) => {
-    const totalBlocks = Number(event.totalBlocks ?? 0);
-    const scannedBlocks = Number(event.scannedBlocks ?? 0);
-    const logsFound = Number(event.logsFound ?? 0);
+    const totalBlocks = Math.max(0, finiteNumberOrZero(event.totalBlocks));
+    const scannedBlocks = Math.max(0, finiteNumberOrZero(event.scannedBlocks));
+    const logsFound = Math.max(0, finiteNumberOrZero(event.logsFound));
+    const metrics = estimateProgress({
+      completedUnits: scannedBlocks,
+      totalUnits: totalBlocks,
+    });
     if (event.status === "skipped") {
-      emitProgress(action, `rpc-log-scan ${label}: skipped (no blocks to scan, ${logsFound} logs)`);
+      emitProgress(
+        action,
+        `rpc-log-scan ${label}: skipped (no blocks to scan, ${logsFound} logs)`,
+        buildRpcLogScanProgressDetails({ event, label, scannedBlocks, totalBlocks, logsFound, metrics }),
+      );
       return;
     }
     if (event.status === "start") {
@@ -12098,13 +12145,28 @@ function createRpcLogScanProgress({ action, label }) {
       emitProgress(
         action,
         `rpc-log-scan ${label}: 0% (0/${totalBlocks} blocks, ${logsFound} logs, blocks ${event.fromBlock}-${event.toBlock})`,
+        buildRpcLogScanProgressDetails({ event, label, scannedBlocks, totalBlocks, logsFound, metrics }),
       );
       return;
     }
     if (event.status === "done") {
+      const doneMetrics = {
+        ...metrics,
+        percent: totalBlocks > 0 ? 100 : metrics.percent,
+        remainingUnits: totalBlocks > 0 ? 0 : metrics.remainingUnits,
+        etaSeconds: totalBlocks > 0 ? 0 : metrics.etaSeconds,
+      };
       emitProgress(
         action,
         `rpc-log-scan ${label}: 100% (${totalBlocks}/${totalBlocks} blocks, ${logsFound} logs, done)`,
+        buildRpcLogScanProgressDetails({
+          event,
+          label,
+          scannedBlocks: totalBlocks,
+          totalBlocks,
+          logsFound,
+          metrics: doneMetrics,
+        }),
       );
       return;
     }
@@ -12121,10 +12183,49 @@ function createRpcLogScanProgress({ action, label }) {
       return;
     }
     lastBucket = bucket;
+    const etaText = metrics.etaSeconds !== null ? formatDurationSeconds(metrics.etaSeconds) : "unknown";
     emitProgress(
       action,
-      `rpc-log-scan ${label}: ${percent}% (${scannedBlocks}/${totalBlocks} blocks, ${logsFound} logs)`,
+      [
+        `rpc-log-scan ${label}: ${percent}%`,
+        `(${scannedBlocks}/${totalBlocks} blocks, ${logsFound} logs,`,
+        `${metrics.ratePerSecond.toFixed(1)} blocks/s, ETA ${etaText})`,
+      ].join(" "),
+      buildRpcLogScanProgressDetails({ event, label, scannedBlocks, totalBlocks, logsFound, metrics }),
     );
+  };
+}
+
+function buildRpcLogScanProgressDetails({
+  event,
+  label,
+  scannedBlocks,
+  totalBlocks,
+  logsFound,
+  metrics,
+}) {
+  return {
+    kind: "rpc-log-scan",
+    label,
+    status: String(event.status ?? "unknown"),
+    unit: "blocks",
+    fromBlock: finiteNumberOrNull(event.fromBlock),
+    toBlock: finiteNumberOrNull(event.toBlock),
+    chunkFromBlock: finiteNumberOrNull(event.chunkFromBlock),
+    chunkToBlock: finiteNumberOrNull(event.chunkToBlock),
+    scannedBlocks,
+    totalBlocks,
+    completedUnits: scannedBlocks,
+    totalUnits: totalBlocks,
+    remainingBlocks: roundedNumberOrNull(metrics.remainingUnits, 0),
+    remainingUnits: roundedNumberOrNull(metrics.remainingUnits, 0),
+    logsFound,
+    chunkLogs: finiteNumberOrNull(event.chunkLogs),
+    percent: roundedNumberOrNull(metrics.percent, 2),
+    ratePerSecond: roundedNumberOrNull(metrics.ratePerSecond, 2),
+    etaSeconds: roundedNumberOrNull(metrics.etaSeconds, 2),
+    etaFormatted: metrics.etaSeconds !== null ? formatDurationSeconds(metrics.etaSeconds) : null,
+    elapsedSeconds: roundedNumberOrNull(metrics.elapsedSeconds, 2),
   };
 }
 

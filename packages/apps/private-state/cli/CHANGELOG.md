@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added ETA and scan-rate reporting to RPC recovery progress for channel and wallet workspace recovery, including
+  structured JSON progress details in `--json` mode.
+
 ## 2.4.3 - 2026-06-01
 
 - Added pre-submit transaction dry-runs for every transaction-sending CLI command.

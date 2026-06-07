@@ -103,6 +103,7 @@ function testGuideHumanOutputIsUserFacing() {
   expect(!stdout.includes("Refs:"), "Human guide output must not show agents.md refs.");
   expect(!stdout.includes("Privacy Tip"), "Human guide output must not show unrelated global privacy tips.");
   expect(!stdout.includes("Mirror Tip"), "Human guide output must not show unrelated mirror tips.");
+  expect(!/\bchat\b/iu.test(stdout), "Human guide output should not use chat-oriented wording.");
 }
 
 function testSecretCommandsRegistered() {

@@ -11998,9 +11998,9 @@ function guideHumanNextStep(guide) {
       ];
     case "create-private-key-source-and-import-account":
       return [
-        "Create a local private-key source file in your terminal. Do not paste your private key into chat.",
-        "The helper will show * while you type and will not print the key back.",
-        `After that, import it with: account import --account ${account} --network ${network} --private-key-file ./ethereum-private-key.txt`,
+        "First, run the command below. It will ask for your Ethereum private key in the terminal.",
+        "Your typing will appear as * characters. The key will be saved only on this computer as ./ethereum-private-key.txt.",
+        `After that succeeds, import it with: account import --account ${account} --network ${network} --private-key-file ./ethereum-private-key.txt`,
       ];
     case "create-channel":
       return [

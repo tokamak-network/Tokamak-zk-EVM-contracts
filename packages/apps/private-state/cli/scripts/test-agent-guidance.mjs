@@ -92,6 +92,17 @@ function testGuideJsonRefs() {
   }
 }
 
+function testGuideHumanOutputIsUserFacing() {
+  const stdout = runCli(["help", "guide", "--network", "mainnet"]);
+  expect(stdout.includes("Next Step"), "Human guide output should include a Next Step section.");
+  expect(stdout.includes("Command\nset rpc --network mainnet --rpc-url <URL> --provider ankr"), "Human guide output should show the next command.");
+  expect(stdout.includes("create an Ankr endpoint"), "Human guide output should explain the concrete RPC setup action.");
+  expect(!stdout.includes("Agent Guidance"), "Human guide output must not show AI-only guidance refs.");
+  expect(!stdout.includes("Refs:"), "Human guide output must not show agents.md refs.");
+  expect(!stdout.includes("Privacy Tip"), "Human guide output must not show unrelated global privacy tips.");
+  expect(!stdout.includes("Mirror Tip"), "Human guide output must not show unrelated mirror tips.");
+}
+
 function testSecretCommandsRegistered() {
   const commandIds = new Set(PRIVATE_STATE_CLI_COMMANDS.map((command) => command.id));
   expect(commandIds.has("secret-create-private-key-source"), "Missing private-key source helper registry entry.");
@@ -170,6 +181,7 @@ function testNonTtyPrivateKeyPromptFailsClearly() {
 
 testSecretCommandsRegistered();
 testGuideJsonRefs();
+testGuideHumanOutputIsUserFacing();
 testRandomWalletSecretHelper();
 testNonTtyPrivateKeyPromptFailsClearly();
 

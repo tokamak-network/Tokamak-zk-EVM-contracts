@@ -11938,6 +11938,7 @@ ${globalOptions}
 
 function printGuideHumanResult(guide) {
   const selectors = guide.selectors ?? {};
+  const guidance = guideHumanNextStep(guide);
   const lines = [
     "Guide",
     `Generated: ${formatHumanValue(guide.generatedAt)}`,
@@ -11951,9 +11952,11 @@ function printGuideHumanResult(guide) {
     "Checks",
     ...formatGuideChecks(guide.checks),
     "",
-    "Next Safe Action",
-    `Command: ${formatHumanValue(guide.nextSafeAction)}`,
-    `Why: ${formatHumanValue(guide.why)}`,
+    "Next Step",
+    ...guidance,
+    "",
+    "Command",
+    formatHumanValue(guide.nextSafeAction),
   ];
 
   if (Array.isArray(guide.candidateCommands) && guide.candidateCommands.length > 0) {
@@ -11964,27 +11967,109 @@ function printGuideHumanResult(guide) {
     );
   }
 
-  if (guide.agentGuidance?.source && Array.isArray(guide.agentGuidance.refs)) {
-    lines.push(
-      "",
-      "Agent Guidance",
-      `Source: ${guide.agentGuidance.source}`,
-      `Refs: ${guide.agentGuidance.refs.join(", ")}`,
-    );
-  }
-
-  lines.push("", "Run with --json to inspect the full guide state.");
-  lines.push(
-    "",
-    "Privacy Tip",
-    formatHumanValue(guide.privacyTip),
-  );
-  lines.push(
-    "",
-    "Mirror Tip",
-    formatHumanValue(guide.mirrorTip),
-  );
+  lines.push("", "Use --json only when an AI or script needs the full state.");
   console.log(lines.join("\n"));
+}
+
+function guideHumanNextStep(guide) {
+  const step = guide.agentGuidance?.step ?? "";
+  const command = formatHumanValue(guide.nextSafeAction);
+  const network = formatGuideSelector(guide.selectors?.network);
+  const channel = formatGuideSelector(guide.selectors?.channelName);
+  const account = formatGuideSelector(guide.selectors?.account);
+  const wallet = formatGuideSelector(guide.selectors?.wallet);
+
+  switch (step) {
+    case "select-network":
+      return [
+        "Choose the Ethereum network first. If you are using real funds, use mainnet.",
+        "Use Sepolia or anvil only if you are testing or developing.",
+      ];
+    case "configure-rpc":
+      return [
+        `The CLI needs an Ethereum ${network} RPC endpoint before it can check Ethereum and send transactions.`,
+        "If you do not already use an RPC provider, create an Ankr endpoint and copy only the endpoint URL.",
+        "Then run the command below. Replace <URL> with that endpoint URL.",
+      ];
+    case "install-runtime":
+      return [
+        "The CLI runtime files are missing. Install them before trying account, channel, or wallet commands.",
+        "After installation, run private-state-cli help doctor to check that the CLI is ready.",
+      ];
+    case "create-private-key-source-and-import-account":
+      return [
+        "Create a local private-key source file in your terminal. Do not paste your private key into chat.",
+        "The helper will show * while you type and will not print the key back.",
+        `After that, import it with: account import --account ${account} --network ${network} --private-key-file ./ethereum-private-key.txt`,
+      ];
+    case "create-channel":
+      return [
+        `The channel ${channel} is not created yet.`,
+        "Create it only if you are the channel creator and you understand the channel policy and join toll.",
+        "Do not continue until you have reviewed the action-impact warning.",
+      ];
+    case "recover-channel-workspace":
+      if (String(command).includes("--source mirror")) {
+        return [
+          `The channel ${channel} exists, but this computer does not have its local workspace yet.`,
+          "A workspace mirror is available, so recover from the mirror first. This is the simplest recovery path.",
+        ];
+      }
+      return [
+        `The channel ${channel} exists, but this computer does not have its local workspace yet.`,
+        "No usable mirror was found. The command below rebuilds from RPC logs and can take a long time.",
+      ];
+    case "create-wallet-secret-source-and-join-channel":
+      return [
+        "Create a wallet secret source file before joining the channel. Type a strong password or passphrase you can keep.",
+        "Use random generation only if you explicitly want a random secret and can preserve the file safely.",
+        "After creating the file, review the channel policy and action-impact warning before running channel join.",
+      ];
+    case "join-channel-with-existing-wallet-secret-source":
+      return [
+        "This wallet is not registered in the channel yet.",
+        "Use your existing wallet secret source file, then review the channel policy and action-impact warning before joining.",
+      ];
+    case "fund-bridge":
+      return [
+        "The joined wallet has no usable funds yet.",
+        "Deposit tokens into the bridge first. This is a public Ethereum transaction, so review the action-impact warning before continuing.",
+      ];
+    case "fund-channel":
+      return [
+        "Your Ethereum bridge balance exists, but the private-state wallet has no channel balance yet.",
+        "Move funds into the channel before minting private notes. Review the action-impact warning first.",
+      ];
+    case "mint-notes":
+      return [
+        "Your wallet has channel balance but no unused private notes.",
+        "Mint notes before trying to transfer or redeem them. Review the action-impact warning first.",
+      ];
+    case "use-notes":
+      return [
+        "Your wallet has unused private notes.",
+        "Inspect the note IDs first, then transfer or redeem only notes that actually exist.",
+      ];
+    case "exit-channel":
+      return [
+        "The wallet appears ready for channel exit because its channel balance is zero.",
+        "Exit only if you are sure you no longer need this channel wallet.",
+      ];
+    case "discover-wallet-name":
+      return [
+        "The wallet name is not valid or not known.",
+        "List local wallets and choose one of the names printed by the CLI.",
+      ];
+    case "collect-selectors":
+      return [
+        "The guide needs more public information before it can choose one safe next command.",
+        "Provide the network, channel name, account alias, and wallet name if you know them.",
+      ];
+    default:
+      return [
+        formatHumanValue(guide.why),
+      ];
+  }
 }
 
 function printInvestigatorHumanResult(result) {

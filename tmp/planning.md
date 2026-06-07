@@ -61,11 +61,9 @@ scope.
 
 - The test suite checks some guide refs and helper safety behavior, but it does not cover all guide states that can be
   exercised with deterministic local fixtures.
-- Guide-state tests should stay limited to deterministic local fixtures or document parsing. Do not add tests that require
-  mock JSON-RPC, live RPC, on-chain contract responses, or full wallet/channel workspace reconstruction unless the
-  implementation already has a lightweight test fixture for that state.
-- The tests verify that emitted refs exist in `agents.md` for covered guide states, but they do not verify the full recipe
-  field contract.
+- Guide-state tests should stay limited to deterministic local fixtures. Do not add tests that require mock JSON-RPC,
+  live RPC, on-chain contract responses, or full wallet/channel workspace reconstruction unless the implementation
+  already has a lightweight test fixture for that state.
 - Helper command tests cover random wallet-secret behavior and non-TTY private-key failure; typed private-key masking was
   manually verified but is not automated in the test script, and typed wallet-secret masking is not automated.
 - Human `help guide` has the action-first layout, but the latest audit still found non-specialist wording gaps in RPC,
@@ -78,18 +76,8 @@ scope.
 
 ### Not started
 
-- Add documentation/structure tests that every first-time setup ref includes the required recipe fields.
-- Add documentation/structure tests that the account-import recipe includes an `account get-l1-address` success check.
-- Add documentation/structure tests that the wallet-secret/channel-join recipe defaults to user-entered secret creation
-  and keeps random generation as explicit opt-in.
-- Add documentation/structure tests that the RPC recipe recommends Ankr and includes the `set rpc --provider ankr`
-  command template.
-- Add documentation/structure tests that recipe `AI must not ask` lists include private keys, wallet secrets, seed
-  phrases, provider passwords, and provider dashboard access where relevant.
 - Automate typed masked-input tests for `secret create-private-key-source`.
 - Automate typed masked-input tests for `secret create-wallet-secret-source`.
-- Add tests for the fee/cost question flow indexed `agents.md` instructions.
-- Add tests for stale proof and `UnexpectedCurrentRootVector()` indexed `agents.md` instructions.
 - Rewrite the human RPC guide wording to avoid specialist-first terms such as `RPC endpoint`, `recovery`, and
   `log scanning`; explain it as an Ethereum connection URL and only mention the fast history-check reason for Ankr.
 - Add the `account get-l1-address` verification command to the human private-key/account-import follow-up flow.

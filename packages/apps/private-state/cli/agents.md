@@ -931,6 +931,98 @@ Failure recovery: if RPC fails or is too slow, revisit C.2, C.4, C.5, and F.2.
 
 Optional explanation: genesis replay scans public channel logs from the channel creation block.
 
+### F.4 Use CLI recovery hints first
+
+Goal: follow the CLI's own corrective guidance before inventing a recovery sequence.
+
+When to use: any CLI command fails, especially bridge-facing, workspace recovery, wallet recovery, and proof-backed
+commands.
+
+Minimal user actions: share or let the AI read the command's stdout/stderr result, then run the first applicable `Try:`
+hint or error-specific corrective command.
+
+AI may ask: the failed command, selected network, channel name, account alias, wallet name, and whether the user wants
+the AI to run the printed corrective command.
+
+AI must not ask: private keys, wallet secrets, seed phrases, provider passwords, dashboard access, or secret file
+contents.
+
+Command template:
+
+```bash
+private-state-cli help guide --network <NETWORK> --channel-name <CHANNEL> --account <ACCOUNT> --wallet <WALLET> --json
+```
+
+Success check: the follow-up command resolves the failure or returns a more specific CLI error with a new `Try:` hint.
+
+Failure recovery: if the printed hints conflict with the user's stated intent or require a destructive/public action,
+stop and ask for confirmation before proceeding.
+
+Optional explanation: CLI errors are intentionally written with recovery hints; prefer them over ad hoc filesystem
+inspection or command-shape changes.
+
+### F.5 Stale proof recovery
+
+Goal: recover from stale workspace or stale proof failures without changing the user's intended transaction.
+
+When to use: a proof-backed command fails because channel state changed, local workspace state is stale, or the CLI
+reports a stale root/proof condition.
+
+Minimal user actions: refresh the relevant channel or wallet state, re-check notes/balances if needed, then rerun the
+original intended command unchanged.
+
+AI may ask: network, channel name, wallet name, account alias, original command, and confirmation to rerun the original
+command after refresh.
+
+AI must not ask: wallet secrets, private keys, seed phrases, or permission to silently change recipients, amounts, note
+counts, or function shape.
+
+Command template:
+
+```bash
+private-state-cli channel recover-workspace --channel-name <CHANNEL> --network <NETWORK>
+private-state-cli wallet get-notes --wallet <WALLET> --network <NETWORK> --json
+```
+
+Success check: the refreshed workspace and wallet state still support the original intended command; rerunning it
+regenerates a proof from fresh state.
+
+Failure recovery: if the original notes or balances are no longer usable after refresh, ask the user to choose a new
+plan. Do not substitute a different transfer or redeem shape silently.
+
+Optional explanation: stale proof recovery is about refreshing state and regenerating the proof, not changing the
+transaction semantics.
+
+### F.6 UnexpectedCurrentRootVector handling
+
+Goal: classify `UnexpectedCurrentRootVector()` as stale channel-root or stale-proof state, not as a command-shape bug.
+
+When to use: a dry-run or submit failure includes `UnexpectedCurrentRootVector()`.
+
+Minimal user actions: refresh channel workspace state, re-check affected wallet notes and balances, then rerun the
+original intended command unchanged if still valid.
+
+AI may ask: original command, network, channel name, wallet name, and confirmation before rerunning.
+
+AI must not ask: permission to change recipients, amounts, note counts, function arity, or split a transfer as a
+workaround unless the refreshed state proves the original plan is no longer possible and the user chooses a new plan.
+
+Command template:
+
+```bash
+private-state-cli channel recover-workspace --channel-name <CHANNEL> --network <NETWORK>
+private-state-cli wallet get-notes --wallet <WALLET> --network <NETWORK> --json
+```
+
+Success check: the original command either succeeds after proof regeneration or fails with a different actionable CLI
+error.
+
+Failure recovery: if the same error repeats after refresh, follow F.4 and inspect CLI hints before changing the user's
+transaction plan.
+
+Optional explanation: this error means the proof was built against an older channel root; changing command shape can
+hide the real state-refresh problem and may violate the user's intent.
+
 ## G. Note Workflow Rules
 
 ### G.1 Bridge funding is public
@@ -1112,6 +1204,87 @@ become known.
 
 Optional explanation: these commands are read-only discovery commands; they should be preferred over manual folder
 inspection.
+
+### H.2 JSON command output handling
+
+Goal: parse CLI JSON mode correctly without treating progress or warnings as fatal results.
+
+When to use: the AI runs any `private-state-cli ... --json` command on behalf of the user.
+
+Minimal user actions: none beyond authorizing the command when needed.
+
+AI may ask: whether to proceed with an acknowledged or transaction-sending command.
+
+AI must not ask: the user to manually parse JSONL progress events or reveal secrets from logs.
+
+Command template:
+
+```bash
+private-state-cli <COMMAND> ... --json
+```
+
+Success check: stdout contains the final JSON success or failure result. In JSON mode, stderr may contain JSON Lines for
+progress, warning, or informational events; summarize them for the user instead of treating them as the final result.
+
+Failure recovery: if stdout contains `{ "ok": false, ... }`, read the error and any `Try:` hints, then follow F.4.
+
+Optional explanation: JSON mode separates machine-readable final results on stdout from streaming progress events on
+stderr.
+
+### H.3 Fee and cost questions
+
+Goal: answer gas, transaction fee, transaction cost, or USD cost questions from the CLI's measured fee report.
+
+When to use: the user asks about gas use, transaction fees, transaction cost, or USD cost for private-state CLI
+commands.
+
+Minimal user actions: choose the network if it is unclear.
+
+AI may ask: network.
+
+AI must not ask: private keys, wallet secrets, seed phrases, provider passwords, or wallet balances unless a separate
+balance question requires a read-only balance command.
+
+Command template:
+
+```bash
+private-state-cli help transaction-fees --network <NETWORK> --json
+```
+
+Success check: the result contains `rows`; answer from those rows instead of guessing.
+
+Failure recovery: if the network is unclear, ask which network to use. If the command fails, follow F.4 and the printed
+CLI corrective guidance before escalating.
+
+Optional explanation: fee estimates combine packaged measured gas data with live network fee data and ETH/USD pricing.
+
+### H.4 Command result recovery discipline
+
+Goal: avoid inventing alternate workflows when the CLI already reports a precise correction.
+
+When to use: any command returns an error, warning, or partial progress that the user asks about.
+
+Minimal user actions: let the AI inspect the exact command result and run the smallest corrective command.
+
+AI may ask: public selectors needed by the printed hint, and confirmation before transaction-sending or destructive
+actions.
+
+AI must not ask: secrets, seed phrases, wallet secrets, private keys, provider passwords, or broad approval to change the
+workflow.
+
+Command template:
+
+```bash
+private-state-cli help guide --network <NETWORK> --channel-name <CHANNEL> --account <ACCOUNT> --wallet <WALLET> --json
+```
+
+Success check: the next command follows CLI hints, `help guide --json`, or an indexed recipe in this file.
+
+Failure recovery: if multiple corrective paths are possible, explain the smallest safe path and ask the user to choose
+only when the choice changes public actions, cost, recovery time, or privacy implications.
+
+Optional explanation: the agent should prefer CLI-authored recovery paths because they are aligned with current command
+behavior and local state checks.
 
 ## I. Plain-Language Explanations
 

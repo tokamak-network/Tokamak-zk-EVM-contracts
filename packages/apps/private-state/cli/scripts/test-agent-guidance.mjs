@@ -15,6 +15,12 @@ const __dirname = path.dirname(__filename);
 const cliRoot = path.resolve(__dirname, "..");
 const cliPath = path.join(cliRoot, "private-state-bridge-cli.mjs");
 const agentsPath = path.join(cliRoot, "agents.md");
+const TEST_RPC_CONFIG = Object.freeze({
+  provider: "ankr",
+  rpcUrl: "https://example.invalid",
+  logRequestsPerSecond: 27,
+  blockRangeCap: 3000,
+});
 
 function expect(condition, message) {
   if (!condition) {
@@ -61,6 +67,25 @@ function readAgentRefs() {
   );
 }
 
+function createIsolatedHomeWithRpc(networkName = "mainnet") {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-home-"));
+  const networkDir = path.join(home, "tokamak-private-channels", "workspace", networkName);
+  fs.mkdirSync(networkDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(networkDir, "rpc-config.env"),
+    [
+      `LOG_CHUNK_SIZE=${TEST_RPC_CONFIG.blockRangeCap}`,
+      `LOG_REQUESTS_PER_SECOND=${TEST_RPC_CONFIG.logRequestsPerSecond}`,
+      `RPC_BLOCK_RANGE_CAP=${TEST_RPC_CONFIG.blockRangeCap}`,
+      `RPC_PROVIDER=${TEST_RPC_CONFIG.provider}`,
+      `RPC_URL=${TEST_RPC_CONFIG.rpcUrl}`,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  return home;
+}
+
 function assertAgentGuidance(payload, expectedRefs) {
   expect(payload.agentGuidance?.source === "agents.md", "agentGuidance.source must point to agents.md.");
   expect(typeof payload.agentGuidance.step === "string", "agentGuidance.step must be present.");
@@ -89,6 +114,22 @@ function testGuideJsonRefs() {
     for (const ref of payload.agentGuidance.refs) {
       expect(refs.has(ref), `Guide output references missing agents.md index ${ref}.`);
     }
+  }
+}
+
+function testGuideJsonDeploymentArtifactsMissing() {
+  const refs = readAgentRefs();
+  const payload = parseJson(runCli(["help", "guide", "--network", "mainnet", "--json"], {
+    home: createIsolatedHomeWithRpc("mainnet"),
+  }));
+
+  assertAgentGuidance(payload, ["D.2"]);
+  expect(payload.agentGuidance.step === "install-runtime", "Missing artifacts should select the install-runtime step.");
+  expect(payload.nextSafeAction === "install", "Missing artifacts should guide to install.");
+  expect(payload.state.network.rpcConfigured === true, "RPC fixture should let the guide advance past missing RPC.");
+  expect(payload.state.deploymentArtifacts.installed === false, "Deployment artifacts should be missing in the fixture.");
+  for (const ref of payload.agentGuidance.refs) {
+    expect(refs.has(ref), `Guide output references missing agents.md index ${ref}.`);
   }
 }
 
@@ -189,6 +230,7 @@ function testNonTtyPrivateKeyPromptFailsClearly() {
 
 testSecretCommandsRegistered();
 testGuideJsonRefs();
+testGuideJsonDeploymentArtifactsMissing();
 testGuideHumanOutputIsUserFacing();
 testRandomWalletSecretHelper();
 testNonTtyPrivateKeyPromptFailsClearly();

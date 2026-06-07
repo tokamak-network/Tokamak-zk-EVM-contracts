@@ -47,6 +47,9 @@ scope.
 - Updated CLI help text, README setup examples, and changelog entries for the new helper commands and guide direction.
 - Added focused tests for no-network guide refs, missing-RPC guide refs, random wallet-secret helper behavior, overwrite
   refusal, and non-TTY private-key helper failure.
+- Added an isolated test fixture strategy for post-RPC guide states: tests create `rpc-config.env` directly under a
+  temporary HOME instead of reading local user RPC settings or running `set rpc`.
+- Added a `help guide --json` test for deployment artifacts missing after RPC is already configured.
 - Manually verified the private-key helper in a pseudo-terminal for `*` masking, no secret transcript leak, output file
   creation, and `0600` file mode on macOS.
 
@@ -65,15 +68,9 @@ scope.
 - Human `help guide` explains `*` masking for private-key source creation, but not for wallet-secret source creation.
 - Human `help guide` still presents channel creation as a primary command when the selected channel does not exist; it
   needs a stronger channel-creator gate so ordinary joiners do not create channels accidentally.
-- The guide-state test strategy is incomplete because `set rpc` validates the endpoint chain id before writing config;
-  tests for states after RPC setup need a mock JSON-RPC endpoint or a deliberate fixture strategy.
 
 ### Not started
 
-- Add `help guide --json` tests for deployment artifacts missing.
-- Before adding post-RPC guide tests, choose and implement one test fixture strategy:
-  - a local mock JSON-RPC server that returns the expected chain id, or
-  - direct isolated creation of `rpc-config.env` with the same normalized fields `set rpc` would write.
 - Add `help guide --json` tests for account secret missing.
 - Add `help guide --json` tests for existing channel workspace missing.
 - Add `help guide --json` tests for wallet missing before `channel join`.

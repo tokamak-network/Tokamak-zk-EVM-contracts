@@ -50,6 +50,8 @@ scope.
 - Added an isolated test fixture strategy for post-RPC guide states: tests create `rpc-config.env` directly under a
   temporary HOME instead of reading local user RPC settings or running `set rpc`.
 - Added a `help guide --json` test for deployment artifacts missing after RPC is already configured.
+- Added a read-only artifacts fixture and `help guide --json` test for account secret missing after RPC and artifacts
+  are already available.
 - Manually verified the private-key helper in a pseudo-terminal for `*` masking, no secret transcript leak, output file
   creation, and `0600` file mode on macOS.
 
@@ -71,7 +73,6 @@ scope.
 
 ### Not started
 
-- Add `help guide --json` tests for account secret missing.
 - Add `help guide --json` tests for existing channel workspace missing.
 - Add `help guide --json` tests for wallet missing before `channel join`.
 - Add `help guide --json` tests for existing wallet with missing channel registration.

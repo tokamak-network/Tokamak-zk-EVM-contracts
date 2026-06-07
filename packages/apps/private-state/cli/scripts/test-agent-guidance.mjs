@@ -86,6 +86,27 @@ function createIsolatedHomeWithRpc(networkName = "mainnet") {
   return home;
 }
 
+function createIsolatedHomeWithRpcAndReadOnlyArtifacts(networkName = "mainnet", chainId = 1) {
+  const home = createIsolatedHomeWithRpc(networkName);
+  const artifactDir = path.join(
+    home,
+    "tokamak-private-channels",
+    "dapps",
+    "private-state",
+    `chain-id-${chainId}`,
+  );
+  fs.mkdirSync(artifactDir, { recursive: true });
+  for (const fileName of [
+    `bridge.${chainId}.json`,
+    `bridge-abi-manifest.${chainId}.json`,
+    `deployment.${chainId}.latest.json`,
+    `storage-layout.${chainId}.latest.json`,
+  ]) {
+    fs.writeFileSync(path.join(artifactDir, fileName), "{}\n", "utf8");
+  }
+  return home;
+}
+
 function assertAgentGuidance(payload, expectedRefs) {
   expect(payload.agentGuidance?.source === "agents.md", "agentGuidance.source must point to agents.md.");
   expect(typeof payload.agentGuidance.step === "string", "agentGuidance.step must be present.");
@@ -128,6 +149,37 @@ function testGuideJsonDeploymentArtifactsMissing() {
   expect(payload.nextSafeAction === "install", "Missing artifacts should guide to install.");
   expect(payload.state.network.rpcConfigured === true, "RPC fixture should let the guide advance past missing RPC.");
   expect(payload.state.deploymentArtifacts.installed === false, "Deployment artifacts should be missing in the fixture.");
+  for (const ref of payload.agentGuidance.refs) {
+    expect(refs.has(ref), `Guide output references missing agents.md index ${ref}.`);
+  }
+}
+
+function testGuideJsonAccountSecretMissing() {
+  const refs = readAgentRefs();
+  const payload = parseJson(runCli([
+    "help",
+    "guide",
+    "--network",
+    "mainnet",
+    "--account",
+    "alice",
+    "--json",
+  ], {
+    home: createIsolatedHomeWithRpcAndReadOnlyArtifacts("mainnet", 1),
+  }));
+
+  assertAgentGuidance(payload, ["B.1", "B.2", "B.3", "D.4", "I.1"]);
+  expect(
+    payload.agentGuidance.step === "create-private-key-source-and-import-account",
+    "Missing account secret should select the private-key source and account import step.",
+  );
+  expect(
+    payload.nextSafeAction === "secret create-private-key-source --output ./ethereum-private-key.txt",
+    "Missing account secret should guide to the private-key source helper.",
+  );
+  expect(payload.state.network.rpcConfigured === true, "RPC fixture should let the guide advance past missing RPC.");
+  expect(payload.state.deploymentArtifacts.installed === true, "Artifact fixture should let the guide advance past install.");
+  expect(payload.state.account.exists === false, "Account secret should be missing in the fixture.");
   for (const ref of payload.agentGuidance.refs) {
     expect(refs.has(ref), `Guide output references missing agents.md index ${ref}.`);
   }
@@ -231,6 +283,7 @@ function testNonTtyPrivateKeyPromptFailsClearly() {
 testSecretCommandsRegistered();
 testGuideJsonRefs();
 testGuideJsonDeploymentArtifactsMissing();
+testGuideJsonAccountSecretMissing();
 testGuideHumanOutputIsUserFacing();
 testRandomWalletSecretHelper();
 testNonTtyPrivateKeyPromptFailsClearly();

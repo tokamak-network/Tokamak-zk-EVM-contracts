@@ -56,6 +56,7 @@ scope.
   the isolated RPC/artifacts fixtures.
 - Rewrote human RPC guide wording to describe the required value as an Ethereum connection URL, keep Ankr as a
   recommendation rather than a default, and explain the recommendation as faster past-record checks on the free plan.
+- Added the `account get-l1-address` verification command to the human private-key/account-import follow-up flow.
 - Manually verified the private-key helper in a pseudo-terminal for `*` masking, no secret transcript leak, output file
   creation, and `0600` file mode on macOS.
 
@@ -68,15 +69,12 @@ scope.
   already has a lightweight test fixture for that state.
 - Human `help guide` has the action-first layout, but the latest audit still found non-specialist wording gaps in RPC,
   recovery, funding, note-use, and acknowledgement explanations.
-- Human `help guide` still needs follow-up refinement for the private-key import path: after creating the source file and
-  importing the account, the human flow should also show the `account get-l1-address` verification step.
 - Human `help guide` explains `*` masking for private-key source creation, but not for wallet-secret source creation.
 - Human `help guide` still presents channel creation as a primary command when the selected channel does not exist; it
   needs a stronger channel-creator gate so ordinary joiners do not create channels accidentally.
 
 ### Not started
 
-- Add the `account get-l1-address` verification command to the human private-key/account-import follow-up flow.
 - Add `*` masking wording to the human wallet-secret source guide.
 - Rework the human channel-create guide so the first action is confirming the user is the channel creator; only then
   show channel creation as the command to run.

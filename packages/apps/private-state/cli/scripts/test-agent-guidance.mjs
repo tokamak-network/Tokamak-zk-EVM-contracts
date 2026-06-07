@@ -239,6 +239,32 @@ function testGuideHumanOutputIsUserFacing() {
   expect(!/\bchat\b/iu.test(stdout), "Human guide output should not use chat-oriented wording.");
 }
 
+function testGuideHumanPrivateKeyFlowIncludesAddressVerification() {
+  const stdout = runCli([
+    "help",
+    "guide",
+    "--network",
+    "mainnet",
+    "--account",
+    "alice",
+  ], {
+    home: createIsolatedHomeWithRpcAndReadOnlyArtifacts("mainnet", 1),
+  });
+
+  expect(
+    stdout.includes("Run this command\nprivate-state-cli secret create-private-key-source --output ./ethereum-private-key.txt"),
+    "Human private-key flow should start with the local source helper.",
+  );
+  expect(
+    stdout.includes("Then import the key into a local account alias:\nprivate-state-cli account import --account alice --network mainnet --private-key-file ./ethereum-private-key.txt"),
+    "Human private-key flow should show the account import follow-up command.",
+  );
+  expect(
+    stdout.includes("Then confirm the imported Ethereum address:\nprivate-state-cli account get-l1-address --account alice --network mainnet"),
+    "Human private-key flow should show the address verification follow-up command.",
+  );
+}
+
 function testSecretCommandsRegistered() {
   const commandIds = new Set(PRIVATE_STATE_CLI_COMMANDS.map((command) => command.id));
   expect(commandIds.has("secret-create-private-key-source"), "Missing private-key source helper registry entry.");
@@ -321,6 +347,7 @@ testGuideJsonDeploymentArtifactsMissing();
 testGuideJsonAccountSecretMissing();
 testGuideJsonWalletMissingBeforeChannelJoin();
 testGuideHumanOutputIsUserFacing();
+testGuideHumanPrivateKeyFlowIncludesAddressVerification();
 testRandomWalletSecretHelper();
 testNonTtyPrivateKeyPromptFailsClearly();
 

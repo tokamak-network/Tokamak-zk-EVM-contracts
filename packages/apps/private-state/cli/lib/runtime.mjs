@@ -12160,9 +12160,13 @@ function guideHumanAfterSuccess(guide) {
     case "create-private-key-source-and-import-account": {
       const importCommand = findGuideCandidateCommand(guide, "account import ")
         ?? `account import --account ${account} --network ${network} --private-key-file ./ethereum-private-key.txt`;
+      const verifyCommand = findGuideCandidateCommand(guide, "account get-l1-address ")
+        ?? `account get-l1-address --account ${account} --network ${network}`;
       return [
         "Then import the key into a local account alias:",
         formatGuideCliCommand(importCommand),
+        "Then confirm the imported Ethereum address:",
+        formatGuideCliCommand(verifyCommand),
       ];
     }
     case "create-channel":

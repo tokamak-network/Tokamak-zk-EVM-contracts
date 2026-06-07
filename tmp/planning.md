@@ -64,8 +64,6 @@ scope.
 - Guide-state tests should stay limited to deterministic local fixtures. Do not add tests that require mock JSON-RPC,
   live RPC, on-chain contract responses, or full wallet/channel workspace reconstruction unless the implementation
   already has a lightweight test fixture for that state.
-- Helper command tests cover random wallet-secret behavior and non-TTY private-key failure; typed private-key masking was
-  manually verified but is not automated in the test script, and typed wallet-secret masking is not automated.
 - Human `help guide` has the action-first layout, but the latest audit still found non-specialist wording gaps in RPC,
   recovery, funding, note-use, and acknowledgement explanations.
 - Human `help guide` still needs follow-up refinement for the private-key import path: after creating the source file and
@@ -76,8 +74,6 @@ scope.
 
 ### Not started
 
-- Automate typed masked-input tests for `secret create-private-key-source`.
-- Automate typed masked-input tests for `secret create-wallet-secret-source`.
 - Rewrite the human RPC guide wording to avoid specialist-first terms such as `RPC endpoint`, `recovery`, and
   `log scanning`; explain it as an Ethereum connection URL and only mention the fast history-check reason for Ankr.
 - Add the `account get-l1-address` verification command to the human private-key/account-import follow-up flow.

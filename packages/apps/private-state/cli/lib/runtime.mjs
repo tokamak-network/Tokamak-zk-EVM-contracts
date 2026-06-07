@@ -12081,13 +12081,13 @@ function guideHumanNextStep(guide) {
     case "create-wallet-secret-source-and-join-channel":
       return [
         "Create a wallet secret source file before joining the channel. Type a strong password or passphrase you can keep.",
-        "Before joining, make sure the Ethereum account can pay any channel join toll directly from that L1 wallet, plus gas.",
+        "Before joining, make sure the Ethereum account can pay any channel join toll directly from that account, plus gas.",
         "After creating the file, review the channel policy and action-impact warning before running channel join.",
       ];
     case "join-channel-with-existing-wallet-secret-source":
       return [
         "This wallet is not registered in the channel yet.",
-        "Before joining, make sure the Ethereum account can pay any channel join toll directly from that L1 wallet, plus gas.",
+        "Before joining, make sure the Ethereum account can pay any channel join toll directly from that account, plus gas.",
         "Use your existing wallet secret source file, then review the channel policy and action-impact warning before joining.",
       ];
     case "fund-bridge":

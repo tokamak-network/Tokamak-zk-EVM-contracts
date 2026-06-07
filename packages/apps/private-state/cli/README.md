@@ -529,9 +529,24 @@ possible.
 
 ## LLM Agent Guidance
 
-LLM agents that guide users through this CLI should read [`agents.md`](agents.md) before suggesting or running
-commands. That file contains the agent-specific operating rules, including secret-handling boundaries, onboarding
-sequence, acknowledgement handling, recovery behavior, and error-response policy.
+LLM agents that guide users through this CLI should start with the state-aware guide in JSON mode:
+
+```bash
+private-state-cli help guide --json
+```
+
+The JSON guide is the machine-readable entrypoint. Read `agentGuidance` from the result:
+
+- `agentGuidance.source` identifies the instruction file, currently [`agents.md`](agents.md)
+- `agentGuidance.refs` lists the indexed items in that file that apply to the next step
+- `agentGuidance.step` is the symbolic guide step that selected those refs
+
+After reading the referenced `agents.md` items, translate the recipe into a short, safe instruction for the user.
+Do not ask users to paste raw private keys, wallet secrets, seed phrases, provider passwords, or provider dashboard
+access into chat. Use the CLI's local helper commands for secret source files.
+
+Human `private-state-cli help guide` output is for people. It provides one plain next step and should not be treated as
+the agent's full machine-readable state. Agents should prefer `help guide --json` when deciding what to do next.
 
 When `--json` is used, the CLI follows one output contract for all commands:
 

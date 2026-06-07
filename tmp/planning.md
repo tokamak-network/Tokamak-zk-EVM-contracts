@@ -41,6 +41,8 @@ scope.
 - Reworked human `help guide` output into the action-first structure from the audit plan: `Current status`,
   `Next step`, `Run this command`, and `After it succeeds`, with one primary `private-state-cli ...` command and no
   default `Checks`, `Candidate Commands`, or AI-only JSON guidance.
+- Updated the README `LLM Agent Guidance` section to direct agents through `help guide --json`,
+  `agentGuidance.source`, `agentGuidance.refs`, and the referenced `agents.md` recipes.
 - Updated CLI help text, README setup examples, and changelog entries for the new helper commands and guide direction.
 - Added focused tests for no-network guide refs, missing-RPC guide refs, random wallet-secret helper behavior, overwrite
   refusal, and non-TTY private-key helper failure.
@@ -49,8 +51,6 @@ scope.
 
 ### Started but incomplete
 
-- README setup examples were updated, but the `LLM Agent Guidance` section still needs to state the
-  `help guide --json` -> `agentGuidance.refs` -> `agents.md` flow more directly.
 - The test suite checks some guide refs and helper safety behavior, but it does not cover the full guide-state matrix
   listed in Phase 6.
 - The tests verify that emitted refs exist in `agents.md` for covered guide states, but they do not verify the full recipe

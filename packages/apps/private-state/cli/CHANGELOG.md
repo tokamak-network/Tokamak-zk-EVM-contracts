@@ -10,6 +10,8 @@
   and user-typed wallet secrets by default.
 - Changed human `help guide` output to use an action-first setup layout with one primary prefixed command,
   plain-language status text, follow-up instructions, and no AI-only reference or diagnostic sections.
+- Clarified human channel-join guide text so users prepare the Ethereum account for any join toll and gas before
+  joining.
 - Added ETA and scan-rate reporting to RPC recovery progress for channel and wallet workspace recovery, including
   structured JSON progress details in `--json` mode.
 

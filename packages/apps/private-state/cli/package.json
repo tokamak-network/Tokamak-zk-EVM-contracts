@@ -30,7 +30,6 @@
     "CHANGELOG.md",
     "LICENSE",
     "private-state-bridge-cli.mjs",
-    "cli-assistant.html",
     "commands",
     "investigator",
     "assets",

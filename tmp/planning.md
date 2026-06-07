@@ -59,8 +59,8 @@ scope.
 
 ### Started but incomplete
 
-- The test suite checks some guide refs and helper safety behavior, but it does not cover the full guide-state matrix
-  listed in Phase 6.
+- The test suite checks some guide refs and helper safety behavior, but it does not cover all guide states that can be
+  exercised with deterministic local fixtures.
 - The tests verify that emitted refs exist in `agents.md` for covered guide states, but they do not verify the full recipe
   field contract.
 - Helper command tests cover random wallet-secret behavior and non-TTY private-key failure; typed private-key masking was
@@ -75,7 +75,6 @@ scope.
 
 ### Not started
 
-- Add `help guide --json` tests for existing channel workspace missing.
 - Add `help guide --json` tests for existing wallet with missing channel registration.
 - Add `help guide --json` tests for acknowledgement-required next actions.
 - Add documentation/structure tests that every first-time setup ref includes the required recipe fields.

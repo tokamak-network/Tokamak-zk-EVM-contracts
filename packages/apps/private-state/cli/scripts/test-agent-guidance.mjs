@@ -94,11 +94,16 @@ function testGuideJsonRefs() {
 
 function testGuideHumanOutputIsUserFacing() {
   const stdout = runCli(["help", "guide", "--network", "mainnet"]);
-  expect(stdout.includes("Next Step"), "Human guide output should include a Next Step section.");
-  expect(stdout.includes("Command\nset rpc --network mainnet --rpc-url <URL> --provider ankr"), "Human guide output should show the next command.");
+  expect(stdout.includes("Current status"), "Human guide output should include a Current status section.");
+  expect(stdout.includes("Next step"), "Human guide output should include a Next step section.");
+  expect(stdout.includes("Run this command\nprivate-state-cli set rpc --network mainnet --rpc-url <URL> --provider ankr"), "Human guide output should show one prefixed next command.");
+  expect(stdout.includes("After it succeeds\nRerun: private-state-cli help guide --network mainnet"), "Human guide output should show the follow-up action.");
   expect(stdout.includes("Ankr is recommended"), "Human guide output should present Ankr as a recommendation.");
   expect(stdout.includes("free plan is fast"), "Human guide output should explain why Ankr is recommended.");
   expect(stdout.includes("Ankr is not a default"), "Human guide output should not imply Ankr is a default provider.");
+  expect(!stdout.includes("Checks"), "Human guide output must not lead with diagnostic checks.");
+  expect(!stdout.includes("Candidate Commands"), "Human guide output must not show raw candidate command lists.");
+  expect(!stdout.includes("Use --json only when an AI"), "Human guide output must not include AI/script-only JSON guidance.");
   expect(!stdout.includes("Agent Guidance"), "Human guide output must not show AI-only guidance refs.");
   expect(!stdout.includes("Refs:"), "Human guide output must not show agents.md refs.");
   expect(!stdout.includes("Privacy Tip"), "Human guide output must not show unrelated global privacy tips.");

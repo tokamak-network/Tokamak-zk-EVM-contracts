@@ -38,6 +38,9 @@ scope.
   priority, stale proof recovery, and `UnexpectedCurrentRootVector()` handling.
 - Started reworking human `help guide` output for non-specialist users by removing AI refs, global privacy tips, and
   global mirror tips, then adding plain next-step guidance per guide step.
+- Reworked human `help guide` output into the action-first structure from the audit plan: `Current status`,
+  `Next step`, `Run this command`, and `After it succeeds`, with one primary `private-state-cli ...` command and no
+  default `Checks`, `Candidate Commands`, or AI-only JSON guidance.
 - Updated CLI help text, README setup examples, and changelog entries for the new helper commands and guide direction.
 - Added focused tests for no-network guide refs, missing-RPC guide refs, random wallet-secret helper behavior, overwrite
   refusal, and non-TTY private-key helper failure.
@@ -46,8 +49,6 @@ scope.
 
 ### Started but incomplete
 
-- Human `help guide` still reads like a diagnostic report plus a short hint, not a complete non-specialist setup guide.
-  It needs a dedicated human-output redesign; see "Human Help Guide Audit and Remediation Plan".
 - README setup examples were updated, but the `LLM Agent Guidance` section still needs to state the
   `help guide --json` -> `agentGuidance.refs` -> `agents.md` flow more directly.
 - The test suite checks some guide refs and helper safety behavior, but it does not cover the full guide-state matrix

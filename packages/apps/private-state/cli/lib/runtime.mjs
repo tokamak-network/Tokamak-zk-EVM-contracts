@@ -11938,7 +11938,7 @@ ${globalOptions}
 
 function printGuideHumanResult(guide) {
   const selectors = guide.selectors ?? {};
-  const guidance = guideHumanNextStep(guide);
+  const guidance = guideHumanGuidance(guide);
   const lines = [
     "Guide",
     `Generated: ${formatHumanValue(guide.generatedAt)}`,
@@ -11949,26 +11949,86 @@ function printGuideHumanResult(guide) {
     `Account: ${formatGuideSelector(selectors.account)}`,
     `Wallet: ${formatGuideSelector(selectors.wallet)}`,
     "",
-    "Checks",
-    ...formatGuideChecks(guide.checks),
+    "Current status",
+    `- ${guidance.status}`,
     "",
-    "Next Step",
-    ...guidance,
+    "Next step",
+    ...guidance.nextStep,
     "",
-    "Command",
-    formatHumanValue(guide.nextSafeAction),
+    "Run this command",
+    guidance.command,
   ];
 
-  if (Array.isArray(guide.candidateCommands) && guide.candidateCommands.length > 0) {
+  if (guidance.after.length > 0) {
     lines.push(
       "",
-      "Candidate Commands",
-      ...guide.candidateCommands.map((command) => `- ${command}`),
+      "After it succeeds",
+      ...guidance.after,
     );
   }
 
-  lines.push("", "Use --json only when an AI or script needs the full state.");
+  if (guidance.alternatives.length > 0) {
+    lines.push(
+      "",
+      "If this does not match your situation",
+      ...guidance.alternatives.map((alternative) => `- ${alternative}`),
+    );
+  }
+
   console.log(lines.join("\n"));
+}
+
+function guideHumanGuidance(guide) {
+  return {
+    status: guideHumanStatus(guide),
+    nextStep: guideHumanNextStep(guide),
+    command: guideHumanPrimaryCommand(guide),
+    after: guideHumanAfterSuccess(guide),
+    alternatives: guideHumanAlternatives(guide),
+  };
+}
+
+function guideHumanStatus(guide) {
+  const step = guide.agentGuidance?.step ?? "";
+  const network = formatGuideSelector(guide.selectors?.network);
+  const channel = formatGuideSelector(guide.selectors?.channelName);
+  const account = formatGuideSelector(guide.selectors?.account);
+  const wallet = formatGuideSelector(guide.selectors?.wallet);
+
+  switch (step) {
+    case "select-network":
+      return "No Ethereum network has been selected yet.";
+    case "configure-rpc":
+      return `The ${network} network is selected, but the CLI has no Ethereum connection URL saved for it.`;
+    case "install-runtime":
+      return "The selected network is known, but required local CLI files are missing.";
+    case "create-private-key-source-and-import-account":
+      return `The account alias ${account} has no local Ethereum private-key source yet.`;
+    case "create-channel":
+      return `The channel ${channel} does not exist on-chain.`;
+    case "recover-channel-workspace":
+      return `The channel ${channel} exists, but this computer has no local channel data for it.`;
+    case "create-wallet-secret-source-and-join-channel":
+      return `The wallet ${wallet} has not been created locally yet.`;
+    case "join-channel-with-existing-wallet-secret-source":
+      return "The wallet exists locally, but its Ethereum account is not registered in the channel.";
+    case "fund-bridge":
+      return "The channel wallet is joined, but it has no bridge funds, channel balance, or private notes available.";
+    case "fund-channel":
+      return "The Ethereum account has bridge funds, but the channel wallet has no channel balance yet.";
+    case "mint-notes":
+      return "The channel wallet has channel balance but no private notes to use.";
+    case "use-notes":
+      return "The wallet has private notes available for inspection before transfer or redemption.";
+    case "exit-channel":
+      return "The wallet has zero channel balance and appears eligible for channel exit.";
+    case "discover-wallet-name":
+      return "The selected wallet name is malformed or not found locally.";
+    case "collect-selectors":
+      return "The guide needs more public selectors to choose a precise next command.";
+    default:
+      return formatHumanValue(guide.why);
+  }
 }
 
 function guideHumanNextStep(guide) {
@@ -11994,13 +12054,12 @@ function guideHumanNextStep(guide) {
     case "install-runtime":
       return [
         "The CLI runtime files are missing. Install them before trying account, channel, or wallet commands.",
-        "After installation, run private-state-cli help doctor to check that the CLI is ready.",
+        "After installation, run the doctor command shown below to check that the CLI is ready.",
       ];
     case "create-private-key-source-and-import-account":
       return [
         "First, run the command below. It will ask for your Ethereum private key in the terminal.",
         "Your typing will appear as * characters. The key will be saved only on this computer as ./ethereum-private-key.txt.",
-        `After that succeeds, import it with: account import --account ${account} --network ${network} --private-key-file ./ethereum-private-key.txt`,
       ];
     case "create-channel":
       return [
@@ -12022,7 +12081,6 @@ function guideHumanNextStep(guide) {
     case "create-wallet-secret-source-and-join-channel":
       return [
         "Create a wallet secret source file before joining the channel. Type a strong password or passphrase you can keep.",
-        "Use random generation only if you explicitly want a random secret and can preserve the file safely.",
         "After creating the file, review the channel policy and action-impact warning before running channel join.",
       ];
     case "join-channel-with-existing-wallet-secret-source":
@@ -12070,6 +12128,103 @@ function guideHumanNextStep(guide) {
         formatHumanValue(guide.why),
       ];
   }
+}
+
+function guideHumanPrimaryCommand(guide) {
+  const step = guide.agentGuidance?.step ?? "";
+  if (step === "use-notes") {
+    const getNotesCommand = findGuideCandidateCommand(guide, "wallet get-notes ");
+    if (getNotesCommand) {
+      return formatGuideCliCommand(getNotesCommand);
+    }
+  }
+  return formatGuideCliCommand(guide.nextSafeAction);
+}
+
+function guideHumanAfterSuccess(guide) {
+  const step = guide.agentGuidance?.step ?? "";
+  const network = guideCommandSelector(guide.selectors?.network, "<NETWORK>");
+  const channel = guideCommandSelector(guide.selectors?.channelName, "<CHANNEL>");
+  const account = guideCommandSelector(guide.selectors?.account, "<ACCOUNT>");
+  const wallet = guideCommandSelector(guide.selectors?.wallet, "<WALLET>");
+
+  switch (step) {
+    case "select-network":
+      return ["Continue with the next command shown by the guide."];
+    case "configure-rpc":
+      return [`Rerun: ${formatGuideCliCommand(`help guide --network ${network}`)}`];
+    case "install-runtime":
+      return [`Run: ${formatGuideCliCommand("help doctor")}`];
+    case "create-private-key-source-and-import-account": {
+      const importCommand = findGuideCandidateCommand(guide, "account import ")
+        ?? `account import --account ${account} --network ${network} --private-key-file ./ethereum-private-key.txt`;
+      return [
+        "Then import the key into a local account alias:",
+        formatGuideCliCommand(importCommand),
+      ];
+    }
+    case "create-channel":
+      return [`Rerun the guide for the channel: ${formatGuideCliCommand(`help guide --network ${network} --channel-name ${channel}`)}`];
+    case "recover-channel-workspace":
+      return [`Rerun the guide with the same channel selector: ${formatGuideCliCommand(`help guide --network ${network} --channel-name ${channel}`)}`];
+    case "create-wallet-secret-source-and-join-channel": {
+      const joinCommand = findGuideCandidateCommand(guide, "channel join ")
+        ?? `channel join --channel-name ${channel} --network ${network} --account ${account} --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact`;
+      return [
+        "Then join the channel:",
+        formatGuideCliCommand(joinCommand),
+      ];
+    }
+    case "join-channel-with-existing-wallet-secret-source":
+      return [`Rerun the guide with the wallet selector: ${formatGuideCliCommand(`help guide --network ${network} --channel-name ${channel} --account ${account} --wallet ${wallet}`)}`];
+    case "fund-bridge":
+      return ["Then rerun the guide so it can show the channel funding step."];
+    case "fund-channel":
+      return ["Then rerun the guide so it can show the note minting step."];
+    case "mint-notes":
+      return [`Then inspect the notes: ${formatGuideCliCommand(`wallet get-notes --wallet ${wallet} --network ${network}`)}`];
+    case "use-notes":
+      return ["Use note IDs from that output for a later transfer or redeem command."];
+    case "exit-channel":
+      return ["Keep local wallet evidence files until you are sure no later review or dispute evidence is needed."];
+    case "discover-wallet-name":
+      return [`Rerun the guide with one wallet name printed by the list command: ${formatGuideCliCommand(`help guide --network ${network} --wallet <WALLET>`)}`];
+    case "collect-selectors":
+      return ["Rerun the guide with the public values you know. Do not include private keys, wallet secrets, or seed phrases."];
+    default:
+      return [];
+  }
+}
+
+function guideHumanAlternatives(guide) {
+  const step = guide.agentGuidance?.step ?? "";
+  if (step !== "create-wallet-secret-source-and-join-channel") {
+    return [];
+  }
+  const randomCommand = findGuideCandidateCommand(guide, "secret create-wallet-secret-source --output ./wallet-secret.txt --random");
+  if (!randomCommand) {
+    return [];
+  }
+  return [
+    `Only if you explicitly want a random wallet secret and can preserve the file safely: ${formatGuideCliCommand(randomCommand)}`,
+  ];
+}
+
+function findGuideCandidateCommand(guide, prefix) {
+  return (guide.candidateCommands ?? [])
+    .find((command) => String(command).startsWith(prefix)) ?? null;
+}
+
+function formatGuideCliCommand(command) {
+  const value = formatHumanValue(command);
+  if (value === "none") {
+    return "No command is available yet.";
+  }
+  return value.startsWith("private-state-cli ") ? value : `private-state-cli ${value}`;
+}
+
+function guideCommandSelector(value, placeholder) {
+  return value === null || value === undefined || value === "" ? placeholder : String(value);
 }
 
 function printInvestigatorHumanResult(result) {

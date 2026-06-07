@@ -75,7 +75,6 @@ scope.
 
 ### Not started
 
-- Add `help guide --json` tests for existing wallet with missing channel registration.
 - Add `help guide --json` tests for acknowledgement-required next actions.
 - Add documentation/structure tests that every first-time setup ref includes the required recipe fields.
 - Add documentation/structure tests that the account-import recipe includes an `account get-l1-address` success check.

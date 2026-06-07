@@ -12,7 +12,8 @@ scope.
 - Kept `help guide` as the single state-aware guidance command; no `help onboard` command was added.
 - Added `agentGuidance` to `help guide --json` with `source: "agents.md"`, a symbolic `step`, and `refs`.
 - Removed human-only guide prose fields such as `why`, `privacyTip`, and `mirrorTip` from `help guide --json` output.
-- Added `Agent Guidance` source and refs to the human-readable `help guide` output.
+- Previously added `Agent Guidance` source and refs to the human-readable `help guide` output, then removed them from
+  the human renderer when the target was narrowed to non-specialist people.
 - Added `secret create-private-key-source --output ./ethereum-private-key.txt`.
 - Added `secret create-wallet-secret-source --output ./wallet-secret.txt`.
 - Added explicit opt-in random wallet secret creation with `secret create-wallet-secret-source --random`.
@@ -57,10 +58,22 @@ scope.
   field contract.
 - Helper command tests cover random wallet-secret behavior and non-TTY private-key failure; typed private-key masking was
   manually verified but is not automated in the test script, and typed wallet-secret masking is not automated.
+- Human `help guide` has the action-first layout, but the latest audit still found non-specialist wording gaps in RPC,
+  recovery, funding, note-use, and acknowledgement explanations.
+- Human `help guide` still needs follow-up refinement for the private-key import path: after creating the source file and
+  importing the account, the human flow should also show the `account get-l1-address` verification step.
+- Human `help guide` explains `*` masking for private-key source creation, but not for wallet-secret source creation.
+- Human `help guide` still presents channel creation as a primary command when the selected channel does not exist; it
+  needs a stronger channel-creator gate so ordinary joiners do not create channels accidentally.
+- The guide-state test strategy is incomplete because `set rpc` validates the endpoint chain id before writing config;
+  tests for states after RPC setup need a mock JSON-RPC endpoint or a deliberate fixture strategy.
 
 ### Not started
 
 - Add `help guide --json` tests for deployment artifacts missing.
+- Before adding post-RPC guide tests, choose and implement one test fixture strategy:
+  - a local mock JSON-RPC server that returns the expected chain id, or
+  - direct isolated creation of `rpc-config.env` with the same normalized fields `set rpc` would write.
 - Add `help guide --json` tests for account secret missing.
 - Add `help guide --json` tests for existing channel workspace missing.
 - Add `help guide --json` tests for wallet missing before `channel join`.
@@ -78,6 +91,16 @@ scope.
 - Automate typed masked-input tests for `secret create-wallet-secret-source`.
 - Add tests for the fee/cost question flow indexed `agents.md` instructions.
 - Add tests for stale proof and `UnexpectedCurrentRootVector()` indexed `agents.md` instructions.
+- Rewrite the human RPC guide wording to avoid specialist-first terms such as `RPC endpoint`, `recovery`, and
+  `log scanning`; explain it as an Ethereum connection URL and only mention the fast history-check reason for Ankr.
+- Add the `account get-l1-address` verification command to the human private-key/account-import follow-up flow.
+- Add `*` masking wording to the human wallet-secret source guide.
+- Rework the human channel-create guide so the first action is confirming the user is the channel creator; only then
+  show channel creation as the command to run.
+- Reword human recovery guidance to avoid leading with `workspace mirror`, `RPC logs`, or `local workspace`; frame it as
+  restoring this computer's channel data with a fast registered source or a slower rebuild.
+- Reword human funding, channel funding, minting, note use, and exit guidance around the plain money flow:
+  public deposit -> channel balance -> private notes -> transfer/redeem -> exit only after channel balance is zero.
 
 ## Human Help Guide Audit and Remediation Plan
 

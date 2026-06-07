@@ -1,150 +1,310 @@
 # private-state CLI Agent Instructions
 
-These instructions are for LLM agents that guide users through the `private-state-cli` package.
+These instructions are for AI agents guiding users through `private-state-cli`. Prefer `private-state-cli help guide --json` as the first machine-readable entrypoint, then read the indexed references in this file from `agentGuidance.refs`.
 
-You may act as an interactive guide for users who do not understand this CLI or the private-state DApp. Assume the
-user wants to use confidential channel-local notes while keeping L1 bridge deposits and withdrawals transparent.
-Translate the user's intent into safe, step-by-step CLI actions.
+## A. Operating Rules
 
-Primary goal: help the user safely use private-state note workflows: self-custody L1 funding, channel-local note
-creation, note transfer, note recovery, and user-controlled disclosure where supported. Present this
-as privacy-preserving note semantics for the current `private-state` DApp, not as invisible
-activity or as a bridge-wide disclosure rule for every DApp.
+### A.1 Action-first setup
 
-## Operating Rules
+Help the user complete the next setup action with the least required knowledge. Do not begin by teaching protocol terminology. Ask only for values the user must provide, show one concrete command at a time, and explain concepts only when the user asks or when a safety decision requires it.
 
-- Do not ask the user to reveal raw private keys or wallet secrets in chat. Use `account import --private-key-file`
-  once, then use `--account` for L1 signing commands. Wallet viewing and spending authority is imported separately
-  with `wallet import viewing-key` and `wallet import spending-key`.
-- Treat `private key file`, `account`, `wallet secret`, `wallet`, `network RPC URL`, and `channel policy` as
-  new concepts unless the user has already demonstrated that they understand them. Define each term before using it
-  in an instruction.
-- Explain local-secret handling in plain language:
-  - A private key file is a local file that contains the user's L1 wallet private key. The CLI reads it once during
-    `account import` and stores a protected local account secret.
-  - An account is the local nickname created by `account import`. After import, signing commands should use
-    `--account <NAME>` instead of asking for the raw key again.
-  - A wallet secret source file is a separate high-entropy local secret chosen by the user for this private-state
-    wallet. It is not the L1 private key. `channel join` reads it once for channel-bound spending-key derivation and
-    does not persist it in the wallet workspace.
-  - A wallet is the local private-state metadata set created during `channel join`. Its deterministic name is
-    `<channelName>-<l1Address>`. The wallet backup tracks encrypted note state, while viewing and spending authority
-    are stored in separate protected key files.
-  - A viewing key decrypts encrypted note-delivery events for the registered note-receive public key. A spending key is
-    the channel-bound L2 private key used to authorize note use. Do not describe either key as interchangeable with the
-    other.
-  - The network RPC URL is the endpoint used to read and write chain state. It must be configured once with
-    `private-state-cli set rpc --network <NETWORK> --rpc-url <URL> --provider <PROVIDER>`, or with explicit
-    `--log-requests-per-second` and `--block-range-cap` values when the provider is not built in.
-  - A workspace recovery index is the saved block pointer and state-root hash that lets the CLI resume log scanning
-    without replaying the channel from its creation block. If it is missing, check whether the channel has a registered
-    workspace mirror before explaining or using `--from-genesis`, because genesis replay can take much longer.
-- Before guiding a user to run `channel recover-workspace --source rpc --from-genesis`, explain that RPC genesis
-  recovery can be very slow because it scans channel logs from the creation block. Run or suggest
-  `channel get-meta --channel-name <CHANNEL> --network <NETWORK>` first; if `workspaceMirror` is set, try
-  `channel recover-workspace --channel-name <CHANNEL> --network <NETWORK> --source mirror`. Use RPC genesis replay only
-  when no compatible workspace mirror is available.
-- When the user asks about gas use, transaction fees, transaction cost, or USD cost for private-state CLI commands, run
-  `private-state-cli help transaction-fees --network <NETWORK> --json` and answer from the returned `rows`. If the
-  network is unclear, ask which network to use. Do not tell the user to ask the developer unless the command fails after
-  following the CLI's printed corrective guidance.
-- Prefer `--json` when running commands on behalf of a user. In JSON mode, parse stdout as the final success or failure
-  result. Failures use `ok: false` on stdout. Progress, warning, and informational events are emitted as JSON Lines on
-  stderr; stream or summarize those events for the human user instead of treating them as fatal by default.
-- When `channel recover-workspace` or `wallet recover-workspace` is unexpectedly slow, first inspect the RPC provider
-  configured by `set rpc`. Explain that recovery speed is dominated by `eth_getLogs` block range cap and log request
-  rate. Suggest re-running `set rpc` with a provider that supports a larger block range cap, such as Ankr or Chainnodes
-  when appropriate, or with explicit `--log-requests-per-second` and `--block-range-cap` values from the provider's
-  documentation.
-- When a channel leader needs to refresh workspace mirror files, guide them to run
-  `channel recover-workspace --publish-workspace-mirror --leader-account <ACCOUNT> --output <PATH>`. The standalone
-  `channel publish-workspace-mirror` command is no longer available.
-- When a CLI command fails, read the error message and any printed `Try:` hints first. Prefer the corrective action
-  suggested by the CLI before inventing a different recovery sequence.
-- Treat `UnexpectedCurrentRootVector()` as a stale channel-root or stale-proof failure, not as evidence that the
-  command shape is wrong. Do not recover by changing recipients, changing amounts, changing note counts, changing
-  function arity, or splitting one intended transfer into multiple transfers. Refresh the channel workspace, re-check
-  affected wallet state such as notes and balances, then rerun the user's original intended command so the CLI
-  regenerates a proof from the fresh snapshot. If the original notes or balances are no longer usable after refresh,
-  ask the user to choose a new plan instead of silently substituting one.
-- When the user does not have a network RPC URL yet, explain that they need an Ethereum JSON-RPC endpoint for the
-  selected network. They can obtain one from an infrastructure provider such as Alchemy, Ankr, Chainstack, Chainnodes,
-  QuickNode, or from their own node. Ask the user to create or select the endpoint in that provider's UI, then paste only
-  the endpoint URL into `private-state-cli set rpc`; do not ask for provider account passwords, API dashboards, seed
-  phrases, private keys, or wallet secrets.
-- When a user wants to join a channel, do not jump straight to `channel join`. Walk them through:
-  1. choose the network and channel name
-  2. run `private-state-cli install`
-  3. run `private-state-cli help doctor`
-  4. obtain or confirm a network RPC URL for the selected network
-  5. run `set rpc --network <NETWORK> --rpc-url <URL> --provider <PROVIDER>`, or use explicit scan limits for an
-     unlisted provider
-  6. prepare a private key source file locally, without pasting the key into chat
-  7. run `account import --account <NAME> --network <NETWORK> --private-key-file <PATH>`
-  8. prepare a wallet secret source file locally, for example with `openssl rand -hex 32 > ./wallet-secret.txt`
-  9. inspect the channel with `channel get-meta` if it already exists, or create it with `channel create` if the user is
-     the channel creator
-  10. explain the immutable policy warning and that the join toll is paid directly from the L1 wallet, not bridge-deposited balance
-  11. run `channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path <PATH> --acknowledge-action-impact`
-- Before executing any command for a user that requires an `--acknowledge-*` option, strongly warn the user in plain
-  language about what that acknowledgement means and ask for explicit confirmation. Do not add
-  `--acknowledge-action-impact` or `--acknowledge-full-note-plaintext-export` on the user's behalf until they confirm.
-  For `--acknowledge-action-impact`, explain the command's public/private action-impact summary. For
-  `--acknowledge-full-note-plaintext-export`, explain that all locally known note plaintext will be written into the
-  exported ZIP.
-- Before asking the user to create a file, explain what will be inside that file, who should be able to read it, and
-  whether losing it prevents wallet recovery.
-- Prefer testnet examples unless the user explicitly asks for mainnet.
-- Before any proof-backed or bridge-facing workflow, ask the user to run `private-state-cli help doctor` and inspect
-  whether the runtime, Docker mode, CUDA/GPU probes, Groth16 runtime, and deployment artifacts are healthy.
-- Use `private-state-cli wallet list` to discover local wallet names instead of asking the user to inspect
-  filesystem paths manually.
-- Use `private-state-cli account get-l1-address --account <ACCOUNT> --network <NETWORK>` to derive the L1 address
-  for a local account when wallet ownership needs to be identified.
-- Use `private-state-cli wallet get-meta --wallet <WALLET> --network <NETWORK>` to inspect
-  local wallet metadata and on-chain channel registration state.
-- Use `private-state-cli account get-bridge-fund` and `private-state-cli wallet get-channel-fund` to check balances before
-  telling the user to move funds.
-- Explain that wallet names are local CLI identifiers, while confidential note transfers use notes owned by L2 addresses
-  registered in the channel.
-- Explain `--tx-submitter <ACCOUNT>` when the user wants a separate L1 transaction submitter for `wallet mint-notes`,
-  `wallet transfer-notes`, or `wallet redeem-notes`: the wallet owner still proves note ownership, but another imported
-  local L1 account can submit the on-chain `executeChannelTransaction` and pay gas.
-- Before guiding a user through `channel create` or `channel join`, explain that channel policy is immutable after
-  creation and that joining a channel means accepting its current verifier, DApp metadata, function layout, managed
-  storage vector, and refund policy.
-- Do not present one fixed command sequence as universally correct. Some flows start from an existing channel or wallet,
-  while others require creating or joining a channel first.
-- When the user asks for a transfer, first determine whether the sender has minted notes available. If not, guide them
-  through joining or recovering the channel wallet, funding the bridge for channel liquidity, depositing into the channel, and minting notes.
-- When generating commands, use placeholders for secrets and explicit values for public fields. Show one command at a
-  time unless the user asks for a batch.
+Use end-user language in setup guidance:
 
-## Suggested Interaction Flow
+- Say "Ethereum account", "Ethereum address", or "Ethereum wallet".
+- Use "L1" only when quoting CLI command names, CLI output fields, or explaining why `account get-l1-address` is named that way.
+- For ordinary users, assume `mainnet` unless the user explicitly says they are testing, developing, rehearsing, or using Sepolia/anvil.
 
-1. Identify the target network, usually `sepolia` for testing.
-2. Identify whether a channel already exists.
-3. Identify the sender and recipient wallets or local account names.
-4. Run `help doctor`.
-5. Run `wallet list` and relevant metadata or balance checks.
-6. If needed, guide the user through `channel create`, `channel join`, `account deposit-bridge`, `wallet deposit-channel`, and
-   `wallet mint-notes`.
-7. For a confidential note transfer, select available note IDs from `wallet get-notes`, find the recipient L2 address from
-   `wallet get-meta`, then build `wallet transfer-notes` with JSON arrays for `--note-ids`, `--recipients`, and `--amounts`.
-8. After transfer, guide the recipient to run `wallet get-notes`; it refreshes received notes from the saved recovery index when the delta fits the 7,200-block pre-command budget. If the index is missing or too far behind, explain `wallet recover-workspace`.
+### A.2 Secret handling
 
-## Example Onboarding Explanation For `channel join`
+Never ask the user to paste raw private keys, wallet secrets, seed phrases, RPC dashboard passwords, or provider API dashboards into chat. When a secret source file is needed, guide the user to create it locally with the CLI helper command. The helper prompts in the terminal and masks typed input with `*`.
 
-> First we need two different local secrets. Your L1 private key proves which Ethereum account pays gas and signs
-> bridge transactions. We import it once into a local account nickname, so later commands can say `--account alice`
-> instead of handling the raw key again. Separately, the wallet secret source derives the channel-bound spending key
-> during `channel join`. It is not sent on-chain, it is not the same as your L1 private key, and the CLI does not store
-> it in the wallet workspace. A wallet backup restores encrypted tracking state; the viewing key restores note
-> readability; the spending key restores note spendability.
+### A.3 JSON guidance contract
 
-## Example Style
+`help guide --json` is for the user's AI. Its guidance payload intentionally points to this file instead of embedding setup prose. When `agentGuidance.source` is `agents.md`, read every index in `agentGuidance.refs` before deciding what to tell the user next.
 
-If the user says, "ADDR6 sends 10 tokens privately to ADDR8", do not assume the required note exists.
-First ask or check which channel and network to use, whether ADDR6 and ADDR8 are already joined, what the local wallet
-names are, and whether ADDR6 has an unused note worth exactly 10 or notes that sum to 10. Then provide the next concrete
-command.
+## B. Secret Source Recipes
+
+### B.1 Create a private key source file
+
+Goal: help the user create a local file that `account import` can read once.
+
+Default command:
+
+```bash
+private-state-cli secret create-private-key-source --output ./ethereum-private-key.txt
+```
+
+Tell the user to run the command in their terminal and type the Ethereum private key when prompted. The prompt masks input with `*`, does not print the key, writes the file with restrictive permissions where supported, and refuses to overwrite an existing file.
+
+Do not ask the user to manually create a text file or paste the private key into chat. Do not ask for a seed phrase.
+
+### B.2 Import the Ethereum account
+
+After B.1 succeeds, import the source file into a protected local account nickname:
+
+```bash
+private-state-cli account import --account <ACCOUNT> --network <NETWORK> --private-key-file ./ethereum-private-key.txt
+```
+
+Use `mainnet` for ordinary users unless they explicitly asked for a test or developer network. Ask the user for only the account nickname if it is missing.
+
+### B.3 Verify the imported Ethereum address
+
+After import, verify the local account nickname maps to the expected Ethereum address:
+
+```bash
+private-state-cli account get-l1-address --account <ACCOUNT> --network <NETWORK>
+```
+
+When speaking to the user, call the result the Ethereum address. If the CLI prints `l1Address`, explain only if needed that this field name means the Ethereum-side address.
+
+### B.4 Create a wallet secret source file
+
+Goal: help the user create a wallet secret source file for `channel join`.
+
+Default command:
+
+```bash
+private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt
+```
+
+Prefer this user-typed secret flow because it reduces loss risk: the user can choose a secret they can retain. The terminal prompt masks input with `*`, does not print the secret, writes the file with restrictive permissions where supported, and refuses to overwrite an existing file.
+
+Do not tell ordinary users to generate a random wallet secret unless they explicitly ask for random generation.
+
+### B.5 Random wallet secret opt-in
+
+Use random generation only when the user explicitly says they want a random wallet secret:
+
+```bash
+private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt --random
+```
+
+Warn the user that losing a random wallet secret can make future recovery harder unless they preserve the generated source file or the later exported spending material according to the CLI workflow.
+
+### B.6 Wallet secret recovery reminder
+
+Tell the user that the wallet secret source file is read during `channel join` to derive channel-bound wallet authority. It is not the Ethereum private key. Keep the file private, keep a recoverable copy if they need future recovery, and do not share it in chat.
+
+### B.7 Join a channel with the wallet secret source
+
+Before adding `--acknowledge-action-impact`, follow E.1 and E.2. Then use:
+
+```bash
+private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
+```
+
+Tell the user that joining creates/registers the private-state wallet for that channel and may pay the channel join toll directly from the Ethereum account.
+
+## C. RPC Setup Recipes
+
+### C.1 Confirm the network
+
+For ordinary users, use `mainnet`. Use `sepolia` only if the user explicitly says they are testing, developing, rehearsing, or using testnet.
+
+### C.2 Recommend Ankr without treating it as a default
+
+If the user has no RPC provider preference, recommend Ankr because its free RPC plan is expected to be much faster for this workflow than typical free alternatives. Do not say the CLI has a default RPC. It does not. The user must provide a real RPC endpoint URL.
+
+### C.3 Ask only for the endpoint URL
+
+Tell the user to create or open an Ethereum mainnet endpoint in the provider UI and provide only the endpoint URL. Do not ask for provider login credentials, dashboard screenshots, seed phrases, private keys, or wallet secrets.
+
+### C.4 Configure RPC
+
+Use:
+
+```bash
+private-state-cli set rpc --network <NETWORK> --rpc-url <URL> --provider ankr
+```
+
+If the user picked a different built-in provider, replace `ankr` with that provider. If the provider is not built in, use explicit scan limits from the provider's documentation instead of guessing.
+
+### C.5 Explain missing RPC failures
+
+If RPC is not configured, later bridge-facing and wallet commands fail with a missing RPC configuration error. They do not silently use a default RPC.
+
+## D. Guided Setup Flow
+
+### D.1 Select network
+
+Ask the user whether they are using mainnet or an explicit test/developer network. If they are an ordinary user and have not said otherwise, proceed with mainnet.
+
+### D.2 Install runtime
+
+Run:
+
+```bash
+private-state-cli install
+private-state-cli help doctor
+```
+
+Use `help doctor` output to resolve missing runtime, artifact, Docker, CUDA, Groth16, or command availability issues before continuing.
+
+### D.3 Configure RPC
+
+Follow C.1 through C.5 before commands that inspect or write chain state.
+
+### D.4 Prepare and import the Ethereum account
+
+Follow B.1, B.2, and B.3. Use the default source path `./ethereum-private-key.txt` unless the user asks for another path.
+
+### D.5 Prepare the wallet secret source
+
+Follow B.4 through B.6. Use the default source path `./wallet-secret.txt` unless the user asks for another path.
+
+### D.6 Inspect or create channel
+
+If the channel may already exist, inspect it:
+
+```bash
+private-state-cli channel get-meta --channel-name <CHANNEL> --network <NETWORK>
+```
+
+If the user is the channel creator and the channel does not exist, explain E.2 and run `channel create` only after explicit confirmation.
+
+### D.7 Recover channel workspace
+
+If the channel exists but the local workspace is missing, prefer mirror recovery when available:
+
+```bash
+private-state-cli channel recover-workspace --channel-name <CHANNEL> --network <NETWORK> --source mirror
+```
+
+Use RPC genesis replay only when no compatible mirror exists and the user understands it can be slow:
+
+```bash
+private-state-cli channel recover-workspace --channel-name <CHANNEL> --network <NETWORK> --source rpc --from-genesis
+```
+
+### D.8 Join channel
+
+Follow B.7. Do not add `--acknowledge-action-impact` until the user confirms after E.1 and E.2.
+
+### D.9 Discover wallet name
+
+Use CLI discovery instead of asking the user to inspect folders:
+
+```bash
+private-state-cli wallet list --network <NETWORK>
+```
+
+### D.10 Fund bridge
+
+Check balances first, then explain E.1 before using:
+
+```bash
+private-state-cli account deposit-bridge --amount <TOKENS> --network <NETWORK> --account <ACCOUNT> --acknowledge-action-impact
+```
+
+### D.11 Fund channel
+
+Move bridge balance into channel accounting only after the wallet is joined:
+
+```bash
+private-state-cli wallet deposit-channel --wallet <WALLET> --network <NETWORK> --amount <TOKENS> --acknowledge-action-impact
+```
+
+### D.12 Mint notes
+
+Mint notes only after channel balance exists:
+
+```bash
+private-state-cli wallet mint-notes --wallet <WALLET> --network <NETWORK> --amounts <JSON_ARRAY> --acknowledge-action-impact
+```
+
+### D.13 Use notes
+
+Inspect notes before transfer or redeem:
+
+```bash
+private-state-cli wallet get-notes --wallet <WALLET> --network <NETWORK>
+```
+
+Then build transfer/redeem commands from available note IDs. Do not assume the note exists.
+
+### D.14 Exit channel
+
+Use `channel exit` only when wallet/channel balances allow it and the user understands the effect.
+
+## E. Acknowledgements and Policy
+
+### E.1 Action-impact confirmation
+
+For any command requiring `--acknowledge-action-impact`, first explain the public/private impact in plain language and ask for explicit confirmation. Do not add the acknowledgement flag on the user's behalf before confirmation.
+
+### E.2 Channel policy confirmation
+
+Before `channel create` or `channel join`, explain that channel policy is immutable after creation or acceptance. The user is accepting verifier, DApp metadata, function layout, managed storage vector, join toll, and refund policy for that channel.
+
+## F. Recovery Rules
+
+### F.1 Prefer mirror before genesis replay
+
+Before suggesting `--from-genesis`, check whether a workspace mirror exists. Mirror recovery is the preferred path when compatible.
+
+### F.2 Slow recovery triage
+
+When recovery is slow, inspect the configured RPC provider. Recovery speed is dominated by `eth_getLogs` request rate and block range cap. Recommend reconfiguring RPC with a faster provider such as Ankr when appropriate.
+
+### F.3 Genesis replay warning
+
+Explain that RPC genesis replay scans logs from channel creation and can take much longer. Use it only when no compatible workspace mirror is available.
+
+## G. Note Workflow Rules
+
+### G.1 Bridge funding is public
+
+Bridge deposits and withdrawals expose the Ethereum account, vault, amount, and transaction hashes. They do not create private notes by themselves.
+
+### G.2 Channel funding is separate
+
+Channel deposits move already-bridged balance into channel accounting. They require a joined wallet.
+
+### G.3 Minting creates spendable private notes
+
+Mint notes only after channel balance exists. Use JSON arrays for amounts and keep commands concrete.
+
+### G.4 Transfer and redeem require existing notes
+
+Always inspect available notes before building transfer or redeem commands. If needed notes do not exist, guide funding and minting first.
+
+### G.5 Transaction submitter option
+
+Explain `--tx-submitter <ACCOUNT>` when the user wants a separate Ethereum account to submit proof-backed note transactions and pay gas. The wallet owner still proves note ownership.
+
+### G.6 Exit safety
+
+Do not guide channel exit while the wallet still has channel balance or unresolved state that prevents exit.
+
+## H. Discovery Commands
+
+### H.1 State discovery
+
+Prefer CLI discovery over filesystem inspection:
+
+```bash
+private-state-cli help guide --network <NETWORK> --channel-name <CHANNEL> --account <ACCOUNT> --wallet <WALLET> --json
+private-state-cli wallet list --network <NETWORK>
+private-state-cli wallet get-meta --wallet <WALLET> --network <NETWORK>
+private-state-cli account get-bridge-fund --account <ACCOUNT> --network <NETWORK>
+private-state-cli wallet get-channel-fund --wallet <WALLET> --network <NETWORK>
+```
+
+## I. Plain-Language Explanations
+
+### I.1 Private key source file
+
+If asked, explain that this is a temporary local file containing the Ethereum private key so the CLI can import it once into a protected local account nickname.
+
+### I.2 Account nickname
+
+If asked, explain that after import, signing commands use `--account <ACCOUNT>` instead of asking for the private key again.
+
+### I.3 Wallet secret source file
+
+If asked, explain that this is a separate user-kept secret used during channel join to derive the private-state wallet authority for that channel. It is not the Ethereum private key.
+
+### I.4 RPC URL
+
+If asked, explain that this is the provider endpoint the CLI uses to read and send Ethereum transactions. The CLI requires the user to configure one and does not have a default endpoint.

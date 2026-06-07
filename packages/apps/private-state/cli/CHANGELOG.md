@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added masked terminal helper commands for creating private-key and wallet-secret source files before
+  `account import` and `channel join`.
+- Changed `help guide --json` to point AI agents at indexed `agents.md` setup recipes instead of embedding
+  human guidance prose in the JSON payload.
+- Reworked private-state CLI agent instructions around action-first mainnet setup, Ankr RPC recommendation,
+  and user-typed wallet secrets by default.
 - Added ETA and scan-rate reporting to RPC recovery progress for channel and wallet workspace recovery, including
   structured JSON progress details in `--json` mode.
 

@@ -398,17 +398,22 @@ commands are reported unavailable until full install is completed.
 Local helper commands:
 
 ```bash
-private-state-cli account import --account <ACCOUNT_NAME> --network sepolia --private-key-file <PATH>
-private-state-cli account get-l1-address --account <ACCOUNT_NAME> --network sepolia
-private-state-cli wallet list --network sepolia --channel-name cuda
-private-state-cli wallet get-meta --wallet <WALLET_NAME> --network sepolia
-private-state-cli wallet export backup --network sepolia --wallet <WALLET_NAME> --output ./wallet-backup.zip
+private-state-cli secret create-private-key-source --output ./ethereum-private-key.txt
+private-state-cli account import --account <ACCOUNT_NAME> --network mainnet --private-key-file ./ethereum-private-key.txt
+private-state-cli account get-l1-address --account <ACCOUNT_NAME> --network mainnet
+private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt
+private-state-cli wallet list --network mainnet --channel-name <CHANNEL>
+private-state-cli wallet get-meta --wallet <WALLET_NAME> --network mainnet
+private-state-cli wallet export backup --network mainnet --wallet <WALLET_NAME> --output ./wallet-backup.zip
 private-state-cli wallet import backup --input ./wallet-backup.zip
 ```
 
-`account import` is the only supported way to bring an L1 signing key into the CLI: it reads `--private-key-file` once
-and stores a protected local account secret for later `--account` use. The source file does not need `0600` permissions.
-`channel join` reads `--wallet-secret-path <PATH>` once while creating the channel-bound spending key and then stores
+`secret create-private-key-source` prompts in the terminal with masked input and creates a local source file for
+`account import`. `account import` is the only supported way to bring an Ethereum signing key into the CLI: it reads
+`--private-key-file` once and stores a protected local account secret for later `--account` use. The source file does
+not need `0600` permissions. `secret create-wallet-secret-source` prompts in the terminal with masked input by default
+and creates a local wallet secret source file for `channel join`. Use `--random` only when a random wallet secret is
+explicitly wanted. `channel join` reads `--wallet-secret-path <PATH>` once while creating the channel-bound spending key and then stores
 wallet backup metadata, viewing-key metadata, and spending-key metadata as separate files. `wallet list` reads only the local workspace and prints saved wallet names that can be reused with
 `--wallet`.
 `wallet get-meta` opens the wallet metadata and reports the stored L1/L2 identity metadata plus the current
@@ -419,15 +424,18 @@ epoch-aware wallet workspaces it also reports the selected wallet epoch and whet
 ### Wallet Secret Source File
 
 `channel join` needs a wallet secret source file because the CLI no longer accepts raw wallet secrets on the command
-line. The source file is arbitrary high-entropy secret text that the CLI reads once for channel-bound spending-key
-derivation. It is not persisted in the wallet workspace.
+line. The source file is secret text that the CLI reads once for channel-bound spending-key derivation. It is not
+persisted in the wallet workspace.
 
 Create one before joining a channel:
 
 ```bash
-openssl rand -hex 32 > ./wallet-secret.txt
-private-state-cli channel join --channel-name <CHANNEL> --network sepolia --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
+private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt
+private-state-cli channel join --channel-name <CHANNEL> --network mainnet --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
 ```
+
+The default helper flow lets the user type a wallet secret so it can be retained more easily. If random generation is
+explicitly wanted, run `private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt --random`.
 
 The import source file does not need `0600` permissions. The CLI does not persist a wallet-local secret:
 it reads the source once for channel-bound L2 spending-key derivation. The join flow stores the viewing key and

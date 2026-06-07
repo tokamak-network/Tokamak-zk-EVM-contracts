@@ -36,7 +36,8 @@
     "lib"
   ],
   "scripts": {
-    "release:check": "node ../../../../scripts/release-readiness.cjs"
+    "release:check": "node ../../../../scripts/release-readiness.cjs",
+    "test:agent-guidance": "node scripts/test-agent-guidance.mjs"
   },
   "publishConfig": {
     "access": "public",

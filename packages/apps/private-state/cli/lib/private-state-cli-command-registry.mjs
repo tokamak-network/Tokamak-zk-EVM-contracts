@@ -110,6 +110,13 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     valueLabel: "<PATH>",
     option: "--output",
   },
+  random: {
+    label: "Random Secret",
+    type: "checkbox",
+    hint: "Generate a random wallet secret instead of prompting the user to type one.",
+    option: "--random",
+    optional: true,
+  },
   exportEvidence: {
     label: "Evidence ZIP",
     type: "text",
@@ -307,6 +314,33 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "Writes ~/tokamak-private-channels/workspace/<network>/rpc-config.env",
       "Built-in provider limits: ankr=27 calls/s and 3000 blocks, chainstack=22.5 calls/s and 100 blocks, chainnodes=22.5 calls/s and 20000 blocks, quicknode=13.5 calls/s and 5 blocks, alchemy=7.497 calls/s and 10 blocks",
       "All bridge-facing and wallet commands read RPC settings from this file and do not accept --rpc-url",
+    ],
+  },
+  {
+    id: "secret-create-private-key-source",
+    display: "secret create-private-key-source",
+    description: "Prompt for an Ethereum private key and write a local source file for account import.",
+    fields: ["output"],
+    usage: "--output",
+    help: [
+      "Prompts in the terminal with masked input and never prints the private key",
+      "Writes the source file with restrictive permissions where the operating system supports it",
+      "Refuses to overwrite an existing file",
+      "After creating the file, import it with account import --private-key-file",
+    ],
+  },
+  {
+    id: "secret-create-wallet-secret-source",
+    display: "secret create-wallet-secret-source",
+    description: "Prompt for a wallet secret, or explicitly generate a random one, and write a local source file for channel join.",
+    fields: ["output", "random"],
+    optionalFields: ["random"],
+    usage: "--output and optional --random",
+    help: [
+      "Prompts in the terminal with masked input by default so the user can type a memorable secret",
+      "Use --random only when the user explicitly wants a random wallet secret",
+      "Never prints the wallet secret and refuses to overwrite an existing file",
+      "After creating the file, pass it to channel join --wallet-secret-path",
     ],
   },
   {

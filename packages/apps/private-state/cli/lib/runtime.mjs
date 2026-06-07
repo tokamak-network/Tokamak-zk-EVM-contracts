@@ -3317,6 +3317,116 @@ function handleAccountGetL1Address({ args }) {
   });
 }
 
+async function handleCreatePrivateKeySource({ args }) {
+  const outputPath = resolveSecretSourceOutputPath(args);
+  const input = await readMaskedTerminalSecret("Enter Ethereum private key: ");
+  const privateKey = normalizePrivateKey(input.trim());
+  expect(input.trim().length > 0, "Private key input was empty.");
+  new Wallet(privateKey);
+  writeSecretSourceFile(outputPath, privateKey, "private key source file");
+  cliOutput.result({
+    action: "secret create-private-key-source",
+    outputPath,
+    secretPrinted: false,
+    nextCommand: `account import --account <ACCOUNT> --network <NETWORK> --private-key-file ${shellQuotePath(outputPath)}`,
+  });
+}
+
+async function handleCreateWalletSecretSource({ args }) {
+  const outputPath = resolveSecretSourceOutputPath(args);
+  const random = args.random === true;
+  const walletSecret = random
+    ? randomBytes(32).toString("hex")
+    : (await readMaskedTerminalSecret("Enter wallet secret: ")).trim();
+  expect(walletSecret.length > 0, "Wallet secret input was empty.");
+  writeSecretSourceFile(outputPath, walletSecret, "wallet secret source file");
+  cliOutput.result({
+    action: "secret create-wallet-secret-source",
+    outputPath,
+    random,
+    secretPrinted: false,
+    nextCommand: `channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ${shellQuotePath(outputPath)} --acknowledge-action-impact`,
+  });
+}
+
+function resolveSecretSourceOutputPath(args) {
+  const outputPath = path.resolve(String(requireArg(args.output, "--output")));
+  expect(!fs.existsSync(outputPath), `Secret source output already exists: ${outputPath}.`);
+  return outputPath;
+}
+
+function writeSecretSourceFile(filePath, value, label) {
+  ensureDir(path.dirname(filePath));
+  fs.writeFileSync(filePath, `${String(value).trim()}\n`, { mode: 0o600, flag: "wx" });
+  protectSecretFile(filePath, label);
+}
+
+async function readMaskedTerminalSecret(prompt) {
+  const input = process.stdin;
+  const output = process.stderr;
+  expect(
+    input.isTTY && output.isTTY && typeof input.setRawMode === "function",
+    "Masked secret input requires an interactive terminal. Run this command directly in a terminal.",
+  );
+
+  return new Promise((resolve, reject) => {
+    let value = "";
+    const wasRaw = input.isRaw;
+    const wasPaused = input.isPaused();
+
+    const cleanup = () => {
+      input.off("data", onData);
+      input.setRawMode(wasRaw);
+      if (wasPaused) {
+        input.pause();
+      }
+    };
+
+    const finish = (callback, result) => {
+      cleanup();
+      output.write("\n");
+      callback(result);
+    };
+
+    const onData = (chunk) => {
+      for (const char of Array.from(chunk.toString("utf8"))) {
+        if (char === "\u0003") {
+          finish(reject, new Error("Secret input was cancelled."));
+          return;
+        }
+        if (char === "\r" || char === "\n") {
+          finish(resolve, value);
+          return;
+        }
+        if (char === "\u007f" || char === "\b") {
+          if (value.length > 0) {
+            value = Array.from(value).slice(0, -1).join("");
+            output.write("\b \b");
+          }
+          continue;
+        }
+        if (char >= " ") {
+          value += char;
+          output.write("*");
+        }
+      }
+    };
+
+    output.write(prompt);
+    input.setRawMode(true);
+    input.resume();
+    input.on("data", onData);
+  });
+}
+
+function shellQuotePath(filePath) {
+  const value = String(filePath);
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/u.test(value)) {
+    return value;
+  }
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 function handleAccountImport({ args }) {
   const networkName = requireNetworkName(args);
   resolveCliNetwork(networkName);
@@ -3649,6 +3759,7 @@ async function handleGuide({ args }) {
     nextSafeAction: null,
     why: null,
     candidateCommands: [],
+    agentGuidance: null,
     privacyTip: "For wallet mint-notes, wallet transfer-notes, and wallet redeem-notes, add --tx-submitter <ACCOUNT> to let a separate local L1 account submit executeChannelTransaction and pay gas.",
     mirrorTip: "Channel leaders refresh mirror files with channel recover-workspace --publish-workspace-mirror --leader-account <ACCOUNT> --output <PATH>; the standalone channel publish-workspace-mirror command is no longer available.",
   };
@@ -3673,13 +3784,12 @@ async function handleGuide({ args }) {
 
   if (!args.network) {
     setGuideNextAction(guide, {
-      command: "help guide --network <NAME>",
-      why: "Select a network before the guide can inspect RPC, deployment artifacts, channels, accounts, or wallets.",
+      command: "help guide --network mainnet",
+      why: "Select mainnet for ordinary end-user setup before the guide inspects RPC, deployment artifacts, channels, accounts, or wallets.",
       candidates: [
         "help guide --network mainnet",
-        "help guide --network sepolia",
-        "help guide --network anvil",
       ],
+      agentGuidance: guideAgentGuidance("select-network", ["A.1", "D.1"]),
     });
     cliOutput.result(guide);
     return;
@@ -3693,6 +3803,7 @@ async function handleGuide({ args }) {
     setGuideNextAction(guide, {
       command: "help guide --network <NAME>",
       why: `The requested network ${networkName} is not supported by the CLI network config.`,
+      agentGuidance: guideAgentGuidance("select-network", ["A.1", "D.1"]),
     });
     cliOutput.result(guide);
     return;
@@ -3841,7 +3952,7 @@ function inspectGuideNetworkRuntime(networkName) {
     setActiveRpcLogConfig(rpcConfig);
     provider = new JsonRpcProvider(rpcUrl, Number(network.chainId), { staticNetwork: true });
   } catch (caught) {
-    error = caught.message;
+    error = guideInspectionError(caught);
   }
 
   return {
@@ -3863,6 +3974,10 @@ function inspectGuideNetworkRuntime(networkName) {
       error,
     }),
   };
+}
+
+function guideInspectionError(error) {
+  return error?.code ?? error?.message ?? String(error);
 }
 
 function inspectGuideDeploymentArtifacts(chainId) {
@@ -4068,13 +4183,15 @@ function applyGuideNextAction(guide) {
     setGuideNextAction(guide, {
       command: `wallet list --network ${guide.selectors.network}`,
       why: "The selected wallet name is malformed. List local wallets and retry help guide with an existing deterministic wallet name.",
+      agentGuidance: guideAgentGuidance("discover-wallet-name", ["D.9", "H.1"]),
     });
     return;
   }
   if (guide.state.network && !guide.state.network.rpcConfigured) {
     setGuideNextAction(guide, {
-      command: `set rpc --network ${guide.selectors.network} --rpc-url <URL> --provider <PROVIDER>`,
-      why: `Configure RPC settings in ${guide.state.network.rpcConfigEnvPath}.`,
+      command: `set rpc --network ${guide.selectors.network} --rpc-url <URL> --provider ankr`,
+      why: "Configure a network RPC URL. The CLI has no default RPC URL, and Ankr is the preferred provider recommendation for users without a provider preference.",
+      agentGuidance: guideAgentGuidance("configure-rpc", ["C.1", "C.2", "C.3", "C.4", "D.3"]),
     });
     return;
   }
@@ -4082,13 +4199,19 @@ function applyGuideNextAction(guide) {
     setGuideNextAction(guide, {
       command: "install",
       why: "The private-state deployment artifacts or proof runtime files are not installed for the selected network.",
+      agentGuidance: guideAgentGuidance("install-runtime", ["D.2"]),
     });
     return;
   }
   if (guide.selectors.account && guide.state.account && !guide.state.account.exists) {
     setGuideNextAction(guide, {
-      command: `account import --account ${guide.selectors.account} --network ${guide.selectors.network} --private-key-file <PATH>`,
-      why: "The selected L1 account name does not have a protected local private-key secret yet.",
+      command: "secret create-private-key-source --output ./ethereum-private-key.txt",
+      why: "Create a local Ethereum private-key source file in the terminal before importing it into a protected local account nickname.",
+      candidates: [
+        `account import --account ${guide.selectors.account} --network ${guide.selectors.network} --private-key-file ./ethereum-private-key.txt`,
+        `account get-l1-address --account ${guide.selectors.account} --network ${guide.selectors.network}`,
+      ],
+      agentGuidance: guideAgentGuidance("create-private-key-source-and-import-account", ["B.1", "B.2", "B.3", "D.4", "I.1"]),
     });
     return;
   }
@@ -4097,6 +4220,7 @@ function applyGuideNextAction(guide) {
     setGuideNextAction(guide, {
       command: `channel create --channel-name ${guide.selectors.channelName} --join-toll <TOKENS> --network ${guide.selectors.network} --account ${account}`,
       why: "The selected channel name is not registered on-chain yet.",
+      agentGuidance: guideAgentGuidance("create-channel", ["D.6", "E.1", "E.2"]),
     });
     return;
   }
@@ -4108,12 +4232,14 @@ function applyGuideNextAction(guide) {
       setGuideNextAction(guide, {
         command: `channel recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network} --source mirror`,
         why: "The channel has a registered workspace mirror. Use mirror recovery before considering an explicit RPC genesis rebuild.",
+        agentGuidance: guideAgentGuidance("recover-channel-workspace", ["D.7", "F.1", "F.2"]),
       });
       return;
     }
     setGuideNextAction(guide, {
       command: `channel recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network} --source rpc --from-genesis`,
       why: "The channel exists on-chain, but the local channel workspace has not been recovered yet and no workspace mirror is registered. RPC genesis rebuild is the remaining explicit bootstrap path.",
+      agentGuidance: guideAgentGuidance("recover-channel-workspace", ["D.7", "F.1", "F.3"]),
     });
     return;
   }
@@ -4121,8 +4247,13 @@ function applyGuideNextAction(guide) {
     const channelName = guide.selectors.channelName ?? guide.state.channel?.channelName ?? "<CHANNEL>";
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
-      command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH> --acknowledge-action-impact`,
-      why: "The selected local wallet does not exist. Join the channel to create the wallet, register the channel L2 identity, and pay any join toll directly from the L1 wallet.",
+      command: "secret create-wallet-secret-source --output ./wallet-secret.txt",
+      why: "Create a wallet secret source file before joining the channel. Prefer user-typed wallet secrets; use random generation only when the user explicitly asks for it.",
+      candidates: [
+        `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact`,
+        "secret create-wallet-secret-source --output ./wallet-secret.txt --random",
+      ],
+      agentGuidance: guideAgentGuidance("create-wallet-secret-source-and-join-channel", ["B.4", "B.5", "B.6", "B.7", "D.5", "D.8", "E.1", "E.2"]),
     });
     return;
   }
@@ -4130,8 +4261,9 @@ function applyGuideNextAction(guide) {
     const channelName = guide.state.wallet.channelName ?? guide.selectors.channelName ?? "<CHANNEL>";
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
-      command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH> --acknowledge-action-impact`,
+      command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact`,
       why: "The local wallet exists, but the corresponding L1 address is not registered in the channel; joining pays any join toll directly from the L1 wallet.",
+      agentGuidance: guideAgentGuidance("join-channel-with-existing-wallet-secret-source", ["B.7", "D.8", "E.1", "E.2"]),
     });
     return;
   }
@@ -4149,6 +4281,7 @@ function applyGuideNextAction(guide) {
     setGuideNextAction(guide, {
       command: `account deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account} --acknowledge-action-impact`,
       why: "The wallet is joined, but there is no bridge balance, channel balance, or local unused note to spend; bridge deposits fund channel liquidity and do not pay join tolls.",
+      agentGuidance: guideAgentGuidance("fund-bridge", ["D.10", "E.1", "G.1"]),
     });
     return;
   }
@@ -4156,6 +4289,7 @@ function applyGuideNextAction(guide) {
     setGuideNextAction(guide, {
       command: `wallet deposit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amount <TOKENS> --acknowledge-action-impact`,
       why: "The account has funds in the shared bridge vault, but the wallet has no channel L2 accounting balance.",
+      agentGuidance: guideAgentGuidance("fund-channel", ["D.11", "E.1", "G.2"]),
     });
     return;
   }
@@ -4163,6 +4297,7 @@ function applyGuideNextAction(guide) {
     setGuideNextAction(guide, {
       command: `wallet mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <JSON_ARRAY> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
       why: "The wallet has channel L2 balance and no unused private notes yet. Use --tx-submitter for stronger transaction-submission privacy.",
+      agentGuidance: guideAgentGuidance("mint-notes", ["D.12", "E.1", "G.3", "G.5"]),
     });
     return;
   }
@@ -4174,6 +4309,7 @@ function applyGuideNextAction(guide) {
         `wallet get-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
         `wallet redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <JSON_ARRAY> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
       ],
+      agentGuidance: guideAgentGuidance("use-notes", ["D.13", "E.1", "G.4", "G.5"]),
     });
     return;
   }
@@ -4181,6 +4317,7 @@ function applyGuideNextAction(guide) {
     setGuideNextAction(guide, {
       command: `channel exit --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
       why: "The wallet has zero channel balance, so channel exit is allowed by both the CLI and bridge contract.",
+      agentGuidance: guideAgentGuidance("exit-channel", ["D.14", "G.6"]),
     });
     return;
   }
@@ -4188,13 +4325,23 @@ function applyGuideNextAction(guide) {
   setGuideNextAction(guide, {
     command: "help guide --network <NAME> --channel-name <CHANNEL> --account <ACCOUNT> --wallet <WALLET>",
     why: "Provide more selectors so the guide can choose a single next safe action.",
+    agentGuidance: guideAgentGuidance("collect-selectors", ["A.1", "D.1", "H.1"]),
   });
 }
 
-function setGuideNextAction(guide, { command, why, candidates = [] }) {
+function setGuideNextAction(guide, { command, why, candidates = [], agentGuidance = null }) {
   guide.nextSafeAction = command;
   guide.why = why;
   guide.candidateCommands = candidates;
+  guide.agentGuidance = agentGuidance;
+}
+
+function guideAgentGuidance(step, refs) {
+  return {
+    source: "agents.md",
+    step,
+    refs,
+  };
 }
 
 function guideCheck(name, status, details = {}) {
@@ -9790,6 +9937,18 @@ const OUTPUT_BYTES32_ARRAY_KEYS = new Set([
 ]);
 
 function normalizeCliOutput(value) {
+  if (isJsonOutputRequested() && value?.action === "guide") {
+    const {
+      why,
+      privacyTip,
+      mirrorTip,
+      ...jsonGuide
+    } = value;
+    void why;
+    void privacyTip;
+    void mirrorTip;
+    return normalizeCliOutputValue(jsonGuide, []);
+  }
   return normalizeCliOutputValue(value, []);
 }
 
@@ -9963,7 +10122,8 @@ function parseArgs(argv) {
       || parsed.command === "channel"
       || parsed.command === "set"
       || parsed.command === "wallet"
-      || parsed.command === "help")
+      || parsed.command === "help"
+      || parsed.command === "secret")
     && parsed.positional[1]
   ) {
     parsed.command = `${parsed.command}-${parsed.positional[1]}`;
@@ -10672,6 +10832,15 @@ function assertGuideArgs(args) {
     requireWalletName(args);
   }
   assertAllowedCommandSchema(args, "help-guide");
+}
+
+function assertCreatePrivateKeySourceArgs(args) {
+  assertAllowedCommandSchema(args, "secret-create-private-key-source");
+}
+
+function assertCreateWalletSecretSourceArgs(args) {
+  assertAllowedCommandSchema(args, "secret-create-wallet-secret-source");
+  assertBooleanFlag(args, "random", "secret create-wallet-secret-source option --random");
 }
 
 function assertObserverArgs(args) {
@@ -11746,13 +11915,17 @@ Commands:
 ${commandHelp}
 
 Secret source options:
-  Use account import --private-key-file once to create a protected local account secret.
-  L1 signing commands use --account only.
-  A wallet secret source file is arbitrary high-entropy secret text read once by channel join.
-  Create one before joining a channel, for example:
-      openssl rand -hex 32 > ./wallet-secret.txt
-      private-state-cli channel join --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
-  Configure each network RPC endpoint once with set rpc. The CLI reads RPC_URL, LOG_CHUNK_SIZE,
+  Create private-key and wallet-secret source files locally with masked terminal prompts:
+      private-state-cli secret create-private-key-source --output ./ethereum-private-key.txt
+      private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt
+  Then import the Ethereum account once:
+      private-state-cli account import --account <ACCOUNT> --network <NAME> --private-key-file ./ethereum-private-key.txt
+  Join a channel with the wallet secret source after reviewing the action-impact warning:
+      private-state-cli channel join --channel-name <NAME> --network <NAME> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
+  Configure each network RPC endpoint once with set rpc. The CLI has no default RPC URL; if you do not
+  already prefer a provider, Ankr is the recommended provider for this workflow:
+      private-state-cli set rpc --network mainnet --rpc-url <URL> --provider ankr
+  The CLI reads RPC_URL, LOG_CHUNK_SIZE,
   and LOG_REQUESTS_PER_SECOND from ~/tokamak-private-channels/workspace/<network>/rpc-config.env.
   Wallet commands use separate protected viewing-key and spending-key files when those capabilities are needed.
   Source files passed to --private-key-file and --wallet-secret-path are not required to use 0600 permissions, but
@@ -11788,6 +11961,15 @@ function printGuideHumanResult(guide) {
       "",
       "Candidate Commands",
       ...guide.candidateCommands.map((command) => `- ${command}`),
+    );
+  }
+
+  if (guide.agentGuidance?.source && Array.isArray(guide.agentGuidance.refs)) {
+    lines.push(
+      "",
+      "Agent Guidance",
+      `Source: ${guide.agentGuidance.source}`,
+      `Refs: ${guide.agentGuidance.refs.join(", ")}`,
     );
   }
 
@@ -12406,6 +12588,8 @@ export {
   assertUpdateArgs,
   assertDoctorArgs,
   assertGuideArgs,
+  assertCreatePrivateKeySourceArgs,
+  assertCreateWalletSecretSourceArgs,
   assertObserverArgs,
   assertTransactionFeesArgs,
   assertInvestigatorArgs,
@@ -12439,6 +12623,8 @@ export {
   handleUpdate,
   handleDoctor,
   handleGuide,
+  handleCreatePrivateKeySource,
+  handleCreateWalletSecretSource,
   handleObserver,
   handleTransactionFees,
   handleInvestigator,

@@ -11,6 +11,7 @@ import { accountCommands } from "./account.mjs";
 import { channelCommands } from "./channel.mjs";
 import { investigatorCommands } from "./investigator.mjs";
 import { notesCommands } from "./notes.mjs";
+import { secretCommands } from "./secret.mjs";
 import { systemCommands } from "./system.mjs";
 import { walletCommands } from "./wallet.mjs";
 
@@ -18,6 +19,7 @@ const COMMANDS = Object.freeze({
   ...systemCommands,
   ...investigatorCommands,
   ...accountCommands,
+  ...secretCommands,
   ...channelCommands,
   ...walletCommands,
   ...notesCommands,

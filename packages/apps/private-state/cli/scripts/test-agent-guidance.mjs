@@ -185,6 +185,38 @@ function testGuideJsonAccountSecretMissing() {
   }
 }
 
+function testGuideJsonWalletMissingBeforeChannelJoin() {
+  const refs = readAgentRefs();
+  const walletName = "test-0x0000000000000000000000000000000000000001";
+  const payload = parseJson(runCli([
+    "help",
+    "guide",
+    "--network",
+    "mainnet",
+    "--wallet",
+    walletName,
+    "--json",
+  ], {
+    home: createIsolatedHomeWithRpcAndReadOnlyArtifacts("mainnet", 1),
+  }));
+
+  assertAgentGuidance(payload, ["B.4", "B.5", "B.6", "B.7", "D.5", "D.8", "E.1", "E.2"]);
+  expect(
+    payload.agentGuidance.step === "create-wallet-secret-source-and-join-channel",
+    "Missing wallet should select the wallet-secret source and channel join step.",
+  );
+  expect(
+    payload.nextSafeAction === "secret create-wallet-secret-source --output ./wallet-secret.txt",
+    "Missing wallet should guide to the wallet-secret source helper.",
+  );
+  expect(payload.state.network.rpcConfigured === true, "RPC fixture should let the guide advance past missing RPC.");
+  expect(payload.state.deploymentArtifacts.installed === true, "Artifact fixture should let the guide advance past install.");
+  expect(payload.state.wallet.exists === false, "Wallet should be missing in the fixture.");
+  for (const ref of payload.agentGuidance.refs) {
+    expect(refs.has(ref), `Guide output references missing agents.md index ${ref}.`);
+  }
+}
+
 function testGuideHumanOutputIsUserFacing() {
   const stdout = runCli(["help", "guide", "--network", "mainnet"]);
   expect(stdout.includes("Current status"), "Human guide output should include a Current status section.");
@@ -284,6 +316,7 @@ testSecretCommandsRegistered();
 testGuideJsonRefs();
 testGuideJsonDeploymentArtifactsMissing();
 testGuideJsonAccountSecretMissing();
+testGuideJsonWalletMissingBeforeChannelJoin();
 testGuideHumanOutputIsUserFacing();
 testRandomWalletSecretHelper();
 testNonTtyPrivateKeyPromptFailsClearly();

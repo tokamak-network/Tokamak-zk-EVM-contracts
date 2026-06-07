@@ -52,6 +52,8 @@ scope.
 - Added a `help guide --json` test for deployment artifacts missing after RPC is already configured.
 - Added a read-only artifacts fixture and `help guide --json` test for account secret missing after RPC and artifacts
   are already available.
+- Added a `help guide --json` test for wallet missing before `channel join` using a deterministic wallet selector and
+  the isolated RPC/artifacts fixtures.
 - Manually verified the private-key helper in a pseudo-terminal for `*` masking, no secret transcript leak, output file
   creation, and `0600` file mode on macOS.
 
@@ -74,7 +76,6 @@ scope.
 ### Not started
 
 - Add `help guide --json` tests for existing channel workspace missing.
-- Add `help guide --json` tests for wallet missing before `channel join`.
 - Add `help guide --json` tests for existing wallet with missing channel registration.
 - Add `help guide --json` tests for acknowledgement-required next actions.
 - Add documentation/structure tests that every first-time setup ref includes the required recipe fields.

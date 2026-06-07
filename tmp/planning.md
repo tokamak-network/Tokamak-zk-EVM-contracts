@@ -54,6 +54,8 @@ scope.
   are already available.
 - Added a `help guide --json` test for wallet missing before `channel join` using a deterministic wallet selector and
   the isolated RPC/artifacts fixtures.
+- Rewrote human RPC guide wording to describe the required value as an Ethereum connection URL, keep Ankr as a
+  recommendation rather than a default, and explain the recommendation as faster past-record checks on the free plan.
 - Manually verified the private-key helper in a pseudo-terminal for `*` masking, no secret transcript leak, output file
   creation, and `0600` file mode on macOS.
 
@@ -74,8 +76,6 @@ scope.
 
 ### Not started
 
-- Rewrite the human RPC guide wording to avoid specialist-first terms such as `RPC endpoint`, `recovery`, and
-  `log scanning`; explain it as an Ethereum connection URL and only mention the fast history-check reason for Ankr.
 - Add the `account get-l1-address` verification command to the human private-key/account-import follow-up flow.
 - Add `*` masking wording to the human wallet-secret source guide.
 - Rework the human channel-create guide so the first action is confirming the user is the channel creator; only then

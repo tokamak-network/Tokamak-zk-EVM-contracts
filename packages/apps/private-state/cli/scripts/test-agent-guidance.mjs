@@ -223,9 +223,12 @@ function testGuideHumanOutputIsUserFacing() {
   expect(stdout.includes("Next step"), "Human guide output should include a Next step section.");
   expect(stdout.includes("Run this command\nprivate-state-cli set rpc --network mainnet --rpc-url <URL> --provider ankr"), "Human guide output should show one prefixed next command.");
   expect(stdout.includes("After it succeeds\nRerun: private-state-cli help guide --network mainnet"), "Human guide output should show the follow-up action.");
+  expect(stdout.includes("Ethereum mainnet connection URL"), "Human guide output should describe RPC as an Ethereum connection URL.");
   expect(stdout.includes("Ankr is recommended"), "Human guide output should present Ankr as a recommendation.");
-  expect(stdout.includes("free plan is fast"), "Human guide output should explain why Ankr is recommended.");
+  expect(stdout.includes("free plan is fast when this CLI checks past Ethereum records"), "Human guide output should explain why Ankr is recommended.");
   expect(stdout.includes("Ankr is not a default"), "Human guide output should not imply Ankr is a default provider.");
+  expect(!stdout.includes("RPC endpoint"), "Human guide output should avoid specialist RPC endpoint wording.");
+  expect(!stdout.includes("recovery and log scanning"), "Human guide output should avoid specialist recovery/log scanning wording.");
   expect(!stdout.includes("Checks"), "Human guide output must not lead with diagnostic checks.");
   expect(!stdout.includes("Candidate Commands"), "Human guide output must not show raw candidate command lists.");
   expect(!stdout.includes("Use --json only when an AI"), "Human guide output must not include AI/script-only JSON guidance.");

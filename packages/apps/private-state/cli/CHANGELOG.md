@@ -10,6 +10,12 @@
   and user-typed wallet secrets by default.
 - Changed human `help guide` output to use an action-first setup layout with one primary prefixed command,
   plain-language status text, follow-up instructions, and no AI-only reference or diagnostic sections.
+- Clarified the README's LLM-agent entrypoint so agents start from `help guide --json`, follow
+  `agentGuidance.refs`, and read the referenced `agents.md` recipes.
+- Refined human `help guide` setup wording for RPC configuration, account import verification, wallet-secret masking,
+  channel creation, channel-data recovery, funding, note use, and channel exit.
+- Added deterministic `help guide --json` coverage for post-RPC missing artifacts, missing account secrets, and missing
+  wallets before channel join.
 - Clarified human channel-join guide text so users prepare the Ethereum account for any join toll and gas before
   joining.
 - Added ETA and scan-rate reporting to RPC recovery progress for channel and wallet workspace recovery, including

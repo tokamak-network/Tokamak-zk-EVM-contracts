@@ -61,6 +61,9 @@ scope.
 
 - The test suite checks some guide refs and helper safety behavior, but it does not cover all guide states that can be
   exercised with deterministic local fixtures.
+- Guide-state tests should stay limited to deterministic local fixtures or document parsing. Do not add tests that require
+  mock JSON-RPC, live RPC, on-chain contract responses, or full wallet/channel workspace reconstruction unless the
+  implementation already has a lightweight test fixture for that state.
 - The tests verify that emitted refs exist in `agents.md` for covered guide states, but they do not verify the full recipe
   field contract.
 - Helper command tests cover random wallet-secret behavior and non-TTY private-key failure; typed private-key masking was
@@ -75,7 +78,6 @@ scope.
 
 ### Not started
 
-- Add `help guide --json` tests for acknowledgement-required next actions.
 - Add documentation/structure tests that every first-time setup ref includes the required recipe fields.
 - Add documentation/structure tests that the account-import recipe includes an `account get-l1-address` success check.
 - Add documentation/structure tests that the wallet-secret/channel-join recipe defaults to user-entered secret creation

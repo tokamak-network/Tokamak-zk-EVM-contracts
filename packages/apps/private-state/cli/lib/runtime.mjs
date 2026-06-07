@@ -11988,8 +11988,8 @@ function guideHumanNextStep(guide) {
     case "configure-rpc":
       return [
         `The CLI needs an Ethereum ${network} RPC endpoint before it can check Ethereum and send transactions.`,
-        "If you do not already use an RPC provider, create an Ankr endpoint and copy only the endpoint URL.",
-        "Then run the command below. Replace <URL> with that endpoint URL.",
+        "If you do not already use an RPC provider, Ankr is recommended because its free plan is fast for this CLI's recovery and log scanning.",
+        "Ankr is not a default. Create or choose an endpoint yourself, copy only the endpoint URL, then replace <URL> below.",
       ];
     case "install-runtime":
       return [

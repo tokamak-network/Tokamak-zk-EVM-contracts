@@ -96,7 +96,9 @@ function testGuideHumanOutputIsUserFacing() {
   const stdout = runCli(["help", "guide", "--network", "mainnet"]);
   expect(stdout.includes("Next Step"), "Human guide output should include a Next Step section.");
   expect(stdout.includes("Command\nset rpc --network mainnet --rpc-url <URL> --provider ankr"), "Human guide output should show the next command.");
-  expect(stdout.includes("create an Ankr endpoint"), "Human guide output should explain the concrete RPC setup action.");
+  expect(stdout.includes("Ankr is recommended"), "Human guide output should present Ankr as a recommendation.");
+  expect(stdout.includes("free plan is fast"), "Human guide output should explain why Ankr is recommended.");
+  expect(stdout.includes("Ankr is not a default"), "Human guide output should not imply Ankr is a default provider.");
   expect(!stdout.includes("Agent Guidance"), "Human guide output must not show AI-only guidance refs.");
   expect(!stdout.includes("Refs:"), "Human guide output must not show agents.md refs.");
   expect(!stdout.includes("Privacy Tip"), "Human guide output must not show unrelated global privacy tips.");

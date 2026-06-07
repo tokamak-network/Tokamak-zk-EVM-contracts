@@ -12064,23 +12064,25 @@ function guideHumanNextStep(guide) {
     case "create-channel":
       return [
         `The channel ${channel} is not created yet.`,
-        "Create it only if you are the channel creator and you understand the channel policy and join toll.",
-        "Do not continue until you have reviewed the action-impact warning.",
+        "Stop here unless you are the person who should create this channel.",
+        "Only the channel creator should run the command below, because it sets the channel terms and may require a join toll.",
+        "Before running it, read the warning shown by the CLI and continue only if those terms match your intent.",
       ];
     case "recover-channel-workspace":
       if (String(command).includes("--source mirror")) {
         return [
-          `The channel ${channel} exists, but this computer does not have its local workspace yet.`,
-          "A workspace mirror is available, so recover from the mirror first. This is the simplest recovery path.",
+          `The channel ${channel} exists, but this computer does not have the channel data it needs yet.`,
+          "A faster registered recovery source is available. Use the recovery command below first.",
         ];
       }
       return [
-        `The channel ${channel} exists, but this computer does not have its local workspace yet.`,
-        "No usable mirror was found. The command below rebuilds from RPC logs and can take a long time.",
+        `The channel ${channel} exists, but this computer does not have the channel data it needs yet.`,
+        "No faster recovery source was found. The command below rebuilds the channel data from Ethereum history and can take a long time.",
       ];
     case "create-wallet-secret-source-and-join-channel":
       return [
         "Create a wallet secret source file before joining the channel. Type a strong password or passphrase you can keep.",
+        "Your typing will appear as * characters. Preserve the file because it may be needed later to recover this channel wallet.",
         "Before joining, make sure the Ethereum account can pay any channel join toll directly from that account, plus gas.",
         "After creating the file, review the channel policy and action-impact warning before running channel join.",
       ];
@@ -12092,28 +12094,31 @@ function guideHumanNextStep(guide) {
       ];
     case "fund-bridge":
       return [
-        "The joined wallet has no usable funds yet.",
-        "Deposit tokens into the bridge first. This is a public Ethereum transaction, so review the action-impact warning before continuing.",
+        "Start with a public deposit from the Ethereum account into the bridge.",
+        "This does not create private notes yet; it only makes funds available for the later channel-balance step.",
+        "Review the action-impact warning before continuing.",
       ];
     case "fund-channel":
       return [
-        "Your Ethereum bridge balance exists, but the private-state wallet has no channel balance yet.",
-        "Move funds into the channel before minting private notes. Review the action-impact warning first.",
+        "The public bridge deposit exists, but this channel wallet does not have channel balance yet.",
+        "Move funds into the channel next. After that, you can mint private notes.",
+        "Review the action-impact warning before continuing.",
       ];
     case "mint-notes":
       return [
-        "Your wallet has channel balance but no unused private notes.",
-        "Mint notes before trying to transfer or redeem them. Review the action-impact warning first.",
+        "The channel wallet has channel balance, but it has no private notes to transfer or redeem yet.",
+        "Mint private notes from that channel balance before trying to send or withdraw privately.",
+        "Review the action-impact warning before continuing.",
       ];
     case "use-notes":
       return [
-        "Your wallet has unused private notes.",
-        "Inspect the note IDs first, then transfer or redeem only notes that actually exist.",
+        "This wallet already has private notes.",
+        "Inspect the available notes first, then transfer or redeem only notes that appear in that output.",
       ];
     case "exit-channel":
       return [
-        "The wallet appears ready for channel exit because its channel balance is zero.",
-        "Exit only if you are sure you no longer need this channel wallet.",
+        "Exit is only for a channel wallet with no remaining channel balance.",
+        "Run exit only if you are sure you no longer need this channel wallet.",
       ];
     case "discover-wallet-name":
       return [

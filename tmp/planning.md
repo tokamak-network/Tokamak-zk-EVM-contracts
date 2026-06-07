@@ -57,6 +57,14 @@ scope.
 - Rewrote human RPC guide wording to describe the required value as an Ethereum connection URL, keep Ankr as a
   recommendation rather than a default, and explain the recommendation as faster past-record checks on the free plan.
 - Added the `account get-l1-address` verification command to the human private-key/account-import follow-up flow.
+- Added `*` masking wording to the human wallet-secret source guide and told users to preserve the generated source
+  file for future channel-wallet recovery.
+- Reworked human channel-create guidance to make channel-creator confirmation the first decision before showing the
+  create command.
+- Reworded human recovery guidance around restoring this computer's channel data with a faster registered recovery
+  source or slower Ethereum-history rebuild path.
+- Reworded human funding, minting, note-use, and exit guidance around the plain flow: public deposit, channel balance,
+  private notes, transfer/redeem, then exit only after channel balance is zero.
 - Manually verified the private-key helper in a pseudo-terminal for `*` masking, no secret transcript leak, output file
   creation, and `0600` file mode on macOS.
 
@@ -67,21 +75,12 @@ scope.
 - Guide-state tests should stay limited to deterministic local fixtures. Do not add tests that require mock JSON-RPC,
   live RPC, on-chain contract responses, or full wallet/channel workspace reconstruction unless the implementation
   already has a lightweight test fixture for that state.
-- Human `help guide` has the action-first layout, but the latest audit still found non-specialist wording gaps in RPC,
-  recovery, funding, note-use, and acknowledgement explanations.
-- Human `help guide` explains `*` masking for private-key source creation, but not for wallet-secret source creation.
-- Human `help guide` still presents channel creation as a primary command when the selected channel does not exist; it
-  needs a stronger channel-creator gate so ordinary joiners do not create channels accidentally.
+- Human `help guide` has the action-first layout, but some later guide states still cannot be covered by deterministic
+  local fixtures without mock RPC or full wallet/channel workspace setup.
 
 ### Not started
 
-- Add `*` masking wording to the human wallet-secret source guide.
-- Rework the human channel-create guide so the first action is confirming the user is the channel creator; only then
-  show channel creation as the command to run.
-- Reword human recovery guidance to avoid leading with `workspace mirror`, `RPC logs`, or `local workspace`; frame it as
-  restoring this computer's channel data with a fast registered source or a slower rebuild.
-- Reword human funding, channel funding, minting, note use, and exit guidance around the plain money flow:
-  public deposit -> channel balance -> private notes -> transfer/redeem -> exit only after channel balance is zero.
+None.
 
 ## Human Help Guide Audit and Remediation Plan
 

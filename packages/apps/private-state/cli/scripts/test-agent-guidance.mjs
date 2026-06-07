@@ -265,6 +265,33 @@ function testGuideHumanPrivateKeyFlowIncludesAddressVerification() {
   );
 }
 
+function testGuideHumanWalletSecretFlowExplainsMasking() {
+  const walletName = "test-0x0000000000000000000000000000000000000001";
+  const stdout = runCli([
+    "help",
+    "guide",
+    "--network",
+    "mainnet",
+    "--wallet",
+    walletName,
+  ], {
+    home: createIsolatedHomeWithRpcAndReadOnlyArtifacts("mainnet", 1),
+  });
+
+  expect(
+    stdout.includes("Run this command\nprivate-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt"),
+    "Human wallet-secret flow should start with the local source helper.",
+  );
+  expect(
+    stdout.includes("Your typing will appear as * characters."),
+    "Human wallet-secret flow should explain masked terminal input.",
+  );
+  expect(
+    stdout.includes("Preserve the file because it may be needed later to recover this channel wallet."),
+    "Human wallet-secret flow should explain why the source file must be preserved.",
+  );
+}
+
 function testSecretCommandsRegistered() {
   const commandIds = new Set(PRIVATE_STATE_CLI_COMMANDS.map((command) => command.id));
   expect(commandIds.has("secret-create-private-key-source"), "Missing private-key source helper registry entry.");
@@ -348,6 +375,7 @@ testGuideJsonAccountSecretMissing();
 testGuideJsonWalletMissingBeforeChannelJoin();
 testGuideHumanOutputIsUserFacing();
 testGuideHumanPrivateKeyFlowIncludesAddressVerification();
+testGuideHumanWalletSecretFlowExplainsMasking();
 testRandomWalletSecretHelper();
 testNonTtyPrivateKeyPromptFailsClearly();
 

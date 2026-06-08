@@ -1,11 +1,14 @@
-# Tonnel CLI Install-Time Terms Plan
+# Private-State DApp and Tonnel Channel Terms Plan
 
 ## Purpose
 
-This document plans the install-time terms acceptance flow for the private-state CLI and drafts the terms content that
-will be shown to end users. The target reader is an ordinary user, not a protocol developer. The production terms must
-therefore define necessary technical terms first, use those terms consistently, and avoid marketing language that could
-misstate the public and private boundaries of the system.
+This document plans the terms acceptance flow for the Private-State DApp, Tonnel, its dedicated Channel
+`the-great-first-channel`, and the CLI used to access them. The CLI is only one interface and acceptance mechanism. The
+Terms are for the Service as a whole.
+
+The target reader is an ordinary user, not a protocol developer. The terms text must therefore define necessary technical
+terms first, use those terms consistently, and avoid marketing language that could misstate the public and private
+boundaries of the system.
 
 This document is a product and implementation plan. It is not legal advice. Final legal entity names, governing law,
 venue, consumer-law carveouts, liability caps, and dispute provisions must be reviewed by counsel before release.
@@ -29,11 +32,13 @@ Coverage in this plan is informed by the following materials:
 
 ## Product Compliance Position
 
-The install-time terms must preserve the following position:
+The Service terms must preserve the following position:
 
 - TON remains a transparent Ethereum mainnet asset at the exchange-facing boundary.
 - Tonnel is the branded name for Tokamak Private App Channels.
-- A Channel is an opt-in Tonnel application environment, not an exchange deposit or withdrawal network.
+- The private-state DApp uses Tonnel and its dedicated Channel `the-great-first-channel`.
+- A Channel, including `the-great-first-channel`, is an opt-in Tonnel application environment, not an exchange deposit or
+  withdrawal network.
 - Private Notes are channel-local private application records, not exchange-depositable assets.
 - Ethereum mainnet bridge deposits, bridge withdrawals, Channel joins, identity registrations, note-receive public key
   registrations, and other public registration or accounting events remain observable.
@@ -45,12 +50,13 @@ The install-time terms must preserve the following position:
 ## Checklist Coverage Review
 
 The one-time install acceptance model does not clearly violate `checklist.md` if the CLI enforces acceptance before
-installation and if JSON mode instructs AI agents to explain the terms without accepting them for the user.
+installation or first use of the Service and if JSON mode instructs AI agents to explain the terms without accepting them
+for the user.
 
 | Checklist concern | Terms coverage |
 |---|---|
 | TON must not be described as untraceable | Sections 2, 4, 5, 6, and 10 state that Ethereum mainnet records remain public or observable. |
-| Tonnel must not be described as an exchange deposit network | Sections 1 and 2 define Tonnel and Channels as opt-in application environments, not exchange deposit or withdrawal networks. |
+| Tonnel must not be described as an exchange deposit network | Sections 1 and 2 define Tonnel, the private-state DApp, and Channels as opt-in application environments, not exchange deposit or withdrawal networks. |
 | Private Notes must not be exchange-depositable assets | Sections 1 and 2 state that Private Notes are channel-local application records. |
 | Users first hold TON in a self-custody Ethereum account | Sections 1, 2, 6, and 8 define self-custody and user-controlled Ethereum accounts. |
 | Bridge deposit and withdrawal observability must be disclosed | Sections 4 and 10 disclose public bridge records and observer surfaces. |
@@ -62,8 +68,8 @@ installation and if JSON mode instructs AI agents to explain the terms without a
 | Public monitoring surfaces must be available | Section 10 states that an Official Public Observer exists and describes its limits. |
 | Marketing must avoid mixer or privacy-coin framing | Sections 2, 5, and 7 expressly avoid or prohibit that framing. |
 
-Conclusion: the terms draft below covers every checklist item that affects CLI users. Counsel should still review the
-final legal wording before production release.
+Conclusion: the terms draft below covers every checklist item that affects Service users. Counsel should still review
+the final legal wording before production release.
 
 ## Ambiguity and Dispute-Risk Review
 
@@ -78,26 +84,29 @@ The following drafting choices reduce ambiguity and dispute risk:
 - Avoid absolute privacy claims. Describe what is public, what may be hidden from public contract state by default, and
   what can still leak through metadata or third-party services.
 - Use a terms version and deterministic terms hash to decide when renewed acceptance is required.
-- Avoid saying that continued use alone accepts changed terms unless the CLI has shown the changed terms and collected a
-  fresh acceptance record.
+- Avoid saying that continued use alone accepts changed terms unless an official Service interface has shown the changed
+  terms and collected a fresh acceptance record.
 - Avoid statements that imply Provider Parties can reverse Ethereum mainnet transactions, recover lost secrets, guarantee
   exchange treatment, or guarantee legal, tax, accounting, regulatory, or compliance outcomes.
 
-## Install-Time Terms Draft
-
-The production CLI should render the following content in formal legal prose. This draft is written as planned content,
-not as final counsel-approved text.
+## Draft Terms Content
 
 ### 1. Definitions
 
 For purposes of these Terms:
 
-- **Terms** means the install-time terms presented by the CLI.
-- **CLI** means the private-state command-line software installed and executed by the user.
+- **Terms** means these terms governing access to and use of the Service.
+- **Service** means the private-state DApp, Tonnel, `the-great-first-channel`, the Bridge workflows, the CLI, public
+  observer services, documentation, examples, deployment artifacts, and related software or interfaces made available
+  for the private-state DApp.
+- **CLI** means the command-line software that a user may install and execute to access or operate parts of the Service.
+- **Private-State DApp** means the application that allows users to use Tonnel private application state through supported
+  Channels.
 - **Tonnel** means the branded user-facing name for Tokamak Private App Channels.
 - **Tokamak Private App Channels** means the application-channel system exposed to users through Tonnel.
 - **Channel** means a specific opt-in Tonnel application environment with its own policy, membership rules, accounting
   records, and private note records. A Channel is not an exchange deposit or withdrawal network.
+- **The Great First Channel** means the dedicated initial Channel identified as `the-great-first-channel`.
 - **L2** means the Tonnel private application state used for Channel accounting and Private Notes. Because this term is
   technical, these Terms use "Tonnel private application state" whenever possible.
 - **Ethereum mainnet** means the public Ethereum network where relevant bridge, Channel-management, registration, and
@@ -115,8 +124,7 @@ For purposes of these Terms:
 - **Official Public Observer** means the public Tonnel observer service provided at `https://observer.tonnel.io`, or a
   successor URL published through an official project channel.
 - **Provider Parties** means the entities and persons that publish, maintain, operate, contribute to, support, license,
-  or provide the CLI, Tonnel interfaces, Tonnel documentation, public observer services, deployment artifacts, examples,
-  or related software.
+  or provide the Service.
 - **Channel Operators** means persons or entities that create, configure, administer, publish policies for, publish
   recovery metadata for, or otherwise operate a Channel.
 - **Third-Party Services** means wallets, RPC providers, exchanges, explorers, analytics providers, browsers, package
@@ -124,23 +132,26 @@ For purposes of these Terms:
 
 ### 2. Product boundary
 
+- These Terms govern access to and use of the Service.
+- The Service includes the Private-State DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, public
+  observer services, documentation, examples, deployment artifacts, and related software or interfaces.
 - Tonnel is the branded name for Tokamak Private App Channels.
 - Tonnel is an opt-in private application-channel system used from a Self-Custody Ethereum Account.
+- The Great First Channel is a Channel within Tonnel.
 - Tonnel does not alter TON transfer rules on Ethereum mainnet.
-- Tonnel is not an exchange deposit network, exchange withdrawal network, broker, custodian, money transmitter, hosted
-  wallet, asset recovery service, compliance service, or tax service.
+- The Service is not an exchange deposit network, exchange withdrawal network, broker, custodian, money transmitter,
+  hosted wallet, asset recovery service, compliance service, or tax service.
 - Private Notes are Channel-local application records. They are not separate exchange-depositable assets.
 - Exchange-facing TON transfers, Ethereum mainnet bridge deposits, and Ethereum mainnet bridge withdrawals remain public
   or observable through Ethereum mainnet records.
 
 ### 3. Acceptance and eligibility
 
-- By installing or using the CLI, the user accepts these Terms.
-- If the user does not accept these Terms, the user must not install or use the CLI.
+- By accessing or using the Service, the user accepts these Terms.
+- If the user does not accept these Terms, the user must not access, install, or use the Service.
 - The user represents that the user has legal capacity to accept these Terms.
 - If the user acts for an organization, the user represents that the user has authority to bind that organization.
-- The user represents that use of the CLI, Tonnel, the Bridge, and any Channel is not prohibited by laws applicable to
-  the user.
+- The user represents that use of the Service is not prohibited by laws applicable to the user.
 - The user represents that the user is not subject to sanctions and is not located, organized, resident, or ordinarily
   resident in a jurisdiction where use would be prohibited by applicable sanctions, export control, anti-money laundering,
   counter-terrorist financing, securities, commodities, tax, data-protection, or other applicable laws.
@@ -154,7 +165,7 @@ For purposes of these Terms:
   updates, note commitments, nullifiers, encrypted note-delivery events, accepted transitions, and root updates may be
   public or observable.
 - Gas-paying accounts and transaction submitters may be visible on Ethereum mainnet.
-- The CLI and Tonnel must not be used or described as a way to hide exchange-facing TON transfer records.
+- The Service must not be used or described as a way to hide exchange-facing TON transfer records.
 
 ### 5. Private application-state limits
 
@@ -168,7 +179,7 @@ For purposes of these Terms:
 
 ### 6. Self-custody, secrets, and no recovery method
 
-- The CLI is designed for Self-Custody use.
+- The Service is designed for Self-Custody use.
 - Provider Parties and Channel Operators do not possess, control, store, or recover the user's Ethereum private keys,
   seed phrases, wallet secrets, spending keys, viewing keys, source files, backup files, or Private Note plaintext.
 - The user is solely responsible for securing the user's devices, wallet software, operating system, files, backups,
@@ -181,8 +192,7 @@ For purposes of these Terms:
 
 ### 7. Prohibited use
 
-The user must not use the CLI, Tonnel, the Bridge, any Channel, Private Notes, public observer services, documentation,
-or related software for:
+The user must not use the Service for:
 
 - money laundering,
 - terrorist financing,
@@ -207,8 +217,7 @@ ownership, control, or destination of assets.
 
 ### 8. User responsibilities
 
-- The user is solely responsible for determining whether the user's use of the CLI, Tonnel, the Bridge, or any Channel is
-  lawful.
+- The user is solely responsible for determining whether the user's use of the Service is lawful.
 - The user is solely responsible for wallet selection, network selection, RPC selection, Channel selection, transaction
   parameters, amounts, recipients, note selection, fees, failed transactions, wrong-network use, wrong-address use, and
   irreversible confirmed transactions.
@@ -242,7 +251,7 @@ ownership, control, or destination of assets.
 
 ### 11. Third-party services
 
-- The CLI may require or interact with Third-Party Services.
+- The Service may require or interact with Third-Party Services.
 - Provider Parties do not control Third-Party Services and are not responsible for their security, availability,
   correctness, fees, privacy practices, data retention, terms, sanctions screening, account restrictions, transaction
   policies, or failures.
@@ -251,8 +260,8 @@ ownership, control, or destination of assets.
 ### 12. No professional advice
 
 - Provider Parties do not provide legal, tax, accounting, financial, investment, trading, compliance, sanctions, or
-  regulatory advice through the CLI, Tonnel, documentation, examples, public observer services, or AI-agent guidance.
-- Information provided through the CLI, documentation, examples, public observer services, or AI-agent guidance is for
+  regulatory advice through the Service or AI-agent guidance.
+- Information provided through the Service or AI-agent guidance is for
   operational and informational purposes only.
 - The user should consult qualified professionals before making legal, tax, accounting, financial, compliance, sanctions,
   or regulatory decisions.
@@ -270,8 +279,7 @@ ownership, control, or destination of assets.
 
 ### 14. No warranties
 
-- The CLI, Tonnel, documentation, examples, public observer services, deployment artifacts, and related services are
-  provided "as is" and "as available" to the maximum extent permitted by applicable law.
+- The Service is provided "as is" and "as available" to the maximum extent permitted by applicable law.
 - No Provider Party warrants that the software or services will be uninterrupted, secure, error-free, accurate, complete,
   compatible, available in any jurisdiction, accepted by any exchange, or suitable for any particular purpose.
 - No Provider Party warrants any token value, transaction result, privacy result, legal result, regulatory result,
@@ -285,24 +293,21 @@ ownership, control, or destination of assets.
   secrets, failed transactions, wrong transactions, loss of access, loss of assets, loss of evidence, business
   interruption, Third-Party Service failures, exchange actions, regulatory actions, tax consequences, user error, device
   compromise, or unauthorized access.
-- Any liability cap, mandatory consumer-law carveout, jurisdiction-specific exception, or non-waivable right must be
-  finalized by counsel.
 
 ### 16. User indemnity
 
 - To the maximum extent permitted by applicable law, the user must indemnify, defend, and hold harmless the Provider
   Parties from claims, damages, losses, liabilities, penalties, costs, and expenses arising from the user's breach of the
-  Terms, unlawful use, misuse, violation of third-party rights, interaction with Third-Party Services, or use of the CLI
-  or Tonnel on behalf of another person or organization.
+  Terms, unlawful use, misuse, violation of third-party rights, interaction with Third-Party Services, or use of the
+  Service on behalf of another person or organization.
 
 ### 17. Changes to terms and renewed acceptance
 
-- The CLI must ship with a canonical terms version and deterministic terms hash.
-- The CLI must record the terms version and terms hash accepted by the user.
-- The CLI must require renewed interactive acceptance before terms-gated operations proceed if the canonical terms
-  version or deterministic terms hash differs from the accepted record.
-- Renewed acceptance must be collected only after the changed Terms are displayed to the user.
-- JSON mode must not accept changed Terms on behalf of the user.
+- Provider Parties may update these Terms.
+- If the current Terms differ from the Terms previously accepted by the user, the user must accept the current Terms
+  before continuing to use terms-gated Service operations.
+- Renewed acceptance may be collected only after the current Terms are displayed to the user.
+- JSON mode and AI-agent guidance must not accept changed Terms on behalf of the user.
 
 ### 18. Suspension, discontinuation, and software changes
 
@@ -313,12 +318,6 @@ ownership, control, or destination of assets.
 - These Terms must not imply that Provider Parties can reverse public Ethereum mainnet transactions or recover user
   secrets.
 
-### 19. Governing law, venue, and dispute resolution
-
-- Governing law, venue, arbitration, class-action waiver, consumer-law carveouts, language, notice method, limitation
-  periods, entity names, and required local-law notices must be finalized by counsel.
-- The production Terms should include these provisions before release.
-
 ## AI Agent Strategy for JSON Mode
 
 JSON mode exists so a user's AI agent can help the user complete the minimum safe next action without collecting secrets,
@@ -326,8 +325,8 @@ accepting legal terms, or requiring the user to understand protocol internals fi
 
 ### Required `install --json` behavior
 
-`private-state-cli install --json` must not install the CLI when terms acceptance is missing and must not accept Terms on
-the user's behalf.
+`private-state-cli install --json` must not install Service-facing CLI components when terms acceptance is missing and
+must not accept Terms on the user's behalf.
 
 It should return structured output that includes:
 
@@ -375,14 +374,14 @@ For each guided setup task, the JSON output should include:
 - a directive that the AI agent must explain user-facing warnings in ordinary language before the user acts,
 - a directive that the AI agent must not request or handle secret material.
 
-## Human Install Strategy
+## Human Acceptance Strategy
 
 Interactive `private-state-cli install` should:
 
 1. Print the current Terms in readable sections.
 2. Display the current terms version and deterministic terms hash.
 3. Ask the user to confirm acceptance with an explicit phrase.
-4. Record the accepted version, hash, timestamp, CLI package version, and acceptance source in the user's CLI state.
+4. Record the accepted version, hash, timestamp, CLI package version, and acceptance source in the user's Service state.
 5. Proceed with installation only after acceptance is recorded.
 
 The human flow should not require the user to understand technical implementation details before accepting. Definitions
@@ -393,7 +392,7 @@ must be available at the top of the Terms, and the CLI should use plain labels s
 
 ### Phase 1: Canonical terms source
 
-- Add a canonical terms file in the CLI package.
+- Add a canonical terms file for the Service.
 - Assign a `termsVersion`.
 - Compute a deterministic `termsHash` from the exact rendered terms content.
 - Ensure the install command and JSON mode use the same canonical terms metadata.
@@ -403,7 +402,8 @@ must be available at the top of the Terms, and the CLI should use plain labels s
 - Change `private-state-cli install` from non-interactive to interactive.
 - Render the canonical Terms before installation.
 - Require explicit human acceptance before installation proceeds.
-- Persist the accepted `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source.
+- Persist the accepted `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source in Service
+  state.
 
 ### Phase 3: Renewed acceptance mechanism
 

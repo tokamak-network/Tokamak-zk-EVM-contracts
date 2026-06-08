@@ -426,64 +426,67 @@ The human flow should not require the user to understand technical implementatio
 must be available at the top of the Terms, and the CLI should use plain labels such as "Ethereum mainnet", "Channel",
 "Private Note", "wallet secret", and "Official Public Observer" consistently.
 
-## Implementation Plan
+## Documentation and Terms Finalization Plan
 
-### Phase 1: Canonical terms source
+Code implementation must not begin until this section is complete, except for non-shipping technical spikes that do not
+create public terms behavior. The next planned work is to finalize the Service terms and supporting documents first.
 
-- Add a canonical terms file for the Service.
-- Assign a `termsVersion`.
-- Compute a deterministic `termsHash` from the exact rendered terms content.
-- Ensure the install command and JSON mode use the same canonical terms metadata.
+### Phase 1: Freeze service scope and document set
 
-### Phase 2: Interactive install gate
+- Confirm that the Terms govern the Private-State DApp, Tonnel, The Great First Channel, Bridge workflows, CLI,
+  Official Public Observer, and official Service documentation.
+- Confirm which official documents must be produced or updated before code implementation, including Terms, CLI README,
+  human `help guide`, `help guide --json`, `AGENTS.md`, public observer notes, and any privacy notice.
+- Confirm that all documents use "Ethereum mainnet" for the public chain boundary and avoid developer-only shorthand for
+  ordinary users.
+- Confirm that the documents consistently avoid privacy-coin, mixer, untraceable TON, exchange-monitoring avoidance, and
+  asset-history concealment framing.
 
-- Change `private-state-cli install` from non-interactive to interactive.
-- Render the canonical Terms before installation.
-- Require explicit human acceptance before installation proceeds.
-- Persist the accepted `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source in Service
-  state.
+### Phase 2: Complete pre-counsel redline and risk review
 
-### Phase 3: Renewed acceptance mechanism
+- Run the Pre-Counsel Redline and Risk Review Plan below.
+- Produce a redlined Terms draft, risk register, counsel-question list, checklist mapping, and release-blocker list.
+- Resolve drafting issues that do not require counsel judgment.
+- Mark all issues requiring counsel or business-owner decision before implementation.
 
-- Add a terms-gate helper that compares the accepted record against the canonical `termsVersion` and `termsHash`.
-- Require renewed interactive acceptance when the accepted record is missing, mismatched, or unreadable.
-- Apply this helper before installation and before any terms-gated command that can affect user funds, user secrets,
-  Channel membership, Channel accounting, or public observer state.
-- Do not allow JSON mode or User-Controlled AI Agent mode to write an acceptance record.
+### Phase 3: Resolve open legal and business decisions
 
-### Phase 4: Remove per-command action-impact acknowledgement
+- Confirm that Tokamak Network PTE. LTD. has authority to publish and enforce the Terms for the Service.
+- Decide whether to keep Singapore courts, add arbitration, add class-action waiver language, or use a hybrid approach
+  with consumer-law exceptions.
+- Decide whether a liability cap is needed and what formula or amount it should use.
+- Decide whether restricted jurisdictions, sanctions lists, or user categories must be named.
+- Decide whether a separate privacy policy or privacy notice is required before release.
+- Decide whether any command still needs a separate prompt after install-time Terms acceptance is enforced.
 
-- Remove `--acknowledge-action-impact` from individual commands only after the install-time terms gate is enforced.
-- Replace command-specific blocking acknowledgements with concise contextual warnings only where they improve user
-  understanding.
-- Keep command-specific prompts only for unusually destructive or irreversible operations if they are still necessary
-  after legal review.
+### Phase 4: Finalize human-facing documents
 
-### Phase 5: JSON and User-Controlled AI Agent updates
+- Finalize Terms text and section numbering.
+- Finalize human `help guide` text for ordinary users.
+- Finalize CLI README language explaining the Service terms and the purpose of `--json`.
+- Finalize documentation explaining public Ethereum mainnet records, public Channel records, Official Public Observer
+  limits, Self-Custody, no recovery method, and Third-Party Service risk.
+- Confirm that human-facing text is plain-language enough for ordinary users without weakening legal precision.
 
-- Update `install --json` to report that human interactive acceptance is required.
-- Update `help guide --json` so User-Controlled AI Agent guidance references canonical terms sections and `AGENTS.md`
-  sections instead of duplicating long warnings.
-- Ensure User-Controlled AI Agent directives require explanation of public/private boundaries, prohibited uses,
-  self-custody, no recovery method, Third-Party Service risk, no professional advice, no warranties, liability limits,
-  and Official Public Observer limits.
+### Phase 5: Finalize machine-readable and agent-facing documents
 
-### Phase 6: Human help and documentation
+- Finalize `help guide --json` output contract so it references canonical Terms section numbers and `AGENTS.md` sections
+  without duplicating full legal text.
+- Finalize `install --json` behavior for missing or stale Terms acceptance.
+- Finalize User-Controlled AI Agent directives for warnings, prohibitions, public/private boundaries, Self-Custody, no
+  recovery method, Third-Party Service risk, no professional advice, no warranties, liability limits, and Official Public
+  Observer limits.
+- Confirm that Official Machine-Readable Output cannot accept Terms, renewed Terms, or secret-handling decisions for the
+  user.
 
-- Update human `help guide` text to remain plain-language and user-facing.
-- Update the CLI README to state that `--json` exists for User-Controlled AI Agents that help users complete minimum safe
-  next actions without handling secrets or accepting Terms for users.
-- Ensure documentation uses "Ethereum mainnet" for the public chain boundary.
+### Phase 6: Final documentation verification
 
-### Phase 7: Verification
-
-- Verify that interactive install blocks installation until Terms are accepted.
-- Verify that `install --json` does not install or accept Terms.
-- Verify that a changed terms hash requires renewed interactive acceptance.
-- Verify that terms-gated commands reject execution when acceptance is missing or stale.
-- Verify that per-command `--acknowledge-action-impact` options are no longer required after the terms gate is active.
-- Verify that `help guide --json` points to canonical section numbers and does not duplicate full legal text.
-- Verify that human `help guide` remains readable for ordinary users.
+- Verify that the final Terms still cover every relevant `checklist.md` item.
+- Verify that the final Terms, README, human `help guide`, `help guide --json`, and `AGENTS.md` do not conflict.
+- Verify that human-facing wording is appropriate for ordinary users and legal/compliance reviewers.
+- Verify that machine-readable guidance remains useful for User-Controlled AI Agents without handling secrets or accepting
+  Terms for users.
+- Freeze the canonical Terms text for implementation only after these checks pass.
 
 ## Pre-Counsel Redline and Risk Review Plan
 
@@ -596,3 +599,65 @@ counsel should decide before public release.
 - Required privacy-policy references if the public observer or any hosted interface processes personal data.
 - Required notice method for future terms changes.
 - Whether any operation still needs a separate command-level prompt after install-time acceptance is enforced.
+
+## Post-Finalization Implementation Plan
+
+Implementation must begin only after the Documentation and Terms Finalization Plan is complete, open legal and business
+decisions are resolved or explicitly deferred, and the canonical Terms text has been frozen for implementation.
+
+### Phase 1: Canonical terms source
+
+- Add a canonical terms file for the Service.
+- Assign a `termsVersion`.
+- Compute a deterministic `termsHash` from the exact rendered terms content.
+- Ensure the install command and JSON mode use the same canonical terms metadata.
+
+### Phase 2: Interactive install gate
+
+- Change `private-state-cli install` from non-interactive to interactive.
+- Render the canonical Terms before installation.
+- Require explicit human acceptance before installation proceeds.
+- Persist the accepted `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source in Service
+  state.
+
+### Phase 3: Renewed acceptance mechanism
+
+- Add a terms-gate helper that compares the accepted record against the canonical `termsVersion` and `termsHash`.
+- Require renewed interactive acceptance when the accepted record is missing, mismatched, or unreadable.
+- Apply this helper before installation and before any terms-gated command that can affect user funds, user secrets,
+  Channel membership, Channel accounting, or public observer state.
+- Do not allow JSON mode or User-Controlled AI Agent mode to write an acceptance record.
+
+### Phase 4: Remove per-command action-impact acknowledgement
+
+- Remove `--acknowledge-action-impact` from individual commands only after the install-time terms gate is enforced.
+- Replace command-specific blocking acknowledgements with concise contextual warnings only where they improve user
+  understanding.
+- Keep command-specific prompts only for unusually destructive or irreversible operations if they are still necessary
+  after legal review.
+
+### Phase 5: JSON and User-Controlled AI Agent updates
+
+- Update `install --json` to report that human interactive acceptance is required.
+- Update `help guide --json` so User-Controlled AI Agent guidance references canonical Terms sections and `AGENTS.md`
+  sections instead of duplicating long warnings.
+- Ensure User-Controlled AI Agent directives require explanation of public/private boundaries, prohibited uses,
+  Self-Custody, no recovery method, Third-Party Service risk, no professional advice, no warranties, liability limits,
+  and Official Public Observer limits.
+
+### Phase 6: Human help and documentation integration
+
+- Integrate finalized human `help guide` text into the CLI.
+- Integrate finalized CLI README language stating that `--json` exists for User-Controlled AI Agents that help users
+  complete minimum safe next actions without handling secrets or accepting Terms for users.
+- Ensure implemented documentation uses "Ethereum mainnet" for the public chain boundary.
+
+### Phase 7: Implementation verification
+
+- Verify that interactive install blocks installation until Terms are accepted.
+- Verify that `install --json` does not install or accept Terms.
+- Verify that a changed terms hash requires renewed interactive acceptance.
+- Verify that terms-gated commands reject execution when acceptance is missing or stale.
+- Verify that per-command `--acknowledge-action-impact` options are no longer required after the terms gate is active.
+- Verify that `help guide --json` points to canonical section numbers and does not duplicate full legal text.
+- Verify that human `help guide` remains readable for ordinary users.

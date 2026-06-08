@@ -295,6 +295,8 @@ ownership, control, or destination of assets.
   support channels, or other official interfaces that process logs, device information, network information, usage data,
   contact information, or other data.
 - Provider Parties process certain data through official interfaces as described in the Privacy Notice.
+- The initial Privacy Notice publication location is the GitHub repository document
+  `docs/dapps/private-state/privacy-notice.md`.
 - Third-Party Services may collect or process user data under their own terms and privacy policies.
 
 ### 13. No professional advice
@@ -466,10 +468,10 @@ create public terms behavior. The next planned work is to finalize the Service t
   CLI, Official Public Observer, and official Service documentation.
 - Confirmed official document set for pre-implementation finalization: Terms, CLI README, human `help guide`,
   `help guide --json`, `agents.md`, public observer notes, and privacy notice.
-- Privacy notice is included in the document set. The current repository audit found no standalone privacy notice or
-  privacy policy, while the Service scope includes the hosted Official Public Observer and may include official websites,
-  support channels, logs, package distribution, and other interfaces that can process personal data. Treat privacy notice
-  drafting as part of Phase 1 rather than a later decision.
+- Privacy notice is included in the document set. The initial standalone Privacy Notice draft is published at
+  `docs/dapps/private-state/privacy-notice.md`, while the Service scope includes the hosted Official Public Observer,
+  included Service web surfaces, support channels, logs, package distribution, and other interfaces that can process
+  personal data. Treat Privacy Notice review and finalization as part of Phase 1 rather than a later decision.
 - Record privacy notice inputs during Phase 1: official hosted surfaces, server logs, IP address handling, analytics,
   cookies, support/contact channels, package distribution logs, CLI telemetry if any, RPC provider metadata, retention,
   sharing, user rights, and Provider Party contact point.
@@ -485,18 +487,20 @@ Current status:
 - Completed current-repository framing pass for the same surfaces. The remaining occurrences of `L1`, `L2`, and
   `--join-toll` in those audited paths are command names, option names, contract names, JSON field names, code
   identifiers, or explicit agent instructions about when not to use developer shorthand with ordinary users.
-- Terms, privacy notice, redline/risk review, and counsel-facing release decisions remain unresolved and must be
-  completed before production terms behavior is implemented.
+- Terms, Privacy Notice finalization, redline/risk review, and counsel-facing release decisions remain unresolved and
+  must be completed before production terms behavior is implemented. The Privacy Notice content and initial GitHub
+  repository publication location are drafted, and the first consistency review is complete; counsel-directed changes
+  and final release approval still remain.
 
 ### Immediate priority: Privacy Notice preparation
 
-Privacy Notice preparation must be handled before resolving the remaining Phase 3 legal/business decisions and before
-any implementation work. The Service scope includes an Official Public Observer and may include official websites,
-support channels, logs, package distribution, and other interfaces that can process personal data. The project must not
-ship production terms behavior without either a published Privacy Notice or a counsel-approved written conclusion that no
-Privacy Notice is required.
+Privacy Notice preparation has been handled for the initial GitHub repository draft before resolving the remaining Phase
+3 legal/business decisions and before implementation work. The Service scope includes an Official Public Observer,
+included Service web surfaces, support channels, logs, package distribution, and other interfaces that can process
+personal data. The project must not ship production terms behavior without a finalized Privacy Notice or a
+counsel-approved written conclusion that a different privacy publication strategy is sufficient.
 
-Preparation tasks:
+Completed preparation checklist for the initial draft:
 
 1. Inventory official surfaces:
    - Official Public Observer hosting and CDN.
@@ -647,18 +651,18 @@ Privacy Notice data-category matrix:
 
 Next Privacy Notice task:
 
-- Review the drafted Privacy Notice in `docs/dapps/private-state/privacy-notice.md`. The review must confirm that the
-  draft clearly separates Provider-controlled processing from Third-Party Service processing, avoids claiming deletion
-  control over public blockchain records or third-party logs, uses the confirmed deployment/account settings above,
-  discloses the Provider-controlled EC2 worker operational logs and raw RPC history with no repository-managed automatic
-  deletion policy, states the current 3 hour observer cadence, states that the inspected worker EBS volume is not
-  encrypted, includes `tonnel.io` and `www.tonnel.io`, excludes `airdrop.tonnel.io`, and preserves the rule that later
-  operational-setting or Service-scope domain changes require a Privacy Notice update.
+- Completed the first Privacy Notice consistency review against the Terms definitions, Provider identity, Official
+  Public Observer disclosures, support routes, Third-Party Service boundaries, confirmed deployment/account settings,
+  EC2 worker disclosures, current 3 hour observer cadence, inspected unencrypted worker EBS volume, included
+  `tonnel.io` and `www.tonnel.io` Service web surfaces, excluded `airdrop.tonnel.io`, and later-update rule. The review
+  found no direct conflict in the drafted Privacy Notice. The only issues found were stale planning statuses that still
+  treated the Privacy Notice draft, GitHub repository publication location, and Terms cross-reference as missing; those
+  statuses have been corrected.
 
 Current next step:
 
-- Review the drafted Privacy Notice against the Terms definitions, Provider identity, Official Public Observer
-  disclosures, support routes, and Third-Party Service boundaries before moving to Phase 2 redline work.
+- Move to Phase 2 redline work: resolve drafting issues that do not require counsel judgment, then preserve counsel or
+  business-owner decisions as explicit release blockers.
 
 ### Phase 2: Complete pre-counsel redline and risk review
 
@@ -888,7 +892,7 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | R-08 | 8 | Add user responsibility for preserving the local evidence needed for selective disclosure, exchange review, tax records, disputes, and audits. | Section 10 mentions evidence but Section 8 should allocate the preservation duty expressly. | Ready to redline. |
 | R-09 | 9 | Clarify whether Channel Operators are independent from Provider Parties unless officially appointed, and state that Channel policy may differ by Channel. | Users must distinguish the Service provider from third-party or community Channel operators. | Counsel and product decision. |
 | R-10 | 10 | Replace "Official Public Observer does not reveal user secrets" with "is not intended to receive or display user secrets" and "only displays records available to it." | Avoids an absolute security or non-disclosure guarantee. | Applied to draft Terms. |
-| R-11 | 12 | Produce a standalone privacy notice or add a clear cross-reference to one before release. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. | Release blocker. |
+| R-11 | 12 | Keep the standalone Privacy Notice in `docs/dapps/private-state/privacy-notice.md` and keep the Terms cross-reference to that location unless the final publication location changes. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. The initial standalone draft, GitHub repository publication location, Terms cross-reference, and first consistency review now exist, but counsel review and final release confirmation are still required. | Initial draft and first review applied; counsel confirmation remains. |
 | R-12 | 13 | Clarify that User-Controlled AI Agents are selected by the user and are not agents, representatives, or service providers of Provider Parties unless expressly stated. | Reduces implied advisory, support, fiduciary, or agency relationship risk. | Applied to draft Terms. |
 | R-13 | 14 | Add explicit ZK/proof-system risk, CRS/proving-artifact risk, local proof-generation risk, and public observer indexing risk. | Current blockchain risks are broad but do not fully reflect this Service's proof and observer architecture. | Ready to redline. |
 | R-14 | 16 | Decide whether to include a liability cap and, if so, the cap formula and carveouts. Preserve the draft statement that Provider Parties are not liable for use of the Service to the maximum extent permitted by applicable law. | Current draft has exclusions but no aggregate cap; comparable services often use a cap. The no-revenue and burned-fee model may make fee-based cap formulas unsuitable. | Release blocker. |
@@ -904,7 +908,7 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | ID | Severity | Area | Risk | Proposed mitigation | Owner |
 |---|---|---|---|---|---|
 | K-01 | Medium | Provider identity | The Provider model and public Provider details are selected, and Tokamak Network PTE. LTD. is separated from Provider obligations, but counsel still needs to confirm the exact Tokamak role wording. | Insert Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and the no-residential-address publication policy; use the selected Tokamak software contributor/licensor and Third-Party Service or infrastructure/tooling provider wording; obtain counsel review of personal-liability and notice-handling implications. | Business/counsel. |
-| K-02 | High | Privacy/data | No standalone privacy notice exists in the repository while the Service includes an Official Public Observer and may process logs or support data. | Draft and publish privacy notice or document counsel-approved reason no notice is required. | Product/counsel. |
+| K-02 | Medium | Privacy/data | A standalone Privacy Notice draft now exists in the repository, the initial GitHub repository publication location is selected, the Terms cross-reference is drafted, and the first consistency review is complete. Counsel-directed changes and final release confirmation remain before production terms behavior ships. | Preserve the reviewed draft unless counsel or release review requires changes. | Product/counsel. |
 | K-03 | High | Consumer law | A Provider-connected forum clause may be limited or unenforceable for consumers with mandatory local rights. | Add explicit non-waivable consumer-rights and local-court carveouts as counsel directs. | Counsel. |
 | K-04 | Medium | Dispute resolution | The current draft excludes arbitration and class-action waiver provisions. This reduces clause-validity and user-friction risk but may increase litigation exposure for the individual Provider. | Confirm the no-arbitration and no-class-action-waiver strategy with counsel before implementation. | Counsel/business. |
 | K-05 | High | Liability | No liability cap is specified. Broad exclusions without cap may be incomplete or less predictable, and the burned-fee model may make fee-based caps unsuitable. | Decide whether a fixed cap is needed and what carveouts apply. | Counsel/business. |
@@ -977,7 +981,7 @@ Legal-validity questions for counsel:
 The following items should block implementation of production terms behavior until resolved or explicitly deferred by the
 business owner with counsel awareness:
 
-- Privacy Notice data-category matrix, content, publication location, and Terms cross-reference.
+- Privacy Notice counsel-directed changes and final Terms cross-reference confirmation.
 - Counsel confirmation that Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no published residential address are
   sufficient for the individual Provider identity and public notice/contact route; counsel confirmation of the selected
   Tokamak Network PTE. LTD. separate-role wording.
@@ -1006,8 +1010,8 @@ business owner with counsel awareness:
   maximum extent permitted by applicable law, and that Join Tolls are burned rather than monetized by Provider Parties.
 - Required sanctions and restricted-jurisdiction wording remains undecided. The draft must account for the technical
   constraint that the Service may block Ethereum Accounts or contract interactions, not real-world users.
-- Final Privacy Notice content, publication location, and Terms cross-references are the highest-priority unresolved
-  document items.
+- Final Privacy Notice review and counsel-directed changes remain open. The initial Privacy Notice content, GitHub
+  repository publication location, and Terms cross-reference are drafted.
 - Required notice method for future terms changes.
 - Separate command-level prompt policy is directionally decided: install-time Terms acceptance should replace repeated
   per-command action-impact acknowledgement, while destructive operations, secret deletion/export, and full

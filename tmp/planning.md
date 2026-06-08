@@ -467,6 +467,13 @@ Current status:
 - Resolve drafting issues that do not require counsel judgment.
 - Mark all issues requiring counsel or business-owner decision before implementation.
 
+Current status:
+
+- Completed an initial pre-counsel operational redline/risk review pass. See "Pre-Counsel Review Results" below.
+- The review found release blockers that must be resolved before implementation: Provider Party authority, privacy
+  notice content and publication location, liability cap decision, consumer-law/forum carveouts, sanctions/restricted
+  jurisdictions policy, and arbitration/class-action decision.
+
 ### Phase 3: Resolve open legal and business decisions
 
 - Confirm that Tokamak Network PTE. LTD. has authority to publish and enforce the Terms for the Service.
@@ -607,6 +614,139 @@ counsel should decide before public release.
   boundaries, Self-Custody, no recovery method, Third-Party Service risk, no professional advice, no warranties,
   liability limits, and Official Public Observer limits.
 - Review whether AI-agent guidance creates any implied advisory, fiduciary, custody, support, or compliance relationship.
+
+## Pre-Counsel Review Results
+
+This section records the first pre-counsel operational review result. It is not a legal opinion and must not be used as a
+substitute for counsel review. It is intended to identify drafting changes, business decisions, and release blockers
+before implementation.
+
+### Comparable-service coverage notes
+
+The current review checked the current official public terms or guidance for Aztec Foundation, Uniswap Labs, Aave App,
+and MetaMask self-custody guidance. The following coverage patterns are relevant to this Service:
+
+- Aztec expressly identifies the contracting entity, links privacy policy coverage, restricts unlawful and sanctions use,
+  disclaims warranties, caps liability, includes arbitration with consumer exceptions, and lists development-tooling
+  risks including wallet safekeeping, public blockchain risk, transaction irreversibility, digital-asset risk, bridging
+  risk, third-party risk, and legal/regulatory uncertainty.
+- Uniswap Labs covers third-party services, prohibited activity, no professional advice, indemnity, broad liability
+  exclusions, a liability cap, governing law, arbitration, and class-action waiver mechanics.
+- Aave App covers tax responsibility, third-party service disputes, third-party terms, restricted-person concepts,
+  warranty disclaimers, liability limitation, and broad indemnity tied to user assets, private keys, devices,
+  third-party services, and legal compliance.
+- MetaMask explains the self-custody baseline in ordinary language: the user controls access, the provider cannot
+  recover funds or secrets if the user's recovery material is lost, and the provider will not ask for secret recovery
+  phrases, private keys, or passwords.
+
+Coverage impact for the current draft: Sections 6, 11, 13, 14, 15, 16, 17, and 20 are directionally aligned, but the
+current draft still needs decisions and wording on the exact contracting entity, privacy notice, liability cap,
+restricted jurisdictions, arbitration/class waiver, consumer-law carveouts, and notice mechanics before release.
+
+### Redline items
+
+| ID | Section | Proposed change before counsel review | Rationale | Status |
+|---|---|---|---|---|
+| R-01 | 1, 2, 20 | Replace generic Provider Party references in the operative clauses with the exact contracting entity once authority is confirmed: Tokamak Network PTE. LTD., or another counsel-approved entity. | Users and legal reviewers need to know who offers the Service and who receives notices. | Blocked by authority confirmation. |
+| R-02 | 3 | Remove passive "continuing to access or use" acceptance for terms-gated CLI operations, or limit it to non-CLI informational surfaces. Require explicit acceptance for install and renewed acceptance. | The planned CLI gate relies on explicit acceptance and deterministic terms hash records. Passive acceptance may conflict with that product design. | Ready to redline after business approval. |
+| R-03 | 3 | Add an age-of-majority or minimum-age statement if the Service is made available to natural persons. | "Legal capacity" may be too abstract for ordinary users and consumer review. | Counsel decision. |
+| R-04 | 3, 7 | Decide whether to name restricted jurisdictions and sanctions authorities, or keep a principles-based restriction with a policy reference. | Comparable services often name sanctions regimes or restricted regions. Naming improves specificity but creates maintenance obligations. | Counsel and policy decision. |
+| R-05 | 5 | Replace "Tonnel may prevent public contract state..." with a more precise non-guarantee: "Tonnel is designed so public contract state does not, by itself, reconstruct..." | "May prevent" is vague; a design-purpose statement is clearer while avoiding guarantees. | Ready to redline. |
+| R-06 | 6 | Add a short ordinary-user warning that Provider Parties, Channel Operators, and User-Controlled AI Agents will never need the user's private keys, seed phrases, wallet secrets, spending keys, or viewing keys. | Aligns with self-custody guidance and reduces secret-disclosure risk. | Ready to redline. |
+| R-07 | 7 | Keep prohibited-use wording, but avoid repeating prohibited marketing phrases outside prohibited-use and checklist contexts. | Terms can prohibit misuse without creating marketing language that suggests the Service is useful for that misuse. | Ongoing wording check. |
+| R-08 | 8 | Add user responsibility for preserving the local evidence needed for selective disclosure, exchange review, tax records, disputes, and audits. | Section 10 mentions evidence but Section 8 should allocate the preservation duty expressly. | Ready to redline. |
+| R-09 | 9 | Clarify whether Channel Operators are independent from Provider Parties unless officially appointed, and state that Channel policy may differ by Channel. | Users must distinguish the Service provider from third-party or community Channel operators. | Counsel and product decision. |
+| R-10 | 10 | Replace "Official Public Observer does not reveal user secrets" with "is not intended to receive or display user secrets" and "only displays records available to it." | Avoids an absolute security or non-disclosure guarantee. | Ready to redline. |
+| R-11 | 12 | Produce a standalone privacy notice or add a clear cross-reference to one before release. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. | Release blocker. |
+| R-12 | 13 | Clarify that User-Controlled AI Agents are selected by the user and are not agents, representatives, or service providers of Provider Parties unless expressly stated. | Reduces implied advisory, support, fiduciary, or agency relationship risk. | Ready to redline. |
+| R-13 | 14 | Add explicit ZK/proof-system risk, CRS/proving-artifact risk, local proof-generation risk, and public observer indexing risk. | Current blockchain risks are broad but do not fully reflect this Service's proof and observer architecture. | Ready to redline. |
+| R-14 | 16 | Decide whether to include a liability cap and, if so, the cap formula and carveouts. | Current draft has exclusions but no aggregate cap; comparable services often use a cap. | Release blocker. |
+| R-15 | 17 | Narrow consumer indemnity or add business-user/unlawful-use limitations if counsel recommends. | Broad consumer indemnity can be unenforceable or unfair in some jurisdictions. | Counsel decision. |
+| R-16 | 18 | Specify the technical renewed-acceptance mechanism: terms version, deterministic hash, displayed terms, explicit phrase, stored record, stale-record rejection. | The product can implement this and should not rely only on legal notice wording. | Ready to redline with implementation plan. |
+| R-17 | 20 | Decide Singapore courts only, arbitration, class-action waiver, or hybrid approach with mandatory consumer-law exceptions. | Forum/arbitration/class-action clauses may be invalid or problematic for consumers in some jurisdictions. | Release blocker. |
+| R-18 | 20 | Add a contact and notice address once Provider Party authority is confirmed. | Notices are incomplete without an official contact route. | Blocked by Provider Party details. |
+
+### Risk register
+
+| ID | Severity | Area | Risk | Proposed mitigation | Owner |
+|---|---|---|---|---|---|
+| K-01 | High | Provider identity | Terms do not yet identify the exact contracting Provider Party in operative clauses. | Confirm Provider Party authority and insert exact legal entity and notice contact. | Business/counsel. |
+| K-02 | High | Privacy/data | No standalone privacy notice exists in the repository while the Service includes an Official Public Observer and may process logs or support data. | Draft and publish privacy notice or document counsel-approved reason no notice is required. | Product/counsel. |
+| K-03 | High | Consumer law | Singapore forum clause may be limited or unenforceable for consumers with mandatory local rights. | Add explicit non-waivable consumer-rights and local-court carveouts as counsel directs. | Counsel. |
+| K-04 | High | Dispute resolution | Arbitration and class-action waiver are undecided. Adding them without jurisdiction analysis can increase invalidity and user-friction risk; omitting them may increase litigation exposure. | Decide dispute strategy with counsel before implementation. | Counsel/business. |
+| K-05 | High | Liability | No liability cap is specified. Broad exclusions without cap may be incomplete or less predictable. | Decide cap amount/formula and carveouts. | Counsel/business. |
+| K-06 | High | Sanctions/AML | Restricted jurisdictions and screening obligations are not operationally defined. | Decide named restrictions, screening/geoblocking policy, and user representations. | Compliance/counsel. |
+| K-07 | Medium | Privacy claims | "may prevent" and "does not reveal" wording could be read as unclear or absolute. | Redline Sections 5 and 10 to state design intent, public-state limits, and no guarantee. | Product/counsel. |
+| K-08 | Medium | Self-custody | Secret-loss warning is legally useful but should be more visible in install and AI-agent flows. | Add section refs to install/JSON guide and ensure human guide explains no recovery method before secret-dependent use. | Product. |
+| K-09 | Medium | Third-party services | RPC providers, wallets, exchanges, package registries, and browsers have independent terms and data practices. | Keep Section 11 and privacy notice cross-references; add RPC-provider metadata disclosure if applicable. | Product/counsel. |
+| K-10 | Medium | Channel operators | Channel Operators may not be Provider Parties, but users may confuse them. | Clarify independence, responsibilities, and policy variance by Channel. | Product/counsel. |
+| K-11 | Medium | AI agents | User-Controlled AI Agents could be perceived as acting with official authority if JSON directives are too prescriptive. | State that AI agents are user-selected tools and cannot accept terms, handle secrets, or create advisory relationship. | Product/counsel. |
+| K-12 | Medium | Evidence/observer | Official Public Observer may be insufficient for exchange, tax, audit, or compliance review. | Preserve observer-limit wording and add local evidence preservation duties. | Product/compliance. |
+| K-13 | Medium | Proof/bridge risk | Current risk disclosure should be more specific to ZK proofs, proving artifacts, bridge accounting, and local proof runtime. | Add explicit proof-system and artifact-risk bullets. | Product/security. |
+| K-14 | Low | Terminology | Remaining `L1`, `L2`, and `--join-toll` occurrences are mostly technical identifiers, but future docs may regress. | Keep terminology search as final verification. | Product. |
+
+### Counsel-question list
+
+Business decisions to prepare before counsel review:
+
+- Which legal entity will be the contracting Provider Party for the Service, and what official notice/contact route
+  should the Terms use?
+- Is the Service intended for all ordinary users, only users in selected jurisdictions, or only non-restricted users who
+  pass some operational access control?
+- Should the Terms name restricted jurisdictions and sanctions lists, or refer to applicable sanctions regimes
+  generally?
+- Should the Service use Singapore courts only, arbitration, class-action waiver, or a hybrid dispute model?
+- What liability cap, if any, is commercially acceptable?
+- Should user indemnity apply to ordinary consumers, business users only, unlawful use only, or third-party claims only?
+- What official interfaces process personal data, including observer hosting, logs, analytics, support, package
+  distribution, and telemetry?
+- Where will the privacy notice be published, and how will the Terms link to it?
+- Which operations, if any, should keep separate prompts after install-time Terms acceptance?
+
+Legal-validity questions for counsel:
+
+- Are Singapore governing law and Singapore courts enforceable enough for expected users, including consumers outside
+  Singapore?
+- What consumer-law, cooling-off, withdrawal, language, accessibility, or local notice requirements apply?
+- Are arbitration, class-action waiver, limitation-period, and jury-trial waiver provisions valid or advisable for the
+  expected user base?
+- Are the warranty disclaimer, liability exclusions, liability cap, and indemnity enforceable as drafted?
+- Are sanctions, AML, anti-evasion, restricted-jurisdiction, and export-control provisions sufficient for Tokamak
+  Network PTE. LTD. and the Service's expected availability?
+- Does the privacy notice need GDPR, Singapore PDPA, UK GDPR, CCPA/CPRA, or other jurisdiction-specific coverage?
+- Do Official Machine-Readable Output and User-Controlled AI Agent guidance create any advisory, agency, fiduciary,
+  custody, or compliance-support obligations?
+
+### Checklist mapping after review
+
+| Checklist concern | Current coverage | Redline impact |
+|---|---|---|
+| TON must not be described as untraceable | Sections 2, 4, 5, 7, and 10 keep Ethereum mainnet records public or observable. | Keep; avoid prohibited framing outside prohibited-use context. |
+| Tonnel must not be described as an exchange deposit network | Sections 1 and 2 define Channels as opt-in application environments, not exchange deposit or withdrawal networks. | Keep. |
+| Private Notes must not be exchange-depositable assets | Sections 1 and 2 state that Private Notes are Channel-local application records. | Keep. |
+| Users first hold TON in a self-custody Ethereum account | Sections 1, 2, 6, and 8 define Ethereum Account and Self-Custody. | Add stronger no-secret-sharing warning. |
+| Bridge deposit and withdrawal observability must be disclosed | Sections 4 and 10 disclose public bridge and observer records. | Keep; add observer limits precision. |
+| Channel join and public registration observability must be disclosed | Sections 4 and 10 disclose Channel joins, identity registration, note-receive public key registration, and public Channel records. | Keep. |
+| Internal note privacy limits must be disclosed | Section 5 discloses limits and non-guarantees. | Redline Section 5 for clearer design-intent wording. |
+| Provider Parties and Channel Operators must not claim custody of user secrets | Sections 6, 8, and 9 disclaim possession, control, storage, and recovery of user secrets. | Keep; add "will never ask" warning. |
+| Selective disclosure must be limited to implemented features | Section 10 ties selective disclosure to implemented features and user-preserved records. | Add Section 8 evidence preservation duty. |
+| Illegal use must be prohibited | Section 7 covers money laundering, terrorist financing, sanctions evasion, regulatory evasion, fraud, illegal gambling, criminal-proceeds concealment, and exchange-monitoring evasion. | Keep; counsel to review sanctions scope. |
+| Public monitoring surfaces must be available | Section 10 identifies the Official Public Observer. | Keep; privacy notice must disclose hosted observer data if applicable. |
+| Marketing must avoid mixer or privacy-coin framing | Product Compliance Position and Sections 2, 5, and 7 avoid or prohibit that framing. | Keep terminology/framing verification before release. |
+
+### Release blockers
+
+The following items should block implementation of production terms behavior until resolved or explicitly deferred by the
+business owner with counsel awareness:
+
+- Provider Party authority and exact legal entity/contact information.
+- Privacy notice content, publication location, and Terms cross-reference.
+- Liability cap decision and carveouts.
+- Governing law/forum strategy, including consumer-law carveouts.
+- Arbitration, class-action waiver, and limitation-period decision.
+- Sanctions/restricted jurisdictions policy and any required access-control or screening decision.
+- Final redlined Terms wording for Sections 3, 5, 6, 10, 12, 13, 14, 16, 17, 18, and 20.
+- Final verification that Terms, CLI README, human `help guide`, `help guide --json`, and `agents.md` do not conflict.
 
 ## Open Legal Decisions
 

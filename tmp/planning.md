@@ -10,7 +10,7 @@ The target reader is an ordinary user, not a protocol developer. The terms text 
 terms first, use those terms consistently, and avoid marketing language that could misstate the public and private
 boundaries of the system.
 
-This document is a product and implementation plan. It is not legal advice. Final legal entity names, governing law,
+This document is a product and implementation plan. It is not legal advice. Provider Party authority, governing law,
 venue, consumer-law carveouts, liability caps, and dispute provisions must be reviewed by counsel before release.
 
 ## References Reviewed
@@ -485,10 +485,112 @@ must be available at the top of the Terms, and the CLI should use plain labels s
 - Verify that `help guide --json` points to canonical section numbers and does not duplicate full legal text.
 - Verify that human `help guide` remains readable for ordinary users.
 
+## Pre-Counsel Redline and Risk Review Plan
+
+This review is a pre-legal operational risk review. It does not replace counsel review and must not be presented as a
+legal opinion. Its purpose is to identify unclear terms, likely negotiation points, missing disclosures, and issues that
+counsel should decide before public release.
+
+### Review outputs
+
+- A redlined terms draft that marks every proposed wording change.
+- A risk register with severity, affected section, affected user flow, likely jurisdictional sensitivity, and proposed
+  mitigation.
+- A counsel-question list that separates business decisions from legal-validity questions.
+- A checklist mapping that confirms every `checklist.md` item remains covered after redlines.
+- A release-blocker list for provisions that should not ship without counsel approval.
+
+### Governing law and forum review
+
+- Confirm that Tokamak Network PTE. LTD. is the Provider Party for the Service and that Singapore law is the intended
+  governing law.
+- Review whether the Singapore governing-law clause may be invalid, partially invalid, or limited for users in mandatory
+  consumer-protection jurisdictions.
+- Review whether the Singapore courts forum clause may be considered unfair, unenforceable, or partially unenforceable
+  where a consumer is entitled to sue or defend claims in the consumer's local courts.
+- Decide whether the terms should use Singapore courts, arbitration, or a hybrid approach with consumer-law exceptions.
+- Confirm whether the current conflict-of-law exclusion is appropriate for the Service and for international consumer
+  users.
+
+### Arbitration and class-action review
+
+- Decide whether to include arbitration at all.
+- If arbitration is selected, decide the arbitral institution, seat, language, number of arbitrators, emergency relief
+  rules, confidentiality, fees, and small-claims or consumer exceptions.
+- Review whether an arbitration clause would be valid in the expected user jurisdictions.
+- Review whether a class-action waiver, collective-action waiver, representative-action waiver, jury-trial waiver, or
+  similar provision would be valid or risky in the expected user jurisdictions.
+- Avoid adding arbitration or class-action waiver language unless counsel confirms the clause is enforceable enough to
+  justify the added user and regulatory friction.
+
+### Consumer-law carveout review
+
+- Identify expected user jurisdictions and the mandatory consumer rights that cannot be waived in those jurisdictions.
+- Review whether the current non-waivable rights carveout is sufficient for consumer users.
+- Review whether acceptance, renewed acceptance, notices, unilateral updates, liability limits, indemnity, and forum
+  clauses could be considered unfair or insufficiently clear for ordinary users.
+- Confirm whether additional cooling-off, withdrawal, cancellation, refund, language, accessibility, or notice
+  requirements apply to the Service.
+
+### Sanctions, restricted jurisdictions, and AML review
+
+- Review sanctions and restricted-jurisdiction wording against the Provider Party's applicable sanctions regimes and
+  operational policy.
+- Decide whether the Terms should name specific restricted jurisdictions, sanctions lists, or prohibited user categories.
+- Review whether the Service needs geoblocking, access controls, screening, warnings, or additional user representations.
+- Confirm that prohibited-use language covers money laundering, terrorist financing, sanctions evasion, regulatory
+  evasion, criminal-proceeds concealment, exchange-monitoring evasion, fraud, illegal gambling, ransomware, and market
+  manipulation without marketing the Service as useful for those purposes.
+- Review whether the Official Public Observer and monitoring disclosures are sufficient for exchange-facing and
+  regulator-facing risk.
+
+### Liability, warranty, and indemnity review
+
+- Decide whether the Terms need a liability cap and, if so, the cap amount and cap formula.
+- Review whether the current warranty disclaimer is valid for consumer users and mandatory local-law rights.
+- Review whether the liability exclusion for lost secrets, failed transactions, third-party failures, exchange actions,
+  regulatory actions, and tax consequences is enforceable or should be narrowed.
+- Review whether the fraud, willful misconduct, gross negligence, death, and personal-injury carveout is sufficient for
+  expected jurisdictions.
+- Review whether the user indemnity is enforceable against ordinary consumers or should be limited to business users,
+  unlawful use, or third-party claims.
+
+### Blockchain and privacy-state risk review
+
+- Confirm that the Terms do not imply that TON becomes private, anonymous, untraceable, exchange-depositable as a Private
+  Note, or hidden from Ethereum mainnet records.
+- Confirm that the Terms adequately explain Self-Custody, secret-loss risk, no recovery method, irreversible public
+  transactions, bridge risk, smart-contract risk, RPC risk, wallet risk, zero-knowledge implementation risk, and
+  Third-Party Service risk.
+- Confirm that the Terms do not overstate privacy, confidentiality, unlinkability, selective disclosure, source
+  explanation, exchange acceptance, compliance outcomes, or regulatory outcomes.
+- Review whether bridge, Channel, Private Note, and Official Public Observer disclosures are clear enough for ordinary
+  users and detailed enough for legal, compliance, and exchange reviewers.
+- Confirm that the Terms and product docs are not free of blockchain, self-custody, bridge, private-state, sanctions, or
+  AML risk, and that they accurately disclose and allocate those risks instead of implying that the risks do not exist.
+
+### Privacy and data review
+
+- Determine whether the Service processes personal data through the Official Public Observer, websites, logs, package
+  distribution, support channels, telemetry, RPC configuration, or other official interfaces.
+- Decide whether a separate privacy policy is required before release.
+- Review whether public blockchain records, public Channel records, IP addresses, device data, usage logs, support
+  communications, and analytics data are sufficiently disclosed.
+- Confirm that Third-Party Service data collection and retention are clearly separated from Provider Party obligations.
+
+### AI-agent and machine-readable output review
+
+- Confirm that Official Machine-Readable Output cannot accept Terms, renewed Terms, or secret-handling decisions on
+  behalf of the user.
+- Confirm that User-Controlled AI Agent guidance requires explanation of warnings, prohibitions, public/private
+  boundaries, Self-Custody, no recovery method, Third-Party Service risk, no professional advice, no warranties,
+  liability limits, and Official Public Observer limits.
+- Review whether AI-agent guidance creates any implied advisory, fiduciary, custody, support, or compliance relationship.
+
 ## Open Legal Decisions
 
-- Final Provider Party legal names.
-- Governing law, venue, arbitration, class-action waiver, language, limitation period, and consumer-law carveouts.
+- Confirmation that Tokamak Network PTE. LTD. has authority to publish and enforce these Terms for the Service.
+- Arbitration, class-action waiver, language, limitation period, and consumer-law carveouts.
 - Liability cap and jurisdiction-specific non-waivable rights.
 - Required sanctions and restricted-jurisdiction wording for production use.
 - Required privacy-policy references if the public observer or any hosted interface processes personal data.

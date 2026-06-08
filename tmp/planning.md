@@ -346,9 +346,9 @@ ownership, control, or destination of assets.
 
 ### 20. Governing law, venue, dispute resolution, and notices
 
-- These Terms are governed by the laws of [Governing Jurisdiction], excluding conflict-of-law rules.
+- These Terms are governed by the laws of Singapore, excluding conflict-of-law rules.
 - Subject to non-waivable rights under applicable law, disputes arising from or relating to these Terms or the Service
-  will be resolved in [Forum and Venue].
+  will be resolved in the courts of Singapore.
 - Provider Parties may provide notices through official Service interfaces, official websites, official repositories,
   release notes, email, or other contact methods stated in these Terms.
 - These Terms do not limit any non-waivable consumer rights or mandatory local-law rights that apply in the user's

@@ -12,27 +12,27 @@ This npm README uses the same terminology as the repository README:
 
 - `Tokamak Private App Channels`: Ethereum-settled, validity-proven execution domains for bridge-coupled DApps.
 - `private-state DApp`: the current reference DApp that programs confidential application state inside a channel.
-- `canonical Tokamak Network Token`: the L1 asset whose custody remains anchored on Ethereum.
-- `self-custody L1 wallet`: a user-controlled L1 account, not an exchange deposit address.
-- `L1-transparent bridge edge`: public bridge deposit and withdrawal transactions involving the canonical token.
+- `canonical Tokamak Network Token`: the Ethereum mainnet asset whose custody remains anchored on Ethereum.
+- `self-custody Ethereum wallet`: a user-controlled Ethereum account, not an exchange deposit address.
+- `public bridge edge`: public Ethereum mainnet bridge deposit and withdrawal transactions involving the canonical token.
 - `channel-local accounting balance`: liquid application balance inside a channel before or after note use.
 - `private-state note`: a channel-local application note, not an exchange-supported token or deposit asset.
 - `proof-backed confidential application state`: DApp state advanced by accepted proof-backed channel transitions.
 - `user-controlled selective disclosure`: optional user disclosure from local wallet state; Tokamak does not hold a master viewing key.
 - `viewing key`: the note-receive private key used to decrypt note-delivery events for the registered note-receive public key.
-- `spending key`: the channel-bound L2 private key used to authorize proof-backed note use.
+- `spending key`: the channel-bound private application key used to authorize proof-backed note use.
 
 Tokamak Private App Channels are not an exchange deposit network. Exchange-facing token transfers and bridge
-entry or exit remain public L1 activity. Internal private-state note counterparty relationships and note provenance are
+entry or exit remain public Ethereum mainnet activity. Internal private-state note counterparty relationships and note provenance are
 not public by default and are not reconstructed by Tokamak on a user's behalf.
 
 ## Address And Key-Safety Warnings
 
 Do not use an exchange deposit address as a private-state wallet address. Private-state notes are not
-supported exchange assets. Always withdraw TON to a self-custody L1 wallet before using a channel.
+supported exchange assets. Always withdraw TON to a self-custody Ethereum wallet before using a channel.
 
-Bridge deposits and withdrawals are public L1 events. Internal note transfers are private by design and are not
-automatically reconstructible by Tokamak, exchanges, or public observers.
+Bridge deposits and withdrawals are public Ethereum mainnet events. Internal note transfers are designed so public
+contract state does not automatically reconstruct the full note path.
 
 This CLI does not send your spending key, wallet secret, or private note plaintext to Tokamak.
 
@@ -167,7 +167,7 @@ A common note-use flow after channel policy review is:
 10. `channel exit`
 11. `account withdraw-bridge`
 
-`channel join` pays any join toll directly from the L1 wallet; `account deposit-bridge` funds later channel liquidity and does not pay the join toll.
+`channel join` pays any join fee directly from the Ethereum wallet; `account deposit-bridge` funds later channel liquidity and does not pay the join fee.
 
 Use `private-state-cli help commands` for the full command list and required options. `private-state-cli --help`
 continues to print the same command list for shell compatibility. Add `--json` to either form to print the command
@@ -176,7 +176,7 @@ reference as structured JSON on stdout.
 ### Action-impact acknowledgement
 
 Transaction-sending bridge, channel, and note commands require `--acknowledge-action-impact`. Before submitting any
-transaction, the CLI prints a static action-impact summary covering whether the command emits public L1 events, whether
+transaction, the CLI prints a static action-impact summary covering whether the command emits public Ethereum mainnet events, whether
 it changes private-state note state, which addresses or amounts become public, which note facts are not public by default,
 illegal-use prohibition, secret-recovery limits, and channel policy acceptance. In non-interactive contexts, such as
 scripts and LLM-assisted execution, the command fails unless the flag is present.
@@ -185,18 +185,18 @@ Static warning scope:
 
 | Command | Public surface | Private-state note state | Not public by default |
 |---|---|---|---|
-| `account deposit-bridge` | L1 account, bridge vault, amount, approval/funding txs | No note change | No note plaintext or provenance is created |
-| `account withdraw-bridge` | L1 recipient/account, bridge vault, amount, withdrawal tx | No note change | Prior private-state note path is not reconstructed |
-| `channel join` | L1 account, L2 address, note-receive public key, join toll, channel id | No note change | Wallet secret, spending key, viewing key, and note plaintext |
-| `wallet deposit-channel` | L1 submitter, registered L2 address, amount, channel id, accounting update | No note change | No note provenance is created |
-| `wallet mint-notes` | L1 submitter, registered L2 address, commitments, encrypted note events, root update | Creates notes | Note owner, value, salt, and later provenance |
-| `wallet transfer-notes` | L1 submitter, input nullifiers, output commitments, encrypted note events, root update | Spends and creates notes | Sender-recipient relationship, note plaintext, and provenance |
-| `wallet redeem-notes` | L1 submitter, input nullifier, accounting update, root update | Consumes notes | Prior path by which the note was received |
-| `wallet withdraw-channel` | L1 submitter, registered L2 address, amount, channel id, accounting update | No direct note spend | Prior private-state note path behind the liquid balance |
+| `account deposit-bridge` | Ethereum account, bridge vault, amount, approval/funding txs | No note change | No note plaintext or provenance is created |
+| `account withdraw-bridge` | Ethereum recipient/account, bridge vault, amount, withdrawal tx | No note change | Prior private-state note path is not reconstructed |
+| `channel join` | Ethereum account, channel-local address, note-receive public key, join fee, channel id | No note change | Wallet secret, spending key, viewing key, and note plaintext |
+| `wallet deposit-channel` | Ethereum submitter, registered channel-local address, amount, channel id, accounting update | No note change | No note provenance is created |
+| `wallet mint-notes` | Ethereum submitter, registered channel-local address, commitments, encrypted note events, root update | Creates notes | Note owner, value, salt, and later provenance |
+| `wallet transfer-notes` | Ethereum submitter, input nullifiers, output commitments, encrypted note events, root update | Spends and creates notes | Sender-recipient relationship, note plaintext, and provenance |
+| `wallet redeem-notes` | Ethereum submitter, input nullifier, accounting update, root update | Consumes notes | Prior path by which the note was received |
+| `wallet withdraw-channel` | Ethereum submitter, registered channel-local address, amount, channel id, accounting update | No direct note spend | Prior private-state note path behind the liquid balance |
 
 `account deposit-bridge` and `account withdraw-bridge` also print an exchange-controlled address warning. Do not use an
 exchange-controlled address as a self-custody bridge source or as the direct bridge withdrawal target
-unless the user explicitly understands the compliance implications. Prefer a self-custody L1 wallet.
+unless the user explicitly understands the compliance implications. Prefer a self-custody Ethereum wallet.
 
 Workspace recovery commands use saved recovery indexes by default. If the local channel workspace is missing,
 corrupted, or does not contain a usable index, `channel recover-workspace` stops with an explicit error instead of
@@ -242,7 +242,7 @@ Wallet commands that need channel state, including `wallet recover-workspace`, `
 `wallet get-channel-fund`, and `wallet get-notes`, refresh stale local channel workspaces through saved recovery
 indexes before reading state. `wallet get-notes` and `wallet recover-workspace` also refresh received-note logs
 through the saved wallet note recovery index. Wallet note freshness is measured against the fresh channel workspace
-frontier, not the provider's latest L1 block, so unrelated new L1 blocks do not make a wallet stale by themselves.
+frontier, not the provider's latest Ethereum mainnet block, so unrelated new Ethereum mainnet blocks do not make a wallet stale by themselves.
 Automatic refresh never replays from channel genesis and only runs when the recovery delta fits within the 7,200-block
 pre-command budget. If a saved index is missing, unusable, or too far behind, the command stops and asks the user to
 run the appropriate recovery command first.
@@ -303,7 +303,7 @@ private-state-cli wallet import spending-key --input ./wallet-spending.key
 
 A backup plus a viewing key can reconstruct the wallet's readable note view from encrypted events, but it still cannot
 spend notes. A backup plus a spending key is still missing event-log decryption authority. A normal operational restore
-imports the backup, the viewing key, and the spending key, and still needs the relevant local L1 account secret for
+imports the backup, the viewing key, and the spending key, and still needs the relevant local Ethereum account secret for
 commands that submit bridge or channel-registration transactions.
 
 Export a local full-note evidence bundle with:
@@ -347,7 +347,7 @@ cost, based on the RPC `gasPrice`, from worst-case cost, based on `maxFeePerGas`
 data. AI agents answering user questions about gas, transaction fees, transaction cost, or USD cost should run
 `private-state-cli help transaction-fees --network <NETWORK> --json` and answer from the returned table.
 
-Proof-backed note commands can use a separate L1 transaction submitter:
+Proof-backed note commands can use a separate Ethereum transaction submitter:
 
 ```bash
 private-state-cli wallet mint-notes --wallet <WALLET> --network mainnet --amounts '[1]' --acknowledge-action-impact --tx-submitter <ACCOUNT>
@@ -355,11 +355,11 @@ private-state-cli wallet mint-notes --wallet <WALLET> --network mainnet --amount
 
 `--tx-submitter <ACCOUNT>` is available on `wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`. The wallet still proves
 note ownership and builds the ZK proof, but the selected local account submits `executeChannelTransaction` and pays gas.
-Use this option when a separate imported local account should submit the L1 transaction and pay gas for a proof-backed
+Use this option when a separate imported local account should submit the Ethereum mainnet transaction and pay gas for a proof-backed
 note command.
 
 `wallet transfer-notes` takes JSON arrays for note selection and outputs. `--note-ids` is a JSON array of input note
-commitment IDs from `wallet get-notes`; `--recipients` is a JSON array of recipient L2 addresses; `--amounts` is a JSON
+commitment IDs from `wallet get-notes`; `--recipients` is a JSON array of recipient channel-local addresses; `--amounts` is a JSON
 array of token amounts. Quote decimal amounts to avoid shell or JSON ambiguity. The recipient count must match the
 amount count, only `1->1`, `1->2`, and `2->1` transfer shapes are supported, and the output amount sum must equal the
 selected input note value sum.
@@ -369,7 +369,7 @@ private-state-cli wallet transfer-notes \
   --wallet <WALLET> \
   --network mainnet \
   --note-ids '["0xNOTE1","0xNOTE2"]' \
-  --recipients '["0xL2RECIPIENT1","0xL2RECIPIENT2"]' \
+  --recipients '["0xRECIPIENT1","0xRECIPIENT2"]' \
   --amounts '["1.5","2"]' \
   --acknowledge-action-impact \
   --tx-submitter <ACCOUNT>
@@ -416,10 +416,10 @@ and creates a local wallet secret source file for `channel join`. Use `--random`
 explicitly wanted. `channel join` reads `--wallet-secret-path <PATH>` once while creating the channel-bound spending key and then stores
 wallet backup metadata, viewing-key metadata, and spending-key metadata as separate files. `wallet list` reads only the local workspace and prints saved wallet names that can be reused with
 `--wallet`.
-`wallet get-meta` opens the wallet metadata and reports the stored L1/L2 identity metadata plus the current
+`wallet get-meta` opens the wallet metadata and reports the stored Ethereum/channel-local identity metadata plus the current
 on-chain channel registration match state, including the registered note-receive public key when present. On
 epoch-aware wallet workspaces it also reports the selected wallet epoch and whether that epoch is active or exited.
-`account get-l1-address` is a simple offline helper that derives the L1 address for a local account.
+`account get-l1-address` is a simple offline helper that derives the Ethereum address for a local account.
 
 ### Wallet Secret Source File
 
@@ -438,19 +438,19 @@ The default helper flow lets the user type a wallet secret so it can be retained
 explicitly wanted, run `private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt --random`.
 
 The import source file does not need `0600` permissions. The CLI does not persist a wallet-local secret:
-it reads the source once for channel-bound L2 spending-key derivation. The join flow stores the viewing key and
+it reads the source once for channel-bound spending-key derivation. The join flow stores the viewing key and
 spending key as separate protected key files under the CLI secret root; macOS/Linux uses `0600`, while Windows uses ACL
 repair and inspection when possible.
 
 Keep the wallet secret source separately backed up if you expect to rederive the spending key later. The viewing key can
-be rederived from the same L1 private key and channel context because it comes from the note-receive typed-data signing
-flow. The spending key needs the same L1 private key, the same channel context, and the same wallet secret source. If the
-spending-key file is lost and the wallet secret source is also lost, the CLI cannot reconstruct the spending key and the
+be rederived from the same Ethereum private key and channel context because it comes from the note-receive typed-data signing
+flow. The spending key needs the same Ethereum private key, the same channel context, and the same wallet secret source. If the
+spending-key file is lost and the wallet secret source is also lost, no recovery method exists for the spending key and the
 notes for that wallet cannot be spent, transferred, or redeemed through the normal note flow.
 
 `wallet recover-workspace` restores the viewing key by default. Add `--wallet-secret-path <PATH>` only when the
 account is currently active in the channel and you need to rederive the spending key. In that mode, the CLI checks the
-derived L2 address and channel token-vault storage key against the current on-chain registration before received-note
+derived channel-local address and channel token-vault storage key against the current on-chain registration before received-note
 recovery starts, then stores the protected spending-key file. Exited or non-active accounts must be recovered without
 `--wallet-secret-path`; that restores viewing/evidence history but not spending authority. The wallet secret source is
 read for derivation and is not stored.
@@ -465,13 +465,13 @@ The viewing key is the note-receive private key. It lets `wallet get-notes` decr
 note-delivery events and rebuild the user's readable note view. Sharing it gives read access to notes addressed to the
 registered note-receive public key, but not spending authority.
 
-The spending key is the channel-bound L2 private key. It authorizes proof-backed use of the wallet identity. Commands
+The spending key is the channel-bound private application key. It authorizes proof-backed use of the wallet identity. Commands
 that create or consume notes, such as `wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`, need both
 the viewing key and the spending key because the CLI refreshes the readable note workspace after accepted note
 transactions and then proves authorized note use when inputs are consumed.
 
-Key recovery is intentionally split. Recreating the viewing key requires the original L1 private key and the same channel
-context. Recreating the spending key requires the original L1 private key, the same channel context, and the same wallet
+Key recovery is intentionally split. Recreating the viewing key requires the original Ethereum private key and the same channel
+context. Recreating the spending key requires the original Ethereum private key, the same channel context, and the same wallet
 secret source used at `channel join`. `wallet recover-workspace --wallet-secret-path <PATH>` performs this spending-key
 rederivation only for active channel registrations. Importing `wallet-viewing.key` or `wallet-spending.key` restores the
 corresponding capability without rerunning derivation, but a backup ZIP alone never restores either capability.

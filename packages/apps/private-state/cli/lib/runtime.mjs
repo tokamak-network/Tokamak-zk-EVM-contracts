@@ -302,10 +302,10 @@ function printImmutableChannelPolicyWarning({
 const ACTION_IMPACT_SUMMARIES = Object.freeze({
   "account-deposit-bridge": {
     display: "account deposit-bridge",
-    l1PublicEvent: "Yes. ERC-20 approval and bridge vault funding transactions are public L1 events.",
+    l1PublicEvent: "Yes. ERC-20 approval and bridge vault funding transactions are public Ethereum mainnet events.",
     privateNoteState: "No. This action only moves canonical tokens into the shared bridge vault.",
     publicFields: ({ l1Address, amountInput, bridgeTokenVault }) => [
-      `L1 account: ${l1Address}`,
+      `Ethereum account: ${l1Address}`,
       `Bridge token vault: ${bridgeTokenVault}`,
       `Amount: ${amountInput}`,
       "Approval and funding transaction hashes, block numbers, and event logs.",
@@ -319,10 +319,10 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
   },
   "account-withdraw-bridge": {
     display: "account withdraw-bridge",
-    l1PublicEvent: "Yes. The bridge withdrawal transaction and claim event are public L1 data.",
-    privateNoteState: "No. This action claims shared bridge-vault balance to the local L1 account.",
+    l1PublicEvent: "Yes. The bridge withdrawal transaction and claim event are public Ethereum mainnet data.",
+    privateNoteState: "No. This action claims shared bridge-vault balance to the local Ethereum account.",
     publicFields: ({ l1Address, amountInput, bridgeTokenVault }) => [
-      `L1 recipient/account: ${l1Address}`,
+      `Ethereum recipient/account: ${l1Address}`,
       `Bridge token vault: ${bridgeTokenVault}`,
       `Amount: ${amountInput}`,
       "Withdrawal transaction hash, block number, and event log.",
@@ -331,34 +331,34 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
       "The private note path that produced any prior channel balance is not reconstructed from this event alone.",
     ],
     noteProvenance: "Public observers cannot reconstruct prior internal note provenance from this withdrawal alone.",
-    exchangeControlledAddressWarning: "Do not use an exchange deposit address as the direct bridge withdrawal target unless the user has explicitly accepted the compliance implications. Prefer a self-custody L1 wallet.",
+    exchangeControlledAddressWarning: "Do not use an exchange deposit address as the direct bridge withdrawal target unless the user has explicitly accepted the compliance implications. Prefer a self-custody Ethereum wallet.",
     policy: "No channel policy is accepted by this action.",
   },
   "channel-join": {
     display: "channel join",
-    l1PublicEvent: "Yes. Channel join and token-vault registration transactions are public L1 data; any join toll is paid directly from the L1 wallet.",
+    l1PublicEvent: "Yes. Channel join and token-vault registration transactions are public Ethereum mainnet data; any join fee is paid directly from the Ethereum wallet.",
     privateNoteState: "No. This action registers identity and note-receive metadata; it does not create or spend notes.",
     publicFields: ({ l1Address, l2Address, noteReceivePubKey, joinToll, channelName, channelId }) => [
       `Channel: ${channelName} (${channelId})`,
-      `L1 account: ${l1Address}`,
-      `L2 address: ${l2Address}`,
+      `Ethereum account: ${l1Address}`,
+      `Channel-local address: ${l2Address}`,
       `Note-receive public key: ${noteReceivePubKey}`,
-      `Join toll: ${joinToll}`,
+      `Join fee: ${joinToll}`,
     ],
     notPublic: [
-      "Wallet secret, L2 spending private key, note-receive private key, and future note plaintext.",
+      "Wallet secret, spending private key, note-receive private key, and future note plaintext.",
     ],
     noteProvenance: "Future note provenance is not made public by joining.",
     policy: "Joining accepts the displayed immutable channel policy snapshot.",
   },
   "wallet-deposit-channel": {
     display: "wallet deposit-channel",
-    l1PublicEvent: "Yes. The proof-backed channel accounting transaction is public L1 data.",
+    l1PublicEvent: "Yes. The proof-backed channel accounting transaction is public Ethereum mainnet data.",
     privateNoteState: "No. This action increases liquid channel accounting balance; it does not create notes.",
     publicFields: ({ l1Address, l2Address, amountInput, channelName, channelId }) => [
       `Channel: ${channelName} (${channelId})`,
-      `L1 submitter/account: ${l1Address}`,
-      `Registered L2 address: ${l2Address}`,
+      `Ethereum submitter/account: ${l1Address}`,
+      `Registered channel-local address: ${l2Address}`,
       `Amount: ${amountInput}`,
       "Transaction hash, accepted proof surface, and accounting root update.",
     ],
@@ -370,12 +370,12 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
   },
   "wallet-withdraw-channel": {
     display: "wallet withdraw-channel",
-    l1PublicEvent: "Yes. The proof-backed channel accounting transaction is public L1 data.",
+    l1PublicEvent: "Yes. The proof-backed channel accounting transaction is public Ethereum mainnet data.",
     privateNoteState: "No. This action decreases liquid channel accounting balance; it does not spend notes directly.",
     publicFields: ({ l1Address, l2Address, amountInput, channelName, channelId }) => [
       `Channel: ${channelName} (${channelId})`,
-      `L1 submitter/account: ${l1Address}`,
-      `Registered L2 address: ${l2Address}`,
+      `Ethereum submitter/account: ${l1Address}`,
+      `Registered channel-local address: ${l2Address}`,
       `Amount: ${amountInput}`,
       "Transaction hash, accepted proof surface, and accounting root update.",
     ],
@@ -387,12 +387,12 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
   },
   "wallet-mint-notes": {
     display: "wallet mint-notes",
-    l1PublicEvent: "Yes. executeChannelTransaction, accepted transition, commitments, encrypted note events, and root updates are public L1 data.",
+    l1PublicEvent: "Yes. executeChannelTransaction, accepted transition, commitments, encrypted note events, and root updates are public Ethereum mainnet data.",
     privateNoteState: "Yes. This action creates private-state notes tracked by the local wallet.",
     publicFields: ({ l1Address, l2Address, amounts, channelName, channelId }) => [
       `Channel: ${channelName} (${channelId})`,
-      `L1 submitter/account: ${l1Address}`,
-      `Registered L2 address: ${l2Address}`,
+      `Ethereum submitter/account: ${l1Address}`,
+      `Registered channel-local address: ${l2Address}`,
       `Requested note amounts: ${amounts}`,
       "New commitments, encrypted note-delivery events, transaction hash, and root updates.",
     ],
@@ -404,12 +404,12 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
   },
   "wallet-transfer-notes": {
     display: "wallet transfer-notes",
-    l1PublicEvent: "Yes. executeChannelTransaction, nullifiers, output commitments, encrypted note events, and root updates are public L1 data.",
+    l1PublicEvent: "Yes. executeChannelTransaction, nullifiers, output commitments, encrypted note events, and root updates are public Ethereum mainnet data.",
     privateNoteState: "Yes. This action spends selected input notes and creates output notes.",
     publicFields: ({ l1Address, l2Address, noteIds, amounts, channelName, channelId }) => [
       `Channel: ${channelName} (${channelId})`,
-      `L1 submitter/account: ${l1Address}`,
-      `Registered L2 address: ${l2Address}`,
+      `Ethereum submitter/account: ${l1Address}`,
+      `Registered channel-local address: ${l2Address}`,
       `Input note commitments: ${noteIds}`,
       `Output amounts supplied to the CLI: ${amounts}`,
       "Input nullifiers, output commitments, encrypted note-delivery events, transaction hash, and root updates.",
@@ -422,12 +422,12 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
   },
   "wallet-redeem-notes": {
     display: "wallet redeem-notes",
-    l1PublicEvent: "Yes. executeChannelTransaction, nullifier usage, accounting update, and root updates are public L1 data.",
+    l1PublicEvent: "Yes. executeChannelTransaction, nullifier usage, accounting update, and root updates are public Ethereum mainnet data.",
     privateNoteState: "Yes. This action consumes selected notes and credits liquid channel accounting balance.",
     publicFields: ({ l1Address, l2Address, noteIds, channelName, channelId }) => [
       `Channel: ${channelName} (${channelId})`,
-      `L1 submitter/account: ${l1Address}`,
-      `Registered L2 address: ${l2Address}`,
+      `Ethereum submitter/account: ${l1Address}`,
+      `Registered channel-local address: ${l2Address}`,
       `Input note commitments: ${noteIds}`,
       "Input nullifiers, accounting update, transaction hash, and root updates.",
     ],
@@ -476,7 +476,7 @@ async function requireActionImpactAcknowledgement(commandId, args, details = {})
 function printActionImpactSummary(summary, details) {
   const lines = [
     `ACTION IMPACT SUMMARY: ${summary.display}`,
-    `- L1 public event: ${summary.l1PublicEvent}`,
+    `- Ethereum mainnet public event: ${summary.l1PublicEvent}`,
     `- Private note state change: ${summary.privateNoteState}`,
     "- Public addresses and amounts:",
     ...normalizeImpactLines(summary.publicFields, details).map((line) => `  - ${line}`),
@@ -484,7 +484,7 @@ function printActionImpactSummary(summary, details) {
     ...normalizeImpactLines(summary.notPublic, details).map((line) => `  - ${line}`),
     `- Note provenance: ${summary.noteProvenance}`,
     `- Illegal-use prohibition: Do not use this command for money laundering, sanctions evasion, terrorist financing, illegal gambling, criminal-proceeds concealment, or regulatory evasion.`,
-    `- Secret recovery: Losing wallet secrets, viewing keys, or spending keys can prevent note discovery or note use. The CLI cannot recover lost secrets.`,
+    `- Secret recovery: Losing wallet secrets, viewing keys, or spending keys can prevent note discovery or note use. If all required secret material and backups are lost, no recovery method exists.`,
     `- Channel policy: ${summary.policy}`,
   ];
   if (summary.exchangeControlledAddressWarning) {
@@ -2025,7 +2025,7 @@ async function syncChannelWorkspace({
     managedStorageAddresses.some(
       (address) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(l2AccountingVaultAddress),
     ),
-    `Managed storage vector does not include L2 accounting vault ${l2AccountingVaultAddress}.`,
+    `Managed storage vector does not include channel accounting vault ${l2AccountingVaultAddress}.`,
   );
 
   const contractCodes = await fetchContractCodes(activeProvider, managedStorageAddresses);
@@ -2372,7 +2372,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     expect(
       ethers.toBigInt(getAddress(lifecycleEpoch.l2Address))
         === ethers.toBigInt(getAddress(recoveredSpendingIdentity.l2Address)),
-      "The recovered spending key does not match the recovered wallet lifecycle L2 address.",
+      "The recovered spending key does not match the recovered wallet lifecycle channel-local address.",
     );
     expect(
       ethers.toBigInt(normalizeBytes32Hex(lifecycleEpoch.channelTokenVaultKey))
@@ -2498,7 +2498,7 @@ async function deriveRecoverWalletSpendingIdentity({
   );
   expect(
     walletRegistrationMatchesIdentity({ registration, l2Identity, expectedStorageKey }),
-    "The recovered spending key does not match the current registered L2 address or channel token vault key.",
+    "The recovered spending key does not match the current registered channel-local address or channel token vault key.",
   );
   return l2Identity;
 }
@@ -3760,7 +3760,7 @@ async function handleGuide({ args }) {
     why: null,
     candidateCommands: [],
     agentGuidance: null,
-    privacyTip: "For wallet mint-notes, wallet transfer-notes, and wallet redeem-notes, add --tx-submitter <ACCOUNT> to let a separate local L1 account submit executeChannelTransaction and pay gas.",
+    privacyTip: "For wallet mint-notes, wallet transfer-notes, and wallet redeem-notes, add --tx-submitter <ACCOUNT> when the user wants a separate local Ethereum account to submit executeChannelTransaction and pay gas.",
     mirrorTip: "Channel leaders refresh mirror files with channel recover-workspace --publish-workspace-mirror --leader-account <ACCOUNT> --output <PATH>; the standalone channel publish-workspace-mirror command is no longer available.",
   };
 
@@ -4190,7 +4190,7 @@ function applyGuideNextAction(guide) {
   if (guide.state.network && !guide.state.network.rpcConfigured) {
     setGuideNextAction(guide, {
       command: `set rpc --network ${guide.selectors.network} --rpc-url <URL> --provider ankr`,
-      why: "Configure a network RPC URL. The CLI has no default RPC URL, and Ankr is the preferred provider recommendation for users without a provider preference.",
+      why: "Configure a network RPC URL. The CLI has no default RPC URL. Ankr is recommended for users without a provider preference because its free plan is fast for this CLI's log-scanning workload.",
       agentGuidance: guideAgentGuidance("configure-rpc", ["C.1", "C.2", "C.3", "C.4", "D.3"]),
     });
     return;
@@ -4262,7 +4262,7 @@ function applyGuideNextAction(guide) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
       command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact`,
-      why: "The local wallet exists, but the corresponding L1 address is not registered in the channel; joining pays any join toll directly from the L1 wallet.",
+      why: "The local wallet exists, but the corresponding Ethereum address is not registered in the channel; joining pays any join fee directly from the Ethereum wallet.",
       agentGuidance: guideAgentGuidance("join-channel-with-existing-wallet-secret-source", ["B.7", "D.8", "E.1", "E.2"]),
     });
     return;
@@ -4280,7 +4280,7 @@ function applyGuideNextAction(guide) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
       command: `account deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account} --acknowledge-action-impact`,
-      why: "The wallet is joined, but there is no bridge balance, channel balance, or local unused note to spend; bridge deposits fund channel liquidity and do not pay join tolls.",
+      why: "The wallet is joined, but there is no bridge balance, channel balance, or local unused note to spend; bridge deposits fund channel liquidity and do not pay join fees.",
       agentGuidance: guideAgentGuidance("fund-bridge", ["D.10", "E.1", "G.1"]),
     });
     return;
@@ -4288,7 +4288,7 @@ function applyGuideNextAction(guide) {
   if (guide.state.wallet?.exists && bridgeBalance !== null && bridgeBalance > 0n && channelBalance === 0n) {
     setGuideNextAction(guide, {
       command: `wallet deposit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amount <TOKENS> --acknowledge-action-impact`,
-      why: "The account has funds in the shared bridge vault, but the wallet has no channel L2 accounting balance.",
+      why: "The account has funds in the shared bridge vault, but the wallet has no channel accounting balance.",
       agentGuidance: guideAgentGuidance("fund-channel", ["D.11", "E.1", "G.2"]),
     });
     return;
@@ -4296,7 +4296,7 @@ function applyGuideNextAction(guide) {
   if (guide.state.wallet?.exists && channelBalance !== null && channelBalance > 0n && unusedNotes === 0) {
     setGuideNextAction(guide, {
       command: `wallet mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <JSON_ARRAY> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
-      why: "The wallet has channel L2 balance and no unused private notes yet. Use --tx-submitter for stronger transaction-submission privacy.",
+      why: "The wallet has channel balance and no unused private notes yet. Use --tx-submitter only when a separate imported local Ethereum account should submit the transaction and pay gas.",
       agentGuidance: guideAgentGuidance("mint-notes", ["D.12", "E.1", "G.3", "G.5"]),
     });
     return;
@@ -4304,7 +4304,7 @@ function applyGuideNextAction(guide) {
   if (guide.state.wallet?.exists && unusedNotes !== null && unusedNotes > 0) {
     setGuideNextAction(guide, {
       command: `wallet transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <JSON_ARRAY> --recipients <JSON_ARRAY> --amounts <JSON_ARRAY> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
-      why: "The wallet has unused private notes. It can transfer or redeem those notes. Use --tx-submitter for stronger transaction-submission privacy.",
+      why: "The wallet has unused private notes. It can transfer or redeem those notes. Use --tx-submitter only when a separate imported local Ethereum account should submit the transaction and pay gas.",
       candidates: [
         `wallet get-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
         `wallet redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <JSON_ARRAY> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
@@ -4498,7 +4498,7 @@ async function loadWalletChannelRegistrationState({
     );
     expect(
       matchesWallet,
-      "The local wallet L2 address or storage key does not match the registered channelTokenVault state.",
+      "The local wallet channel-local address or storage key does not match the registered channelTokenVault state.",
     );
   }
 
@@ -4595,7 +4595,7 @@ async function walletEpochFromJoinReceipt({ receipt, context, provider, l1Addres
   if (registration?.exists) {
     expect(
       ethers.toBigInt(getAddress(epoch.l2Address)) === ethers.toBigInt(getAddress(registration.l2Address)),
-      "Join transaction registration log does not match the current registered L2 address.",
+      "Join transaction registration log does not match the current registered channel-local address.",
     );
     expect(
       ethers.toBigInt(normalizeBytes32Hex(epoch.channelTokenVaultKey))
@@ -4783,7 +4783,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   expect(
     !existingRegistration.exists,
     [
-      `L1 address ${signer.address} is already registered in channel ${context.workspace.channelName}.`,
+      `Ethereum address ${signer.address} is already registered in channel ${context.workspace.channelName}.`,
       "Use wallet recover-workspace or normal wallet commands for an existing channel registration.",
     ].join(" "),
   );
@@ -5035,11 +5035,11 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   expect(
     ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
       === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
-    "The derived L2 storage key does not match the registered channelTokenVault key.",
+    "The derived channel storage key does not match the registered channelTokenVault key.",
   );
   expect(
     ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
-    "The derived L2 address does not match the registered channel L2 address.",
+    "The derived channel-local address does not match the registered channel-local address.",
   );
 
   await assertWorkspaceAlignedWithChain(context);
@@ -5054,7 +5054,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     }
   } else {
     if (currentValue < amount) {
-      throw new Error("Withdraw amount exceeds the current L2 accounting balance.");
+      throw new Error("Withdraw amount exceeds the current channel accounting balance.");
     }
     nextValue = currentValue - amount;
   }
@@ -5627,7 +5627,7 @@ function validateEvidenceNotePlaintext(note, wallet) {
   );
   expect(
     getAddress(note.owner) === getAddress(wallet.l2Address),
-    `Cannot export evidence for note ${note.commitment}: owner does not match wallet L2 address.`,
+    `Cannot export evidence for note ${note.commitment}: owner does not match wallet channel-local address.`,
   );
   const recomputedSalt = computeEncryptedNoteSalt(note.encryptedNoteValue);
   expect(
@@ -7512,7 +7512,7 @@ function parseRecipientVector(value) {
   try {
     parsed = JSON.parse(String(value));
   } catch {
-    throw new Error("Invalid --recipients. Expected a JSON array of L2 addresses.");
+    throw new Error("Invalid --recipients. Expected a JSON array of channel-local addresses.");
   }
   expect(Array.isArray(parsed), "Invalid --recipients. Expected a JSON array.");
   expect(parsed.length > 0, "Invalid --recipients. The array must not be empty.");
@@ -7818,7 +7818,7 @@ function assertWalletMatchesChannelContext(walletContext, l2Identity, context) {
   );
   expect(
     walletContext.wallet.l2Address === l2Identity.l2Address,
-    "The provided wallet does not match the derived L2 identity.",
+    "The provided wallet does not match the derived private application identity.",
   );
 }
 
@@ -8108,7 +8108,7 @@ function loadWalletFromDir({ walletName, networkName, walletDir }) {
     const restoredIdentity = restoreParticipantIdentityFromWallet(wallet);
     expect(
       wallet.l2Address === restoredIdentity.l2Address,
-      `Wallet ${normalizedWalletName} is internally inconsistent: stored keys do not match the stored L2 address.`,
+      `Wallet ${normalizedWalletName} is internally inconsistent: stored keys do not match the stored channel-local address.`,
     );
   }
   hydrateWalletNotesWithViewingKey(wallet);
@@ -8222,7 +8222,7 @@ function assertWalletUsesChannelBoundDerivation(wallet, walletName) {
   expect(
     wallet.l2DerivationMode === CHANNEL_BOUND_L2_DERIVATION_MODE,
     [
-      `Wallet ${walletName} was not created with the current channel-bound L2 derivation rule.`,
+      `Wallet ${walletName} was not created with the current channel-bound derivation rule.`,
       "Create a fresh wallet with channel join.",
     ].join(" "),
   );
@@ -8288,7 +8288,7 @@ function requireWalletSpendingCapability(walletContext) {
     walletContext.wallet.l2PrivateKey,
     [
       `Wallet ${walletContext.walletName} is missing its spending key.`,
-      "Import it with wallet import spending-key before commands that spend notes or change L2 channel accounting state.",
+      "Import it with wallet import spending-key before commands that spend notes or change channel accounting state.",
     ].join(" "),
   );
 }
@@ -11253,7 +11253,7 @@ function buildHelpCommandsResult() {
     commands: PRIVATE_STATE_CLI_COMMANDS.map(buildHelpCommandEntry),
     secretSourceOptions: [
       "Use account import --private-key-file once to create a protected local account secret.",
-      "L1 signing commands use --account only.",
+      "Ethereum signing commands use --account only.",
       "A wallet secret source file is arbitrary high-entropy secret text read once by channel join.",
       "Configure each network RPC endpoint once with set rpc.",
       "Wallet commands use separate protected viewing-key and spending-key files when those capabilities are needed.",
@@ -12065,7 +12065,7 @@ function guideHumanNextStep(guide) {
       return [
         `The channel ${channel} is not created yet.`,
         "Stop here unless you are the person who should create this channel.",
-        "Only the channel creator should run the command below, because it sets the channel terms and may require a join toll.",
+        "Only the channel creator should run the command below, because it sets the channel terms and may require a join fee.",
         "Before running it, read the warning shown by the CLI and continue only if those terms match your intent.",
       ];
     case "recover-channel-workspace":
@@ -12083,13 +12083,13 @@ function guideHumanNextStep(guide) {
       return [
         "Create a wallet secret source file before joining the channel. Type a strong password or passphrase you can keep.",
         "Your typing will appear as * characters. Preserve the file because it may be needed later to recover this channel wallet.",
-        "Before joining, make sure the Ethereum account can pay any channel join toll directly from that account, plus gas.",
+        "Before joining, make sure the Ethereum account can pay any channel join fee directly from that account, plus gas.",
         "After creating the file, review the channel policy and action-impact warning before running channel join.",
       ];
     case "join-channel-with-existing-wallet-secret-source":
       return [
         "This wallet is not registered in the channel yet.",
-        "Before joining, make sure the Ethereum account can pay any channel join toll directly from that account, plus gas.",
+        "Before joining, make sure the Ethereum account can pay any channel join fee directly from that account, plus gas.",
         "Use your existing wallet secret source file, then review the channel policy and action-impact warning before joining.",
       ];
     case "fund-bridge":

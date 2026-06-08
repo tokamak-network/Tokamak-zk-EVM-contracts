@@ -14,6 +14,7 @@ This project follows a package-oriented changelog model:
 
 ### Workspace
 
+- Revised public private-state README terminology to use ordinary-user Ethereum mainnet wording for bridge boundaries.
 - Added an automatic npm publish workflow for the private DApp packages.
 - Added package-level release readiness checks for npm deployment.
 - Added the private-state CLI package to the automatic npm publish workflow.
@@ -32,6 +33,8 @@ This project follows a package-oriented changelog model:
 
 ### Private-State CLI
 
+- Revised user-facing CLI terminology in help, guide, README, fee descriptions, and agent guidance to avoid unnecessary
+  developer shorthand around Ethereum mainnet, channel-local addresses, and join fees.
 - Added npm package metadata, release readiness, and automated publishing coverage.
 - Updated channel balance proof generation to use only the fixed Groth16 runtime workspace proof paths.
 - Added npm-installed CLI E2E coverage for local tarball package specs before publication.

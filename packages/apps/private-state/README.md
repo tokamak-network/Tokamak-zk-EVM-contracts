@@ -1,26 +1,26 @@
 # Private State zk-note DApp
 
 private-state is a bridge-coupled zk-note payment DApp for the Tokamak Network Token.
-Canonical asset custody remains on L1. The DApp keeps accounting balances and note state as
-proof-backed confidential application state on the proving-based L2 side, while the bridge accepts
+Canonical asset custody remains on Ethereum mainnet. The DApp keeps accounting balances and note state as
+proof-backed confidential application state inside Tonnel private application state, while the bridge accepts
 proof-backed state transitions.
 
 ## Scope
 
 The user-facing state machine is:
 
-1. fund the shared L1 bridge vault
-2. join a channel-specific L2 identity
-3. move value into the channel L2 accounting vault
+1. fund the shared Ethereum mainnet bridge vault
+2. join a channel-specific private application identity
+3. move value into the channel accounting vault
 4. mint notes from liquid accounting balance
 5. transfer notes by consuming input notes and creating encrypted output payloads
 6. recover received notes from bridge-propagated event logs
 7. redeem notes back into liquid accounting balance
-8. move value back from the channel L2 accounting vault into the shared L1 bridge vault
-9. claim the shared L1 bridge deposit back into the user's L1 wallet
+8. move value back from the channel accounting vault into the shared Ethereum mainnet bridge vault
+9. claim the shared Ethereum mainnet bridge deposit back into the user's Ethereum wallet
 
 This repository does not implement note-ownership privacy inside the DApp contracts themselves.
-Privacy-preserving note semantics depend on the surrounding proving-based L2 execution model and
+Private note semantics depend on the surrounding proving-based execution model and
 the DApp-programmed public disclosure surface.
 
 ## Documentation
@@ -31,7 +31,7 @@ For the current protocol, contract, security, and bridge-coupling design, start 
 
 ## Contract Layout
 
-- `src/L2AccountingVault.sol`: stores per-account L2 accounting balances only
+- `src/L2AccountingVault.sol`: stores per-account channel accounting balances only
 - `src/PrivateStateController.sol`: reconstructs commitments and nullifiers from calldata and applies note/accounting transitions
 
 ## Deployment Inputs
@@ -122,14 +122,14 @@ Important rules:
 - `--amount` is always a human token amount and is converted with the canonical token decimals
 - commands print human-readable output by default; pass `--json` when automation needs a machine-readable final
   success or failure result on stdout
-- L1 signing commands use `--account`; create the local account secret once with `account import --private-key-file`
+- Ethereum signing commands use `--account`; create the local account secret once with `account import --private-key-file`
 - wallet commands load viewing and spending authority from separate protected key files when those capabilities are needed
 - `channel join` requires `--wallet-secret-path <PATH>` and reads that source file once for spending-key derivation
 - `wallet export backup` backs up metadata and encrypted note payloads without exporting viewing or spending authority
 - `wallet export viewing-key` and `wallet export spending-key` are the authority-bearing wallet exports; keep them separate from backups unless a full operational restore is intended
 - channel creation commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy are fixed for that channel
 - joining a channel means accepting that channel's current policy; later fixes to policy-level bugs require a new channel or migration rather than in-place mutation of the joined channel
-- `channel join` binds the channel name, one-time wallet secret source, and local account signer to derive the channel-specific L2 identity
+- `channel join` binds the channel name, one-time wallet secret source, and local account signer to derive the channel-specific private application identity
 - `channel join` is the first-time wallet setup command for a channel; `wallet recover-workspace`
   can later rebuild backup metadata from on-chain channel data
 - canonical wallet folder names are fixed to `<channelName>-<l1Address>`, with per-registration
@@ -164,7 +164,7 @@ The current implementation includes:
 
 ## CLI Command Flow
 
-The commands below follow the normal note-use flow; bridge funding is for channel liquidity, not join toll payment.
+The commands below follow the normal note-use flow; bridge funding is for channel liquidity, not join fee payment.
 
 ### 1. Install, remove, or configure the local CLI runtime
 
@@ -219,10 +219,10 @@ The commands below follow the normal note-use flow; bridge funding is for channe
 
 `account import`
 
-- imports `--private-key-file` into a protected local L1 account secret for later `--account` use
+- imports `--private-key-file` into a protected local Ethereum account secret for later `--account` use
 - does not require the source private-key file to use `0600` permissions
 - keeps the canonical account secret protected; macOS/Linux uses `0600`, and Windows uses ACL repair and inspection when possible
-- should be run before bridge-facing user commands that need L1 signing
+- should be run before bridge-facing user commands that need Ethereum signing
 
 `channel create`
 
@@ -264,17 +264,17 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 
 `channel get-meta`
 
-- reads whether a channel exists and reports its manager, vault, join toll, refund schedule, and immutable policy snapshot
+- reads whether a channel exists and reports its manager, vault, join fee, refund schedule, and immutable policy snapshot
 - reads RPC settings from the per-network `set rpc` configuration
 - is the lightest inspection command when a user or channel creator wants to review policy before joining or creating local wallet state
 
-### 4. Join the channel-specific wallet and L2 identity
+### 4. Join the channel-specific wallet and private application identity
 
 `channel join`
 
-- derives the channel-specific L2 identity
-- pays any join toll directly from the L1 wallet, not from bridge-deposited balance
-- registers the caller's L2 address, channel token-vault storage key, leaf index, and note-receive public key on-chain
+- derives the channel-specific private application identity
+- pays any join fee directly from the Ethereum wallet, not from bridge-deposited balance
+- registers the caller's channel-local address, channel token-vault storage key, leaf index, and note-receive public key on-chain
 - creates wallet note metadata, viewing-key metadata, and spending-key metadata
 - requires `--wallet-secret-path <PATH>` to read an existing source secret file once for spending-key derivation
 - does not require the source wallet-secret file to use `0600` permissions
@@ -291,7 +291,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - can recreate the viewing key when the local account signer reproduces the registered viewing public key
 - can rederive and store the spending key only when `--wallet-secret-path <PATH>` is supplied and the account has a current active channel registration
 - rejects `--wallet-secret-path` for exited or non-active accounts; run without that option to recover read-only viewing/evidence history
-- verifies the rederived spending key against the current on-chain L2 address and channel token-vault storage key before received-note recovery starts
+- verifies the rederived spending key against the current on-chain channel-local address and channel token-vault storage key before received-note recovery starts
 - never stores the wallet secret source file or its plaintext contents
 - can recover an exited registration epoch from historical channel registration and exit events for read-only note inspection and disclosure
 - reclassifies every recovered current-version note into `unused` or `spent` by checking the on-chain commitment and nullifier state
@@ -302,13 +302,13 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - fails and asks for `channel recover-workspace` first when the channel workspace is missing, unusable, or too stale for automatic recovery
 - accepts `--from-genesis` to restart received-note scanning from channel genesis; it does not rebuild the channel workspace from genesis
 
-### 5. Fund the shared L1 bridge vault
+### 5. Fund the shared Ethereum mainnet bridge vault
 
 `account deposit-bridge`
 
 - deposits Tokamak Network Token into the shared bridge-level `bridgeTokenVault`
 - does not register the user in the channel
-- does not pay the channel join toll
+- does not pay the channel join fee
 - reads RPC settings from the per-network `set rpc` configuration
 - requires `--acknowledge-action-impact`
 
@@ -350,33 +350,33 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 
 `wallet get-meta`
 
-- checks whether the wallet's stored L2 identity matches the on-chain registration
-- returns the wallet L2 address, registered L2 address, storage key, leaf index, and match status
+- checks whether the wallet's stored private application identity matches the on-chain registration
+- returns the wallet channel-local address, registered channel-local address, storage key, leaf index, and match status
 - reports the on-chain registered note-receive public key when present
 - accepts `--wallet` and `--network`
 
-### 7. Move value into the channel L2 accounting vault
+### 7. Move value into the channel accounting vault
 
 `wallet deposit-channel`
 
-- moves value from the shared bridge-level `bridgeTokenVault` into the channel-level L2 accounting vault
+- moves value from the shared bridge-level `bridgeTokenVault` into the channel-level accounting vault
 - accepts `--wallet`, `--network`, and `--amount`
 - requires an existing wallet and the matching local account secret for the wallet owner
 - requires `--acknowledge-action-impact`
 
 `wallet get-channel-fund`
 
-- reads the current channel L2 accounting balance bound to the wallet registration
+- reads the current channel accounting balance bound to the wallet registration
 - accepts `--wallet` and `--network`
 
 ### 8. Mint private notes from the wallet balance
 
 `wallet mint-notes`
 
-- mints one or two notes owned by the wallet's L2 address with the currently registered private-state DApp metadata
+- mints one or two notes owned by the wallet's channel-local address with the currently registered private-state DApp metadata
 - builds self-mint ciphertext outputs and lets the controller derive note salts from the ciphertext hash
 - accepts `--wallet`, `--network`, and `--amounts`
-- accepts optional `--tx-submitter <ACCOUNT>` so a separate local L1 account can submit the L1 transaction and pay gas
+- accepts optional `--tx-submitter <ACCOUNT>` so a separate local Ethereum account can submit the Ethereum mainnet transaction and pay gas
 - maps the amount-vector length to the fixed-arity `mintNotes<N>` contract entrypoint
 - requires both viewing and spending key capability so the accepted mint can be recovered through the normal note event path
 - uses the registered note-receive public key to create self-mint ciphertext outputs for later recovery
@@ -389,10 +389,10 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - consumes tracked input notes and creates encrypted recipient note payloads
 - accepts `--wallet`, `--network`, `--note-ids`, `--recipients`, and `--amounts`
 - requires `--note-ids` as a JSON array of note commitment IDs from `wallet get-notes`, for example `--note-ids '["0xNOTE1","0xNOTE2"]'`
-- requires `--recipients` as a JSON array of recipient L2 addresses, for example `--recipients '["0xL2RECIPIENT1","0xL2RECIPIENT2"]'`
+- requires `--recipients` as a JSON array of recipient channel-local addresses, for example `--recipients '["0xRECIPIENT1","0xRECIPIENT2"]'`
 - requires `--amounts` as a JSON array of token amounts, preferably quoted for decimals, for example `--amounts '["1.5","2"]'`
 - requires `--recipients` length to equal `--amounts` length, and requires the output amount sum to equal the selected input note value sum
-- accepts optional `--tx-submitter <ACCOUNT>` so a separate local L1 account can submit the L1 transaction and pay gas
+- accepts optional `--tx-submitter <ACCOUNT>` so a separate local Ethereum account can submit the Ethereum mainnet transaction and pay gas
 - supports only `1->1`, `1->2`, and `2->1` note transfer shapes
 - refreshes local workspace state after the accepted transaction and relies on recipient-side event-log recovery rather than local recipient inbox files
 - requires both the viewing key and the spending key: the viewing key reconstructs the plaintext input notes, and the spending key authorizes the proof-backed spend
@@ -417,15 +417,15 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 
 - redeems one tracked note back into liquid accounting balance
 - accepts `--wallet`, `--network`, and `--note-ids`
-- accepts optional `--tx-submitter <ACCOUNT>` so a separate local L1 account can submit the L1 transaction and pay gas
+- accepts optional `--tx-submitter <ACCOUNT>` so a separate local Ethereum account can submit the Ethereum mainnet transaction and pay gas
 - requires both the viewing key and the spending key for the same reason as `wallet transfer-notes`
 - requires `--acknowledge-action-impact`
 
-### 12. Move value back to the shared L1 bridge vault
+### 12. Move value back to the shared Ethereum mainnet bridge vault
 
 `wallet withdraw-channel`
 
-- moves value from the channel L2 accounting vault back into the shared bridge-level `bridgeTokenVault`
+- moves value from the channel accounting vault back into the shared bridge-level `bridgeTokenVault`
 - accepts `--wallet`, `--network`, and `--amount`
 - requires `--acknowledge-action-impact`
 
@@ -433,14 +433,14 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 
 `channel exit`
 
-- deletes the wallet's channel registration after the channel L2 accounting balance is zero
+- deletes the wallet's channel registration after the channel accounting balance is zero
 - marks the local wallet epoch as exited and keeps it read-only for historical note inspection and evidence export
-- frees the reserved token-vault leaf binding, L2 address binding, storage-key binding, and note-receive key binding
-- applies the channel's time-decayed join-toll refund schedule
+- frees the reserved token-vault leaf binding, channel-local address binding, storage-key binding, and note-receive key binding
+- applies the channel's time-decayed join-fee refund schedule
 - accepts `--wallet` and `--network`
 - does not accept `--force`; both the CLI and the bridge contract require a zero channel balance
 
-### 14. Claim the shared L1 bridge deposit
+### 14. Claim the shared Ethereum mainnet bridge deposit
 
 `account withdraw-bridge`
 

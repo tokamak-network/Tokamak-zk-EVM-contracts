@@ -449,6 +449,16 @@ create public terms behavior. The next planned work is to finalize the Service t
 - Confirm that the documents consistently avoid privacy-coin, mixer, untraceable TON, exchange-monitoring avoidance, and
   asset-history concealment framing.
 
+Current status:
+
+- Completed current-repository terminology pass for the root README, private-state DApp README, CLI README, human
+  `help guide` strings, `help commands` metadata, fee-help descriptions, and `agents.md`.
+- Completed current-repository framing pass for the same surfaces. The remaining occurrences of `L1`, `L2`, and
+  `--join-toll` in those audited paths are command names, option names, contract names, JSON field names, code
+  identifiers, or explicit agent instructions about when not to use developer shorthand with ordinary users.
+- Terms, privacy notice, redline/risk review, and counsel-facing release decisions remain unresolved and must be
+  completed before production terms behavior is implemented.
+
 ### Phase 2: Complete pre-counsel redline and risk review
 
 - Run the Pre-Counsel Redline and Risk Review Plan below.

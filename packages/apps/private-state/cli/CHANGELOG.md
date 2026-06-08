@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Revised user-facing CLI help, guide, README, fee, and agent wording to prefer "Ethereum mainnet", "Ethereum account",
+  "channel-local address", and "join fee" over developer shorthand except where command, option, contract, or JSON field
+  names require the original term.
 - Added masked terminal helper commands for creating private-key and wallet-secret source files before
   `account import` and `channel join`.
 - Changed `help guide --json` to point AI agents at indexed `agents.md` setup recipes instead of embedding

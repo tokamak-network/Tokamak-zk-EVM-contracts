@@ -60,7 +60,7 @@
     },
     {
       "command": "channel join",
-      "description": "Pay the channel join toll and register a wallet identity.",
+      "description": "Pay the channel join fee and register a wallet identity.",
       "transactions": [
         {
           "label": "approve",
@@ -68,7 +68,7 @@
           "function": "approve",
           "gasUsed": 45729,
           "source": "cast-local-measurement",
-          "sourceDetail": "Measured on local anvil by deploying bridge/src/mocks/MockERC20.sol and sending approve(address,uint256). channel join sends this approval only when the channel join toll is nonzero."
+          "sourceDetail": "Measured on local anvil by deploying bridge/src/mocks/MockERC20.sol and sending approve(address,uint256). channel join sends this approval only when the channel join fee is nonzero."
         },
         {
           "label": "joinChannel",
@@ -82,7 +82,7 @@
     },
     {
       "command": "wallet deposit-channel",
-      "description": "Move bridged funds into the channel L2 accounting vault.",
+      "description": "Move bridged funds into the channel accounting vault.",
       "transactions": [
         {
           "label": "depositToChannelVault",
@@ -98,7 +98,7 @@
     },
     {
       "command": "wallet withdraw-channel",
-      "description": "Move channel L2 accounting vault funds back into the shared bridge vault.",
+      "description": "Move channel accounting vault funds back into the shared bridge vault.",
       "transactions": [
         {
           "label": "withdrawFromChannelVault",

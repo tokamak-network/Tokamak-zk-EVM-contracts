@@ -293,7 +293,7 @@ private-state-cli wallet get-meta --wallet <WALLET> --network <NETWORK> --json
 Failure recovery: if the channel workspace is missing, follow D.7. If acknowledgement is missing, follow E.1 and E.2.
 If registration already exists, use wallet recovery or normal wallet commands instead of joining again.
 
-Optional explanation: joining creates/registers the private-state wallet for that channel and may pay the join toll
+Optional explanation: joining creates/registers the private-state wallet for that channel and may pay the join fee
 directly from the Ethereum account.
 
 ## C. RPC Setup Recipes
@@ -574,7 +574,7 @@ When to use: before joining or creating a channel.
 Minimal user actions: run channel metadata inspection; create a channel only if the user is the channel creator and
 confirms policy impact.
 
-AI may ask: channel name, network, whether the user is the channel creator, join toll, and explicit confirmation for
+AI may ask: channel name, network, whether the user is the channel creator, join fee, and explicit confirmation for
 transaction-sending commands.
 
 AI must not ask: private keys, wallet secrets, seed phrases, or provider credentials.
@@ -644,7 +644,7 @@ Success check: run `wallet list` and `wallet get-meta` as shown in B.7.
 
 Failure recovery: if acknowledgement is missing, follow E.1 and E.2. If workspace is missing, follow D.7.
 
-Optional explanation: channel join may pay a join toll directly from the Ethereum account.
+Optional explanation: channel join may pay a join fee directly from the Ethereum account.
 
 ### D.9 Discover wallet name
 
@@ -779,7 +779,7 @@ Success check: selected note IDs exist in the unused note list before transfer o
 Failure recovery: if needed notes do not exist, guide funding, channel deposit, and minting instead of fabricating note
 IDs or changing the user's intended transfer.
 
-Optional explanation: confidential note transfers use notes owned by channel-local L2 addresses registered in the
+Optional explanation: confidential note transfers use notes owned by channel-local addresses registered in the
 channel.
 
 ### D.14 Exit channel
@@ -840,7 +840,7 @@ When to use: before `channel create` or first `channel join`.
 
 Minimal user actions: review the channel policy and confirm acceptance.
 
-AI may ask: whether the user accepts the current channel policy and join toll impact.
+AI may ask: whether the user accepts the current channel policy and join-fee impact.
 
 AI must not ask: secrets or credentials.
 

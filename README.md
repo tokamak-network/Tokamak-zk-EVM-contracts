@@ -40,18 +40,18 @@ This repository and the npm CLI use the same terminology for the private-state f
 
 - `Tokamak Private App Channels`: Ethereum-settled, validity-proven execution domains for bridge-coupled DApps.
 - `private-state DApp`: the current reference DApp that programs confidential application state inside a channel.
-- `canonical Tokamak Network Token`: the L1 asset whose custody remains anchored on Ethereum.
-- `self-custody L1 wallet`: a user-controlled L1 account, not an exchange deposit address.
-- `L1-transparent bridge edge`: public bridge deposit and withdrawal transactions involving the canonical token.
+- `canonical Tokamak Network Token`: the Ethereum mainnet asset whose custody remains anchored on Ethereum.
+- `self-custody Ethereum wallet`: a user-controlled Ethereum account, not an exchange deposit address.
+- `public bridge edge`: public Ethereum mainnet bridge deposit and withdrawal transactions involving the canonical token.
 - `channel-local accounting balance`: liquid application balance inside a channel before or after note use.
 - `private-state note`: a channel-local application note, not an exchange-supported token or deposit asset.
 - `proof-backed confidential application state`: DApp state advanced by accepted proof-backed channel transitions.
 - `user-controlled selective disclosure`: optional user disclosure from local wallet state; Tokamak does not hold a master viewing key.
 - `viewing key`: the note-receive private key used to decrypt note-delivery events for the registered note-receive public key.
-- `spending key`: the channel-bound L2 private key used to authorize proof-backed note use.
+- `spending key`: the channel-bound private application key used to authorize proof-backed note use.
 
 Tokamak Private App Channels are not an exchange deposit network. Exchange-facing token transfers and bridge
-entry or exit remain public L1 activity. Internal private-state note counterparty relationships and note provenance are
+entry or exit remain public Ethereum mainnet activity. Internal private-state note counterparty relationships and note provenance are
 not public by default and are not reconstructed by Tokamak on a user's behalf.
 
 Tokamak does not hold a master viewing key, user spending key, viewing secret, or wallet secret for
@@ -65,7 +65,7 @@ the [public documentation index](./docs/index.md) and the
 ## What Is In This Repository
 
 - [bridge/](./bridge/): the current bridge workspace, including contracts, deployment scripts, tests, and bridge documentation
-- [packages/apps/](./packages/apps/): bridge-coupled DApps that follow the repository's zk-L2 assumptions
+- [packages/apps/](./packages/apps/): bridge-coupled DApps that follow the repository's validity-proven channel assumptions
 - [packages/apps/private-state/](./packages/apps/private-state/): the current reference DApp for private-state note-based channel activity
 - [bridge/src/generated/](./bridge/src/generated/): generated verifier sources and verifier-key data used by bridge workflows
 - [packages/groth16/](./packages/groth16/): generated Groth16 verifier artifacts used by the bridge token-vault path
@@ -114,7 +114,7 @@ At a high level, the repository is organized around three layers:
 
 The current bridge is not described here as a generic rollup shell. It is a bridge for dedicated app channels with:
 
-- one shared L1 token vault for canonical asset custody
+- one shared Ethereum mainnet token vault for canonical asset custody
 - one `ChannelManager` per channel
 - bridge-managed DApp metadata for admissible storage and function surfaces
 - Tokamak proof verification for general channel execution

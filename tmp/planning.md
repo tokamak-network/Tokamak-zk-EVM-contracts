@@ -216,6 +216,9 @@ For purposes of these Terms:
 - If all required copies of a private key, seed phrase, wallet secret, spending key, viewing key, source file, backup
   file, or other required recovery material are lost, no recovery method exists for the affected access, Private Notes,
   funds, evidence, or disclosure capability.
+- Provider Parties, Channel Operators, support channels, websites, and User-Controlled AI Agents do not need the user's
+  private keys, seed phrases, wallet secrets, spending keys, viewing keys, or equivalent secrets to provide ordinary
+  Service access, support, explanations, or guidance.
 - The user must not share private keys, seed phrases, wallet secrets, spending keys, viewing keys, or equivalent secrets
   with any User-Controlled AI Agent, Provider Party, Channel Operator, support channel, website, or third party.
 
@@ -252,6 +255,9 @@ ownership, control, or destination of assets.
   irreversible confirmed transactions.
 - The user is solely responsible for preserving source files, wallet-secret files, backup files, evidence files,
   transaction records, and disclosure material that the user may later need.
+- The user is solely responsible for preserving local evidence needed for selective disclosure, exchange review, tax
+  records, accounting records, disputes, audits, investigations, or any other explanation of asset history or Private
+  Note ownership.
 - The user must review applicable Channel policy before joining a Channel.
 - The user must use only trustworthy software, package sources, websites, wallets, RPC providers, and devices.
 
@@ -320,6 +326,11 @@ ownership, control, or destination of assets.
 - Software bugs, user mistakes, compromised devices, malicious third parties, governance actions, protocol upgrades,
   network congestion, RPC failure, bridge failure, smart-contract failure, cryptographic implementation defects, or
   changes in law may cause loss, delay, rejected transactions, unavailable services, or loss of access.
+- Zero-knowledge proof systems, proving circuits, verifier contracts, CRS or proving artifacts, proving runtimes,
+  local proof generation, proof input construction, and proof verification can contain defects, incompatibilities, or
+  operational failures.
+- Public observer services and indexing systems can be delayed, incomplete, unavailable, misconfigured, inconsistent
+  with a user's local state, or insufficient for legal, accounting, tax, exchange, audit, or compliance review.
 - Digital assets may be volatile and may lose value.
 - The user assumes all risks permitted by applicable law.
 
@@ -362,6 +373,13 @@ ownership, control, or destination of assets.
 - If the current Terms differ from the Terms previously accepted by the user, the user must accept the current Terms
   before continuing to use terms-gated Service operations.
 - Renewed acceptance may be collected only after the current Terms are displayed to the user.
+- Terms-gated Service operations must compare the current `termsVersion` and deterministic `termsHash` against the
+  user's stored acceptance record.
+- A valid acceptance record must include the accepted terms version, deterministic terms hash, acceptance timestamp,
+  CLI package version, and acceptance source.
+- If no acceptance record exists, or if the stored version or hash is stale, the Service must reject terms-gated
+  operations until the current Terms are displayed and the user submits the required explicit acceptance phrase or
+  acceptance control.
 - The user must not rely on Official Machine-Readable Output or a User-Controlled AI Agent to accept changed Terms on the
   user's behalf.
 
@@ -661,8 +679,9 @@ Next Privacy Notice task:
 
 Current next step:
 
-- Move to Phase 2 redline work: resolve drafting issues that do not require counsel judgment, then preserve counsel or
-  business-owner decisions as explicit release blockers.
+- Continue Phase 2 redline work by reviewing the remaining redline items for scope. The non-counsel redlines R-06,
+  R-08, R-13, and R-16 have been applied to the draft Terms. Remaining items either require counsel or business-owner
+  judgment, ongoing wording review, implementation after Terms freeze, or protocol verification.
 
 ### Phase 2: Complete pre-counsel redline and risk review
 
@@ -674,10 +693,11 @@ Current next step:
 Current status:
 
 - Completed an initial pre-counsel operational redline/risk review pass. See "Pre-Counsel Review Results" below.
-- The review found release blockers that must be resolved before implementation: privacy notice content and publication
-  location, liability cap decision, consumer-law/forum carveouts, sanctions/restricted jurisdictions policy, counsel
-  confirmation of the dispute-resolution strategy, and counsel confirmation of Tokamak Network PTE. LTD.'s separate
-  software contributor/licensor and Third-Party Service or infrastructure/tooling provider wording.
+- The review found release blockers that must be resolved before implementation: Privacy Notice counsel-directed
+  changes and final Terms cross-reference confirmation, liability cap decision, consumer-law/forum carveouts,
+  sanctions/restricted jurisdictions policy, counsel confirmation of the dispute-resolution strategy, counsel
+  confirmation of Tokamak Network PTE. LTD.'s separate software contributor/licensor and Third-Party Service or
+  infrastructure/tooling provider wording, and Join Toll burn verification.
 
 ### Phase 3: Resolve open legal and business decisions
 
@@ -887,17 +907,17 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | R-03 | 3 | Add an age-of-majority or minimum-age statement if the Service is made available to natural persons. | "Legal capacity" may be too abstract for ordinary users and consumer review. | Counsel decision. |
 | R-04 | 3, 7 | Decide whether to name restricted jurisdictions and sanctions authorities, or keep a principles-based restriction with a policy reference. State that the Service may only be able to restrict Ethereum Accounts or contract interactions, not identify and block real-world users. | Comparable services often name sanctions regimes or restricted regions. Naming improves specificity but creates maintenance obligations; overpromising user-level blocking would be inaccurate. | Counsel and policy decision. |
 | R-05 | 5 | Replace "Tonnel may prevent public contract state..." with a more precise non-guarantee: "Tonnel is designed so public contract state does not, by itself, reconstruct..." | "May prevent" is vague; a design-purpose statement is clearer while avoiding guarantees. | Applied to draft Terms. |
-| R-06 | 6 | Add a short ordinary-user warning that Provider Parties, Channel Operators, and User-Controlled AI Agents will never need the user's private keys, seed phrases, wallet secrets, spending keys, or viewing keys. | Aligns with self-custody guidance and reduces secret-disclosure risk. | Ready to redline. |
+| R-06 | 6 | Add a short ordinary-user warning that Provider Parties, Channel Operators, and User-Controlled AI Agents will never need the user's private keys, seed phrases, wallet secrets, spending keys, or viewing keys. | Aligns with self-custody guidance and reduces secret-disclosure risk. | Applied to draft Terms. |
 | R-07 | 7 | Keep prohibited-use wording, but avoid repeating prohibited marketing phrases outside prohibited-use and checklist contexts. | Terms can prohibit misuse without creating marketing language that suggests the Service is useful for that misuse. | Ongoing wording check. |
-| R-08 | 8 | Add user responsibility for preserving the local evidence needed for selective disclosure, exchange review, tax records, disputes, and audits. | Section 10 mentions evidence but Section 8 should allocate the preservation duty expressly. | Ready to redline. |
+| R-08 | 8 | Add user responsibility for preserving the local evidence needed for selective disclosure, exchange review, tax records, disputes, and audits. | Section 10 mentions evidence but Section 8 should allocate the preservation duty expressly. | Applied to draft Terms. |
 | R-09 | 9 | Clarify whether Channel Operators are independent from Provider Parties unless officially appointed, and state that Channel policy may differ by Channel. | Users must distinguish the Service provider from third-party or community Channel operators. | Counsel and product decision. |
 | R-10 | 10 | Replace "Official Public Observer does not reveal user secrets" with "is not intended to receive or display user secrets" and "only displays records available to it." | Avoids an absolute security or non-disclosure guarantee. | Applied to draft Terms. |
 | R-11 | 12 | Keep the standalone Privacy Notice in `docs/dapps/private-state/privacy-notice.md` and keep the Terms cross-reference to that location unless the final publication location changes. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. The initial standalone draft, GitHub repository publication location, Terms cross-reference, and first consistency review now exist, but counsel review and final release confirmation are still required. | Initial draft and first review applied; counsel confirmation remains. |
 | R-12 | 13 | Clarify that User-Controlled AI Agents are selected by the user and are not agents, representatives, or service providers of Provider Parties unless expressly stated. | Reduces implied advisory, support, fiduciary, or agency relationship risk. | Applied to draft Terms. |
-| R-13 | 14 | Add explicit ZK/proof-system risk, CRS/proving-artifact risk, local proof-generation risk, and public observer indexing risk. | Current blockchain risks are broad but do not fully reflect this Service's proof and observer architecture. | Ready to redline. |
+| R-13 | 14 | Add explicit ZK/proof-system risk, CRS/proving-artifact risk, local proof-generation risk, and public observer indexing risk. | Current blockchain risks are broad but do not fully reflect this Service's proof and observer architecture. | Applied to draft Terms. |
 | R-14 | 16 | Decide whether to include a liability cap and, if so, the cap formula and carveouts. Preserve the draft statement that Provider Parties are not liable for use of the Service to the maximum extent permitted by applicable law. | Current draft has exclusions but no aggregate cap; comparable services often use a cap. The no-revenue and burned-fee model may make fee-based cap formulas unsuitable. | Release blocker. |
 | R-15 | 17 | Narrow consumer indemnity or add business-user/unlawful-use limitations if counsel recommends. | Broad consumer indemnity can be unenforceable or unfair in some jurisdictions. | Counsel decision. |
-| R-16 | 18 | Specify the technical renewed-acceptance mechanism: terms version, deterministic hash, displayed terms, explicit phrase, stored record, stale-record rejection. | The product can implement this and should not rely only on legal notice wording. | Ready to redline with implementation plan. |
+| R-16 | 18 | Specify the technical renewed-acceptance mechanism: terms version, deterministic hash, displayed terms, explicit phrase, stored record, stale-record rejection. | The product can implement this and should not rely only on legal notice wording. | Applied to draft Terms; verify implementation follows this mechanism after Terms freeze. |
 | R-17 | 20 | Use Singapore court litigation and Singapore law as the Provider-connected baseline, with mandatory consumer-law and local-court carveouts. Do not include arbitration, class-action waiver, collective-action waiver, representative-action waiver, or jury-trial waiver provisions unless counsel later approves them. | Forum and waiver clauses may be invalid or problematic for consumers in some jurisdictions. | Applied to draft Terms; counsel to confirm enforceability. |
 | R-18 | 20 | Add `cjhyuck213@gmail.com` as the public privacy and notice contact for Jehyuk Jang, and state that the Provider's residential address is not published. If a physical notice address becomes required, use a counsel-approved non-residential notice route. | Notices are incomplete without an official contact route, but residential address publication is not the default policy. | Applied to draft Terms; counsel to confirm sufficiency. |
 | R-19 | 1, 2, 9, 16 | Keep the Join Toll burn language in the Terms and confirm the implemented protocol actually burns Join Tolls rather than transferring them to Provider Parties, Channel Operators, or another treasury. | The user-facing economic representation must match the protocol. If fees are burned, they should not be described as Provider Party revenue or refundable service fees. | Product and counsel confirmation. |
@@ -941,7 +961,8 @@ Business decisions to prepare before counsel review:
 - Should user indemnity apply to ordinary consumers, business users only, unlawful use only, or third-party claims only?
 - What official interfaces process personal data, including observer hosting, logs, analytics, support, package
   distribution, and telemetry?
-- Where will the privacy notice be published, and how will the Terms link to it?
+- Is the initial GitHub repository Privacy Notice publication location and Terms cross-reference sufficient for release,
+  or should counsel require an additional publication surface before production terms behavior ships?
 - Which operations, if any, should keep separate prompts after install-time Terms acceptance?
 - Which implementation source confirms that Join Tolls are burned and not routed to Provider Parties, Channel Operators,
   or another treasury?
@@ -966,12 +987,12 @@ Legal-validity questions for counsel:
 | TON must not be described as untraceable | Sections 2, 4, 5, 7, and 10 keep Ethereum mainnet records public or observable. | Keep; avoid prohibited framing outside prohibited-use context. |
 | Tonnel must not be described as an exchange deposit network | Sections 1 and 2 define Channels as opt-in application environments, not exchange deposit or withdrawal networks. | Keep. |
 | Private Notes must not be exchange-depositable assets | Sections 1 and 2 state that Private Notes are Channel-local application records. | Keep. |
-| Users first hold TON in a self-custody Ethereum account | Sections 1, 2, 6, and 8 define Ethereum Account and Self-Custody. | Add stronger no-secret-sharing warning. |
-| Bridge deposit and withdrawal observability must be disclosed | Sections 4 and 10 disclose public bridge and observer records. | Keep; add observer limits precision. |
+| Users first hold TON in a self-custody Ethereum account | Sections 1, 2, 6, and 8 define Ethereum Account and Self-Custody. | Stronger no-secret-sharing warning added to Section 6. |
+| Bridge deposit and withdrawal observability must be disclosed | Sections 4 and 10 disclose public bridge and observer records. | Keep observer-limit precision. |
 | Channel join and public registration observability must be disclosed | Sections 4 and 10 disclose Channel joins, identity registration, note-receive public key registration, and public Channel records. | Keep. |
-| Internal note privacy limits must be disclosed | Section 5 discloses limits and non-guarantees. | Redline Section 5 for clearer design-intent wording. |
-| Provider Parties and Channel Operators must not claim custody of user secrets | Sections 6, 8, and 9 disclaim possession, control, storage, and recovery of user secrets. | Keep; add "will never ask" warning. |
-| Selective disclosure must be limited to implemented features | Section 10 ties selective disclosure to implemented features and user-preserved records. | Add Section 8 evidence preservation duty. |
+| Internal note privacy limits must be disclosed | Section 5 discloses limits and non-guarantees. | Keep design-intent wording. |
+| Provider Parties and Channel Operators must not claim custody of user secrets | Sections 6, 8, and 9 disclaim possession, control, storage, and recovery of user secrets. | Section 6 now includes the stronger secret-warning text. |
+| Selective disclosure must be limited to implemented features | Section 10 ties selective disclosure to implemented features and user-preserved records. | Section 8 now allocates local evidence preservation duty. |
 | Illegal use must be prohibited | Section 7 covers money laundering, terrorist financing, sanctions evasion, regulatory evasion, fraud, illegal gambling, criminal-proceeds concealment, and exchange-monitoring evasion. | Keep; counsel to review sanctions scope. |
 | Public monitoring surfaces must be available | Section 10 identifies the Official Public Observer. | Keep; privacy notice must disclose hosted observer data if applicable. |
 | Marketing must avoid mixer or privacy-coin framing | Product Compliance Position and Sections 2, 5, and 7 avoid or prohibit that framing. | Keep terminology/framing verification before release. |

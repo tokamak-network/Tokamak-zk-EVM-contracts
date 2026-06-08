@@ -407,7 +407,7 @@ For each guided setup task, the JSON output should include:
 - the minimum safe next action,
 - the exact CLI command or command family needed by the user,
 - the related terms section numbers,
-- the related `AGENTS.md` guidance section numbers if applicable,
+- the related `agents.md` guidance section numbers if applicable,
 - a directive that the User-Controlled AI Agent must explain user-facing warnings in ordinary language before the user
   acts,
 - a directive that the User-Controlled AI Agent must not request or handle secret material.
@@ -433,10 +433,17 @@ create public terms behavior. The next planned work is to finalize the Service t
 
 ### Phase 1: Freeze service scope and document set
 
-- Confirm that the Terms govern the Private-State DApp, Tonnel, The Great First Channel, Bridge workflows, CLI,
-  Official Public Observer, and official Service documentation.
-- Confirm which official documents must be produced or updated before code implementation, including Terms, CLI README,
-  human `help guide`, `help guide --json`, `AGENTS.md`, public observer notes, and any privacy notice.
+- Confirmed Service scope: the Terms govern the Private-State DApp, Tonnel, The Great First Channel, Bridge workflows,
+  CLI, Official Public Observer, and official Service documentation.
+- Confirmed official document set for pre-implementation finalization: Terms, CLI README, human `help guide`,
+  `help guide --json`, `agents.md`, public observer notes, and privacy notice.
+- Privacy notice is included in the document set. The current repository audit found no standalone privacy notice or
+  privacy policy, while the Service scope includes the hosted Official Public Observer and may include official websites,
+  support channels, logs, package distribution, and other interfaces that can process personal data. Treat privacy notice
+  drafting as part of Phase 1 rather than a later decision.
+- Record privacy notice inputs during Phase 1: official hosted surfaces, server logs, IP address handling, analytics,
+  cookies, support/contact channels, package distribution logs, CLI telemetry if any, RPC provider metadata, retention,
+  sharing, user rights, and Provider Party contact point.
 - Confirm that all documents use "Ethereum mainnet" for the public chain boundary and avoid developer-only shorthand for
   ordinary users.
 - Confirm that the documents consistently avoid privacy-coin, mixer, untraceable TON, exchange-monitoring avoidance, and
@@ -456,7 +463,7 @@ create public terms behavior. The next planned work is to finalize the Service t
   with consumer-law exceptions.
 - Decide whether a liability cap is needed and what formula or amount it should use.
 - Decide whether restricted jurisdictions, sanctions lists, or user categories must be named.
-- Decide whether a separate privacy policy or privacy notice is required before release.
+- Resolve privacy notice content and publication location before release.
 - Decide whether any command still needs a separate prompt after install-time Terms acceptance is enforced.
 
 ### Phase 4: Finalize human-facing documents
@@ -470,7 +477,7 @@ create public terms behavior. The next planned work is to finalize the Service t
 
 ### Phase 5: Finalize machine-readable and agent-facing documents
 
-- Finalize `help guide --json` output contract so it references canonical Terms section numbers and `AGENTS.md` sections
+- Finalize `help guide --json` output contract so it references canonical Terms section numbers and `agents.md` sections
   without duplicating full legal text.
 - Finalize `install --json` behavior for missing or stale Terms acceptance.
 - Finalize User-Controlled AI Agent directives for warnings, prohibitions, public/private boundaries, Self-Custody, no
@@ -482,7 +489,7 @@ create public terms behavior. The next planned work is to finalize the Service t
 ### Phase 6: Final documentation verification
 
 - Verify that the final Terms still cover every relevant `checklist.md` item.
-- Verify that the final Terms, README, human `help guide`, `help guide --json`, and `AGENTS.md` do not conflict.
+- Verify that the final Terms, README, human `help guide`, `help guide --json`, and `agents.md` do not conflict.
 - Verify that human-facing wording is appropriate for ordinary users and legal/compliance reviewers.
 - Verify that machine-readable guidance remains useful for User-Controlled AI Agents without handling secrets or accepting
   Terms for users.
@@ -576,7 +583,7 @@ counsel should decide before public release.
 
 - Determine whether the Service processes personal data through the Official Public Observer, websites, logs, package
   distribution, support channels, telemetry, RPC configuration, or other official interfaces.
-- Decide whether a separate privacy policy is required before release.
+- Produce the privacy notice or document a counsel-approved reason why no privacy notice is required.
 - Review whether public blockchain records, public Channel records, IP addresses, device data, usage logs, support
   communications, and analytics data are sufficiently disclosed.
 - Confirm that Third-Party Service data collection and retention are clearly separated from Provider Party obligations.
@@ -596,7 +603,7 @@ counsel should decide before public release.
 - Arbitration, class-action waiver, language, limitation period, and consumer-law carveouts.
 - Liability cap and jurisdiction-specific non-waivable rights.
 - Required sanctions and restricted-jurisdiction wording for production use.
-- Required privacy-policy references if the public observer or any hosted interface processes personal data.
+- Final privacy notice content, publication location, and Terms cross-references.
 - Required notice method for future terms changes.
 - Whether any operation still needs a separate command-level prompt after install-time acceptance is enforced.
 
@@ -639,7 +646,7 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 ### Phase 5: JSON and User-Controlled AI Agent updates
 
 - Update `install --json` to report that human interactive acceptance is required.
-- Update `help guide --json` so User-Controlled AI Agent guidance references canonical Terms sections and `AGENTS.md`
+- Update `help guide --json` so User-Controlled AI Agent guidance references canonical Terms sections and `agents.md`
   sections instead of duplicating long warnings.
 - Ensure User-Controlled AI Agent directives require explanation of public/private boundaries, prohibited uses,
   Self-Custody, no recovery method, Third-Party Service risk, no professional advice, no warranties, liability limits,

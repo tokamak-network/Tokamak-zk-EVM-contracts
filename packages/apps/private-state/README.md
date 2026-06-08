@@ -164,7 +164,8 @@ The current implementation includes:
 
 ## CLI Command Flow
 
-The commands below follow the normal note-use flow; bridge funding is for channel liquidity, not join fee payment.
+The commands below follow the normal note-use flow; bridge funding is for channel liquidity, not Join Toll payment.
+Join Toll means the one-time Channel entry fee paid when a user joins a Channel.
 
 ### 1. Install, remove, or configure the local CLI runtime
 
@@ -264,7 +265,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 
 `channel get-meta`
 
-- reads whether a channel exists and reports its manager, vault, join fee, refund schedule, and immutable policy snapshot
+- reads whether a channel exists and reports its manager, vault, Join Toll, refund schedule, and immutable policy snapshot
 - reads RPC settings from the per-network `set rpc` configuration
 - is the lightest inspection command when a user or channel creator wants to review policy before joining or creating local wallet state
 
@@ -273,7 +274,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 `channel join`
 
 - derives the channel-specific private application identity
-- pays any join fee directly from the Ethereum wallet, not from bridge-deposited balance
+- pays any Join Toll directly from the Ethereum wallet, not from bridge-deposited balance
 - registers the caller's channel-local address, channel token-vault storage key, leaf index, and note-receive public key on-chain
 - creates wallet note metadata, viewing-key metadata, and spending-key metadata
 - requires `--wallet-secret-path <PATH>` to read an existing source secret file once for spending-key derivation
@@ -308,7 +309,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 
 - deposits Tokamak Network Token into the shared bridge-level `bridgeTokenVault`
 - does not register the user in the channel
-- does not pay the channel join fee
+- does not pay the channel Join Toll
 - reads RPC settings from the per-network `set rpc` configuration
 - requires `--acknowledge-action-impact`
 
@@ -436,7 +437,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - deletes the wallet's channel registration after the channel accounting balance is zero
 - marks the local wallet epoch as exited and keeps it read-only for historical note inspection and evidence export
 - frees the reserved token-vault leaf binding, channel-local address binding, storage-key binding, and note-receive key binding
-- applies the channel's time-decayed join-fee refund schedule
+- applies the channel's time-decayed Join Toll refund schedule
 - accepts `--wallet` and `--network`
 - does not accept `--force`; both the CLI and the bridge contract require a zero channel balance
 

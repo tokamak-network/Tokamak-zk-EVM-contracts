@@ -107,6 +107,7 @@ For purposes of these Terms:
 - **Channel** means a specific opt-in Tonnel application environment with its own policy, membership rules, accounting
   records, and private note records. A Channel is not an exchange deposit or withdrawal network.
 - **The Great First Channel** means the dedicated initial Channel identified as `the-great-first-channel`.
+- **Join Toll** means the one-time Channel entry fee paid when a user joins a Channel.
 - **L2** means the Tonnel private application state used for Channel accounting and Private Notes. Because this term is
   technical, these Terms use "Tonnel private application state" whenever possible.
 - **Ethereum mainnet** means the public Ethereum network where relevant bridge, Channel-management, registration, and
@@ -238,7 +239,7 @@ ownership, control, or destination of assets.
 ### 9. Channel policy and Channel Operator limitations
 
 - Joining a Channel means accepting that Channel's policy snapshot.
-- Channel policy may include join fees, refund rules, administrative roles, operator roles, backup or recovery information
+- Channel policy may include Join Tolls, refund rules, administrative roles, operator roles, backup or recovery information
   expectations, monitoring practices, fee rules, or other operating rules.
 - Channel Operators may publish public metadata, policy information, event records, or recovery information.
 - Channel Operators do not control the user's Ethereum Account or user secrets.

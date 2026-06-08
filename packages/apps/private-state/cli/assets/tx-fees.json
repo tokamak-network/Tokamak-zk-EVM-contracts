@@ -60,7 +60,7 @@
     },
     {
       "command": "channel join",
-      "description": "Pay the channel join fee and register a wallet identity.",
+      "description": "Pay the channel Join Toll and register a wallet identity.",
       "transactions": [
         {
           "label": "approve",
@@ -68,7 +68,7 @@
           "function": "approve",
           "gasUsed": 45729,
           "source": "cast-local-measurement",
-          "sourceDetail": "Measured on local anvil by deploying bridge/src/mocks/MockERC20.sol and sending approve(address,uint256). channel join sends this approval only when the channel join fee is nonzero."
+          "sourceDetail": "Measured on local anvil by deploying bridge/src/mocks/MockERC20.sol and sending approve(address,uint256). channel join sends this approval only when the channel Join Toll is nonzero."
         },
         {
           "label": "joinChannel",

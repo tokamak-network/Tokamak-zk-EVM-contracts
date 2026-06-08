@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Revised user-facing CLI help, guide, README, fee, and agent wording to prefer "Ethereum mainnet", "Ethereum account",
-  "channel-local address", and "join fee" over developer shorthand except where command, option, contract, or JSON field
+  "channel-local address", and "Join Toll" over developer shorthand except where command, option, contract, or JSON field
   names require the original term.
 - Added masked terminal helper commands for creating private-key and wallet-secret source files before
   `account import` and `channel join`.
@@ -19,7 +19,7 @@
   channel creation, channel-data recovery, funding, note use, and channel exit.
 - Added deterministic `help guide --json` coverage for post-RPC missing artifacts, missing account secrets, and missing
   wallets before channel join.
-- Clarified human channel-join guide text so users prepare the Ethereum account for any join toll and gas before
+- Clarified human channel-join guide text so users prepare the Ethereum account for any Join Toll and gas before
   joining.
 - Added ETA and scan-rate reporting to RPC recovery progress for channel and wallet workspace recovery, including
   structured JSON progress details in `--json` mode.
@@ -64,8 +64,8 @@
 
 - Changed `help observer` and monitoring references to use the public observer URL
   `https://observer.tonnel.io`.
-- Clarified CLI help, guide output, and README guidance so channel join tolls are paid directly
-  from the L1 wallet, while `account deposit-bridge` is only for channel liquidity.
+- Clarified CLI help, guide output, and README guidance so channel Join Tolls are paid directly
+  from the Ethereum wallet, while `account deposit-bridge` is only for channel liquidity.
 - Clarified README and `help commands` guidance so AI agents answer user gas, fee, and USD cost
   questions by running `help transaction-fees --json` instead of escalating to developers.
 

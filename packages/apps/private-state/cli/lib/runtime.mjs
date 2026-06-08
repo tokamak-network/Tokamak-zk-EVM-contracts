@@ -336,14 +336,14 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
   },
   "channel-join": {
     display: "channel join",
-    l1PublicEvent: "Yes. Channel join and token-vault registration transactions are public Ethereum mainnet data; any join fee is paid directly from the Ethereum wallet.",
+    l1PublicEvent: "Yes. Channel join and token-vault registration transactions are public Ethereum mainnet data; any Join Toll is paid directly from the Ethereum wallet.",
     privateNoteState: "No. This action registers identity and note-receive metadata; it does not create or spend notes.",
     publicFields: ({ l1Address, l2Address, noteReceivePubKey, joinToll, channelName, channelId }) => [
       `Channel: ${channelName} (${channelId})`,
       `Ethereum account: ${l1Address}`,
       `Channel-local address: ${l2Address}`,
       `Note-receive public key: ${noteReceivePubKey}`,
-      `Join fee: ${joinToll}`,
+      `Join Toll: ${joinToll}`,
     ],
     notPublic: [
       "Wallet secret, spending private key, note-receive private key, and future note plaintext.",
@@ -4262,7 +4262,7 @@ function applyGuideNextAction(guide) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
       command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact`,
-      why: "The local wallet exists, but the corresponding Ethereum address is not registered in the channel; joining pays any join fee directly from the Ethereum wallet.",
+      why: "The local wallet exists, but the corresponding Ethereum address is not registered in the channel; joining pays any Join Toll directly from the Ethereum wallet.",
       agentGuidance: guideAgentGuidance("join-channel-with-existing-wallet-secret-source", ["B.7", "D.8", "E.1", "E.2"]),
     });
     return;
@@ -4280,7 +4280,7 @@ function applyGuideNextAction(guide) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
       command: `account deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account} --acknowledge-action-impact`,
-      why: "The wallet is joined, but there is no bridge balance, channel balance, or local unused note to spend; bridge deposits fund channel liquidity and do not pay join fees.",
+      why: "The wallet is joined, but there is no bridge balance, channel balance, or local unused note to spend; bridge deposits fund channel liquidity and do not pay Join Tolls.",
       agentGuidance: guideAgentGuidance("fund-bridge", ["D.10", "E.1", "G.1"]),
     });
     return;
@@ -12065,7 +12065,7 @@ function guideHumanNextStep(guide) {
       return [
         `The channel ${channel} is not created yet.`,
         "Stop here unless you are the person who should create this channel.",
-        "Only the channel creator should run the command below, because it sets the channel terms and may require a join fee.",
+        "Only the channel creator should run the command below, because it sets the channel terms and may require a Join Toll, the one-time Channel entry fee.",
         "Before running it, read the warning shown by the CLI and continue only if those terms match your intent.",
       ];
     case "recover-channel-workspace":
@@ -12083,13 +12083,13 @@ function guideHumanNextStep(guide) {
       return [
         "Create a wallet secret source file before joining the channel. Type a strong password or passphrase you can keep.",
         "Your typing will appear as * characters. Preserve the file because it may be needed later to recover this channel wallet.",
-        "Before joining, make sure the Ethereum account can pay any channel join fee directly from that account, plus gas.",
+        "Before joining, make sure the Ethereum account can pay any channel Join Toll directly from that account, plus gas.",
         "After creating the file, review the channel policy and action-impact warning before running channel join.",
       ];
     case "join-channel-with-existing-wallet-secret-source":
       return [
         "This wallet is not registered in the channel yet.",
-        "Before joining, make sure the Ethereum account can pay any channel join fee directly from that account, plus gas.",
+        "Before joining, make sure the Ethereum account can pay any channel Join Toll directly from that account, plus gas.",
         "Use your existing wallet secret source file, then review the channel policy and action-impact warning before joining.",
       ];
     case "fund-bridge":

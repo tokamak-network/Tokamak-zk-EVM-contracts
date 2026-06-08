@@ -82,7 +82,7 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     option: "--private-key-file",
   },
   joinToll: {
-    label: "Join Fee",
+    label: "Join Toll",
     type: "text",
     placeholder: "1",
     valueLabel: "<TOKENS>",
@@ -497,7 +497,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
   {
     id: "channel-get-meta",
     display: "channel get-meta",
-    description: "Read channel existence, manager, vault, join fee, refund schedule, and immutable policy snapshot.",
+    description: "Read channel existence, manager, vault, Join Toll, refund schedule, and immutable policy snapshot.",
     installMode: "read-only",
     fields: ["channelName", "network"],
     usage: "--channel-name, --network",
@@ -511,7 +511,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     usage: "--amount, --network, --account, --acknowledge-action-impact",
     help: [
       "Action impact: emits public Ethereum mainnet approval and bridge funding events that expose the local Ethereum account, bridge vault, amount, and transaction hashes.",
-      "Private note state is not changed by this command; it does not pay a channel join fee.",
+      "Private note state is not changed by this command; it does not pay a channel Join Toll.",
       ACTION_IMPACT_HELP.exchangeControlledAddress,
       ACTION_IMPACT_HELP.illegalUse,
       ACTION_IMPACT_HELP.acknowledgement,
@@ -556,7 +556,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
   {
     id: "channel-join",
     display: "channel join",
-    description: "Pay the channel join fee and bind a wallet to a channel-specific private application identity.",
+    description: "Pay the channel Join Toll, the one-time Channel entry fee, and bind a wallet to a channel-specific private application identity.",
     installMode: "full",
     fields: ["channelName", "network", "account", "walletSecretPath", "acknowledgeActionImpact"],
     usage: "--channel-name, --network, --account, --wallet-secret-path, --acknowledge-action-impact",
@@ -564,9 +564,9 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "Refreshes the local channel workspace through the saved recovery index before joining when the scan fits the 7,200-block pre-command budget",
       "Fails instead of replaying from genesis; recover from a registered workspace mirror first, and use channel recover-workspace --source rpc --from-genesis only when no compatible mirror is available",
       "--wallet-secret-path is read once for channel-bound spending-key derivation and is not stored in the wallet workspace",
-      "Pays any join fee directly from the Ethereum wallet, not from bridge-deposited balance",
+      "Pays any Join Toll directly from the Ethereum wallet, not from bridge-deposited balance",
       "Prints the immutable policy snapshot before first registration",
-      "Action impact: emits public channel join and token-vault registration events exposing the Ethereum account, channel-local address pair, note-receive public key, join fee, and channel id.",
+      "Action impact: emits public channel join and token-vault registration events exposing the Ethereum account, channel-local address pair, note-receive public key, Join Toll, and channel id.",
       "Private note state is not changed by this command.",
       ACTION_IMPACT_HELP.policy,
       ACTION_IMPACT_HELP.secretRecovery,

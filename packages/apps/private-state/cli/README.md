@@ -17,6 +17,7 @@ This npm README uses the same terminology as the repository README:
 - `public bridge edge`: public Ethereum mainnet bridge deposit and withdrawal transactions involving the canonical token.
 - `channel-local accounting balance`: liquid application balance inside a channel before or after note use.
 - `private-state note`: a channel-local application note, not an exchange-supported token or deposit asset.
+- `Join Toll`: the one-time Channel entry fee paid when a user joins a Channel.
 - `proof-backed confidential application state`: DApp state advanced by accepted proof-backed channel transitions.
 - `user-controlled selective disclosure`: optional user disclosure from local wallet state; Tokamak does not hold a master viewing key.
 - `viewing key`: the note-receive private key used to decrypt note-delivery events for the registered note-receive public key.
@@ -167,7 +168,7 @@ A common note-use flow after channel policy review is:
 10. `channel exit`
 11. `account withdraw-bridge`
 
-`channel join` pays any join fee directly from the Ethereum wallet; `account deposit-bridge` funds later channel liquidity and does not pay the join fee.
+`channel join` pays any Join Toll directly from the Ethereum wallet; `account deposit-bridge` funds later channel liquidity and does not pay the Join Toll.
 
 Use `private-state-cli help commands` for the full command list and required options. `private-state-cli --help`
 continues to print the same command list for shell compatibility. Add `--json` to either form to print the command
@@ -187,7 +188,7 @@ Static warning scope:
 |---|---|---|---|
 | `account deposit-bridge` | Ethereum account, bridge vault, amount, approval/funding txs | No note change | No note plaintext or provenance is created |
 | `account withdraw-bridge` | Ethereum recipient/account, bridge vault, amount, withdrawal tx | No note change | Prior private-state note path is not reconstructed |
-| `channel join` | Ethereum account, channel-local address, note-receive public key, join fee, channel id | No note change | Wallet secret, spending key, viewing key, and note plaintext |
+| `channel join` | Ethereum account, channel-local address, note-receive public key, Join Toll, channel id | No note change | Wallet secret, spending key, viewing key, and note plaintext |
 | `wallet deposit-channel` | Ethereum submitter, registered channel-local address, amount, channel id, accounting update | No note change | No note provenance is created |
 | `wallet mint-notes` | Ethereum submitter, registered channel-local address, commitments, encrypted note events, root update | Creates notes | Note owner, value, salt, and later provenance |
 | `wallet transfer-notes` | Ethereum submitter, input nullifiers, output commitments, encrypted note events, root update | Spends and creates notes | Sender-recipient relationship, note plaintext, and provenance |

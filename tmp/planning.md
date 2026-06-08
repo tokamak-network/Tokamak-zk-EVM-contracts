@@ -125,8 +125,9 @@ For purposes of these Terms:
   accounting updates are recorded.
 - **Official Public Observer** means the public Tonnel observer service provided at `https://observer.tonnel.io`, or a
   successor URL published through an official project channel.
-- **Provider** means the individual who officially makes the Service available. The Provider's legal name, notice
-  contact, and applicable residence or business jurisdiction must be inserted before release.
+- **Provider** means Jehyuk Jang, the individual who officially makes the Service available. The Provider's public
+  privacy and notice contact is `cjhyuck213@gmail.com`. The Provider's stated jurisdiction is Singapore. The Provider's
+  residential address is not published in the planned Privacy Notice or Terms.
 - **Provider Parties** means the Provider and the Provider's affiliates, contractors, agents, licensors, service
   providers, and authorized representatives, to the extent each acts within an authorized Service-related role.
 - **Tokamak Network PTE. LTD.** may be defined separately, if needed, as a developer, software contributor, licensor,
@@ -363,12 +364,11 @@ ownership, control, or destination of assets.
 
 ### 20. Governing law, venue, dispute resolution, and notices
 
-- These Terms are governed by the laws of the Provider's stated residence or business jurisdiction, excluding
-  conflict-of-law rules, unless counsel approves a different jurisdiction with a sufficient connection to the Provider
-  or the Service.
+- These Terms are governed by the laws of Singapore, excluding conflict-of-law rules, unless counsel approves a
+  different jurisdiction with a sufficient connection to the Provider or the Service.
 - Subject to non-waivable rights under applicable law, disputes arising from or relating to these Terms or the Service
-  will be resolved in the courts located in the Provider's stated residence or business jurisdiction, unless counsel
-  approves a different forum with a sufficient connection to the Provider or the Service.
+  will be resolved in the courts located in Singapore, unless counsel approves a different forum with a sufficient
+  connection to the Provider or the Service.
 - The current draft does not include arbitration, class-action waiver, collective-action waiver, representative-action
   waiver, or jury-trial waiver provisions. Such provisions must not be added unless counsel confirms that they are
   appropriate for the Provider model and expected user jurisdictions.
@@ -543,6 +543,12 @@ Surface inventory status after the current repository pass:
 Business-owner confirmations to preserve in the Privacy Notice draft:
 
 - The Provider is the individual business owner, not Tokamak Network PTE. LTD.
+- The Provider's public identity is Jehyuk Jang.
+- The Provider's public privacy and notice contact is `cjhyuck213@gmail.com`.
+- The Provider's stated jurisdiction is Singapore.
+- The Provider's residential address is not published. If a physical notice address becomes legally or operationally
+  required, use a counsel-approved non-residential route such as a P.O. box, business mailing address, registered agent,
+  or counsel address.
 - Google Drive artifact-folder and download-log information is Provider-accessible to the extent Google Drive makes that
   information available to the Provider.
 - npm package download analytics or owner metadata is Provider-accessible to the extent npm makes that information
@@ -569,21 +575,21 @@ Next Privacy Notice task:
 Current status:
 
 - Completed an initial pre-counsel operational redline/risk review pass. See "Pre-Counsel Review Results" below.
-- The review found release blockers that must be resolved before implementation: exact Provider identity and contact,
-  privacy notice content and publication location, liability cap decision, consumer-law/forum carveouts,
-  sanctions/restricted jurisdictions policy, and counsel confirmation of the dispute-resolution strategy.
+- The review found release blockers that must be resolved before implementation: privacy notice content and publication
+  location, liability cap decision, consumer-law/forum carveouts, sanctions/restricted jurisdictions policy, counsel
+  confirmation of the dispute-resolution strategy, and Tokamak Network PTE. LTD.'s separate role if any.
 
 ### Phase 3: Resolve open legal and business decisions
 
-- Record the Provider Party decision: the Provider is an individual. The final Terms must insert the Provider's legal
-  name, notice contact, and applicable residence or business jurisdiction before release. Tokamak Network PTE. LTD. must
-  not be treated as the Provider unless it expressly assumes that role; if needed, define it separately as a developer,
-  software contributor, licensor, infrastructure provider, or Third-Party Service.
-- Use the recommended dispute strategy for an individual Provider: governing law and forum should default to the
-  Provider's stated residence or business jurisdiction, unless counsel approves a different jurisdiction with a
-  sufficient connection. The clause must preserve mandatory consumer-law and local-court rights. Do not include
-  arbitration, class-action waiver, collective-action waiver, representative-action waiver, or jury-trial waiver
-  provisions in the current draft unless counsel later approves them.
+- Record the Provider Party decision: the Provider is Jehyuk Jang, an individual. The Provider's public privacy and
+  notice contact is `cjhyuck213@gmail.com`, the Provider's stated jurisdiction is Singapore, and the Provider's
+  residential address is not published. Tokamak Network PTE. LTD. must not be treated as the Provider unless it expressly
+  assumes that role; if needed, define it separately as a developer, software contributor, licensor, infrastructure
+  provider, or Third-Party Service.
+- Use the recommended dispute strategy for an individual Provider: governing law and forum should default to Singapore,
+  unless counsel approves a different jurisdiction with a sufficient connection. The clause must preserve mandatory
+  consumer-law and local-court rights. Do not include arbitration, class-action waiver, collective-action waiver,
+  representative-action waiver, or jury-trial waiver provisions in the current draft unless counsel later approves them.
 - Keep liability-cap amount and formula undecided pending counsel review, but preserve the draft position that Provider
   Parties are not liable for use of the Service to the maximum extent permitted by applicable law. The draft must state
   that Join Tolls and any burned protocol fees are not Provider Party revenue.
@@ -599,15 +605,15 @@ Decision guide:
 
 | Decision | Current status | How to decide |
 |---|---|---|
-| Provider Party | Selected in principle: the Provider is an individual. Exact legal name and notice contact remain open. | Insert the individual's legal name and official notice contact before release. Do not name Tokamak Network PTE. LTD. as Provider unless it expressly assumes provider obligations. |
+| Provider Party | Selected: the Provider is Jehyuk Jang, an individual. Public privacy and notice contact is `cjhyuck213@gmail.com`. Stated jurisdiction is Singapore. Residential address is not published. | Use these Provider details in the Privacy Notice and Terms. Do not name Tokamak Network PTE. LTD. as Provider unless it expressly assumes provider obligations. |
 | Developer vs provider split | Selected in principle. | Define Tokamak Network PTE. LTD. separately only if needed, using the actual role: developer, software contributor, licensor, infrastructure provider, or Third-Party Service. Do not make Tokamak Network responsible for Provider obligations unless it actually provides the Service or agrees to do so. |
-| Global online forum | Strategy selected; exact jurisdiction pending Provider details. | Use a baseline governing law and forum connected to the individual Provider's residence or business jurisdiction, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. |
-| Individual provider forum | Strategy selected; exact jurisdiction pending Provider details. | Prefer the Provider's actual residence or business location unless counsel recommends a different forum. Confirm notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
+| Global online forum | Strategy selected: use Singapore as the Provider-connected baseline jurisdiction, subject to counsel review and mandatory consumer-law carveouts. | Use a baseline governing law and forum connected to Singapore, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. |
+| Individual provider forum | Strategy selected: Singapore, subject to counsel review. | Confirm that Singapore courts and Singapore law are appropriate for Jehyuk Jang as the individual Provider, and confirm notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
 | Liability cap | Undecided. | Decide after counsel review. If no revenue is earned and Join Tolls are burned, a cap cannot be based only on retained Service fees without creating a zero-cap problem. Consider whether a fixed cap is needed despite the no-revenue model. |
 | Restricted users | Undecided. | State prohibited uses and sanctions compliance, but do not promise user-level blocking unless a real user-identification and access-control system exists. |
 | Technical blocking | Constraint recorded. | Future blacklist features may block Ethereum Accounts or contract interactions, not necessarily real-world users. Terms and docs must not overstate user-level blocking. |
 | Privacy Notice | Highest priority, unresolved. | Complete the Privacy Notice inventory and draft before final Terms, guide, JSON mode, or implementation work. |
-| Provider identity and privacy contact | Selected in principle: the Provider is an individual, but the public identity/contact approach remains open. | A Privacy Notice generally needs enough Provider/controller identity and contact information for users and authorities to know who determines processing and how to exercise rights or send notices. Do not assume that the Provider must publish a personal home address. Prefer a dedicated service email, official Telegram channel, business mailing address, registered agent, P.O. box, or other counsel-approved notice route that protects private residential information while remaining legally usable. |
+| Provider identity and privacy contact | Selected: Jehyuk Jang; `cjhyuck213@gmail.com`; Singapore; residential address not published. | Use the email address for privacy/contact and notice routing. Keep Telegram as an official support channel, not the sole privacy contact. If a physical notice address becomes required, use a counsel-approved non-residential route such as a P.O. box, business mailing address, registered agent, or counsel address. |
 | Arbitration and class-action waiver | Not included in the current draft. | Keep these provisions out unless counsel confirms that adding them is appropriate and enforceable enough for the individual Provider model and expected user jurisdictions. |
 | Separate prompts | Recommended policy accepted. | Remove repeated per-command action-impact acknowledgement only after install-time Terms acceptance is enforced. Keep separate prompts for destructive operations, secret deletion/export, full plaintext evidence export, and any other operation where a moment-specific warning materially improves user safety. |
 
@@ -657,13 +663,12 @@ counsel should decide before public release.
 
 ### Governing law and forum review
 
-- Use the selected Provider Party model: the Provider is an individual. Confirm the Provider's legal name, notice
-  contact, and applicable residence or business jurisdiction before finalizing the governing-law and forum text.
-- Review whether a governing-law clause based on the individual Provider's residence or business jurisdiction may be
-  invalid, partially invalid, or limited for users in mandatory consumer-protection jurisdictions.
-- Review whether a courts forum clause based on the individual Provider's residence or business jurisdiction may be
-  considered unfair, unenforceable, or partially unenforceable where a consumer is entitled to sue or defend claims in
-  the consumer's local courts.
+- Use the selected Provider Party model: the Provider is Jehyuk Jang, an individual, with public privacy and notice
+  contact `cjhyuck213@gmail.com` and stated jurisdiction Singapore.
+- Review whether a Singapore governing-law clause may be invalid, partially invalid, or limited for users in mandatory
+  consumer-protection jurisdictions.
+- Review whether a Singapore courts forum clause may be considered unfair, unenforceable, or partially unenforceable
+  where a consumer is entitled to sue or defend claims in the consumer's local courts.
 - Confirm that the Terms should use court litigation in the Provider-connected forum with mandatory consumer-law
   exceptions, and should not include arbitration or class-action waiver provisions unless counsel later approves them.
 - Confirm whether the current conflict-of-law exclusion is appropriate for the Service and for international consumer
@@ -769,15 +774,14 @@ and MetaMask self-custody guidance. The following coverage patterns are relevant
   phrases, private keys, or passwords.
 
 Coverage impact for the current draft: Sections 6, 11, 13, 14, 15, 16, 17, and 20 are directionally aligned, but the
-current draft still needs wording on the exact individual Provider identity and contact, Tokamak Network PTE. LTD.'s
-separate role if any, Privacy Notice, liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notice
-mechanics before release.
+current draft still needs wording on Tokamak Network PTE. LTD.'s separate role if any, Privacy Notice, liability cap,
+restricted-jurisdiction policy, consumer-law carveouts, and notice mechanics before release.
 
 ### Redline items
 
 | ID | Section | Proposed change before counsel review | Rationale | Status |
 |---|---|---|---|---|
-| R-01 | 1, 2, 20 | Replace generic Provider Party references in the operative clauses with the exact individual Provider identity and notice contact. Define Tokamak Network PTE. LTD. separately only if it has an actual developer, contributor, licensor, infrastructure-provider, or Third-Party Service role. | Users and legal reviewers need to know who offers the Service, who developed the software, who receives notices, and who accepts provider obligations. | Blocked by exact Provider details and Tokamak role confirmation. |
+| R-01 | 1, 2, 20 | Replace generic Provider Party references in the operative clauses with Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and the no-residential-address publication policy. Define Tokamak Network PTE. LTD. separately only if it has an actual developer, contributor, licensor, infrastructure-provider, or Third-Party Service role. | Users and legal reviewers need to know who offers the Service, who developed the software, who receives notices, and who accepts provider obligations. | Provider details selected; blocked only by Tokamak role confirmation and counsel review. |
 | R-02 | 3 | Remove passive "continuing to access or use" acceptance for terms-gated CLI operations, or limit it to non-CLI informational surfaces. Require explicit acceptance for install and renewed acceptance. | The planned CLI gate relies on explicit acceptance and deterministic terms hash records. Passive acceptance may conflict with that product design. | Ready to redline after business approval. |
 | R-03 | 3 | Add an age-of-majority or minimum-age statement if the Service is made available to natural persons. | "Legal capacity" may be too abstract for ordinary users and consumer review. | Counsel decision. |
 | R-04 | 3, 7 | Decide whether to name restricted jurisdictions and sanctions authorities, or keep a principles-based restriction with a policy reference. State that the Service may only be able to restrict Ethereum Accounts or contract interactions, not identify and block real-world users. | Comparable services often name sanctions regimes or restricted regions. Naming improves specificity but creates maintenance obligations; overpromising user-level blocking would be inaccurate. | Counsel and policy decision. |
@@ -793,8 +797,8 @@ mechanics before release.
 | R-14 | 16 | Decide whether to include a liability cap and, if so, the cap formula and carveouts. Preserve the draft statement that Provider Parties are not liable for use of the Service to the maximum extent permitted by applicable law. | Current draft has exclusions but no aggregate cap; comparable services often use a cap. The no-revenue and burned-fee model may make fee-based cap formulas unsuitable. | Release blocker. |
 | R-15 | 17 | Narrow consumer indemnity or add business-user/unlawful-use limitations if counsel recommends. | Broad consumer indemnity can be unenforceable or unfair in some jurisdictions. | Counsel decision. |
 | R-16 | 18 | Specify the technical renewed-acceptance mechanism: terms version, deterministic hash, displayed terms, explicit phrase, stored record, stale-record rejection. | The product can implement this and should not rely only on legal notice wording. | Ready to redline with implementation plan. |
-| R-17 | 20 | Use court litigation in the individual Provider's residence or business jurisdiction, with mandatory consumer-law and local-court carveouts. Do not include arbitration, class-action waiver, collective-action waiver, representative-action waiver, or jury-trial waiver provisions unless counsel later approves them. | Forum and waiver clauses may be invalid or problematic for consumers in some jurisdictions. | Blocked by exact Provider jurisdiction and counsel confirmation. |
-| R-18 | 20 | Add a contact and notice address for the individual Provider. | Notices are incomplete without an official contact route. | Blocked by exact Provider details. |
+| R-17 | 20 | Use Singapore court litigation and Singapore law as the Provider-connected baseline, with mandatory consumer-law and local-court carveouts. Do not include arbitration, class-action waiver, collective-action waiver, representative-action waiver, or jury-trial waiver provisions unless counsel later approves them. | Forum and waiver clauses may be invalid or problematic for consumers in some jurisdictions. | Blocked by counsel confirmation. |
+| R-18 | 20 | Add `cjhyuck213@gmail.com` as the public privacy and notice contact for Jehyuk Jang, and state that the Provider's residential address is not published. If a physical notice address becomes required, use a counsel-approved non-residential notice route. | Notices are incomplete without an official contact route, but residential address publication is not the default policy. | Provider contact selected; counsel to confirm sufficiency. |
 | R-19 | 1, 2, 9, 16 | Keep the Join Toll burn language in the Terms and confirm the implemented protocol actually burns Join Tolls rather than transferring them to Provider Parties, Channel Operators, or another treasury. | The user-facing economic representation must match the protocol. If fees are burned, they should not be described as Provider Party revenue or refundable service fees. | Product and counsel confirmation. |
 | R-20 | Prompt policy | Replace repeated per-command action-impact acknowledgement only after install-time Terms acceptance is enforced. Keep separate prompts for destructive operations, secret deletion/export, and full note-plaintext evidence export. | This matches the accepted product strategy while preserving moment-specific warnings where they materially improve user safety. | Ready to redline and implement after Terms freeze. |
 
@@ -802,7 +806,7 @@ mechanics before release.
 
 | ID | Severity | Area | Risk | Proposed mitigation | Owner |
 |---|---|---|---|---|---|
-| K-01 | High | Provider identity | The Provider model is selected as an individual Provider, but the Terms do not yet identify the individual's exact legal name, notice contact, residence or business jurisdiction, or Tokamak Network PTE. LTD.'s separate role if any. | Insert exact Provider details, confirm Tokamak's separate role if any, and obtain counsel review of personal-liability and notice-handling implications. | Business/counsel. |
+| K-01 | Medium | Provider identity | The Provider model and public Provider details are selected, but Tokamak Network PTE. LTD.'s separate role, if any, still needs final wording. | Insert Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and the no-residential-address publication policy; confirm Tokamak's separate role if any; obtain counsel review of personal-liability and notice-handling implications. | Business/counsel. |
 | K-02 | High | Privacy/data | No standalone privacy notice exists in the repository while the Service includes an Official Public Observer and may process logs or support data. | Draft and publish privacy notice or document counsel-approved reason no notice is required. | Product/counsel. |
 | K-03 | High | Consumer law | A Provider-connected forum clause may be limited or unenforceable for consumers with mandatory local rights. | Add explicit non-waivable consumer-rights and local-court carveouts as counsel directs. | Counsel. |
 | K-04 | Medium | Dispute resolution | The current draft excludes arbitration and class-action waiver provisions. This reduces clause-validity and user-friction risk but may increase litigation exposure for the individual Provider. | Confirm the no-arbitration and no-class-action-waiver strategy with counsel before implementation. | Counsel/business. |
@@ -821,15 +825,16 @@ mechanics before release.
 
 Business decisions to prepare before counsel review:
 
-- What exact legal name, residence or business jurisdiction, and official notice/contact route should the individual
-  Provider use? What separate legal role, if any, should Tokamak Network PTE. LTD. have?
+- Is Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no published residential address sufficient for the individual
+  Provider identity and public notice/contact route? What separate legal role, if any, should Tokamak Network PTE. LTD.
+  have?
 - Is the Service intended for all ordinary users, only users in selected jurisdictions, or only non-restricted users who
   pass some operational access control?
 - Should the Terms name restricted jurisdictions and sanctions lists, or refer to applicable sanctions regimes generally?
   If the Service can block only Ethereum Accounts or contract interactions, what should the Terms say about the limits of
   user-level blocking?
-- Should the Service use court litigation in the individual Provider's residence or business jurisdiction with
-  mandatory consumer-law carveouts, and no arbitration or class-action waiver provisions?
+- Should the Service use Singapore court litigation with mandatory consumer-law carveouts, and no arbitration or
+  class-action waiver provisions?
 - What liability cap, if any, is commercially acceptable when Join Tolls are burned and not retained as Provider Party
   revenue?
 - Should user indemnity apply to ordinary consumers, business users only, unlawful use only, or third-party claims only?
@@ -842,8 +847,7 @@ Business decisions to prepare before counsel review:
 
 Legal-validity questions for counsel:
 
-- Is governing law and forum tied to the individual Provider's residence or business jurisdiction enforceable enough for
-  expected users, including consumers outside that jurisdiction?
+- Is Singapore governing law and forum enforceable enough for expected users, including consumers outside Singapore?
 - What consumer-law, cooling-off, withdrawal, language, accessibility, or local notice requirements apply?
 - Is the current decision to omit arbitration, class-action waiver, collective-action waiver, representative-action
   waiver, and jury-trial waiver provisions advisable for the expected user base?
@@ -877,10 +881,12 @@ The following items should block implementation of production terms behavior unt
 business owner with counsel awareness:
 
 - Privacy Notice inventory, content, publication location, and Terms cross-reference.
-- Exact individual Provider identity, residence or business jurisdiction, and contact information; Tokamak Network PTE.
-  LTD.'s separate role if any.
+- Counsel confirmation that Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no published residential address are
+  sufficient for the individual Provider identity and public notice/contact route; Tokamak Network PTE. LTD.'s separate
+  role if any.
 - Liability cap decision and carveouts.
-- Exact governing-law/forum jurisdiction based on the individual Provider's details, including consumer-law carveouts.
+- Singapore governing-law/forum wording based on the individual Provider's stated jurisdiction, including consumer-law
+  carveouts.
 - Counsel confirmation that arbitration, class-action waiver, collective-action waiver, representative-action waiver,
   and jury-trial waiver provisions should remain excluded from the current draft.
 - Sanctions/restricted jurisdictions policy and any account-level restriction or screening decision that is technically
@@ -892,12 +898,10 @@ business owner with counsel awareness:
 
 ## Open Legal Decisions
 
-- Provider Party model is selected in principle: the Provider is an individual. The remaining unresolved items are the
-  Provider's exact legal name, notice contact, residence or business jurisdiction, and Tokamak Network PTE. LTD.'s
-  separate role if any.
-- Governing law and forum strategy is selected in principle: use the individual Provider's residence or business
-  jurisdiction with mandatory consumer-law carveouts unless counsel approves a different Provider-connected
-  jurisdiction. The exact jurisdiction remains open until the Provider details are inserted.
+- Provider Party model and public Provider details are selected: Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no
+  published residential address. The remaining unresolved item is Tokamak Network PTE. LTD.'s separate role if any.
+- Governing law and forum strategy is selected in principle: use Singapore with mandatory consumer-law carveouts unless
+  counsel approves a different Provider-connected jurisdiction.
 - Arbitration, class-action waiver, collective-action waiver, representative-action waiver, and jury-trial waiver
   provisions are excluded from the current draft unless counsel later approves them.
 - Liability cap remains undecided. The draft position is that Provider Parties have no liability for Service use to the

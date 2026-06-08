@@ -568,6 +568,9 @@ Business-owner confirmations to preserve in the Privacy Notice draft:
 - The Provider does not operate or proxy RPC endpoints; all RPC endpoints are user-selected third-party RPC services.
 - Official support channels are GitHub issues and the Telegram channel `t.me/tonnel_ethereum`.
 - The current Service scope includes `tonnel.io` and `www.tonnel.io`, but excludes `airdrop.tonnel.io`.
+- The initial Privacy Notice publication location is the GitHub repository document
+  `docs/dapps/private-state/privacy-notice.md`. The CLI README should mention and reference that document only. A
+  `tonnel.io` publication may be added later.
 - The Provider has decided to publish the current confirmed operating state as-is in the Privacy Notice. If the Provider
   later changes operational settings such as EC2 raw-history deletion, EBS encryption, backup policy, observer cadence,
   Vercel plan, analytics, or logging, the Privacy Notice must be updated.
@@ -644,19 +647,18 @@ Privacy Notice data-category matrix:
 
 Next Privacy Notice task:
 
-- Draft the Privacy Notice from the matrix above. The draft must clearly separate Provider-controlled processing from
-  Third-Party Service processing, avoid claiming deletion control over public blockchain records or third-party logs, and
-  use the confirmed deployment/account settings above. The draft must explicitly disclose that the Provider-controlled
-  EC2 worker keeps operational logs and raw RPC history with no repository-managed automatic deletion policy, that the
-  current host timer uses a 3 hour observer cadence, and that the inspected worker EBS volume is not encrypted. The
-  draft must include `tonnel.io` and `www.tonnel.io` as current Service web surfaces and must exclude `airdrop.tonnel.io`.
-  If the Provider later changes operational settings or Service-scope domains, update the Privacy Notice accordingly.
+- Review the drafted Privacy Notice in `docs/dapps/private-state/privacy-notice.md`. The review must confirm that the
+  draft clearly separates Provider-controlled processing from Third-Party Service processing, avoids claiming deletion
+  control over public blockchain records or third-party logs, uses the confirmed deployment/account settings above,
+  discloses the Provider-controlled EC2 worker operational logs and raw RPC history with no repository-managed automatic
+  deletion policy, states the current 3 hour observer cadence, states that the inspected worker EBS volume is not
+  encrypted, includes `tonnel.io` and `www.tonnel.io`, excludes `airdrop.tonnel.io`, and preserves the rule that later
+  operational-setting or Service-scope domain changes require a Privacy Notice update.
 
 Current next step:
 
-- Draft the Privacy Notice sections using the completed matrix, then review the draft against the Terms definitions,
-  Provider identity, Official Public Observer disclosures, support routes, and Third-Party Service boundaries before
-  moving to Phase 2 redline work.
+- Review the drafted Privacy Notice against the Terms definitions, Provider identity, Official Public Observer
+  disclosures, support routes, and Third-Party Service boundaries before moving to Phase 2 redline work.
 
 ### Phase 2: Complete pre-counsel redline and risk review
 
@@ -707,7 +709,7 @@ Decision guide:
 | Liability cap | Undecided. | Decide after counsel review. If no revenue is earned and Join Tolls are burned, a cap cannot be based only on retained Service fees without creating a zero-cap problem. Consider whether a fixed cap is needed despite the no-revenue model. |
 | Restricted users | Undecided. | State prohibited uses and sanctions compliance, but do not promise user-level blocking unless a real user-identification and access-control system exists. |
 | Technical blocking | Constraint recorded. | Future blacklist features may block Ethereum Accounts or contract interactions, not necessarily real-world users. Terms and docs must not overstate user-level blocking. |
-| Privacy Notice | Highest priority. The data-category matrix is complete for the current planning pass; the Privacy Notice draft remains unresolved. | Draft the Privacy Notice from the completed matrix before final Terms, guide, JSON mode, or implementation work. |
+| Privacy Notice | Initial draft completed in `docs/dapps/private-state/privacy-notice.md`; initial publication location selected as GitHub repository documentation only. CLI README references the document. `tonnel.io` publication is deferred. | Review the draft against Terms definitions, Provider identity, Official Public Observer disclosures, support routes, and Third-Party Service boundaries before final Terms, guide, JSON mode, or implementation work. |
 | Provider identity and privacy contact | Selected: Jehyuk Jang; `cjhyuck213@gmail.com`; Singapore; residential address not published. | Use the email address for privacy/contact and notice routing. Keep Telegram as an official support channel, not the sole privacy contact. If a physical notice address becomes required, use a counsel-approved non-residential route such as a P.O. box, business mailing address, registered agent, or counsel address. |
 | Arbitration and class-action waiver | Not included in the current draft. | Keep these provisions out unless counsel confirms that adding them is appropriate and enforceable enough for the individual Provider model and expected user jurisdictions. |
 | Separate prompts | Recommended policy accepted. | Remove repeated per-command action-impact acknowledgement only after install-time Terms acceptance is enforced. Keep separate prompts for destructive operations, secret deletion/export, full plaintext evidence export, and any other operation where a moment-specific warning materially improves user safety. |

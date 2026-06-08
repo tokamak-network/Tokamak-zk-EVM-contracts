@@ -6,6 +6,10 @@ The full private-state DApp documentation is published with the repository:
 
 - https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/tree/main/docs/dapps/private-state
 
+The Service Privacy Notice is published in the repository:
+
+- https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/docs/dapps/private-state/privacy-notice.md
+
 ## Terminology And Exchange Boundary
 
 This npm README uses the same terminology as the repository README:

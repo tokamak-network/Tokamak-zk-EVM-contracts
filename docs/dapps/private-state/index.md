@@ -87,6 +87,9 @@ accepting that policy for the channel lifetime.
 6. [Channel Workspace Mirror Protocol](channel-workspace-mirror-protocol.md)
    Defines the optional static server protocol that channel leaders can use to publish signed
    workspace checkpoints and delta bundles for old channels.
+7. [Tonnel Privacy Notice](privacy-notice.md)
+   Explains Service data processing, public blockchain records, official observer and mirror processing,
+   third-party services, retention, user choices, and the Provider privacy contact.
 
 The intended reading path moves from concepts, to contracts, to per-function constraints, to
 security assumptions, and finally to end-to-end workflow. A reader who only needs operational

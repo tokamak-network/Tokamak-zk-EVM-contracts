@@ -107,7 +107,8 @@ For purposes of these Terms:
 - **Channel** means a specific opt-in Tonnel application environment with its own policy, membership rules, accounting
   records, and private note records. A Channel is not an exchange deposit or withdrawal network.
 - **The Great First Channel** means the dedicated initial Channel identified as `the-great-first-channel`.
-- **Join Toll** means the one-time Channel entry fee paid when a user joins a Channel.
+- **Join Toll** means the one-time Channel entry fee paid when a user joins a Channel. Join Tolls are not revenue to
+  Provider Parties; they are burned according to the Service's implemented token economics.
 - **L2** means the Tonnel private application state used for Channel accounting and Private Notes. Because this term is
   technical, these Terms use "Tonnel private application state" whenever possible.
 - **Ethereum mainnet** means the public Ethereum network where relevant bridge, Channel-management, registration, and
@@ -148,6 +149,8 @@ For purposes of these Terms:
 - Through the Service, Provider Parties do not provide exchange deposit services, exchange withdrawal services,
   brokerage, custodial wallet services, hosted transfer services, asset recovery services, compliance services, or tax
   services.
+- Join Tolls paid through the Service are not monetized by Provider Parties and are burned. Provider Parties do not earn
+  fees from Join Tolls.
 - Nothing in these Terms is a determination of the regulatory status of any person, entity, software, transaction,
   network, token, or service under applicable law.
 - Private Notes are Channel-local application records. They are not separate exchange-depositable assets.
@@ -162,9 +165,12 @@ For purposes of these Terms:
 - The user represents that the user has legal capacity to accept these Terms.
 - If the user acts for an organization, the user represents that the user has authority to bind that organization.
 - The user represents that use of the Service is not prohibited by laws applicable to the user.
-- The user represents that the user is not subject to sanctions and is not located, organized, resident, or ordinarily
-  resident in a jurisdiction where use would be prohibited by applicable sanctions, export control, anti-money laundering,
+- The user represents that use would not violate applicable sanctions, export control, anti-money laundering,
   counter-terrorist financing, securities, commodities, tax, data-protection, or other applicable laws.
+- The Service is based on public blockchain infrastructure. Provider Parties may not have a technical method to identify,
+  screen, or block every natural person or legal entity that attempts to use the Service. If account-level restrictions
+  are implemented, they may block Ethereum Accounts or contract interactions, not necessarily the real-world person or
+  entity behind an address.
 
 ### 4. Public Ethereum mainnet records
 
@@ -317,6 +323,11 @@ ownership, control, or destination of assets.
   secrets, failed transactions, wrong transactions, loss of access, loss of assets, loss of evidence, business
   interruption, Third-Party Service failures, exchange actions, regulatory actions, tax consequences, user error, device
   compromise, or unauthorized access.
+- To the maximum extent permitted by applicable law, Provider Parties are not liable for the user's access to, use of,
+  inability to use, or reliance on the Service.
+- Join Tolls and other Service fees, if any, are not retained as Provider Party revenue when the implemented protocol
+  burns them. Burned fees do not create a custodial, refund, credit, account-balance, or revenue-sharing relationship
+  between the user and Provider Parties.
 - Nothing in these Terms excludes or limits liability that cannot be excluded or limited under applicable law, including
   liability for fraud, willful misconduct, gross negligence, death, or personal injury where such exclusion or limitation
   is not permitted.
@@ -460,6 +471,48 @@ Current status:
 - Terms, privacy notice, redline/risk review, and counsel-facing release decisions remain unresolved and must be
   completed before production terms behavior is implemented.
 
+### Immediate priority: Privacy Notice preparation
+
+Privacy Notice preparation must be handled before resolving the remaining Phase 3 legal/business decisions and before
+any implementation work. The Service scope includes an Official Public Observer and may include official websites,
+support channels, logs, package distribution, and other interfaces that can process personal data. The project must not
+ship production terms behavior without either a published Privacy Notice or a counsel-approved written conclusion that no
+Privacy Notice is required.
+
+Preparation tasks:
+
+1. Inventory official surfaces:
+   - Official Public Observer hosting and CDN.
+   - Official websites or documentation hosting.
+   - CLI package distribution, npm metadata, and release-download logs that Provider Parties can access.
+   - Support/contact channels such as email, Discord, Telegram, GitHub issues, or forms.
+   - Analytics, cookies, error reporting, uptime monitoring, logging, and abuse-protection tools.
+   - CLI telemetry, if any.
+   - RPC endpoints officially operated, proxied, recommended, or documented by Provider Parties.
+2. For each surface, record data categories:
+   - IP address, user agent, device/browser data, request path, timestamps, wallet addresses, transaction hashes,
+     support messages, email or contact identifiers, analytics IDs, cookies, and public blockchain records.
+3. For each data category, record purpose, retention, sharing, storage location, cross-border transfer, and deletion or
+   access route.
+4. Separate Provider Party processing from Third-Party Service processing. RPC providers, wallets, exchanges, explorers,
+   package registries, analytics tools, and hosting providers must be described as third parties when Provider Parties do
+   not control their collection or retention.
+5. Draft Privacy Notice sections:
+   - Scope and controller/provider identity.
+   - Data collected directly from users.
+   - Data collected automatically by official interfaces.
+   - Public blockchain and public Channel records.
+   - Official Public Observer records and limits.
+   - Cookies, analytics, logs, and security monitoring.
+   - Support/contact data.
+   - Third-Party Services.
+   - Retention.
+   - International transfers.
+   - User rights and contact route.
+   - Security.
+   - Changes to the Privacy Notice.
+6. Add a Terms cross-reference to the final Privacy Notice publication location.
+
 ### Phase 2: Complete pre-counsel redline and risk review
 
 - Run the Pre-Counsel Redline and Risk Review Plan below.
@@ -476,13 +529,40 @@ Current status:
 
 ### Phase 3: Resolve open legal and business decisions
 
-- Confirm that Tokamak Network PTE. LTD. has authority to publish and enforce the Terms for the Service.
-- Decide whether to keep Singapore courts, add arbitration, add class-action waiver language, or use a hybrid approach
-  with consumer-law exceptions.
-- Decide whether a liability cap is needed and what formula or amount it should use.
-- Decide whether restricted jurisdictions, sanctions lists, or user categories must be named.
-- Resolve privacy notice content and publication location before release.
-- Decide whether any command still needs a separate prompt after install-time Terms acceptance is enforced.
+- Defer Provider Party selection until the provider model is decided. If the Service developer is Tokamak Network but
+  the Service provider is an individual, the Terms must distinguish the developer from the Provider Party. The individual
+  or that individual's business vehicle may become the Provider Party, while Tokamak Network may need to be defined as a
+  developer, software contributor, licensor, infrastructure provider, or Third-Party Service depending on the actual
+  relationship.
+- Defer governing-law, forum, arbitration, and class-action decisions. Because the Service is online and can be reached
+  globally, the selected governing law and forum should be treated as a baseline contract position, not as a way to avoid
+  mandatory consumer protections in users' local jurisdictions. If the Provider Party is an individual rather than a
+  legal entity, the decision should consider the individual's residence, business location, asset location, tax exposure,
+  ability to receive legal notices, and personal-liability exposure.
+- Keep liability-cap amount and formula undecided pending counsel review, but preserve the draft position that Provider
+  Parties are not liable for use of the Service to the maximum extent permitted by applicable law. The draft must state
+  that Join Tolls and any burned protocol fees are not Provider Party revenue.
+- Keep restricted jurisdictions and sanctions-list naming undecided pending counsel and compliance policy. Record the
+  technical constraint that the Service may not be able to block real-world users; future restrictions may be implemented
+  at the Ethereum Account or contract-interaction level.
+- Resolve Privacy Notice content and publication location as the highest-priority pre-Phase-3 work item.
+- Adopt the prompt strategy that install-time Terms acceptance replaces repeated per-command action-impact
+  acknowledgement, while unusually destructive, secret-affecting, or plaintext-exporting operations may keep separate
+  prompts.
+
+Decision guide:
+
+| Decision | Current status | How to decide |
+|---|---|---|
+| Provider Party | Undecided. Tokamak Network PTE. LTD. is not assumed as final if the Service provider may be an individual. | Identify who actually offers the Service, operates official interfaces, receives notices, controls updates, and accepts legal responsibility. If this is an individual, consider forming or using a legal entity before release to reduce personal-liability and notice-handling risk. |
+| Developer vs provider split | Undecided. | If Tokamak Network only develops software, define it separately from the Provider Party. Do not make Tokamak Network responsible for provider obligations unless it actually provides the Service or agrees to do so. |
+| Global online forum | Undecided. | Choose a baseline governing law and forum connected to the Provider Party, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. |
+| Individual provider forum | Undecided. | Prefer the provider's actual residence or business location unless counsel recommends a different forum. An individual provider creates greater personal-liability, tax, notice, and enforceability concerns than a company provider. |
+| Liability cap | Undecided. | Decide after counsel review. If no revenue is earned and Join Tolls are burned, a cap cannot be based only on retained Service fees without creating a zero-cap problem. Consider whether a fixed cap is needed despite the no-revenue model. |
+| Restricted users | Undecided. | State prohibited uses and sanctions compliance, but do not promise user-level blocking unless a real user-identification and access-control system exists. |
+| Technical blocking | Constraint recorded. | Future blacklist features may block Ethereum Accounts or contract interactions, not necessarily real-world users. Terms and docs must not overstate user-level blocking. |
+| Privacy Notice | Highest priority, unresolved. | Complete the Privacy Notice inventory and draft before final Terms, guide, JSON mode, or implementation work. |
+| Separate prompts | Recommended policy accepted. | Remove repeated per-command action-impact acknowledgement only after install-time Terms acceptance is enforced. Keep separate prompts for destructive operations, secret deletion/export, full plaintext evidence export, and any other operation where a moment-specific warning materially improves user safety. |
 
 ### Phase 4: Finalize human-facing documents
 
@@ -530,8 +610,9 @@ counsel should decide before public release.
 
 ### Governing law and forum review
 
-- Confirm that Tokamak Network PTE. LTD. is the Provider Party for the Service and that Singapore law is the intended
-  governing law.
+- Confirm the Provider Party model before deciding governing law. If Tokamak Network PTE. LTD. is only the developer and
+  an individual or another entity provides the Service, the governing-law and forum analysis must use the final Provider
+  Party model.
 - Review whether the Singapore governing-law clause may be invalid, partially invalid, or limited for users in mandatory
   consumer-protection jurisdictions.
 - Review whether the Singapore courts forum clause may be considered unfair, unenforceable, or partially unenforceable
@@ -640,17 +721,17 @@ and MetaMask self-custody guidance. The following coverage patterns are relevant
   phrases, private keys, or passwords.
 
 Coverage impact for the current draft: Sections 6, 11, 13, 14, 15, 16, 17, and 20 are directionally aligned, but the
-current draft still needs decisions and wording on the exact contracting entity, privacy notice, liability cap,
-restricted jurisdictions, arbitration/class waiver, consumer-law carveouts, and notice mechanics before release.
+current draft still needs decisions and wording on the exact Provider Party model, Privacy Notice, liability cap,
+restricted-jurisdiction policy, arbitration/class waiver, consumer-law carveouts, and notice mechanics before release.
 
 ### Redline items
 
 | ID | Section | Proposed change before counsel review | Rationale | Status |
 |---|---|---|---|---|
-| R-01 | 1, 2, 20 | Replace generic Provider Party references in the operative clauses with the exact contracting entity once authority is confirmed: Tokamak Network PTE. LTD., or another counsel-approved entity. | Users and legal reviewers need to know who offers the Service and who receives notices. | Blocked by authority confirmation. |
+| R-01 | 1, 2, 20 | Replace generic Provider Party references in the operative clauses with the exact Provider Party model once decided. If Tokamak Network is only the developer and an individual provides the Service, define those roles separately. | Users and legal reviewers need to know who offers the Service, who developed the software, who receives notices, and who accepts provider obligations. | Blocked by Provider Party model decision. |
 | R-02 | 3 | Remove passive "continuing to access or use" acceptance for terms-gated CLI operations, or limit it to non-CLI informational surfaces. Require explicit acceptance for install and renewed acceptance. | The planned CLI gate relies on explicit acceptance and deterministic terms hash records. Passive acceptance may conflict with that product design. | Ready to redline after business approval. |
 | R-03 | 3 | Add an age-of-majority or minimum-age statement if the Service is made available to natural persons. | "Legal capacity" may be too abstract for ordinary users and consumer review. | Counsel decision. |
-| R-04 | 3, 7 | Decide whether to name restricted jurisdictions and sanctions authorities, or keep a principles-based restriction with a policy reference. | Comparable services often name sanctions regimes or restricted regions. Naming improves specificity but creates maintenance obligations. | Counsel and policy decision. |
+| R-04 | 3, 7 | Decide whether to name restricted jurisdictions and sanctions authorities, or keep a principles-based restriction with a policy reference. State that the Service may only be able to restrict Ethereum Accounts or contract interactions, not identify and block real-world users. | Comparable services often name sanctions regimes or restricted regions. Naming improves specificity but creates maintenance obligations; overpromising user-level blocking would be inaccurate. | Counsel and policy decision. |
 | R-05 | 5 | Replace "Tonnel may prevent public contract state..." with a more precise non-guarantee: "Tonnel is designed so public contract state does not, by itself, reconstruct..." | "May prevent" is vague; a design-purpose statement is clearer while avoiding guarantees. | Ready to redline. |
 | R-06 | 6 | Add a short ordinary-user warning that Provider Parties, Channel Operators, and User-Controlled AI Agents will never need the user's private keys, seed phrases, wallet secrets, spending keys, or viewing keys. | Aligns with self-custody guidance and reduces secret-disclosure risk. | Ready to redline. |
 | R-07 | 7 | Keep prohibited-use wording, but avoid repeating prohibited marketing phrases outside prohibited-use and checklist contexts. | Terms can prohibit misuse without creating marketing language that suggests the Service is useful for that misuse. | Ongoing wording check. |
@@ -660,48 +741,54 @@ restricted jurisdictions, arbitration/class waiver, consumer-law carveouts, and 
 | R-11 | 12 | Produce a standalone privacy notice or add a clear cross-reference to one before release. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. | Release blocker. |
 | R-12 | 13 | Clarify that User-Controlled AI Agents are selected by the user and are not agents, representatives, or service providers of Provider Parties unless expressly stated. | Reduces implied advisory, support, fiduciary, or agency relationship risk. | Ready to redline. |
 | R-13 | 14 | Add explicit ZK/proof-system risk, CRS/proving-artifact risk, local proof-generation risk, and public observer indexing risk. | Current blockchain risks are broad but do not fully reflect this Service's proof and observer architecture. | Ready to redline. |
-| R-14 | 16 | Decide whether to include a liability cap and, if so, the cap formula and carveouts. | Current draft has exclusions but no aggregate cap; comparable services often use a cap. | Release blocker. |
+| R-14 | 16 | Decide whether to include a liability cap and, if so, the cap formula and carveouts. Preserve the draft statement that Provider Parties are not liable for use of the Service to the maximum extent permitted by applicable law. | Current draft has exclusions but no aggregate cap; comparable services often use a cap. The no-revenue and burned-fee model may make fee-based cap formulas unsuitable. | Release blocker. |
 | R-15 | 17 | Narrow consumer indemnity or add business-user/unlawful-use limitations if counsel recommends. | Broad consumer indemnity can be unenforceable or unfair in some jurisdictions. | Counsel decision. |
 | R-16 | 18 | Specify the technical renewed-acceptance mechanism: terms version, deterministic hash, displayed terms, explicit phrase, stored record, stale-record rejection. | The product can implement this and should not rely only on legal notice wording. | Ready to redline with implementation plan. |
 | R-17 | 20 | Decide Singapore courts only, arbitration, class-action waiver, or hybrid approach with mandatory consumer-law exceptions. | Forum/arbitration/class-action clauses may be invalid or problematic for consumers in some jurisdictions. | Release blocker. |
-| R-18 | 20 | Add a contact and notice address once Provider Party authority is confirmed. | Notices are incomplete without an official contact route. | Blocked by Provider Party details. |
+| R-18 | 20 | Add a contact and notice address once the Provider Party model is confirmed. | Notices are incomplete without an official contact route. | Blocked by Provider Party details. |
+| R-19 | 1, 2, 9, 16 | Keep the Join Toll burn language in the Terms and confirm the implemented protocol actually burns Join Tolls rather than transferring them to Provider Parties, Channel Operators, or another treasury. | The user-facing economic representation must match the protocol. If fees are burned, they should not be described as Provider Party revenue or refundable service fees. | Product and counsel confirmation. |
+| R-20 | Prompt policy | Replace repeated per-command action-impact acknowledgement only after install-time Terms acceptance is enforced. Keep separate prompts for destructive operations, secret deletion/export, and full note-plaintext evidence export. | This matches the accepted product strategy while preserving moment-specific warnings where they materially improve user safety. | Ready to redline and implement after Terms freeze. |
 
 ### Risk register
 
 | ID | Severity | Area | Risk | Proposed mitigation | Owner |
 |---|---|---|---|---|---|
-| K-01 | High | Provider identity | Terms do not yet identify the exact contracting Provider Party in operative clauses. | Confirm Provider Party authority and insert exact legal entity and notice contact. | Business/counsel. |
+| K-01 | High | Provider identity | Terms do not yet identify the exact Provider Party model. Tokamak Network may be developer while an individual may be provider. | Decide provider/developer split, consider legal-entity formation if an individual would otherwise provide the Service, and insert exact notice contact. | Business/counsel. |
 | K-02 | High | Privacy/data | No standalone privacy notice exists in the repository while the Service includes an Official Public Observer and may process logs or support data. | Draft and publish privacy notice or document counsel-approved reason no notice is required. | Product/counsel. |
 | K-03 | High | Consumer law | Singapore forum clause may be limited or unenforceable for consumers with mandatory local rights. | Add explicit non-waivable consumer-rights and local-court carveouts as counsel directs. | Counsel. |
 | K-04 | High | Dispute resolution | Arbitration and class-action waiver are undecided. Adding them without jurisdiction analysis can increase invalidity and user-friction risk; omitting them may increase litigation exposure. | Decide dispute strategy with counsel before implementation. | Counsel/business. |
-| K-05 | High | Liability | No liability cap is specified. Broad exclusions without cap may be incomplete or less predictable. | Decide cap amount/formula and carveouts. | Counsel/business. |
-| K-06 | High | Sanctions/AML | Restricted jurisdictions and screening obligations are not operationally defined. | Decide named restrictions, screening/geoblocking policy, and user representations. | Compliance/counsel. |
+| K-05 | High | Liability | No liability cap is specified. Broad exclusions without cap may be incomplete or less predictable, and the burned-fee model may make fee-based caps unsuitable. | Decide whether a fixed cap is needed and what carveouts apply. | Counsel/business. |
+| K-06 | High | Sanctions/AML | Restricted jurisdictions and screening obligations are not operationally defined, and the Service may lack technical methods to block real-world users. | Decide named restrictions and account-level restriction policy without promising user-level blocking. | Compliance/counsel. |
 | K-07 | Medium | Privacy claims | "may prevent" and "does not reveal" wording could be read as unclear or absolute. | Redline Sections 5 and 10 to state design intent, public-state limits, and no guarantee. | Product/counsel. |
 | K-08 | Medium | Self-custody | Secret-loss warning is legally useful but should be more visible in install and AI-agent flows. | Add section refs to install/JSON guide and ensure human guide explains no recovery method before secret-dependent use. | Product. |
 | K-09 | Medium | Third-party services | RPC providers, wallets, exchanges, package registries, and browsers have independent terms and data practices. | Keep Section 11 and privacy notice cross-references; add RPC-provider metadata disclosure if applicable. | Product/counsel. |
 | K-10 | Medium | Channel operators | Channel Operators may not be Provider Parties, but users may confuse them. | Clarify independence, responsibilities, and policy variance by Channel. | Product/counsel. |
 | K-11 | Medium | AI agents | User-Controlled AI Agents could be perceived as acting with official authority if JSON directives are too prescriptive. | State that AI agents are user-selected tools and cannot accept terms, handle secrets, or create advisory relationship. | Product/counsel. |
 | K-12 | Medium | Evidence/observer | Official Public Observer may be insufficient for exchange, tax, audit, or compliance review. | Preserve observer-limit wording and add local evidence preservation duties. | Product/compliance. |
-| K-13 | Medium | Proof/bridge risk | Current risk disclosure should be more specific to ZK proofs, proving artifacts, bridge accounting, and local proof runtime. | Add explicit proof-system and artifact-risk bullets. | Product/security. |
-| K-14 | Low | Terminology | Remaining `L1`, `L2`, and `--join-toll` occurrences are mostly technical identifiers, but future docs may regress. | Keep terminology search as final verification. | Product. |
+| K-13 | Low | Terminology | Remaining `L1`, `L2`, and `--join-toll` occurrences are mostly technical identifiers, but future docs may regress. | Keep terminology search as final verification. | Product. |
+| K-14 | Medium | Burned fees | Join Tolls are represented as burned and not monetized by Provider Parties. Any implementation mismatch would create user-facing misstatement risk. | Verify protocol behavior and deployment configuration before release. | Product/security/counsel. |
 
 ### Counsel-question list
 
 Business decisions to prepare before counsel review:
 
-- Which legal entity will be the contracting Provider Party for the Service, and what official notice/contact route
-  should the Terms use?
+- Who will be the contracting Provider Party for the Service, and what official notice/contact route should the Terms
+  use? If Tokamak Network is only the developer and an individual provides the Service, what legal role should each have?
 - Is the Service intended for all ordinary users, only users in selected jurisdictions, or only non-restricted users who
   pass some operational access control?
-- Should the Terms name restricted jurisdictions and sanctions lists, or refer to applicable sanctions regimes
-  generally?
+- Should the Terms name restricted jurisdictions and sanctions lists, or refer to applicable sanctions regimes generally?
+  If the Service can block only Ethereum Accounts or contract interactions, what should the Terms say about the limits of
+  user-level blocking?
 - Should the Service use Singapore courts only, arbitration, class-action waiver, or a hybrid dispute model?
-- What liability cap, if any, is commercially acceptable?
+- What liability cap, if any, is commercially acceptable when Join Tolls are burned and not retained as Provider Party
+  revenue?
 - Should user indemnity apply to ordinary consumers, business users only, unlawful use only, or third-party claims only?
 - What official interfaces process personal data, including observer hosting, logs, analytics, support, package
   distribution, and telemetry?
 - Where will the privacy notice be published, and how will the Terms link to it?
 - Which operations, if any, should keep separate prompts after install-time Terms acceptance?
+- Which implementation source confirms that Join Tolls are burned and not routed to Provider Parties, Channel Operators,
+  or another treasury?
 
 Legal-validity questions for counsel:
 
@@ -739,24 +826,36 @@ Legal-validity questions for counsel:
 The following items should block implementation of production terms behavior until resolved or explicitly deferred by the
 business owner with counsel awareness:
 
-- Provider Party authority and exact legal entity/contact information.
-- Privacy notice content, publication location, and Terms cross-reference.
+- Privacy Notice inventory, content, publication location, and Terms cross-reference.
+- Provider Party model, developer/provider split, exact legal entity or individual provider identity, and contact
+  information.
 - Liability cap decision and carveouts.
 - Governing law/forum strategy, including consumer-law carveouts.
 - Arbitration, class-action waiver, and limitation-period decision.
-- Sanctions/restricted jurisdictions policy and any required access-control or screening decision.
+- Sanctions/restricted jurisdictions policy and any account-level restriction or screening decision that is technically
+  possible without overstating user-level blocking.
+- Verification that Join Tolls and any burned protocol fees are actually burned and not retained as Provider Party
+  revenue.
 - Final redlined Terms wording for Sections 3, 5, 6, 10, 12, 13, 14, 16, 17, 18, and 20.
 - Final verification that Terms, CLI README, human `help guide`, `help guide --json`, and `agents.md` do not conflict.
 
 ## Open Legal Decisions
 
-- Confirmation that Tokamak Network PTE. LTD. has authority to publish and enforce these Terms for the Service.
-- Arbitration, class-action waiver, language, limitation period, and consumer-law carveouts.
-- Liability cap and jurisdiction-specific non-waivable rights.
-- Required sanctions and restricted-jurisdiction wording for production use.
-- Final privacy notice content, publication location, and Terms cross-references.
+- Provider Party model remains undecided. The current unresolved question is whether Tokamak Network is the Service
+  provider, only the Service developer, or one participant while an individual or another legal entity provides the
+  Service.
+- Governing law, forum, arbitration, class-action waiver, language, limitation period, and consumer-law carveouts remain
+  undecided for global online availability and must account for the final Provider Party model.
+- Liability cap remains undecided. The draft position is that Provider Parties have no liability for Service use to the
+  maximum extent permitted by applicable law, and that Join Tolls are burned rather than monetized by Provider Parties.
+- Required sanctions and restricted-jurisdiction wording remains undecided. The draft must account for the technical
+  constraint that the Service may block Ethereum Accounts or contract interactions, not real-world users.
+- Final Privacy Notice content, publication location, and Terms cross-references are the highest-priority unresolved
+  document items.
 - Required notice method for future terms changes.
-- Whether any operation still needs a separate command-level prompt after install-time acceptance is enforced.
+- Separate command-level prompt policy is directionally decided: install-time Terms acceptance should replace repeated
+  per-command action-impact acknowledgement, while destructive operations, secret deletion/export, and full
+  note-plaintext evidence export may keep separate prompts.
 
 ## Post-Finalization Implementation Plan
 

@@ -541,6 +541,12 @@ The JSON guide is the machine-readable entrypoint. Read `agentGuidance` from the
 - `agentGuidance.refs` lists the indexed items in that file that apply to the next step
 - `agentGuidance.step` is the symbolic guide step that selected those refs
 
+The purpose of `--json` mode is to let the user's AI agent guide the user through the smallest safe next action while
+preserving the user's informed consent. JSON output should be treated as an agent instruction surface, not as a way to
+bypass human review. When a command reports required warnings, prohibitions, terms, channel policy, or developer/operator
+disclaimers, the agent must explain those points to the user and must not accept terms or confirmations on the user's
+behalf.
+
 After reading the referenced `agents.md` items, translate the recipe into a short, safe instruction for the user.
 Do not ask users to paste raw private keys, wallet secrets, seed phrases, provider passwords, or provider dashboard
 access into chat. Use the CLI's local helper commands for secret source files.

@@ -146,6 +146,9 @@ For purposes of these Terms:
   through these Terms.
 - **Channel Operators** means persons or entities that create, configure, administer, publish policies for, publish
   recovery metadata for, or otherwise operate a Channel.
+- **Channel Operation Abandonment** means an on-chain Channel state initiated by the Channel leader that immediately
+  disables new Channel joins and new `deposit-channel` actions for that Channel while leaving note activity,
+  `redeem-notes`, `withdraw-channel`, and `exit-channel` unrestricted by that abandonment state.
 - **Third-Party Services** means wallets, RPC providers, exchanges, explorers, analytics providers, browsers, package
   registries, operating systems, cloud services, and other services not controlled by the Provider Parties.
 - **User-Controlled AI Agent** means an AI tool, assistant, or automated system selected, configured, or used by the user
@@ -175,6 +178,10 @@ For purposes of these Terms:
 - The selected Join Toll refund schedule is 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50%
   after 3 days and within 7 days, and 75% after 7 days. The remaining non-refundable portion is transferred to
   `0x000000000000000000000000000000000000dEaD`.
+- The final Terms and user-facing documents must state that a Channel leader may initiate Channel Operation Abandonment.
+  Once initiated on-chain, the affected Channel immediately rejects new joins and new `deposit-channel` actions. Other
+  note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel` remain available subject to ordinary proof,
+  balance, and registration requirements.
 - Nothing in these Terms is a determination of the regulatory status of any person, entity, software, transaction,
   network, token, or service under applicable law.
 - Private Notes are Channel-local application records. They are not separate exchange-depositable assets.
@@ -696,6 +703,9 @@ Current next step:
   `0x000000000000000000000000000000000000dEaD`. Existing already-exited users' historical non-refundable Toll portions
   are not in scope for retroactive burn-address transfer. The selected schedule is 0% within 24 hours after joining,
   25% after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days.
+- Add Channel Operation Abandonment planning: leader-only immediate on-chain abandonment blocks new joins and
+  `deposit-channel`, leaves note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel` unrestricted, and
+  requires CLI errors for join/deposit plus warnings for other Channel activities.
 
 ### Phase 2: Complete pre-counsel redline and risk review
 
@@ -760,6 +770,7 @@ Decision guide:
 | Provider identity and privacy contact | Selected: Jehyuk Jang; `cjhyuck213@gmail.com`; Singapore; residential address not published. | Use the email address for privacy/contact and notice routing. Keep Telegram as an official support channel, not the sole privacy contact. If a physical notice address becomes required, use a counsel-approved non-residential route such as a P.O. box, business mailing address, registered agent, or counsel address. |
 | Arbitration and class-action waiver | Not included in the current draft. | Keep these provisions out unless counsel confirms that adding them is appropriate and enforceable enough for the individual Provider model and expected user jurisdictions. |
 | Separate prompts | Selected: remove `--acknowledge-action-impact` from all commands after install-time Terms acceptance is enforced. Make `uninstall`, secret-bearing material exports, and plaintext note or evidence exports interactive confirmation flows. Print warning summaries for real-funds commands in both human and `--json` modes every time. | Implement only after the canonical Terms and Terms gate are frozen. Do not keep a command-level legal acknowledgement flag for ordinary transaction commands. |
+| Channel Operation Abandonment | Selected: immediate on-chain abandonment state with no grace period. | Implement leader-only abandonment in the shared bridge/vault path so existing Channels, including `the-great-first-channel`, can have new joins and `deposit-channel` blocked after the leader initiates abandonment. Do not restrict note activity, `redeem-notes`, `withdraw-channel`, or `exit-channel` on-chain. CLI must error for join/deposit on abandoned Channels and warn for other Channel activities. |
 
 ### Phase 4: Finalize human-facing documents
 
@@ -945,6 +956,7 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | R-18 | 20 | Add `cjhyuck213@gmail.com` as the public privacy and notice contact for Jehyuk Jang, and state that the Provider's residential address is not published. If a physical notice address becomes required, use a counsel-approved non-residential notice route. | Notices are incomplete without an official contact route, but residential address publication is not the default policy. | Applied to draft Terms; counsel to confirm sufficiency. |
 | R-19 | 1, 2, 9, 16 | Apply the selected Join Toll policy to Terms and implementation planning. The current reviewed implementation stores Join Tolls in `L1TokenVault._tollTreasuryBalance`, records `joinTollPaid`, and pays exit refunds from the toll treasury according to the Channel refund schedule. The selected change is future-only: on Channel exit, refund the refundable portion to the exiting user and transfer the non-refundable portion to `0x000000000000000000000000000000000000dEaD`. Existing already-exited users' historical non-refundable Toll portions are not in scope for retroactive burn-address transfer. The selected refund schedule is time-increasing: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days. | The user-facing economic representation must match the protocol. Because mainnet TON does not expose an external `burn` function and rejects transfer to `address(0)`, the Service must describe this as a burn-address transfer, not as TON total-supply reduction. The current implementation enforces the opposite refund direction with `joinTollRefundBps1 >= joinTollRefundBps2 >= joinTollRefundBps3 >= joinTollRefundBps4`; this must be inverted before the new schedule is described as implemented behavior. | Selected product decision; update Terms/docs and implement after canonical Terms freeze. |
 | R-20 | Prompt policy | Remove `--acknowledge-action-impact` from every command after install-time Terms acceptance is enforced. Make `uninstall` interactive like `install`; default uninstall preserves wallet workspace spending-key and viewing-key files while deleting the rest, and `--include-wallet-keys` deletes everything without exception. Make secret-bearing material export commands and plaintext note/evidence export commands interactive. For each such interactive flow, print the command impact, leakage or destructive risk, precautions, and Provider Party disclaimers, then require human confirmation before continuing. For every command that handles real funds, print command-specific information and warning summaries in human mode and `--json` mode on every run without requiring a command-level acknowledgement option. | This implements the selected product policy: one-time install Terms acceptance replaces repeated action-impact acknowledgement flags, while moment-specific human confirmations remain for destructive deletion and sensitive exports, and ordinary transaction commands still show relevant warnings. | Selected plan; implement only after canonical Terms and the Terms gate are frozen. |
+| R-21 | 2, 9, 10, 14 | Add Channel Operation Abandonment to Terms, docs, monitoring, and implementation planning. The Channel leader may initiate abandonment on-chain with no grace period. After abandonment, new joins and `deposit-channel` are rejected for that Channel; note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel` remain unrestricted by abandonment. | This gives the Channel leader a clear public way to stop onboarding and new deposits without trapping existing users or claiming control over user notes. The feature is compatible with existing Channels if enforcement is placed in the shared upgradeable vault path for join/deposit. Existing `the-great-first-channel` note activity cannot and should not be restricted under the revised request. | Selected product decision; implement after canonical Terms/docs are updated. |
 
 ### Risk register
 
@@ -964,6 +976,7 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | K-12 | Medium | Evidence/observer | Official Public Observer may be insufficient for exchange, tax, audit, or compliance review. | Preserve observer-limit wording and add local evidence preservation duties. | Product/compliance. |
 | K-13 | Low | Terminology | Final terminology search for ordinary-user and agent-facing surfaces found only `--join-toll` as a command option in the private-state app README and one `L1` occurrence in `agents.md` that explicitly instructs agents not to use `L1` with ordinary users. Technical documents may still use `L1` and `L2` where the target reader is technical. | Keep final terminology search before release; no current ordinary-user wording change is required from this pass. | Product. |
 | K-14 | High | Burn-address transfer and refund direction | Current implementation does not yet apply the selected future-exit burn-address transfer policy. `L1TokenVault.joinChannel` transfers Join Toll tokens into the vault and increments `_tollTreasuryBalance`; current `exitChannel` pays refundable amounts from `_tollTreasuryBalance` and leaves the non-refundable portion in the vault. Current `ChannelManager` validation also requires refund percentages to stay flat or decrease over time, and current default cutoffs are 6 hours, 24 hours, and 3 days. | Implement and test future-only exit behavior: refund the refundable portion, transfer the non-refundable portion to `0x000000000000000000000000000000000000dEaD`, and reduce `_tollTreasuryBalance` by both amounts. Invert the refund schedule validation so refund percentages stay flat or increase over time. Change default cutoffs to 24 hours, 3 days, and 7 days, with refund basis points 0, 2,500, 5,000, and 7,500. Do not promise retroactive handling for already-exited users. | Product/security/counsel. |
+| K-15 | Medium | Channel abandonment | Channel abandonment can be misunderstood as a pause, emergency recovery, custody control, or operator ability to censor existing note use. | Define it narrowly: leader-only, immediate, public, no grace period, blocks only new joins and `deposit-channel`, does not restrict note activity, `redeem-notes`, `withdraw-channel`, or `exit-channel`. Add observer/CLI status display and checklist-facing wording that existing users can still redeem, withdraw, and exit. | Product/security/counsel. |
 
 ### Counsel-question list
 
@@ -995,6 +1008,8 @@ Business decisions to prepare before counsel review:
   consequence that early exits burn-address-transfer a larger non-refundable portion than later exits?
 - Are the selected Join Toll refund cutoffs and percentages appropriate for The Great First Channel: 0% within 24 hours,
   25% after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days?
+- Is the selected Channel Operation Abandonment policy sufficient and not misleading: immediate leader-only abandonment,
+  no grace period, join/deposit blocked, all note activity and exit paths left unrestricted by abandonment?
 
 Legal-validity questions for counsel:
 
@@ -1025,6 +1040,7 @@ Legal-validity questions for counsel:
 | Illegal use must be prohibited | Section 7 covers money laundering, terrorist financing, sanctions evasion, regulatory evasion, fraud, illegal gambling, criminal-proceeds concealment, and exchange-monitoring evasion. | Keep; counsel to review sanctions scope. |
 | Public monitoring surfaces must be available | Section 10 identifies the Official Public Observer. | Keep; privacy notice must disclose hosted observer data if applicable. |
 | Marketing must avoid mixer or privacy-coin framing | Product Compliance Position and Sections 2, 5, and 7 avoid or prohibit that framing. | Keep terminology/framing verification before release. |
+| Channel leader abandonment must not trap users or imply custody | New Channel Operation Abandonment plan blocks only new joins and `deposit-channel`, while preserving note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel`. | No explicit `checklist.md` violation found. The feature must be documented as public operational status, not as a private-history control, exchange deposit network control, custody power, or operator backdoor. |
 
 ### Release blockers
 
@@ -1047,6 +1063,9 @@ business owner with counsel awareness:
   `0x000000000000000000000000000000000000dEaD`, with no retroactive burn-address transfer promise for already-exited
   users. The selected schedule is 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50% after 3
   days and within 7 days, and 75% after 7 days.
+- Final Terms/docs/implementation consistency for Channel Operation Abandonment: leader-only immediate abandonment
+  blocks new joins and `deposit-channel`, keeps note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel`
+  unrestricted by abandonment, and is surfaced through CLI and public monitoring.
 - Final redlined Terms wording for Sections 3, 5, 6, 10, 12, 13, 14, 16, 17, 18, and 20.
 - Final verification that Terms, CLI README, human `help guide`, `help guide --json`, and `agents.md` do not conflict.
 
@@ -1102,6 +1121,32 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Terms and docs must describe the refund schedule as time-increasing, so early exits have a larger non-refundable
   burn-address-transfer portion than later exits: 0% refund within 24 hours after joining, 25% after 24 hours and within
   3 days, 50% after 3 days and within 7 days, and 75% after 7 days.
+
+### Phase 1B: Channel Operation Abandonment implementation
+
+- Add an on-chain Channel Operation Abandonment state in the shared bridge/vault enforcement path, preferably in
+  `L1TokenVault` or another upgradeable contract that `L1TokenVault` can check before join and deposit execution.
+- Add `abandonChannelOperation(channelId)` or equivalent. The caller must be the current Channel leader read from the
+  canonical `ChannelManager.leader()` for the target `channelId`.
+- Record `channelOperationAbandonedAt[channelId]` and emit a public event with `channelId`, leader, and timestamp.
+- Do not add a grace period. The Channel becomes abandoned in the same transaction that records abandonment.
+- Reject `joinChannel(channelId, ...)` when the target Channel is abandoned.
+- Reject `depositToChannelVault(channelId, ...)` when the target Channel is abandoned.
+- Do not restrict `executeChannelTransaction`, note activity, `redeem-notes`, `withdrawFromChannelVault`, or
+  `exitChannel` because of abandonment.
+- Preserve compatibility with existing Channels, including `the-great-first-channel`, for the join/deposit enforcement
+  path because those actions pass through the shared vault. Do not claim retroactive or on-chain restriction of existing
+  Channel note activity.
+- Update the CLI to read Channel Operation Abandonment status before Channel-scoped commands.
+- In the CLI, return an error before `channel join` and `wallet deposit-channel` when the target Channel is abandoned.
+- In the CLI, print an additional warning before other Channel activities when the target Channel is abandoned, including
+  note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel`.
+- Update `help guide`, `help guide --json`, `agents.md`, README, Terms, public observer, and monitoring packet docs so
+  users and User-Controlled AI Agents can distinguish active and abandoned Channels.
+- Checklist review result: no explicit `checklist.md` violation was found because this plan preserves transparent L1
+  boundaries, does not make private notes exchange-depositable, does not add a custody or viewing-key backdoor, and keeps
+  redeem/withdraw/exit paths available. The final wording must still avoid presenting abandonment as exchange-network
+  control, operator custody, or private-history monitoring.
 
 ### Phase 2: Interactive install gate
 
@@ -1167,6 +1212,17 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Verify that refund quotes increase or remain flat as elapsed Channel participation time increases.
 - Verify the selected schedule exactly: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50%
   after 3 days and within 7 days, and 75% after 7 days.
+- Verify that only the Channel leader can initiate Channel Operation Abandonment for that Channel.
+- Verify that abandonment is immediate and records a public timestamp/event.
+- Verify that abandoned Channels reject new `joinChannel` and `depositToChannelVault` calls.
+- Verify that abandoned Channels still allow `withdrawFromChannelVault` and `exitChannel`.
+- Verify that abandonment does not restrict `executeChannelTransaction` or note activity on-chain.
+- Verify that the CLI errors for `channel join` and `wallet deposit-channel` on abandoned Channels.
+- Verify that the CLI warns, but does not block, other Channel activity on abandoned Channels.
+- Verify that `the-great-first-channel` can be covered by join/deposit abandonment enforcement after the shared vault
+  upgrade, while existing Channel note activity remains unrestricted on-chain.
+- Verify that final docs and machine-readable guidance describe abandonment without implying custody, private-history
+  access, exchange deposit network control, or user-level blocking.
 - Verify that `install --json` does not install or accept Terms.
 - Verify that a changed terms hash requires renewed interactive acceptance.
 - Verify that terms-gated commands reject execution when acceptance is missing or stale.

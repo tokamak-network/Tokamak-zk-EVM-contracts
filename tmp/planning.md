@@ -889,7 +889,7 @@ the final address is selected and verified.
 | Threshold | Choose how many signer approvals are required. | Too low a threshold is easy to compromise; too high a threshold can block urgent upgrades or recovery if a signer is unavailable. | Balance security against availability. Use 2-of-3 only when the team is small. Use 3-of-5 when enough reliable independent signers exist. Avoid 1-of-N. | 2-of-3 minimum; 3-of-5 preferred. |
 | Old owner EOA as signer | Decide whether `0x850d...B3ce7` remains one multisig signer. | Keeping it as one signer preserves operational continuity but may preserve part of the original key risk. Removing it reduces old-key dependency but requires other signers to be ready. | Keep it only if it is stored securely and does not control enough other signer keys to meet threshold. Remove it if the goal is to eliminate reliance on that key entirely. | Keep as one signer only if hardware-secured; otherwise replace it. |
 | Timelock now or later | Decide whether a timelock contract should own the proxies instead of the Safe, or whether Safe ownership is enough for this migration. | A timelock gives users public reaction time before upgrades, but it adds operational complexity and can slow emergency fixes. | Add a timelock only if delay length, proposer/executor roles, emergency policy, and documentation are ready. Otherwise migrate to Safe first and document that no timelock exists. | Defer timelock; migrate to Safe first. |
-| Public signer disclosure | Decide whether public docs disclose signer identities or only the multisig address and threshold. | Public identities increase accountability but can create personal security and harassment risk. Address-only disclosure is less transparent but safer for individuals. | Publish enough to let users verify governance structure without exposing unnecessary personal information. | Publish multisig address and threshold; do not publish personal signer identities unless intentionally chosen. |
+| Public signer disclosure | Decide whether public docs disclose signer identities or only the multisig address and threshold. | Public identities increase accountability but can create personal security and harassment risk. Address-only disclosure is less transparent but safer for individuals. | Publish enough to let users verify governance structure without exposing unnecessary personal information. Do not use wording such as "Provider-controlled Safe" in public user-facing documents. Also do not imply independent third-party governance, community governance, or external oversight unless that is actually true. | Publish multisig address, threshold, and timelock status; do not publish personal signer identities or signer-control details unless intentionally chosen. |
 | Public notice timing | Decide whether to announce the migration before execution, after execution, or both. | Pre-notice improves transparency. Post-notice confirms final state. Long pre-notice may create operational delay or invite targeted attacks. | For a pure single-EOA-to-multisig hardening migration with no implementation upgrade, post-execution notice may be sufficient; for any upgrade combined with migration, pre-notice should be required. | Post-execution notice for ownership migration only; separate notice for later upgrades. |
 | Immediate owner-only actions | Decide whether any owner-only action will be executed right after migration. | Combining migration with upgrades or config changes makes review harder and increases user trust risk. | Keep migration isolated unless there is an urgent and documented reason. If another owner-only action is needed, schedule it as a separate multisig transaction after migration verification. | No immediate owner-only action. |
 | Recovery process | Decide how lost signer keys, compromised signer keys, and unavailable signers will be handled. | A multisig without recovery rules can still become unusable or compromised. | Define who proposes signer replacement, how compromised keys are removed, what evidence is needed, and how emergency coordination happens. | Write an internal recovery note before transfer. |
@@ -1024,6 +1024,10 @@ After successful on-chain transfer:
 - Update any monitoring packet or observer documentation that reports admin wallets or upgrade authority.
 - Update Terms and README language if they describe the owner as a single EOA or describe upgrade authority in a way that
   becomes stale.
+- Public user-facing documentation should use neutral on-chain wording such as "the root bridge proxy owner is the Safe
+  multisig at `<address>` with a 2-of-3 threshold and no timelock" after migration. It must not say "Provider-controlled
+  Safe" or similar signer-control wording, and it must not imply independent third-party governance, community
+  governance, or external oversight unless the signer set and operating model actually support that claim.
 - Add a post-migration changelog entry for the CLI or Service documentation only if the user-facing documentation package
   is changed.
 
@@ -1048,7 +1052,9 @@ The migration must preserve the following constraints:
 - Signer identities, signer custody standard, and signer threshold.
 - Whether the old owner EOA remains one signer or is removed from operational control.
 - Whether a timelock will be added now, explicitly deferred, or rejected for the current release.
-- Whether to publish signer identities or only publish the multisig address and threshold.
+- Whether to publish signer identities or only publish the multisig address, threshold, and timelock status. Current
+  direction: publish the neutral on-chain configuration only, without "Provider-controlled Safe" wording and without
+  implying independent governance.
 - Required public notice timing before and after migration.
 - Whether any owner-only bridge administration actions are planned immediately after migration; if yes, they must be
   planned as separate transactions after ownership transfer verification.

@@ -846,6 +846,24 @@ Out of scope unless separately approved:
 - Upgrading bridge implementations during the ownership migration transaction sequence.
 - Changing the current Provider identity or support contact.
 
+### Known mainnet addresses
+
+Use these addresses for the migration runbook unless a fresh deployment artifact or live-chain check proves that the
+deployment has changed:
+
+| Role | Address |
+|---|---|
+| Current owner EOA | `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7` |
+| `BridgeCore` proxy | `0x992E2Ae206620d811832a8F697c526c4f95974b6` |
+| `DAppManager` proxy | `0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA` |
+| `L1TokenVault` proxy | `0xf127Aef661c815ad46c5159146078f6F1E9f5F61` |
+| Current `BridgeCore` implementation | `0x1713171adc06BF82b4f05945d742FFd351a8d1bD` |
+| Current `DAppManager` implementation | `0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5` |
+| Current `L1TokenVault` implementation | `0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710` |
+
+The selected multisig address is not yet decided. Use `MULTISIG_ADDRESS` as the placeholder in commands and scripts until
+the final address is selected and verified.
+
 ### Multisig selection requirements
 
 - Use an audited Ethereum mainnet multisig implementation such as Safe.
@@ -860,6 +878,21 @@ Out of scope unless separately approved:
   single cloud account, single seed phrase, or single person controlling enough keys to meet the threshold.
 - Record an internal recovery plan before transfer, including how to replace a lost signer, how to handle compromised
   signers, and who can coordinate emergency multisig transactions.
+
+### Decisions required from the Provider before execution
+
+| Decision | What the decision means | Why it matters | Decision criteria | Recommended default |
+|---|---|---|---|---|
+| Multisig implementation | Choose the contract and interface that will become the owner of the three root bridge proxies. | The multisig will control UUPS upgrades and owner-only bridge administration. A wrong or untrusted implementation can permanently weaken governance. | Use a widely used, audited, Ethereum mainnet multisig with transparent owner and threshold inspection, transaction simulation support, and good operational tooling. | Use Safe on Ethereum mainnet. |
+| Exact multisig address | Select the deployed contract address that receives ownership. | `transferOwnership` is immediate and sends authority to the exact address. A wrong address can lock or misdirect upgrade authority. | Verify the address in Safe UI, Etherscan, and `cast code`; verify chain ID is Ethereum mainnet; verify no copied address mismatch. | Decide only after the Safe is deployed and independently checked. |
+| Signer set | Choose the Ethereum accounts that can approve multisig transactions. | Signers become the practical controllers of bridge upgrades and admin actions. Weak signer selection can recreate single-person or single-device risk. | Prefer independent devices and independent people; avoid one person controlling enough keys to meet threshold; prefer hardware wallets; avoid custodial exchange accounts and shared seed phrases. | At least three signers, each with separate hardware-wallet custody. |
+| Threshold | Choose how many signer approvals are required. | Too low a threshold is easy to compromise; too high a threshold can block urgent upgrades or recovery if a signer is unavailable. | Balance security against availability. Use 2-of-3 only when the team is small. Use 3-of-5 when enough reliable independent signers exist. Avoid 1-of-N. | 2-of-3 minimum; 3-of-5 preferred. |
+| Old owner EOA as signer | Decide whether `0x850d...B3ce7` remains one multisig signer. | Keeping it as one signer preserves operational continuity but may preserve part of the original key risk. Removing it reduces old-key dependency but requires other signers to be ready. | Keep it only if it is stored securely and does not control enough other signer keys to meet threshold. Remove it if the goal is to eliminate reliance on that key entirely. | Keep as one signer only if hardware-secured; otherwise replace it. |
+| Timelock now or later | Decide whether a timelock contract should own the proxies instead of the Safe, or whether Safe ownership is enough for this migration. | A timelock gives users public reaction time before upgrades, but it adds operational complexity and can slow emergency fixes. | Add a timelock only if delay length, proposer/executor roles, emergency policy, and documentation are ready. Otherwise migrate to Safe first and document that no timelock exists. | Defer timelock; migrate to Safe first. |
+| Public signer disclosure | Decide whether public docs disclose signer identities or only the multisig address and threshold. | Public identities increase accountability but can create personal security and harassment risk. Address-only disclosure is less transparent but safer for individuals. | Publish enough to let users verify governance structure without exposing unnecessary personal information. | Publish multisig address and threshold; do not publish personal signer identities unless intentionally chosen. |
+| Public notice timing | Decide whether to announce the migration before execution, after execution, or both. | Pre-notice improves transparency. Post-notice confirms final state. Long pre-notice may create operational delay or invite targeted attacks. | For a pure single-EOA-to-multisig hardening migration with no implementation upgrade, post-execution notice may be sufficient; for any upgrade combined with migration, pre-notice should be required. | Post-execution notice for ownership migration only; separate notice for later upgrades. |
+| Immediate owner-only actions | Decide whether any owner-only action will be executed right after migration. | Combining migration with upgrades or config changes makes review harder and increases user trust risk. | Keep migration isolated unless there is an urgent and documented reason. If another owner-only action is needed, schedule it as a separate multisig transaction after migration verification. | No immediate owner-only action. |
+| Recovery process | Decide how lost signer keys, compromised signer keys, and unavailable signers will be handled. | A multisig without recovery rules can still become unusable or compromised. | Define who proposes signer replacement, how compromised keys are removed, what evidence is needed, and how emergency coordination happens. | Write an internal recovery note before transfer. |
 
 ### Preflight checks
 
@@ -879,6 +912,26 @@ Before any on-chain transaction:
   tool.
 - Do not include any `upgradeTo` call in the ownership-migration transaction sequence.
 
+Concrete read-only checks:
+
+```sh
+export ETH_RPC_URL="<ethereum-mainnet-rpc-url>"
+export MULTISIG_ADDRESS="<selected-safe-address>"
+
+cast call 0x992E2Ae206620d811832a8F697c526c4f95974b6 "owner()(address)" --rpc-url "$ETH_RPC_URL"
+cast call 0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA "owner()(address)" --rpc-url "$ETH_RPC_URL"
+cast call 0xf127Aef661c815ad46c5159146078f6F1E9f5F61 "owner()(address)" --rpc-url "$ETH_RPC_URL"
+cast code "$MULTISIG_ADDRESS" --rpc-url "$ETH_RPC_URL"
+```
+
+Expected preflight results:
+
+- All three `owner()` calls return `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7`.
+- `cast code "$MULTISIG_ADDRESS"` returns non-empty bytecode.
+- Safe UI and on-chain Safe reads show the selected signer list and threshold.
+- The proxy implementation addresses match the known mainnet addresses above.
+- The migration transaction set contains only three `transferOwnership` calls.
+
 ### Execution plan
 
 - Execute ownership transfers from the current owner EOA.
@@ -890,6 +943,29 @@ Before any on-chain transaction:
   owner-only action.
 - Do not perform implementation upgrades, verifier changes, DApp metadata changes, Join Toll schedule changes, or Channel
   deployer changes in the same transaction sequence.
+
+Concrete transaction sequence:
+
+```sh
+export ETH_RPC_URL="<ethereum-mainnet-rpc-url>"
+export PRIVATE_KEY="<current-owner-eoa-private-key-or-secure-signer-adapter>"
+export MULTISIG_ADDRESS="<selected-safe-address>"
+
+cast send 0x992E2Ae206620d811832a8F697c526c4f95974b6 \
+  "transferOwnership(address)" "$MULTISIG_ADDRESS" \
+  --rpc-url "$ETH_RPC_URL" --private-key "$PRIVATE_KEY"
+
+cast send 0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA \
+  "transferOwnership(address)" "$MULTISIG_ADDRESS" \
+  --rpc-url "$ETH_RPC_URL" --private-key "$PRIVATE_KEY"
+
+cast send 0xf127Aef661c815ad46c5159146078f6F1E9f5F61 \
+  "transferOwnership(address)" "$MULTISIG_ADDRESS" \
+  --rpc-url "$ETH_RPC_URL" --private-key "$PRIVATE_KEY"
+```
+
+The command form above is only an execution shape. Use the safest available signing method for the current owner EOA.
+Do not paste a private key into an untrusted shell, chat tool, ticket, or browser.
 
 ### Post-transfer verification
 
@@ -903,6 +979,36 @@ After all three transfers:
 - Verify that existing Channel records, including `the-great-first-channel`, still resolve to their existing Channel
   manager addresses.
 - Verify that no Channel policy snapshot was unintentionally changed.
+
+Concrete post-transfer checks:
+
+```sh
+export ETH_RPC_URL="<ethereum-mainnet-rpc-url>"
+export MULTISIG_ADDRESS="<selected-safe-address>"
+
+cast call 0x992E2Ae206620d811832a8F697c526c4f95974b6 "owner()(address)" --rpc-url "$ETH_RPC_URL"
+cast call 0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA "owner()(address)" --rpc-url "$ETH_RPC_URL"
+cast call 0xf127Aef661c815ad46c5159146078f6F1E9f5F61 "owner()(address)" --rpc-url "$ETH_RPC_URL"
+cast code "$MULTISIG_ADDRESS" --rpc-url "$ETH_RPC_URL"
+```
+
+Expected post-transfer results:
+
+- All three `owner()` calls return `MULTISIG_ADDRESS`.
+- The old owner EOA no longer has direct `onlyOwner` authority over any root bridge proxy.
+- The multisig address has non-empty bytecode and the expected signer threshold.
+- The implementation addresses are unchanged from the preflight snapshot.
+- The EIP-1967 admin slots remain empty.
+
+### Safe-side operational verification
+
+After ownership transfer, perform one Safe-side dry operational check before any real upgrade:
+
+- Prepare a Safe transaction that calls a harmless read-only target through the Safe interface if the tool supports
+  simulation-only transactions, or simulate an owner-only call without broadcasting it.
+- Verify that the Safe UI can build, simulate, collect approvals for, and reject or discard a transaction.
+- Do not execute a state-changing owner-only call solely for testing unless the action is explicitly approved and has no
+  production side effect.
 
 ### Documentation and monitoring updates
 
@@ -946,6 +1052,7 @@ The migration must preserve the following constraints:
 - Required public notice timing before and after migration.
 - Whether any owner-only bridge administration actions are planned immediately after migration; if yes, they must be
   planned as separate transactions after ownership transfer verification.
+- Internal recovery process for lost, compromised, or unavailable signer keys.
 
 ## Pre-Counsel Redline and Risk Review Plan
 

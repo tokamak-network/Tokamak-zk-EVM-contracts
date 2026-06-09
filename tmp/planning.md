@@ -108,8 +108,9 @@ For purposes of these Terms:
 - **Channel** means a specific opt-in Tonnel application environment with its own policy, membership rules, accounting
   records, and private note records. A Channel is not an exchange deposit or withdrawal network.
 - **The Great First Channel** means the dedicated initial Channel identified as `the-great-first-channel`.
-- **Join Toll** means the one-time Channel entry fee paid when a user joins a Channel. Join Tolls are not revenue to
-  Provider Parties; they are burned according to the Service's implemented token economics.
+- **Join Toll** means the one-time Channel entry fee paid when a user joins a Channel. Join Toll treatment must match the
+  implemented protocol. The Provider-selected target policy is that Join Tolls and any non-refunded protocol fees are
+  not Provider Party revenue and are burned only if the implemented protocol actually burns them.
 - **L2** means the Tonnel private application state used for Channel accounting and Private Notes. Because this term is
   technical, these Terms use "Tonnel private application state" whenever possible.
 - **Ethereum mainnet** means the public Ethereum network where relevant bridge, Channel-management, registration, and
@@ -162,8 +163,8 @@ For purposes of these Terms:
 - Through the Service, Provider Parties do not provide exchange deposit services, exchange withdrawal services,
   brokerage, custodial wallet services, hosted transfer services, asset recovery services, compliance services, or tax
   services.
-- Join Tolls paid through the Service are not monetized by Provider Parties and are burned. Provider Parties do not earn
-  fees from Join Tolls.
+- Join Tolls paid through the Service must not be monetized by Provider Parties. The final Terms must not describe a
+  burn outcome unless the implemented protocol actually burns the relevant tokens.
 - Nothing in these Terms is a determination of the regulatory status of any person, entity, software, transaction,
   network, token, or service under applicable law.
 - Private Notes are Channel-local application records. They are not separate exchange-depositable assets.
@@ -353,9 +354,10 @@ ownership, control, or destination of assets.
   compromise, or unauthorized access.
 - To the maximum extent permitted by applicable law, Provider Parties are not liable for the user's access to, use of,
   inability to use, or reliance on the Service.
-- Join Tolls and other Service fees, if any, are not retained as Provider Party revenue when the implemented protocol
-  burns them. Burned fees do not create a custodial, refund, credit, account-balance, or revenue-sharing relationship
-  between the user and Provider Parties.
+- Join Tolls and other Service fees, if any, must not be described as Provider Party revenue unless an implemented
+  protocol, treasury, or operating flow actually routes value to Provider Parties. If the implemented protocol burns any
+  Join Toll or non-refunded fee amount, the burned amount does not create a custodial, refund, credit, account-balance,
+  or revenue-sharing relationship between the user and Provider Parties.
 - Nothing in these Terms excludes or limits liability that cannot be excluded or limited under applicable law, including
   liability for fraud, willful misconduct, gross negligence, death, or personal injury where such exclusion or limitation
   is not permitted.
@@ -679,9 +681,10 @@ Next Privacy Notice task:
 
 Current next step:
 
-- Continue Phase 2 redline work by reviewing the remaining redline items for scope. The non-counsel redlines R-06,
-  R-08, R-13, and R-16 have been applied to the draft Terms. Remaining items either require counsel or business-owner
-  judgment, ongoing wording review, implementation after Terms freeze, or protocol verification.
+- Resolve the Join Toll token-economics mismatch before Terms freeze: the current reviewed implementation does not burn
+  Join Tolls, while the Provider-selected target policy says Join Tolls and non-refunded protocol fees should not become
+  Provider Party revenue and should be burned. Either implement protocol burn semantics before release, or revise the
+  Terms to describe the actual treasury/refund behavior.
 
 ### Phase 2: Complete pre-counsel redline and risk review
 
@@ -693,11 +696,12 @@ Current next step:
 Current status:
 
 - Completed an initial pre-counsel operational redline/risk review pass. See "Pre-Counsel Review Results" below.
-- The review found release blockers that must be resolved before implementation: Privacy Notice counsel-directed
+- The review found release blockers that must be resolved before implementation: Join Toll token-economics mismatch,
+  Privacy Notice counsel-directed
   changes and final Terms cross-reference confirmation, liability cap decision, consumer-law/forum carveouts,
   sanctions/restricted jurisdictions policy, counsel confirmation of the dispute-resolution strategy, counsel
   confirmation of Tokamak Network PTE. LTD.'s separate software contributor/licensor and Third-Party Service or
-  infrastructure/tooling provider wording, and Join Toll burn verification.
+  infrastructure/tooling provider wording, and final prompt-policy verification.
 
 ### Phase 3: Resolve open legal and business decisions
 
@@ -713,14 +717,17 @@ Current status:
   representative-action waiver, or jury-trial waiver provisions in the current draft unless counsel later approves them.
 - Keep liability-cap amount and formula undecided pending counsel review, but preserve the draft position that Provider
   Parties are not liable for use of the Service to the maximum extent permitted by applicable law. The draft must state
-  that Join Tolls and any burned protocol fees are not Provider Party revenue.
+  that Join Tolls and any protocol fees are not Provider Party revenue unless the implemented protocol, treasury, or
+  operating flow actually routes value to Provider Parties.
 - Keep restricted jurisdictions and sanctions-list naming undecided pending counsel and compliance policy. Record the
   technical constraint that the Service may not be able to block real-world users; future restrictions may be implemented
   at the Ethereum Account or contract-interaction level.
-- Resolve Privacy Notice content and publication location as the highest-priority pre-Phase-3 work item.
-- Adopt the prompt strategy that install-time Terms acceptance replaces repeated per-command action-impact
-  acknowledgement, while unusually destructive, secret-affecting, or plaintext-exporting operations may keep separate
-  prompts.
+- Preserve the drafted Privacy Notice and GitHub repository publication location unless counsel or release review
+  requires changes.
+- Adopt the prompt strategy that install-time Terms acceptance replaces all per-command `--acknowledge-action-impact`
+  options, while `uninstall`, secret-bearing material exports, and plaintext note or evidence exports become
+  interactive human-confirmation flows. Human and `--json` modes must still print concise command-specific information
+  and warning summaries for every command that handles real funds.
 
 Decision guide:
 
@@ -730,13 +737,13 @@ Decision guide:
 | Developer vs provider split | Selected: Tokamak Network PTE. LTD. is separate from the Provider. | Define Tokamak Network PTE. LTD. as software contributor/licensor and, where applicable, Third-Party Service or infrastructure/tooling provider for Tokamak-controlled repositories, package registries, published artifacts, token infrastructure, bridge infrastructure, or upstream tooling. Do not make Tokamak Network responsible for Provider obligations unless it expressly assumes them in a separate binding Service document. |
 | Global online forum | Strategy selected: use Singapore as the Provider-connected baseline jurisdiction, subject to counsel review and mandatory consumer-law carveouts. | Use a baseline governing law and forum connected to Singapore, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. |
 | Individual provider forum | Strategy selected: Singapore, subject to counsel review. | Confirm that Singapore courts and Singapore law are appropriate for Jehyuk Jang as the individual Provider, and confirm notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
-| Liability cap | Undecided. | Decide after counsel review. If no revenue is earned and Join Tolls are burned, a cap cannot be based only on retained Service fees without creating a zero-cap problem. Consider whether a fixed cap is needed despite the no-revenue model. |
+| Liability cap | Undecided. | Decide after counsel review. If no Provider Party revenue is earned, a cap cannot be based only on retained Service fees without creating a zero-cap problem. Consider whether a fixed cap is needed despite the no-revenue model and the unresolved Join Toll token-economics mismatch. |
 | Restricted users | Undecided. | State prohibited uses and sanctions compliance, but do not promise user-level blocking unless a real user-identification and access-control system exists. |
 | Technical blocking | Constraint recorded. | Future blacklist features may block Ethereum Accounts or contract interactions, not necessarily real-world users. Terms and docs must not overstate user-level blocking. |
 | Privacy Notice | Initial draft completed in `docs/dapps/private-state/privacy-notice.md`; initial publication location selected as GitHub repository documentation only. CLI README references the document. `tonnel.io` publication is deferred. | Review the draft against Terms definitions, Provider identity, Official Public Observer disclosures, support routes, and Third-Party Service boundaries before final Terms, guide, JSON mode, or implementation work. |
 | Provider identity and privacy contact | Selected: Jehyuk Jang; `cjhyuck213@gmail.com`; Singapore; residential address not published. | Use the email address for privacy/contact and notice routing. Keep Telegram as an official support channel, not the sole privacy contact. If a physical notice address becomes required, use a counsel-approved non-residential route such as a P.O. box, business mailing address, registered agent, or counsel address. |
 | Arbitration and class-action waiver | Not included in the current draft. | Keep these provisions out unless counsel confirms that adding them is appropriate and enforceable enough for the individual Provider model and expected user jurisdictions. |
-| Separate prompts | Recommended policy accepted. | Remove repeated per-command action-impact acknowledgement only after install-time Terms acceptance is enforced. Keep separate prompts for destructive operations, secret deletion/export, full plaintext evidence export, and any other operation where a moment-specific warning materially improves user safety. |
+| Separate prompts | Selected: remove `--acknowledge-action-impact` from all commands after install-time Terms acceptance is enforced. Make `uninstall`, secret-bearing material exports, and plaintext note or evidence exports interactive confirmation flows. Print warning summaries for real-funds commands in both human and `--json` modes every time. | Implement only after the canonical Terms and Terms gate are frozen. Do not keep a command-level legal acknowledgement flag for ordinary transaction commands. |
 
 ### Phase 4: Finalize human-facing documents
 
@@ -908,20 +915,20 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | R-04 | 3, 7 | Decide whether to name restricted jurisdictions and sanctions authorities, or keep a principles-based restriction with a policy reference. State that the Service may only be able to restrict Ethereum Accounts or contract interactions, not identify and block real-world users. | Comparable services often name sanctions regimes or restricted regions. Naming improves specificity but creates maintenance obligations; overpromising user-level blocking would be inaccurate. | Counsel and policy decision. |
 | R-05 | 5 | Replace "Tonnel may prevent public contract state..." with a more precise non-guarantee: "Tonnel is designed so public contract state does not, by itself, reconstruct..." | "May prevent" is vague; a design-purpose statement is clearer while avoiding guarantees. | Applied to draft Terms. |
 | R-06 | 6 | Add a short ordinary-user warning that Provider Parties, Channel Operators, and User-Controlled AI Agents will never need the user's private keys, seed phrases, wallet secrets, spending keys, or viewing keys. | Aligns with self-custody guidance and reduces secret-disclosure risk. | Applied to draft Terms. |
-| R-07 | 7 | Keep prohibited-use wording, but avoid repeating prohibited marketing phrases outside prohibited-use and checklist contexts. | Terms can prohibit misuse without creating marketing language that suggests the Service is useful for that misuse. | Ongoing wording check. |
+| R-07 | 7 | Keep prohibited-use wording, but avoid repeating prohibited marketing phrases outside prohibited-use and checklist contexts. | Terms can prohibit misuse without creating marketing language that suggests the Service is useful for that misuse. | Reviewed current ordinary-user and agent-facing surfaces; prohibited framing appears only in Product Compliance Position, prohibited-use/checklist contexts, or operational illegal-use warnings. Keep final wording check before release. |
 | R-08 | 8 | Add user responsibility for preserving the local evidence needed for selective disclosure, exchange review, tax records, disputes, and audits. | Section 10 mentions evidence but Section 8 should allocate the preservation duty expressly. | Applied to draft Terms. |
 | R-09 | 9 | Clarify whether Channel Operators are independent from Provider Parties unless officially appointed, and state that Channel policy may differ by Channel. | Users must distinguish the Service provider from third-party or community Channel operators. | Counsel and product decision. |
 | R-10 | 10 | Replace "Official Public Observer does not reveal user secrets" with "is not intended to receive or display user secrets" and "only displays records available to it." | Avoids an absolute security or non-disclosure guarantee. | Applied to draft Terms. |
 | R-11 | 12 | Keep the standalone Privacy Notice in `docs/dapps/private-state/privacy-notice.md` and keep the Terms cross-reference to that location unless the final publication location changes. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. The initial standalone draft, GitHub repository publication location, Terms cross-reference, and first consistency review now exist, but counsel review and final release confirmation are still required. | Initial draft and first review applied; counsel confirmation remains. |
 | R-12 | 13 | Clarify that User-Controlled AI Agents are selected by the user and are not agents, representatives, or service providers of Provider Parties unless expressly stated. | Reduces implied advisory, support, fiduciary, or agency relationship risk. | Applied to draft Terms. |
 | R-13 | 14 | Add explicit ZK/proof-system risk, CRS/proving-artifact risk, local proof-generation risk, and public observer indexing risk. | Current blockchain risks are broad but do not fully reflect this Service's proof and observer architecture. | Applied to draft Terms. |
-| R-14 | 16 | Decide whether to include a liability cap and, if so, the cap formula and carveouts. Preserve the draft statement that Provider Parties are not liable for use of the Service to the maximum extent permitted by applicable law. | Current draft has exclusions but no aggregate cap; comparable services often use a cap. The no-revenue and burned-fee model may make fee-based cap formulas unsuitable. | Release blocker. |
+| R-14 | 16 | Decide whether to include a liability cap and, if so, the cap formula and carveouts. Preserve the draft statement that Provider Parties are not liable for use of the Service to the maximum extent permitted by applicable law. | Current draft has exclusions but no aggregate cap; comparable services often use a cap. A no-Provider-revenue model may make fee-based cap formulas unsuitable, and the Join Toll token-economics mismatch must be resolved before relying on any fee-based cap. | Release blocker. |
 | R-15 | 17 | Narrow consumer indemnity or add business-user/unlawful-use limitations if counsel recommends. | Broad consumer indemnity can be unenforceable or unfair in some jurisdictions. | Counsel decision. |
 | R-16 | 18 | Specify the technical renewed-acceptance mechanism: terms version, deterministic hash, displayed terms, explicit phrase, stored record, stale-record rejection. | The product can implement this and should not rely only on legal notice wording. | Applied to draft Terms; verify implementation follows this mechanism after Terms freeze. |
 | R-17 | 20 | Use Singapore court litigation and Singapore law as the Provider-connected baseline, with mandatory consumer-law and local-court carveouts. Do not include arbitration, class-action waiver, collective-action waiver, representative-action waiver, or jury-trial waiver provisions unless counsel later approves them. | Forum and waiver clauses may be invalid or problematic for consumers in some jurisdictions. | Applied to draft Terms; counsel to confirm enforceability. |
 | R-18 | 20 | Add `cjhyuck213@gmail.com` as the public privacy and notice contact for Jehyuk Jang, and state that the Provider's residential address is not published. If a physical notice address becomes required, use a counsel-approved non-residential notice route. | Notices are incomplete without an official contact route, but residential address publication is not the default policy. | Applied to draft Terms; counsel to confirm sufficiency. |
-| R-19 | 1, 2, 9, 16 | Keep the Join Toll burn language in the Terms and confirm the implemented protocol actually burns Join Tolls rather than transferring them to Provider Parties, Channel Operators, or another treasury. | The user-facing economic representation must match the protocol. If fees are burned, they should not be described as Provider Party revenue or refundable service fees. | Product and counsel confirmation. |
-| R-20 | Prompt policy | Replace repeated per-command action-impact acknowledgement only after install-time Terms acceptance is enforced. Keep separate prompts for destructive operations, secret deletion/export, and full note-plaintext evidence export. | This matches the accepted product strategy while preserving moment-specific warnings where they materially improve user safety. | Ready to redline and implement after Terms freeze. |
+| R-19 | 1, 2, 9, 16 | Resolve Join Toll token-economics wording against implementation. The current reviewed implementation stores Join Tolls in `L1TokenVault._tollTreasuryBalance`, records `joinTollPaid`, and pays exit refunds from the toll treasury according to the Channel refund schedule. No burn path was found in `L1TokenVault`, `ChannelManager`, or the current E2E assertions. | The user-facing economic representation must match the protocol. The Provider-selected target policy is no Provider Party revenue and burn semantics, but the current implementation is treasury/refund semantics, not burn semantics. | Release blocker: either implement burn semantics before release or revise Terms to describe the actual treasury/refund behavior. |
+| R-20 | Prompt policy | Remove `--acknowledge-action-impact` from every command after install-time Terms acceptance is enforced. Make `uninstall` interactive like `install`; default uninstall preserves wallet workspace spending-key and viewing-key files while deleting the rest, and `--include-wallet-keys` deletes everything without exception. Make secret-bearing material export commands and plaintext note/evidence export commands interactive. For each such interactive flow, print the command impact, leakage or destructive risk, precautions, and Provider Party disclaimers, then require human confirmation before continuing. For every command that handles real funds, print command-specific information and warning summaries in human mode and `--json` mode on every run without requiring a command-level acknowledgement option. | This implements the selected product policy: one-time install Terms acceptance replaces repeated action-impact acknowledgement flags, while moment-specific human confirmations remain for destructive deletion and sensitive exports, and ordinary transaction commands still show relevant warnings. | Selected plan; implement only after canonical Terms and the Terms gate are frozen. |
 
 ### Risk register
 
@@ -931,7 +938,7 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | K-02 | Medium | Privacy/data | A standalone Privacy Notice draft now exists in the repository, the initial GitHub repository publication location is selected, the Terms cross-reference is drafted, and the first consistency review is complete. Counsel-directed changes and final release confirmation remain before production terms behavior ships. | Preserve the reviewed draft unless counsel or release review requires changes. | Product/counsel. |
 | K-03 | High | Consumer law | A Provider-connected forum clause may be limited or unenforceable for consumers with mandatory local rights. | Add explicit non-waivable consumer-rights and local-court carveouts as counsel directs. | Counsel. |
 | K-04 | Medium | Dispute resolution | The current draft excludes arbitration and class-action waiver provisions. This reduces clause-validity and user-friction risk but may increase litigation exposure for the individual Provider. | Confirm the no-arbitration and no-class-action-waiver strategy with counsel before implementation. | Counsel/business. |
-| K-05 | High | Liability | No liability cap is specified. Broad exclusions without cap may be incomplete or less predictable, and the burned-fee model may make fee-based caps unsuitable. | Decide whether a fixed cap is needed and what carveouts apply. | Counsel/business. |
+| K-05 | High | Liability | No liability cap is specified. Broad exclusions without cap may be incomplete or less predictable, and a no-Provider-revenue model may make fee-based caps unsuitable. The unresolved Join Toll token-economics mismatch also prevents relying on a fee-based cap formula. | Decide whether a fixed cap is needed and what carveouts apply. | Counsel/business. |
 | K-06 | High | Sanctions/AML | Restricted jurisdictions and screening obligations are not operationally defined, and the Service may lack technical methods to block real-world users. | Decide named restrictions and account-level restriction policy without promising user-level blocking. | Compliance/counsel. |
 | K-07 | Low | Privacy claims | Draft wording now avoids "may prevent" and "does not reveal" in Sections 5 and 10, but final text still needs legal and technical review for overstatement. | Keep the design-intent and observer-limit wording during final Terms review. | Product/counsel. |
 | K-08 | Medium | Self-custody | Secret-loss warning is legally useful but should be more visible in install and AI-agent flows. | Add section refs to install/JSON guide and ensure human guide explains no recovery method before secret-dependent use. | Product. |
@@ -939,8 +946,8 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | K-10 | Medium | Channel operators | Channel Operators may not be Provider Parties, but users may confuse them. | Clarify independence, responsibilities, and policy variance by Channel. | Product/counsel. |
 | K-11 | Medium | AI agents | User-Controlled AI Agents could be perceived as acting with official authority if JSON directives are too prescriptive. | State that AI agents are user-selected tools and cannot accept terms, handle secrets, or create advisory relationship. | Product/counsel. |
 | K-12 | Medium | Evidence/observer | Official Public Observer may be insufficient for exchange, tax, audit, or compliance review. | Preserve observer-limit wording and add local evidence preservation duties. | Product/compliance. |
-| K-13 | Low | Terminology | Remaining `L1`, `L2`, and `--join-toll` occurrences are mostly technical identifiers, but future docs may regress. | Keep terminology search as final verification. | Product. |
-| K-14 | Medium | Burned fees | Join Tolls are represented as burned and not monetized by Provider Parties. Any implementation mismatch would create user-facing misstatement risk. | Verify protocol behavior and deployment configuration before release. | Product/security/counsel. |
+| K-13 | Low | Terminology | Final terminology search for ordinary-user and agent-facing surfaces found only `--join-toll` as a command option in the private-state app README and one `L1` occurrence in `agents.md` that explicitly instructs agents not to use `L1` with ordinary users. Technical documents may still use `L1` and `L2` where the target reader is technical. | Keep final terminology search before release; no current ordinary-user wording change is required from this pass. | Product. |
+| K-14 | High | Burned fees | Current implementation does not confirm burn semantics. `L1TokenVault.joinChannel` transfers Join Toll tokens into the vault and increments `_tollTreasuryBalance`; `exitChannel` pays refundable amounts from `_tollTreasuryBalance`; the E2E flow expects a 75% Join Toll refund. No burn path was found in reviewed implementation. | Treat as a release blocker. Either implement burn semantics and re-verify, or revise Terms and docs to describe actual treasury/refund behavior without claiming a burn outcome. | Product/security/counsel. |
 
 ### Counsel-question list
 
@@ -956,16 +963,19 @@ Business decisions to prepare before counsel review:
   user-level blocking?
 - Should the Service use Singapore court litigation with mandatory consumer-law carveouts, and no arbitration or
   class-action waiver provisions?
-- What liability cap, if any, is commercially acceptable when Join Tolls are burned and not retained as Provider Party
-  revenue?
+- What liability cap, if any, is commercially acceptable when Join Tolls are not intended to be Provider Party revenue,
+  and when final protocol behavior may be burn semantics or treasury/refund semantics depending on the resolved
+  implementation decision?
 - Should user indemnity apply to ordinary consumers, business users only, unlawful use only, or third-party claims only?
 - What official interfaces process personal data, including observer hosting, logs, analytics, support, package
   distribution, and telemetry?
 - Is the initial GitHub repository Privacy Notice publication location and Terms cross-reference sufficient for release,
   or should counsel require an additional publication surface before production terms behavior ships?
-- Which operations, if any, should keep separate prompts after install-time Terms acceptance?
-- Which implementation source confirms that Join Tolls are burned and not routed to Provider Parties, Channel Operators,
-  or another treasury?
+- Are the selected separate prompt rules sufficient: interactive `uninstall`, interactive secret-bearing material
+  exports, interactive plaintext note/evidence exports, and non-blocking warnings for every real-funds command in human
+  and `--json` modes?
+- Should the Provider-selected Join Toll target policy be implemented as burn semantics, or should the Terms be revised
+  to describe the current treasury/refund behavior?
 
 Legal-validity questions for counsel:
 
@@ -1013,8 +1023,8 @@ business owner with counsel awareness:
   and jury-trial waiver provisions should remain excluded from the current draft.
 - Sanctions/restricted jurisdictions policy and any account-level restriction or screening decision that is technically
   possible without overstating user-level blocking.
-- Verification that Join Tolls and any burned protocol fees are actually burned and not retained as Provider Party
-  revenue.
+- Resolution of the Join Toll token-economics mismatch: either implement burn semantics and re-verify, or revise Terms
+  and docs to describe actual treasury/refund behavior without claiming a burn outcome.
 - Final redlined Terms wording for Sections 3, 5, 6, 10, 12, 13, 14, 16, 17, 18, and 20.
 - Final verification that Terms, CLI README, human `help guide`, `help guide --json`, and `agents.md` do not conflict.
 
@@ -1028,15 +1038,17 @@ business owner with counsel awareness:
 - Arbitration, class-action waiver, collective-action waiver, representative-action waiver, and jury-trial waiver
   provisions are excluded from the current draft unless counsel later approves them.
 - Liability cap remains undecided. The draft position is that Provider Parties have no liability for Service use to the
-  maximum extent permitted by applicable law, and that Join Tolls are burned rather than monetized by Provider Parties.
+  maximum extent permitted by applicable law, and that Join Tolls must not be described as Provider Party revenue unless
+  an implemented protocol, treasury, or operating flow actually routes value to Provider Parties.
 - Required sanctions and restricted-jurisdiction wording remains undecided. The draft must account for the technical
   constraint that the Service may block Ethereum Accounts or contract interactions, not real-world users.
 - Final Privacy Notice review and counsel-directed changes remain open. The initial Privacy Notice content, GitHub
   repository publication location, and Terms cross-reference are drafted.
 - Required notice method for future terms changes.
-- Separate command-level prompt policy is directionally decided: install-time Terms acceptance should replace repeated
-  per-command action-impact acknowledgement, while destructive operations, secret deletion/export, and full
-  note-plaintext evidence export may keep separate prompts.
+- Separate command-level prompt policy is selected: install-time Terms acceptance replaces all repeated per-command
+  `--acknowledge-action-impact` options. `uninstall`, secret-bearing material exports, and plaintext note/evidence
+  exports must be interactive confirmation flows. Real-funds commands must print command-specific information and
+  warning summaries in human and `--json` modes every time without requiring a command-level acknowledgement option.
 
 ## Post-Finalization Implementation Plan
 
@@ -1069,10 +1081,23 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 ### Phase 4: Remove per-command action-impact acknowledgement
 
 - Remove `--acknowledge-action-impact` from individual commands only after the install-time terms gate is enforced.
-- Replace command-specific blocking acknowledgements with concise contextual warnings only where they improve user
-  understanding.
-- Keep command-specific prompts only for unusually destructive or irreversible operations if they are still necessary
-  after legal review.
+- Do not keep any command-level legal acknowledgement flag for ordinary transaction commands.
+- Change `uninstall` to an interactive confirmation flow like `install`.
+- Make default `uninstall` preserve wallet workspace spending-key and viewing-key files while deleting the rest of the
+  local private-state CLI workspace.
+- Add `uninstall --include-wallet-keys`; when this option is present, delete all local private-state CLI data without
+  preserving wallet key files.
+- Before uninstall deletion, print the destructive result, retained or deleted wallet-key scope, relevant precautions,
+  no-recovery limits, and Provider Party disclaimers, then require explicit human confirmation.
+- Change secret-bearing material export commands, including viewing-key and spending-key exports, to interactive
+  confirmation flows. Before export, print secret-leakage risk, storage precautions, no Provider recovery, and Provider
+  Party disclaimers, then require explicit human confirmation.
+- Change plaintext note/evidence export commands to interactive confirmation flows. Before export, print plaintext
+  disclosure risk, full wallet-history or evidence-scope risk, sharing precautions, no Provider recovery, and Provider
+  Party disclaimers, then require explicit human confirmation.
+- For every command that handles real funds, print command-specific information and warning summaries on every run in
+  human mode and in `--json` mode. These summaries must be non-blocking unless the command also falls into an
+  interactive destructive or sensitive-export category above.
 
 ### Phase 5: JSON and User-Controlled AI Agent updates
 
@@ -1097,5 +1122,12 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Verify that a changed terms hash requires renewed interactive acceptance.
 - Verify that terms-gated commands reject execution when acceptance is missing or stale.
 - Verify that per-command `--acknowledge-action-impact` options are no longer required after the terms gate is active.
+- Verify that no command still exposes `--acknowledge-action-impact`.
+- Verify that default `uninstall` preserves wallet workspace spending-key and viewing-key files, while
+  `uninstall --include-wallet-keys` deletes all local private-state CLI data without exception.
+- Verify that secret-bearing material exports and plaintext note/evidence exports require interactive human
+  confirmation.
+- Verify that real-funds commands print command-specific information and warning summaries in both human and `--json`
+  modes without requiring a command-level acknowledgement option.
 - Verify that `help guide --json` points to canonical section numbers and does not duplicate full legal text.
 - Verify that human `help guide` remains readable for ordinary users.

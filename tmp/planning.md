@@ -108,9 +108,11 @@ For purposes of these Terms:
 - **Channel** means a specific opt-in Tonnel application environment with its own policy, membership rules, accounting
   records, and private note records. A Channel is not an exchange deposit or withdrawal network.
 - **The Great First Channel** means the dedicated initial Channel identified as `the-great-first-channel`.
-- **Join Toll** means the one-time Channel entry fee paid when a user joins a Channel. Join Toll treatment must match the
-  implemented protocol. The Provider-selected target policy is that Join Tolls and any non-refunded protocol fees are
-  not Provider Party revenue and are burned only if the implemented protocol actually burns them.
+- **Join Toll** means the one-time Channel entry fee paid when a user joins a Channel. The selected implementation
+  policy is that, for future Channel exits after the relevant implementation ships, the refundable portion is returned
+  to the exiting user and the non-refundable portion is sent to the Ethereum address
+  `0x000000000000000000000000000000000000dEaD`. The Service must describe this as a burn-address transfer, not as a
+  TON total-supply reduction.
 - **L2** means the Tonnel private application state used for Channel accounting and Private Notes. Because this term is
   technical, these Terms use "Tonnel private application state" whenever possible.
 - **Ethereum mainnet** means the public Ethereum network where relevant bridge, Channel-management, registration, and
@@ -163,8 +165,9 @@ For purposes of these Terms:
 - Through the Service, Provider Parties do not provide exchange deposit services, exchange withdrawal services,
   brokerage, custodial wallet services, hosted transfer services, asset recovery services, compliance services, or tax
   services.
-- Join Tolls paid through the Service must not be monetized by Provider Parties. The final Terms must not describe a
-  burn outcome unless the implemented protocol actually burns the relevant tokens.
+- Join Tolls paid through the Service must not be monetized by Provider Parties. The final Terms must describe the
+  selected future-exit policy as a burn-address transfer of the non-refundable Join Toll portion to
+  `0x000000000000000000000000000000000000dEaD`, not as a TON total-supply reduction.
 - Nothing in these Terms is a determination of the regulatory status of any person, entity, software, transaction,
   network, token, or service under applicable law.
 - Private Notes are Channel-local application records. They are not separate exchange-depositable assets.
@@ -681,10 +684,10 @@ Next Privacy Notice task:
 
 Current next step:
 
-- Resolve the Join Toll token-economics mismatch before Terms freeze: the current reviewed implementation does not burn
-  Join Tolls, while the Provider-selected target policy says Join Tolls and non-refunded protocol fees should not become
-  Provider Party revenue and should be burned. Either implement protocol burn semantics before release, or revise the
-  Terms to describe the actual treasury/refund behavior.
+- Update Terms, documentation, and implementation planning to the selected Join Toll policy: future Channel exits refund
+  the refundable Join Toll portion to the exiting user and send only the non-refundable portion to
+  `0x000000000000000000000000000000000000dEaD`. Existing already-exited users' historical non-refundable Toll portions
+  are not in scope for retroactive burn-address transfer.
 
 ### Phase 2: Complete pre-counsel redline and risk review
 
@@ -696,12 +699,12 @@ Current next step:
 Current status:
 
 - Completed an initial pre-counsel operational redline/risk review pass. See "Pre-Counsel Review Results" below.
-- The review found release blockers that must be resolved before implementation: Join Toll token-economics mismatch,
-  Privacy Notice counsel-directed
+- The review found release blockers that must be resolved before implementation: Privacy Notice counsel-directed
   changes and final Terms cross-reference confirmation, liability cap decision, consumer-law/forum carveouts,
   sanctions/restricted jurisdictions policy, counsel confirmation of the dispute-resolution strategy, counsel
   confirmation of Tokamak Network PTE. LTD.'s separate software contributor/licensor and Third-Party Service or
-  infrastructure/tooling provider wording, and final prompt-policy verification.
+  infrastructure/tooling provider wording, final prompt-policy verification, and final Terms/implementation consistency
+  for the selected Join Toll burn-address transfer policy.
 
 ### Phase 3: Resolve open legal and business decisions
 
@@ -717,8 +720,8 @@ Current status:
   representative-action waiver, or jury-trial waiver provisions in the current draft unless counsel later approves them.
 - Keep liability-cap amount and formula undecided pending counsel review, but preserve the draft position that Provider
   Parties are not liable for use of the Service to the maximum extent permitted by applicable law. The draft must state
-  that Join Tolls and any protocol fees are not Provider Party revenue unless the implemented protocol, treasury, or
-  operating flow actually routes value to Provider Parties.
+  that Join Tolls are not Provider Party revenue; for future Channel exits after implementation, the non-refundable Join
+  Toll portion is sent to `0x000000000000000000000000000000000000dEaD`.
 - Keep restricted jurisdictions and sanctions-list naming undecided pending counsel and compliance policy. Record the
   technical constraint that the Service may not be able to block real-world users; future restrictions may be implemented
   at the Ethereum Account or contract-interaction level.
@@ -737,7 +740,7 @@ Decision guide:
 | Developer vs provider split | Selected: Tokamak Network PTE. LTD. is separate from the Provider. | Define Tokamak Network PTE. LTD. as software contributor/licensor and, where applicable, Third-Party Service or infrastructure/tooling provider for Tokamak-controlled repositories, package registries, published artifacts, token infrastructure, bridge infrastructure, or upstream tooling. Do not make Tokamak Network responsible for Provider obligations unless it expressly assumes them in a separate binding Service document. |
 | Global online forum | Strategy selected: use Singapore as the Provider-connected baseline jurisdiction, subject to counsel review and mandatory consumer-law carveouts. | Use a baseline governing law and forum connected to Singapore, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. |
 | Individual provider forum | Strategy selected: Singapore, subject to counsel review. | Confirm that Singapore courts and Singapore law are appropriate for Jehyuk Jang as the individual Provider, and confirm notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
-| Liability cap | Undecided. | Decide after counsel review. If no Provider Party revenue is earned, a cap cannot be based only on retained Service fees without creating a zero-cap problem. Consider whether a fixed cap is needed despite the no-revenue model and the unresolved Join Toll token-economics mismatch. |
+| Liability cap | Undecided. | Decide after counsel review. If no Provider Party revenue is earned, a cap cannot be based only on retained Service fees without creating a zero-cap problem. Consider whether a fixed cap is needed despite the no-revenue model and the selected burn-address transfer policy for non-refundable Join Toll portions. |
 | Restricted users | Undecided. | State prohibited uses and sanctions compliance, but do not promise user-level blocking unless a real user-identification and access-control system exists. |
 | Technical blocking | Constraint recorded. | Future blacklist features may block Ethereum Accounts or contract interactions, not necessarily real-world users. Terms and docs must not overstate user-level blocking. |
 | Privacy Notice | Initial draft completed in `docs/dapps/private-state/privacy-notice.md`; initial publication location selected as GitHub repository documentation only. CLI README references the document. `tonnel.io` publication is deferred. | Review the draft against Terms definitions, Provider identity, Official Public Observer disclosures, support routes, and Third-Party Service boundaries before final Terms, guide, JSON mode, or implementation work. |
@@ -922,12 +925,12 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | R-11 | 12 | Keep the standalone Privacy Notice in `docs/dapps/private-state/privacy-notice.md` and keep the Terms cross-reference to that location unless the final publication location changes. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. The initial standalone draft, GitHub repository publication location, Terms cross-reference, and first consistency review now exist, but counsel review and final release confirmation are still required. | Initial draft and first review applied; counsel confirmation remains. |
 | R-12 | 13 | Clarify that User-Controlled AI Agents are selected by the user and are not agents, representatives, or service providers of Provider Parties unless expressly stated. | Reduces implied advisory, support, fiduciary, or agency relationship risk. | Applied to draft Terms. |
 | R-13 | 14 | Add explicit ZK/proof-system risk, CRS/proving-artifact risk, local proof-generation risk, and public observer indexing risk. | Current blockchain risks are broad but do not fully reflect this Service's proof and observer architecture. | Applied to draft Terms. |
-| R-14 | 16 | Decide whether to include a liability cap and, if so, the cap formula and carveouts. Preserve the draft statement that Provider Parties are not liable for use of the Service to the maximum extent permitted by applicable law. | Current draft has exclusions but no aggregate cap; comparable services often use a cap. A no-Provider-revenue model may make fee-based cap formulas unsuitable, and the Join Toll token-economics mismatch must be resolved before relying on any fee-based cap. | Release blocker. |
+| R-14 | 16 | Decide whether to include a liability cap and, if so, the cap formula and carveouts. Preserve the draft statement that Provider Parties are not liable for use of the Service to the maximum extent permitted by applicable law. | Current draft has exclusions but no aggregate cap; comparable services often use a cap. A no-Provider-revenue model may make fee-based cap formulas unsuitable, even with the selected burn-address transfer policy for non-refundable Join Toll portions. | Release blocker. |
 | R-15 | 17 | Narrow consumer indemnity or add business-user/unlawful-use limitations if counsel recommends. | Broad consumer indemnity can be unenforceable or unfair in some jurisdictions. | Counsel decision. |
 | R-16 | 18 | Specify the technical renewed-acceptance mechanism: terms version, deterministic hash, displayed terms, explicit phrase, stored record, stale-record rejection. | The product can implement this and should not rely only on legal notice wording. | Applied to draft Terms; verify implementation follows this mechanism after Terms freeze. |
 | R-17 | 20 | Use Singapore court litigation and Singapore law as the Provider-connected baseline, with mandatory consumer-law and local-court carveouts. Do not include arbitration, class-action waiver, collective-action waiver, representative-action waiver, or jury-trial waiver provisions unless counsel later approves them. | Forum and waiver clauses may be invalid or problematic for consumers in some jurisdictions. | Applied to draft Terms; counsel to confirm enforceability. |
 | R-18 | 20 | Add `cjhyuck213@gmail.com` as the public privacy and notice contact for Jehyuk Jang, and state that the Provider's residential address is not published. If a physical notice address becomes required, use a counsel-approved non-residential notice route. | Notices are incomplete without an official contact route, but residential address publication is not the default policy. | Applied to draft Terms; counsel to confirm sufficiency. |
-| R-19 | 1, 2, 9, 16 | Resolve Join Toll token-economics wording against implementation. The current reviewed implementation stores Join Tolls in `L1TokenVault._tollTreasuryBalance`, records `joinTollPaid`, and pays exit refunds from the toll treasury according to the Channel refund schedule. No burn path was found in `L1TokenVault`, `ChannelManager`, or the current E2E assertions. | The user-facing economic representation must match the protocol. The Provider-selected target policy is no Provider Party revenue and burn semantics, but the current implementation is treasury/refund semantics, not burn semantics. | Release blocker: either implement burn semantics before release or revise Terms to describe the actual treasury/refund behavior. |
+| R-19 | 1, 2, 9, 16 | Apply the selected Join Toll policy to Terms and implementation planning. The current reviewed implementation stores Join Tolls in `L1TokenVault._tollTreasuryBalance`, records `joinTollPaid`, and pays exit refunds from the toll treasury according to the Channel refund schedule. The selected change is future-only: on Channel exit, refund the refundable portion to the exiting user and transfer the non-refundable portion to `0x000000000000000000000000000000000000dEaD`. Existing already-exited users' historical non-refundable Toll portions are not in scope for retroactive burn-address transfer. | The user-facing economic representation must match the protocol. Because mainnet TON does not expose an external `burn` function and rejects transfer to `address(0)`, the Service must describe this as a burn-address transfer, not as TON total-supply reduction. | Selected product decision; update Terms/docs and implement after canonical Terms freeze. |
 | R-20 | Prompt policy | Remove `--acknowledge-action-impact` from every command after install-time Terms acceptance is enforced. Make `uninstall` interactive like `install`; default uninstall preserves wallet workspace spending-key and viewing-key files while deleting the rest, and `--include-wallet-keys` deletes everything without exception. Make secret-bearing material export commands and plaintext note/evidence export commands interactive. For each such interactive flow, print the command impact, leakage or destructive risk, precautions, and Provider Party disclaimers, then require human confirmation before continuing. For every command that handles real funds, print command-specific information and warning summaries in human mode and `--json` mode on every run without requiring a command-level acknowledgement option. | This implements the selected product policy: one-time install Terms acceptance replaces repeated action-impact acknowledgement flags, while moment-specific human confirmations remain for destructive deletion and sensitive exports, and ordinary transaction commands still show relevant warnings. | Selected plan; implement only after canonical Terms and the Terms gate are frozen. |
 
 ### Risk register
@@ -938,7 +941,7 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | K-02 | Medium | Privacy/data | A standalone Privacy Notice draft now exists in the repository, the initial GitHub repository publication location is selected, the Terms cross-reference is drafted, and the first consistency review is complete. Counsel-directed changes and final release confirmation remain before production terms behavior ships. | Preserve the reviewed draft unless counsel or release review requires changes. | Product/counsel. |
 | K-03 | High | Consumer law | A Provider-connected forum clause may be limited or unenforceable for consumers with mandatory local rights. | Add explicit non-waivable consumer-rights and local-court carveouts as counsel directs. | Counsel. |
 | K-04 | Medium | Dispute resolution | The current draft excludes arbitration and class-action waiver provisions. This reduces clause-validity and user-friction risk but may increase litigation exposure for the individual Provider. | Confirm the no-arbitration and no-class-action-waiver strategy with counsel before implementation. | Counsel/business. |
-| K-05 | High | Liability | No liability cap is specified. Broad exclusions without cap may be incomplete or less predictable, and a no-Provider-revenue model may make fee-based caps unsuitable. The unresolved Join Toll token-economics mismatch also prevents relying on a fee-based cap formula. | Decide whether a fixed cap is needed and what carveouts apply. | Counsel/business. |
+| K-05 | High | Liability | No liability cap is specified. Broad exclusions without cap may be incomplete or less predictable, and a no-Provider-revenue model may make fee-based caps unsuitable even after non-refundable Join Toll portions are sent to a burn address. | Decide whether a fixed cap is needed and what carveouts apply. | Counsel/business. |
 | K-06 | High | Sanctions/AML | Restricted jurisdictions and screening obligations are not operationally defined, and the Service may lack technical methods to block real-world users. | Decide named restrictions and account-level restriction policy without promising user-level blocking. | Compliance/counsel. |
 | K-07 | Low | Privacy claims | Draft wording now avoids "may prevent" and "does not reveal" in Sections 5 and 10, but final text still needs legal and technical review for overstatement. | Keep the design-intent and observer-limit wording during final Terms review. | Product/counsel. |
 | K-08 | Medium | Self-custody | Secret-loss warning is legally useful but should be more visible in install and AI-agent flows. | Add section refs to install/JSON guide and ensure human guide explains no recovery method before secret-dependent use. | Product. |
@@ -947,7 +950,7 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | K-11 | Medium | AI agents | User-Controlled AI Agents could be perceived as acting with official authority if JSON directives are too prescriptive. | State that AI agents are user-selected tools and cannot accept terms, handle secrets, or create advisory relationship. | Product/counsel. |
 | K-12 | Medium | Evidence/observer | Official Public Observer may be insufficient for exchange, tax, audit, or compliance review. | Preserve observer-limit wording and add local evidence preservation duties. | Product/compliance. |
 | K-13 | Low | Terminology | Final terminology search for ordinary-user and agent-facing surfaces found only `--join-toll` as a command option in the private-state app README and one `L1` occurrence in `agents.md` that explicitly instructs agents not to use `L1` with ordinary users. Technical documents may still use `L1` and `L2` where the target reader is technical. | Keep final terminology search before release; no current ordinary-user wording change is required from this pass. | Product. |
-| K-14 | High | Burned fees | Current implementation does not confirm burn semantics. `L1TokenVault.joinChannel` transfers Join Toll tokens into the vault and increments `_tollTreasuryBalance`; `exitChannel` pays refundable amounts from `_tollTreasuryBalance`; the E2E flow expects a 75% Join Toll refund. No burn path was found in reviewed implementation. | Treat as a release blocker. Either implement burn semantics and re-verify, or revise Terms and docs to describe actual treasury/refund behavior without claiming a burn outcome. | Product/security/counsel. |
+| K-14 | High | Burn-address transfer | Current implementation does not yet apply the selected future-exit burn-address transfer policy. `L1TokenVault.joinChannel` transfers Join Toll tokens into the vault and increments `_tollTreasuryBalance`; current `exitChannel` pays refundable amounts from `_tollTreasuryBalance` and leaves the non-refundable portion in the vault. | Implement and test future-only exit behavior: refund the refundable portion, transfer the non-refundable portion to `0x000000000000000000000000000000000000dEaD`, and reduce `_tollTreasuryBalance` by both amounts. Do not promise retroactive handling for already-exited users. | Product/security/counsel. |
 
 ### Counsel-question list
 
@@ -963,9 +966,8 @@ Business decisions to prepare before counsel review:
   user-level blocking?
 - Should the Service use Singapore court litigation with mandatory consumer-law carveouts, and no arbitration or
   class-action waiver provisions?
-- What liability cap, if any, is commercially acceptable when Join Tolls are not intended to be Provider Party revenue,
-  and when final protocol behavior may be burn semantics or treasury/refund semantics depending on the resolved
-  implementation decision?
+- What liability cap, if any, is commercially acceptable when Join Tolls are not intended to be Provider Party revenue
+  and non-refundable future-exit Join Toll portions are sent to a burn address?
 - Should user indemnity apply to ordinary consumers, business users only, unlawful use only, or third-party claims only?
 - What official interfaces process personal data, including observer hosting, logs, analytics, support, package
   distribution, and telemetry?
@@ -974,8 +976,8 @@ Business decisions to prepare before counsel review:
 - Are the selected separate prompt rules sufficient: interactive `uninstall`, interactive secret-bearing material
   exports, interactive plaintext note/evidence exports, and non-blocking warnings for every real-funds command in human
   and `--json` modes?
-- Should the Provider-selected Join Toll target policy be implemented as burn semantics, or should the Terms be revised
-  to describe the current treasury/refund behavior?
+- Is the selected Join Toll wording sufficient if it describes future non-refundable Join Toll handling as transfer to
+  `0x000000000000000000000000000000000000dEaD`, and not as TON total-supply reduction?
 
 Legal-validity questions for counsel:
 
@@ -1023,8 +1025,10 @@ business owner with counsel awareness:
   and jury-trial waiver provisions should remain excluded from the current draft.
 - Sanctions/restricted jurisdictions policy and any account-level restriction or screening decision that is technically
   possible without overstating user-level blocking.
-- Resolution of the Join Toll token-economics mismatch: either implement burn semantics and re-verify, or revise Terms
-  and docs to describe actual treasury/refund behavior without claiming a burn outcome.
+- Final Terms/docs/implementation consistency for the selected Join Toll policy: future Channel exits refund the
+  refundable portion and transfer only the non-refundable portion to
+  `0x000000000000000000000000000000000000dEaD`, with no retroactive burn-address transfer promise for already-exited
+  users.
 - Final redlined Terms wording for Sections 3, 5, 6, 10, 12, 13, 14, 16, 17, 18, and 20.
 - Final verification that Terms, CLI README, human `help guide`, `help guide --json`, and `agents.md` do not conflict.
 
@@ -1038,8 +1042,8 @@ business owner with counsel awareness:
 - Arbitration, class-action waiver, collective-action waiver, representative-action waiver, and jury-trial waiver
   provisions are excluded from the current draft unless counsel later approves them.
 - Liability cap remains undecided. The draft position is that Provider Parties have no liability for Service use to the
-  maximum extent permitted by applicable law, and that Join Tolls must not be described as Provider Party revenue unless
-  an implemented protocol, treasury, or operating flow actually routes value to Provider Parties.
+  maximum extent permitted by applicable law, and that future non-refundable Join Toll portions are not Provider Party
+  revenue because they are transferred to `0x000000000000000000000000000000000000dEaD`.
 - Required sanctions and restricted-jurisdiction wording remains undecided. The draft must account for the technical
   constraint that the Service may block Ethereum Accounts or contract interactions, not real-world users.
 - Final Privacy Notice review and counsel-directed changes remain open. The initial Privacy Notice content, GitHub
@@ -1061,6 +1065,17 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Assign a `termsVersion`.
 - Compute a deterministic `termsHash` from the exact rendered terms content.
 - Ensure the install command and JSON mode use the same canonical terms metadata.
+
+### Phase 1A: Join Toll burn-address transfer implementation
+
+- Update `L1TokenVault.exitChannel` so future Channel exits calculate `burnAddressTransferAmount =
+  registration.joinTollPaid - refundAmount`.
+- Transfer `refundAmount` to the exiting user when non-zero.
+- Transfer `burnAddressTransferAmount` to `0x000000000000000000000000000000000000dEaD` when non-zero.
+- Reduce `_tollTreasuryBalance` by `refundAmount + burnAddressTransferAmount`.
+- Treat the change as future-only. Do not add a retroactive migration promise for users who already exited before this
+  implementation ships.
+- Terms and docs must describe the non-refundable portion as a burn-address transfer, not as TON total-supply reduction.
 
 ### Phase 2: Interactive install gate
 
@@ -1118,6 +1133,10 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 ### Phase 7: Implementation verification
 
 - Verify that interactive install blocks installation until Terms are accepted.
+- Verify that future `exitChannel` calls refund the refundable Join Toll portion and transfer the non-refundable portion
+  to `0x000000000000000000000000000000000000dEaD`.
+- Verify that `_tollTreasuryBalance` decreases by both the refunded amount and the burn-address transfer amount.
+- Verify that Terms and docs do not describe the Join Toll burn-address transfer as TON total-supply reduction.
 - Verify that `install --json` does not install or accept Terms.
 - Verify that a changed terms hash requires renewed interactive acceptance.
 - Verify that terms-gated commands reject execution when acceptance is missing or stale.

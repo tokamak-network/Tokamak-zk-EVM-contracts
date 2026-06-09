@@ -763,6 +763,7 @@ Decision guide:
 | Developer vs provider split | Selected: Tokamak Network PTE. LTD. is separate from the Provider. | Define Tokamak Network PTE. LTD. as software contributor/licensor and, where applicable, Third-Party Service or infrastructure/tooling provider for Tokamak-controlled repositories, package registries, published artifacts, token infrastructure, bridge infrastructure, or upstream tooling. Do not make Tokamak Network responsible for Provider obligations unless it expressly assumes them in a separate binding Service document. |
 | Global online forum | Strategy selected: use Singapore as the Provider-connected baseline jurisdiction, subject to counsel review and mandatory consumer-law carveouts. | Use a baseline governing law and forum connected to Singapore, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. |
 | Individual provider forum | Strategy selected: Singapore, subject to counsel review. | Confirm that Singapore courts and Singapore law are appropriate for Jehyuk Jang as the individual Provider, and confirm notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
+| Bridge owner and upgrade authority | New plan: migrate root bridge proxy ownership from the current single EOA owner to an Ethereum mainnet multisig. | Select the multisig address, signer set, and threshold before any on-chain ownership transfer. Prefer at least 2-of-3 for minimum redundancy, and 3-of-5 if enough independent signers are available. Do not transfer ownership until the multisig address, owners, threshold, transaction simulation, and recovery process are verified. |
 | Liability cap | Undecided. | Decide after counsel review. If no Provider Party revenue is earned, a cap cannot be based only on retained Service fees without creating a zero-cap problem. Consider whether a fixed cap is needed despite the no-revenue model and the selected burn-address transfer policy for non-refundable Join Toll portions. |
 | Restricted users | Undecided. | State prohibited uses and sanctions compliance, but do not promise user-level blocking unless a real user-identification and access-control system exists. |
 | Technical blocking | Constraint recorded. | Future blacklist features may block Ethereum Accounts or contract interactions, not necessarily real-world users. Terms and docs must not overstate user-level blocking. |
@@ -800,6 +801,151 @@ Decision guide:
 - Verify that machine-readable guidance remains useful for User-Controlled AI Agents without handling secrets or accepting
   Terms for users.
 - Freeze the canonical Terms text for implementation only after these checks pass.
+
+## Bridge Governance Migration Plan
+
+This plan covers moving the root bridge owner and upgrade authority from a single EOA to an Ethereum mainnet multisig.
+It does not execute any on-chain transaction and does not change Channel leader authority for existing Channels.
+
+### Current governance state
+
+- `BridgeCore`, `DAppManager`, and `L1TokenVault` are UUPS proxy contracts that use `OwnableUpgradeable`.
+- Each contract authorizes upgrades through `_authorizeUpgrade(address) internal override onlyOwner`.
+- The current recorded owner for `BridgeCore`, `DAppManager`, and `L1TokenVault` is the single EOA
+  `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7`.
+- The current deployment artifacts record no multisig and no timelock.
+- The EIP-1967 admin slot is expected to remain empty because the deployment uses UUPS proxies.
+- Moving ownership changes who can authorize upgrades and owner-only bridge administration. It does not rewrite existing
+  Channel policy snapshots or transfer control over user secrets.
+
+### Target state
+
+- `BridgeCore.owner()` equals the selected Ethereum mainnet multisig address.
+- `DAppManager.owner()` equals the selected Ethereum mainnet multisig address.
+- `L1TokenVault.owner()` equals the selected Ethereum mainnet multisig address.
+- The old EOA remains only a signer if intentionally included in the multisig signer set; it must no longer be the sole
+  owner of any root bridge proxy.
+- The deployment artifacts and monitoring documents disclose the multisig address, signer threshold, absence or presence
+  of a timelock, and the current upgrade policy.
+- No timelock is assumed unless one is explicitly selected, deployed, verified, and documented.
+
+### Scope
+
+In scope:
+
+- Create or select the Ethereum mainnet multisig.
+- Transfer ownership of `BridgeCore`, `DAppManager`, and `L1TokenVault` from the current EOA to the multisig.
+- Update monitoring artifacts, admin wallet documentation, Terms, Privacy Notice, README, and observer documentation if
+  they describe bridge owner or upgrade authority.
+- Add verification steps for owner address, signer threshold, proxy implementation addresses, and UUPS admin-slot status.
+
+Out of scope unless separately approved:
+
+- Changing Channel leader or operator roles for `the-great-first-channel`.
+- Adding a timelock, guardian, emergency council, pause mechanism, or protocol-level governance module.
+- Upgrading bridge implementations during the ownership migration transaction sequence.
+- Changing the current Provider identity or support contact.
+
+### Multisig selection requirements
+
+- Use an audited Ethereum mainnet multisig implementation such as Safe.
+- The multisig must be deployed on Ethereum mainnet before ownership transfer.
+- Verify the multisig address in the official Safe interface and on Etherscan.
+- Verify that the multisig address has deployed bytecode.
+- Verify the owner list and threshold on-chain.
+- Recommended threshold:
+  - minimum acceptable baseline: 2-of-3,
+  - stronger operational baseline: 3-of-5, if enough independent signers are available.
+- Signers should use hardware wallets or equivalent strong custody. The signer set should avoid a single shared device,
+  single cloud account, single seed phrase, or single person controlling enough keys to meet the threshold.
+- Record an internal recovery plan before transfer, including how to replace a lost signer, how to handle compromised
+  signers, and who can coordinate emergency multisig transactions.
+
+### Preflight checks
+
+Before any on-chain transaction:
+
+- Confirm the selected multisig address, owner list, threshold, and chain ID.
+- Confirm the current owner for all three root bridge proxies.
+- Confirm the current implementation address for all three proxies.
+- Confirm that the EIP-1967 admin slot is still empty for all three UUPS proxies.
+- Confirm that OpenZeppelin `OwnableUpgradeable.transferOwnership(newOwner)` is a single-step ownership transfer in the
+  deployed codebase and does not require `acceptOwnership`.
+- Prepare the three EOA-signed ownership-transfer calls:
+  - `BridgeCore.transferOwnership(multisig)`,
+  - `DAppManager.transferOwnership(multisig)`,
+  - `L1TokenVault.transferOwnership(multisig)`.
+- Simulate the calls with the exact target addresses and calldata on a mainnet fork or a trusted transaction-simulation
+  tool.
+- Do not include any `upgradeTo` call in the ownership-migration transaction sequence.
+
+### Execution plan
+
+- Execute ownership transfers from the current owner EOA.
+- Prefer a scripted or checklist-driven sequence that signs and submits exactly the three ownership-transfer
+  transactions.
+- After each transaction confirms, immediately verify the corresponding `owner()` value.
+- If one transfer succeeds and another fails, treat the deployment as partially migrated, stop non-essential governance
+  activity, diagnose the failed transaction, and complete the remaining ownership transfers before any unrelated
+  owner-only action.
+- Do not perform implementation upgrades, verifier changes, DApp metadata changes, Join Toll schedule changes, or Channel
+  deployer changes in the same transaction sequence.
+
+### Post-transfer verification
+
+After all three transfers:
+
+- Verify that `BridgeCore.owner()`, `DAppManager.owner()`, and `L1TokenVault.owner()` all return the multisig address.
+- Verify that the old EOA can no longer execute owner-only actions directly.
+- Verify that the multisig address has deployed bytecode and the expected owner threshold.
+- Verify that implementation addresses did not change during the migration.
+- Verify that the EIP-1967 admin slot remains empty for all three UUPS proxies.
+- Verify that existing Channel records, including `the-great-first-channel`, still resolve to their existing Channel
+  manager addresses.
+- Verify that no Channel policy snapshot was unintentionally changed.
+
+### Documentation and monitoring updates
+
+After successful on-chain transfer:
+
+- Update `docs/audit/monitoring/data/TPAC-Contract-Addresses.json`:
+  - set the three owner fields to the multisig address,
+  - set `multisig` to the multisig address,
+  - keep `timelock` as `null` unless a timelock is actually deployed and owns the contracts,
+  - update the governance note.
+- Update `docs/audit/monitoring/data/Admin-Wallets-and-Upgrade-Policy.md` with the multisig address, signer threshold,
+  no-timelock status if applicable, and UUPS upgrade policy.
+- Update any monitoring packet or observer documentation that reports admin wallets or upgrade authority.
+- Update Terms and README language if they describe the owner as a single EOA or describe upgrade authority in a way that
+  becomes stale.
+- Add a post-migration changelog entry for the CLI or Service documentation only if the user-facing documentation package
+  is changed.
+
+### Checklist review
+
+No explicit `checklist.md` violation is expected from moving bridge owner and upgrade authority from a single EOA to a
+multisig. The change improves the admin-wallet and upgrade-policy disclosure posture if it is accurately documented.
+
+The migration must preserve the following constraints:
+
+- Do not describe the multisig as user custody.
+- Do not imply that the multisig can recover user secrets, reverse Ethereum mainnet transactions, or guarantee user
+  recovery.
+- Do not imply that existing Channel policy snapshots are rewritten by the ownership transfer.
+- Do disclose that the multisig can authorize upgrades to the UUPS root bridge proxies and can execute owner-only bridge
+  administration functions.
+- Do disclose whether a timelock exists. If no timelock exists, state that plainly.
+
+### Open decisions before execution
+
+- Multisig implementation and exact Ethereum mainnet multisig address.
+- Signer identities, signer custody standard, and signer threshold.
+- Whether the old owner EOA remains one signer or is removed from operational control.
+- Whether a timelock will be added now, explicitly deferred, or rejected for the current release.
+- Whether to publish signer identities or only publish the multisig address and threshold.
+- Required public notice timing before and after migration.
+- Whether any owner-only bridge administration actions are planned immediately after migration; if yes, they must be
+  planned as separate transactions after ownership transfer verification.
 
 ## Pre-Counsel Redline and Risk Review Plan
 

@@ -829,6 +829,26 @@ It does not execute any on-chain transaction and does not change Channel leader 
   of a timelock, and the current upgrade policy.
 - No timelock is assumed unless one is explicitly selected, deployed, verified, and documented.
 
+### Selected migration settings
+
+The following settings are selected for the current migration:
+
+- Multisig implementation: Safe.
+- Safe address: `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`.
+- Network: Ethereum mainnet.
+- Threshold: 2-of-3.
+- Safe owners confirmed on-chain:
+  - `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7`,
+  - `0xafeE17Be51cB3AB0BDfDc7440Dafb5201D5dbB24`,
+  - `0x392CB2777354bf1A6FaD95D277394060621Cb66B`.
+- Existing owner EOA `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7` remains one Safe signer.
+- Timelock: none for this migration.
+- Public disclosure: publish only the Safe address, 2-of-3 threshold, and no-timelock status. Do not publish signer
+  identity or signer-control details in user-facing documents.
+- Public notice timing: post-execution notice only for this ownership hardening migration.
+- Immediate post-migration owner-only actions: none.
+- Safe signer recovery details remain off-repository and are handled through Safe operations.
+
 ### Scope
 
 In scope:
@@ -933,6 +953,21 @@ Expected preflight results:
 - The proxy implementation addresses match the known mainnet addresses above.
 - The migration transaction set contains only three `transferOwnership` calls.
 
+Preflight result on 2026-06-10:
+
+- Safe code exists at `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`.
+- Safe threshold is 2.
+- Safe owners are
+  `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7`,
+  `0xafeE17Be51cB3AB0BDfDc7440Dafb5201D5dbB24`, and
+  `0x392CB2777354bf1A6FaD95D277394060621Cb66B`.
+- `BridgeCore.owner()`, `DAppManager.owner()`, and `L1TokenVault.owner()` all return
+  `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7`.
+- Implementation slots match the known mainnet implementation addresses.
+- EIP-1967 admin slots are empty for all three UUPS proxies.
+- `the-great-first-channel` still resolves to Channel manager
+  `0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7`.
+
 ### Execution plan
 
 - Execute ownership transfers from the current owner EOA.
@@ -967,6 +1002,14 @@ cast send 0xf127Aef661c815ad46c5159146078f6F1E9f5F61 \
 
 The command form above is only an execution shape. Use the safest available signing method for the current owner EOA.
 Do not paste a private key into an untrusted shell, chat tool, ticket, or browser.
+
+Equivalent calldata for each target proxy:
+
+```text
+0xf2fde38b000000000000000000000000be637160d21975ef1e0270d32bfc547c2ea8dcc3
+```
+
+Use this calldata only with the three migration target proxies listed in this plan.
 
 ### Post-transfer verification
 
@@ -1049,18 +1092,10 @@ The migration must preserve the following constraints:
 
 ### Open decisions before execution
 
-- Multisig implementation and exact Ethereum mainnet multisig address.
-- Signer identities, signer custody standard, and signer threshold.
-- Whether the old owner EOA remains one signer or is removed from operational control.
-- Whether a timelock will be added now, explicitly deferred, or rejected for the current release.
-- Whether to publish signer identities or only publish the multisig address, threshold, and timelock status. Current
-  direction: publish the neutral on-chain configuration only, without "Provider-controlled Safe" wording and without
-  implying independent governance.
-- Required public notice timing before and after migration.
-- Whether any owner-only bridge administration actions are planned immediately after migration; if yes, they must be
-  planned as separate transactions after ownership transfer verification.
-- Whether the selected Safe configuration supports signer replacement through ordinary Safe owner transactions. Detailed
-  key custody and signer recovery procedures stay off-repository.
+- Decide the exact signing path for the current owner EOA. Preferred direction: the operator signs the three
+  `transferOwnership` transactions directly from the current owner EOA without exposing the private key to shell history,
+  chat tools, tickets, or browsers outside the selected wallet flow.
+- Confirm that no unrelated owner-only transaction is queued or executed until post-transfer verification is complete.
 
 ## Pre-Counsel Redline and Risk Review Plan
 

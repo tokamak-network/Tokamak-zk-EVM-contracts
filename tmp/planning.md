@@ -734,10 +734,11 @@ Current status:
 
 - Record the Provider Party decision: the Provider is Jehyuk Jang, an individual. The Provider's public privacy and
   notice contact is `cjhyuck213@gmail.com`, the Provider's stated jurisdiction is Singapore, and the Provider's
-  residential address is not published. Tokamak Network PTE. LTD. is a separate software contributor/licensor and, where
-  applicable, a Third-Party Service or infrastructure/tooling provider for Tokamak-controlled repositories, package
-  registries, published artifacts, token infrastructure, bridge infrastructure, or upstream tooling. It must not be
-  treated as the Provider unless it expressly assumes Provider obligations in a separate binding Service document.
+  residential address is not published. Tokamak Network PTE. LTD. is a separate software contributor/licensor and a
+  Third-Party Service or infrastructure/tooling provider for Tokamak-controlled repositories, package registries,
+  published artifacts, token infrastructure, bridge infrastructure, or upstream tooling not operated by the Provider. It
+  must not be treated as the Provider unless it expressly assumes Provider obligations in a separate binding Service
+  document.
 - Use the recommended dispute strategy for an individual Provider: governing law and forum should default to Singapore,
   unless counsel approves a different jurisdiction with a sufficient connection. The clause must preserve mandatory
   consumer-law and local-court rights. Do not include arbitration, class-action waiver, collective-action waiver,
@@ -769,7 +770,7 @@ Decision guide:
 | Decision | Current status | How to decide |
 |---|---|---|
 | Provider Party | Selected: the Provider is Jehyuk Jang, an individual. Public privacy and notice contact is `cjhyuck213@gmail.com`. Stated jurisdiction is Singapore. Residential address is not published. | Use these Provider details in the Privacy Notice and Terms. Do not name Tokamak Network PTE. LTD. as Provider unless it expressly assumes provider obligations. |
-| Developer vs provider split | Selected: Tokamak Network PTE. LTD. is separate from the Provider. | Define Tokamak Network PTE. LTD. as software contributor/licensor and, where applicable, Third-Party Service or infrastructure/tooling provider for Tokamak-controlled repositories, package registries, published artifacts, token infrastructure, bridge infrastructure, or upstream tooling. Do not make Tokamak Network responsible for Provider obligations unless it expressly assumes them in a separate binding Service document. |
+| Developer vs provider split | Selected: Tokamak Network PTE. LTD. is separate from the Provider. | Define Tokamak Network PTE. LTD. as software contributor/licensor and Third-Party Service or infrastructure/tooling provider for Tokamak-controlled repositories, package registries, published artifacts, token infrastructure, bridge infrastructure, or upstream tooling not operated by the Provider. Do not make Tokamak Network responsible for Provider obligations unless it expressly assumes them in a separate binding Service document. |
 | Global online forum | Strategy selected: use Singapore as the Provider-connected baseline jurisdiction, subject to counsel review and mandatory consumer-law carveouts. | Use a baseline governing law and forum connected to Singapore, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. |
 | Individual provider forum | Strategy selected: Singapore, subject to counsel review. | Confirm that Singapore courts and Singapore law are appropriate for Jehyuk Jang as the individual Provider, and confirm notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
 | Bridge owner and upgrade authority | Completed: root bridge proxy ownership was migrated from the single EOA owner to an Ethereum mainnet Safe multisig. | The current root bridge proxy owner is `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`, a Safe multisig with a 2-of-3 threshold and no timelock. Safe signer recovery details are an off-repository Safe operations matter, not a public repository decision. |
@@ -1256,7 +1257,7 @@ before release.
 
 | ID | Section | Proposed change before counsel review | Rationale | Status |
 |---|---|---|---|---|
-| R-01 | 1, 2, 20 | Replace generic Provider Party references in the operative clauses with Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and the no-residential-address publication policy. Define Tokamak Network PTE. LTD. separately as software contributor/licensor and, where applicable, Third-Party Service or infrastructure/tooling provider. | Users and legal reviewers need to know who offers the Service, who developed the software, who receives notices, and who accepts provider obligations. | Applied to draft Terms; counsel to confirm final wording. |
+| R-01 | 1, 2, 20 | Replace generic Provider Party references in the operative clauses with Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and the no-residential-address publication policy. Define Tokamak Network PTE. LTD. separately as software contributor/licensor and Third-Party Service or infrastructure/tooling provider for Tokamak-controlled surfaces not operated by the Provider. | Users and legal reviewers need to know who offers the Service, who developed the software, who receives notices, and who accepts provider obligations. | Applied to draft Terms; counsel to confirm final wording. |
 | R-02 | 3 | Remove passive "continuing to access or use" acceptance for terms-gated CLI operations, or limit it to non-CLI informational surfaces. Require explicit acceptance for install and renewed acceptance. | The planned CLI gate relies on explicit acceptance and deterministic terms hash records. Passive acceptance may conflict with that product design. | Applied to draft Terms; verify implementation follows explicit acceptance. |
 | R-03 | 3 | Add an age-of-majority or minimum-age statement if the Service is made available to natural persons. | "Legal capacity" may be too abstract for ordinary users and consumer review. | Counsel decision. |
 | R-04 | 3, 7 | Use a principles-based restricted-use and sanctions policy in the current draft. Do not name specific restricted jurisdictions, sanctions lists, sanctions authorities, or prohibited user categories unless counsel later requires them. State that the Service may only be able to restrict Ethereum Accounts or contract interactions, not identify and block real-world users. | Comparable services often name sanctions regimes or restricted regions, but naming lists creates maintenance obligations and can be misleading when the Service lacks user-identification and user-level blocking. The current product position is to require applicable-law compliance without overpromising enforcement. | Selected business position; counsel confirmation remains. |
@@ -1395,7 +1396,8 @@ business owner with counsel awareness:
 
 - Provider Party model and public Provider details are selected: Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no
   published residential address. Tokamak Network PTE. LTD. is separately defined as software contributor/licensor and,
-  where applicable, Third-Party Service or infrastructure/tooling provider; counsel must confirm the wording.
+  for Tokamak-controlled surfaces not operated by the Provider, Third-Party Service or infrastructure/tooling provider;
+  counsel must confirm the wording.
 - Governing law and forum strategy is selected in principle: use Singapore with mandatory consumer-law carveouts unless
   counsel approves a different Provider-connected jurisdiction.
 - Arbitration, class-action waiver, collective-action waiver, representative-action waiver, and jury-trial waiver

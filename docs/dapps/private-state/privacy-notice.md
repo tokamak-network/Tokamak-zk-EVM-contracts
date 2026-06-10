@@ -42,9 +42,9 @@ For this Privacy Notice:
   transaction records can be observed.
 - **Third-Party Services** means services not controlled by the Provider, including wallets, RPC providers, GitHub,
   Telegram, npm, Google Drive, Vercel, Neon, AWS, CoinGecko, browsers, operating systems, exchanges, and blockchain
-  explorers. Where Tokamak Network PTE. LTD. controls repositories, package registries, published artifacts, token
-  infrastructure, bridge infrastructure, or upstream tooling that is not operated by the Provider, it is also treated as
-  a Third-Party Service or infrastructure/tooling provider for this Privacy Notice.
+  explorers. Tokamak Network PTE. LTD. is not the Provider for this Privacy Notice. Tokamak Network PTE. LTD.-controlled
+  repositories, package registries, published artifacts, token infrastructure, bridge infrastructure, and upstream
+  tooling not operated by the Provider are Third-Party Services for this Privacy Notice.
 
 ## 4. Data Processed Through Public Blockchain Records
 
@@ -221,9 +221,8 @@ Data described in this Privacy Notice may be processed for the following purpose
 The Service depends on Third-Party Services. These Third-Party Services may process data independently under their own
 terms and privacy notices. Current Third-Party Services include GitHub, Telegram, npm, Google Drive, Vercel, Vercel Blob,
 Neon, AWS, CoinGecko, user-selected RPC providers, wallets, browsers, operating systems, blockchain explorers, public
-blockchain infrastructure, and, where applicable, Tokamak Network PTE. LTD.-controlled repositories, package registries,
-published artifacts, token infrastructure, bridge infrastructure, or upstream tooling that is not operated by the
-Provider.
+blockchain infrastructure, and Tokamak Network PTE. LTD.-controlled repositories, package registries, published
+artifacts, token infrastructure, bridge infrastructure, or upstream tooling that is not operated by the Provider.
 
 The Provider does not control Third-Party Service retention, deletion, access, account, security, cookie, analytics, or
 logging practices.

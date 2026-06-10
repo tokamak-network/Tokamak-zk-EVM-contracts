@@ -336,11 +336,13 @@ Export a local full-note evidence bundle with:
 private-state-cli wallet get-notes --network mainnet --wallet <WALLET> --export-evidence ./wallet-evidence.zip
 ```
 
-This ZIP is an input for `private-state-cli investigator`. It contains plaintext for all locally known
-notes, derived commitments and nullifiers, creation and spend transaction references, transaction calldata, receipts,
-events, and indexes for filtering by note, nullifier, transaction, block range, or available counterparty metadata. It
-includes all local epochs for the selected wallet, including exited epochs retained after `channel exit`. It does not
-include viewing keys, spending keys, wallet secret material, account private keys, or `.key` files. Do not submit the
+This export is intentionally interactive. The CLI prints a warning summary and requires the user to type the exact
+confirmation phrase before writing plaintext evidence. The raw ZIP is an input for `private-state-cli investigator`. It
+contains plaintext for all locally known notes, derived commitments and nullifiers, creation and spend transaction
+references, transaction calldata, receipts, events, and indexes for filtering by note, nullifier, transaction, block
+range, or available counterparty metadata. It includes all local epochs for the selected wallet, including exited epochs
+retained after `channel exit`. It does not include viewing keys, spending keys, wallet secret material, account private
+keys, or `.key` files. User-Controlled AI Agents must not confirm this export or receive the raw ZIP. Do not submit the
 raw ZIP as an exchange or auditor package unless full wallet-history disclosure is intended.
 
 Open the local evidence investigator with:
@@ -500,9 +502,10 @@ rederivation only for active channel registrations. Importing `wallet-viewing.ke
 corresponding capability without rerunning derivation, but a backup ZIP alone never restores either capability.
 
 `wallet get-notes --export-evidence <PATH>` writes a local raw evidence ZIP after interactive confirmation. The bundle
-is not a key export. It includes plaintext note facts for locally known notes so that
-`private-state-cli investigator` can create narrower consent-disclosure packages without requiring viewing-key or
-spending-key sharing.
+is not a key export. It includes plaintext note facts for locally known notes and may include retained exited epochs for
+the selected wallet, so it can reveal sensitive wallet history. `private-state-cli investigator` can create narrower
+consent-disclosure packages without requiring viewing-key or spending-key sharing. User-Controlled AI Agents must not
+confirm the export or receive the raw ZIP.
 
 ## Workspace
 

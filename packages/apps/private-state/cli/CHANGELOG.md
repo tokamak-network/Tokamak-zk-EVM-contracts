@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Strengthened `wallet get-notes --export-evidence` plaintext evidence export warnings, command help, README guidance,
+  investigator guidance, and evidence-scope documentation.
 - Added Terms section references to `help guide --json` agent guidance so User-Controlled AI Agents can read the
   canonical Terms before advising users.
 - Included the Terms definitions section in `help guide --json` Terms references and clarified that `agents.md` readers

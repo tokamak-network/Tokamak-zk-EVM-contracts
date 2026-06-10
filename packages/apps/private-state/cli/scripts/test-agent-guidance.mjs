@@ -258,6 +258,10 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   expect(stdout.includes("wallet export viewing-key"), "Command help should include viewing-key export.");
   expect(stdout.includes("Requires an interactive terminal because the output file contains secret-bearing viewing authority"), "Viewing-key export help should explain interactive confirmation.");
   expect(stdout.includes("Requires an interactive terminal because the output file contains secret-bearing spending authority"), "Spending-key export help should explain interactive confirmation.");
+  expect(stdout.includes("Use --export-evidence <PATH> to write a local full-note evidence ZIP for private-state-cli investigator after interactive confirmation"), "Evidence export help should explain interactive confirmation.");
+  expect(stdout.includes("The raw evidence ZIP may include plaintext note facts for all locally known notes and retained exited epochs for the selected wallet"), "Evidence export help should explain raw evidence scope.");
+  expect(stdout.includes("User-Controlled AI Agents must not confirm this export or receive the raw evidence ZIP"), "Evidence export help should forbid agent confirmation and raw ZIP handling.");
+  expect(stdout.includes("Do not give the raw evidence ZIP to User-Controlled AI Agents, support channels, or untrusted parties"), "Investigator help should warn against raw ZIP disclosure.");
 }
 
 function testGuideHumanPrivateKeyFlowIncludesAddressVerification() {

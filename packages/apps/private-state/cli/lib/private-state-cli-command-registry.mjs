@@ -420,6 +420,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "Prints the local investigator HTML path and opens it in the default browser",
       "Use wallet get-notes --export-evidence first, then load the raw ZIP in the investigator GUI",
       "The raw evidence ZIP contains full locally known note plaintext and should not be submitted as-is unless full wallet-history disclosure is intended",
+      "Do not give the raw evidence ZIP to User-Controlled AI Agents, support channels, or untrusted parties",
     ],
   },
   {
@@ -784,7 +785,8 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "Refreshes received-note logs through the saved wallet note recovery index when the scan fits the 7,200-block pre-command budget",
       "Fails instead of replaying from genesis; run wallet recover-workspace first when explicit wallet recovery is required",
       "Use --export-evidence <PATH> to write a local full-note evidence ZIP for private-state-cli investigator after interactive confirmation",
-      "Evidence export includes all local epochs for the selected wallet, including exited epochs retained for dispute evidence",
+      "The raw evidence ZIP may include plaintext note facts for all locally known notes and retained exited epochs for the selected wallet",
+      "User-Controlled AI Agents must not confirm this export or receive the raw evidence ZIP",
     ],
   },
 ]);

@@ -9,18 +9,18 @@ private-state-cli wallet get-notes \
   --export-evidence ./wallet-evidence.zip
 ```
 
-The export command asks for interactive confirmation before writing plaintext note evidence. Open `index.html` in a
-modern browser, load the raw ZIP, choose the disclosure request type, inspect the graph, and build a narrower
-user-consent disclosure ZIP. From an installed CLI package, `private-state-cli investigator` prints the bundled HTML path
-and opens it in the default browser.
+The export command asks for interactive confirmation before writing plaintext note evidence. User-Controlled AI Agents
+must not confirm the export or receive the raw evidence ZIP. Open `index.html` in a modern browser, load the raw ZIP,
+choose the disclosure request type, inspect the graph, and build a narrower user-consent disclosure ZIP. From an
+installed CLI package, `private-state-cli investigator` prints the bundled HTML path and opens it in the default browser.
 
 The tool does not run a server and does not send files over the network. It reads the selected ZIP in
 the browser. It can write a new ZIP with selected note records plus directly referenced transaction,
 receipt, and event files, and it can export a Markdown ASCII-art linkage report.
 
-The raw evidence bundle contains plaintext for all locally known notes. Do not submit the raw bundle
-as an exchange or auditor package unless full wallet-history disclosure is intended. Use the
-investigator output package for scoped disclosure.
+The raw evidence bundle contains plaintext for all locally known notes and may include retained exited epochs for the
+selected wallet. Do not submit the raw bundle as an exchange or auditor package unless full wallet-history disclosure is
+intended. Use the investigator output package for scoped disclosure.
 
 The investigator accepts current epoch-aware evidence bundles only. Supported note records live under
 `wallets/<wallet>/epochs/<epoch-id>/notes/` inside the ZIP. If a bundle uses an older layout, rebuild the local wallet

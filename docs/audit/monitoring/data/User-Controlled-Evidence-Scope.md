@@ -54,6 +54,9 @@ notes after channel exit. This raw bundle is not the final exchange submission p
 `private-state-cli investigator`, or directly at `packages/apps/private-state/cli/investigator/index.html`, filters the
 raw bundle into a narrower user-consent package for the specific request.
 
+User-Controlled AI Agents must not confirm the raw evidence export for the user and must not receive the raw evidence
+ZIP. Provider Parties cannot recover leaked plaintext evidence or undo third-party disclosure.
+
 Examples of user-held facts include:
 
 - wallet registration metadata shown by read-only wallet inspection

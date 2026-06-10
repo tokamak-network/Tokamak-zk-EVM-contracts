@@ -3196,6 +3196,7 @@ function handleInvestigator() {
       "Load the raw evidence ZIP in the browser investigator.",
       "Filter the raw bundle and export a user-consent disclosure ZIP.",
       "Do not submit the raw evidence ZIP unless full wallet-history disclosure is intended.",
+      "Do not give the raw evidence ZIP to User-Controlled AI Agents, support channels, or untrusted parties.",
     ],
   });
 }
@@ -5564,14 +5565,16 @@ async function requirePlaintextEvidenceExportConfirmation() {
   const confirmation = "I understand this export contains plaintext note evidence";
   const lines = [
     "WARNING SUMMARY: wallet get-notes --export-evidence",
-    "- This export writes plaintext note facts for locally known notes into a local evidence ZIP.",
-    "- The export is not a key export, but it can reveal sensitive wallet history and note evidence.",
+    "- This export writes plaintext note facts for locally known notes into a local raw evidence ZIP.",
+    "- The export is not a key export, but it can reveal sensitive wallet history and note evidence for the selected wallet.",
+    "- The raw evidence ZIP may include all locally known notes and retained exited epochs for the selected wallet.",
     "- Store it locally, share it only with parties you choose, and delete extra copies when they are no longer needed.",
+    "- User-Controlled AI Agents must not type this confirmation for the user or receive the raw evidence ZIP.",
     "- Provider Parties cannot recover leaked plaintext evidence or undo third-party disclosure.",
     `Type exactly: ${confirmation}`,
     "> ",
   ];
-  if (!process.stdin.isTTY) {
+  if (!process.stdin.isTTY || !process.stderr.isTTY) {
     throw new Error("wallet get-notes --export-evidence requires an interactive terminal for plaintext evidence export confirmation.");
   }
   const rl = readline.createInterface({

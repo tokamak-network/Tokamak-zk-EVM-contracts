@@ -1560,6 +1560,9 @@ Minimum document changes to complete before release:
    - Do not name restricted jurisdictions, sanctions lists, or screening mechanics unless counsel confirms that naming
      them is necessary and operationally maintainable.
    - Do not claim that the Service is unregulated, exempt, licensed, compliant, or approved by any regulator.
+   - Status: Completed by review. Current public docs, CLI warning text, and canonical Terms preserve the no-custody,
+     no-exchange, no-brokerage, no-hosted-transfer, no-advice, principles-based prohibited-use/sanctions approach and do
+     not make regulator-approval, exemption, licensing, or compliance-status claims.
 8. Electronic acceptance evidence:
    - Keep install-time explicit acceptance with Terms version and deterministic hash.
    - Keep acceptance local-only unless the Provider deliberately accepts additional server-side personal-data processing.

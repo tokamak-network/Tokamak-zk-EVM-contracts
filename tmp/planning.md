@@ -112,9 +112,9 @@ For purposes of these Terms:
 - **Channel** means a specific opt-in Tonnel application environment with its own policy, membership rules, accounting
   records, and private note records. A Channel is not an exchange deposit or withdrawal network.
 - **The Great First Channel** means the dedicated initial Channel identified as `the-great-first-channel`.
-- **Join Toll** means the one-time Channel entry fee paid when a user joins a Channel. The selected implementation
-  policy is that, for future Channel exits after the relevant implementation ships, the refundable portion is returned
-  to the exiting user and the non-refundable portion is sent to the Ethereum address
+- **Join Toll** means the one-time Channel entry fee paid when a user joins a Channel. The implemented policy is that,
+  for Channel exits, the refundable portion is returned to the exiting user and the non-refundable portion is sent to the
+  Ethereum address
   `0x000000000000000000000000000000000000dEaD`. The Service must describe this as a burn-address transfer, not as a
   TON total-supply reduction. The selected refund policy is that the refundable portion increases as the user's Channel
   participation time increases: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50% after 3
@@ -175,10 +175,10 @@ For purposes of these Terms:
 - The Service is made available as open software and public-good infrastructure. Provider Parties do not operate the
   Service as a fee-generating custodial, brokerage, exchange, hosted transfer, or paid asset-management service.
 - Join Tolls paid through the Service must not be monetized by Provider Parties. The final Terms must describe the
-  selected future-exit policy as a burn-address transfer of the non-refundable Join Toll portion to
+  selected policy as a burn-address transfer of the non-refundable Join Toll portion to
   `0x000000000000000000000000000000000000dEaD`, not as a TON total-supply reduction.
 - The final Terms and user-facing documents must state that the Join Toll refund percentage increases with longer
-  Channel participation time after the relevant implementation ships.
+  Channel participation time.
 - The selected Join Toll refund schedule is 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50%
   after 3 days and within 7 days, and 75% after 7 days. The remaining non-refundable portion is transferred to
   `0x000000000000000000000000000000000000dEaD`.
@@ -803,7 +803,7 @@ Decision guide:
 | Privacy Notice | Initial draft completed in `docs/dapps/private-state/privacy-notice.md`; initial publication location selected as GitHub repository documentation only. CLI README references the document. `tonnel.io` publication is deferred. | Review the draft against Terms definitions, Provider identity, Official Public Observer disclosures, support routes, and Third-Party Service boundaries before final Terms, guide, JSON mode, or implementation work. |
 | Provider identity and privacy contact | Selected: Jehyuk Jang; `cjhyuck213@gmail.com`; Singapore; residential address not published. | Use the email address for privacy/contact and notice routing. Keep Telegram as an official support channel, not the sole privacy contact. If a physical notice address becomes required, use a counsel-approved non-residential route such as a P.O. box, business mailing address, registered agent, or counsel address. |
 | Arbitration and class-action waiver | Not included in the current draft. | Keep these provisions out unless counsel confirms that adding them is appropriate and enforceable enough for the individual Provider model and expected user jurisdictions. |
-| Separate prompts | Selected: remove `--acknowledge-action-impact` from all commands, enforce install-time Terms acceptance, make `uninstall`, secret-bearing material exports, and plaintext note or evidence exports interactive confirmation flows, and print warning summaries for real-funds commands in both human and `--json` modes every time. | The guide, command reference, transaction-warning output, default key-preserving `uninstall`, `uninstall --include-wallet-keys`, wallet viewing-key/spending-key export confirmations, and plaintext note/evidence export confirmation review are implemented. The canonical Terms gate and renewed acceptance mechanism remain before production terms behavior is complete. |
+| Separate prompts | Selected: remove `--acknowledge-action-impact` from all commands, enforce install-time Terms acceptance, make `uninstall`, secret-bearing material exports, and plaintext note or evidence exports interactive confirmation flows, and print warning summaries for real-funds commands in both human and `--json` modes every time. | The guide, command reference, transaction-warning output, default key-preserving `uninstall`, `uninstall --include-wallet-keys`, wallet viewing-key/spending-key export confirmations, plaintext note/evidence export confirmation review, canonical Terms gate, and renewed acceptance mechanism are implemented in local source. |
 | Channel Operation Abandonment | Selected: immediate on-chain abandonment state with no grace period. | Implement leader-only abandonment in the shared bridge/vault path so existing Channels, including `the-great-first-channel`, can have new joins and `deposit-channel` blocked after the leader initiates abandonment. Do not restrict note activity, `redeem-notes`, `withdraw-channel`, or `exit-channel` on-chain. CLI must error for join/deposit on abandoned Channels and warn for other Channel activities. |
 
 ### Phase 4: Finalize human-facing documents
@@ -852,20 +852,15 @@ Decision guide:
 
 Phase 6 repository-wide public-document review findings to resolve before public finalization:
 
-- Terms and CLI README already describe install-time Terms acceptance as required behavior, but the current human
-  `install` implementation has not yet rendered the Terms, persisted an acceptance record, or enforced a deterministic
-  `termsHash`. Resolution: keep the final-public-document strategy that documents the intended final state, but do not
-  treat the documentation set as release-ready until the interactive install gate, canonical terms source, and renewed
-  acceptance mechanism are implemented and verified.
+- Resolved in local source: Terms and CLI README describe install-time Terms acceptance as required behavior, and human
+  `install` now renders the Terms, persists an acceptance record, and enforces the deterministic `termsHash`.
 - Resolved in local source: Terms describe the selected future Join Toll policy, and Phase 1A implementation now matches
   it: increasing refund percentages over time and transfer of each non-refundable portion to
   `0x000000000000000000000000000000000000dEaD`. Mainnet still requires the corresponding bridge upgrade before public
   release can represent the policy as deployed behavior.
-- Terms already describe Channel Operation Abandonment as an available on-chain state. The current bridge and CLI do not
-  yet implement abandonment state, events, join/deposit rejection, or CLI warnings. Resolution: implement Phase 1B
-  before release, then verify that Terms, README, public observer, monitoring packet docs, `help guide`, `help guide
-  --json`, and `agents.md` all distinguish active and abandoned Channels without implying custody, user-level blocking,
-  private-history monitoring, or exchange deposit network control.
+- Resolved in local source: Terms describe Channel Operation Abandonment as an available on-chain state, and the bridge
+  plus CLI now implement abandonment state, events, join/deposit rejection, and warnings. Public observer data support
+  and generated Monitoring Packet JSON remain deployment-dependent and must be regenerated after the bridge upgrade.
 - Resolved: `packages/apps/private-state/README.md` stale CLI behavior was updated to match the current CLI policy:
   install-time Terms acceptance, interactive destructive/sensitive exports, default wallet-key-preserving `uninstall`,
   `uninstall --include-wallet-keys`, warning summaries without per-command legal acknowledgement flags, and interactive
@@ -1657,10 +1652,14 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
   modes without requiring a command-level acknowledgement option.
 - Verified that `help guide --json` points to canonical section numbers and does not duplicate full legal text.
 - Completed: verify that human `help guide` remains readable for ordinary users.
-- Verify that all public documents either match implemented behavior or intentionally describe the selected final state
-  only after the corresponding implementation item is complete. This verification must include Terms, Privacy Notice,
-  root README, private-state app README, CLI README, human `help guide`, `help guide --json`, `agents.md`, public
-  observer documentation, monitoring packet docs, and audit-facing docs.
+- Completed repository-level public-document consistency review for Terms, Privacy Notice, root README, private-state
+  app README, CLI README, human `help guide`, `help guide --json`, `agents.md`, public observer documentation,
+  monitoring packet companion docs, and audit-facing docs. The review found and fixed the monitoring companion-document
+  gap for Channel Operation Abandonment and Join Toll burn-address transfer event surfaces.
+- Deployment-dependent follow-up: after the bridge upgrade is deployed and deployment artifacts are regenerated,
+  regenerate the generated Monitoring Packet JSON and ABI-derived data so `TPAC-Contract-Addresses.json` and
+  `the-great-first-channel-Policy-Snapshot.json` reflect the deployed Join Toll burn-address and Channel Operation
+  Abandonment surface. Do not manually edit generated on-chain data to describe an undeployed state.
 - Completed: verify that no public document still describes `--acknowledge-action-impact` or
   `--acknowledge-full-note-plaintext-export` as required user options after the final prompt policy is implemented.
 - Completed: verify that no public document uses stale `LLM Agent Guidance` anchors or older agent terminology where the intended

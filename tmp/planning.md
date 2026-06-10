@@ -763,7 +763,7 @@ Decision guide:
 | Developer vs provider split | Selected: Tokamak Network PTE. LTD. is separate from the Provider. | Define Tokamak Network PTE. LTD. as software contributor/licensor and, where applicable, Third-Party Service or infrastructure/tooling provider for Tokamak-controlled repositories, package registries, published artifacts, token infrastructure, bridge infrastructure, or upstream tooling. Do not make Tokamak Network responsible for Provider obligations unless it expressly assumes them in a separate binding Service document. |
 | Global online forum | Strategy selected: use Singapore as the Provider-connected baseline jurisdiction, subject to counsel review and mandatory consumer-law carveouts. | Use a baseline governing law and forum connected to Singapore, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. |
 | Individual provider forum | Strategy selected: Singapore, subject to counsel review. | Confirm that Singapore courts and Singapore law are appropriate for Jehyuk Jang as the individual Provider, and confirm notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
-| Bridge owner and upgrade authority | New plan: migrate root bridge proxy ownership from the current single EOA owner to an Ethereum mainnet multisig. | Select the multisig address, signer set, and threshold before any on-chain ownership transfer. Prefer at least 2-of-3 for minimum redundancy, and 3-of-5 if enough independent signers are available. Do not transfer ownership until the multisig address, owners, threshold, transaction simulation, and recovery process are verified. |
+| Bridge owner and upgrade authority | New plan: migrate root bridge proxy ownership from the current single EOA owner to an Ethereum mainnet multisig. | Select the multisig address, signer set, and threshold before any on-chain ownership transfer. Prefer at least 2-of-3 for minimum redundancy, and 3-of-5 if enough independent signers are available. Do not transfer ownership until the multisig address, owners, threshold, and transaction simulation are verified. Safe signer recovery details are an off-repository Safe operations matter, not a public repository decision. |
 | Liability cap | Undecided. | Decide after counsel review. If no Provider Party revenue is earned, a cap cannot be based only on retained Service fees without creating a zero-cap problem. Consider whether a fixed cap is needed despite the no-revenue model and the selected burn-address transfer policy for non-refundable Join Toll portions. |
 | Restricted users | Undecided. | State prohibited uses and sanctions compliance, but do not promise user-level blocking unless a real user-identification and access-control system exists. |
 | Technical blocking | Constraint recorded. | Future blacklist features may block Ethereum Accounts or contract interactions, not necessarily real-world users. Terms and docs must not overstate user-level blocking. |
@@ -876,8 +876,9 @@ the final address is selected and verified.
   - stronger operational baseline: 3-of-5, if enough independent signers are available.
 - Signers should use hardware wallets or equivalent strong custody. The signer set should avoid a single shared device,
   single cloud account, single seed phrase, or single person controlling enough keys to meet the threshold.
-- Record an internal recovery plan before transfer, including how to replace a lost signer, how to handle compromised
-  signers, and who can coordinate emergency multisig transactions.
+- Confirm that the selected Safe can perform signer replacement and threshold changes through ordinary Safe owner
+  transactions. The detailed signer recovery procedure must remain an off-repository operational matter handled through
+  Safe and the signers' own custody processes.
 
 ### Decisions required from the Provider before execution
 
@@ -892,7 +893,7 @@ the final address is selected and verified.
 | Public signer disclosure | Decide whether public docs disclose signer identities or only the multisig address and threshold. | Public identities increase accountability but can create personal security and harassment risk. Address-only disclosure is less transparent but safer for individuals. | Publish enough to let users verify governance structure without exposing unnecessary personal information. Do not use wording such as "Provider-controlled Safe" in public user-facing documents. Also do not imply independent third-party governance, community governance, or external oversight unless that is actually true. | Publish multisig address, threshold, and timelock status; do not publish personal signer identities or signer-control details unless intentionally chosen. |
 | Public notice timing | Decide whether to announce the migration before execution, after execution, or both. | Pre-notice improves transparency. Post-notice confirms final state. Long pre-notice may create operational delay or invite targeted attacks. | For a pure single-EOA-to-multisig hardening migration with no implementation upgrade, post-execution notice may be sufficient; for any upgrade combined with migration, pre-notice should be required. | Post-execution notice for ownership migration only; separate notice for later upgrades. |
 | Immediate owner-only actions | Decide whether any owner-only action will be executed right after migration. | Combining migration with upgrades or config changes makes review harder and increases user trust risk. | Keep migration isolated unless there is an urgent and documented reason. If another owner-only action is needed, schedule it as a separate multisig transaction after migration verification. | No immediate owner-only action. |
-| Recovery process | Decide how lost signer keys, compromised signer keys, and unavailable signers will be handled. | A multisig without recovery rules can still become unusable or compromised. | Define who proposes signer replacement, how compromised keys are removed, what evidence is needed, and how emergency coordination happens. | Write an internal recovery note before transfer. |
+| Safe signer recovery scope | Decide only whether signer recovery details stay out of public repository planning. | The repository should not expose operational key-management details. Safe signer replacement is performed through Safe itself when enough valid signers remain. | Public docs should disclose the on-chain owner, threshold, and timelock status, but not private key-management or recovery procedures. | Keep detailed signer recovery off-repository; verify only that Safe supports owner replacement. |
 
 ### Preflight checks
 
@@ -1058,7 +1059,8 @@ The migration must preserve the following constraints:
 - Required public notice timing before and after migration.
 - Whether any owner-only bridge administration actions are planned immediately after migration; if yes, they must be
   planned as separate transactions after ownership transfer verification.
-- Internal recovery process for lost, compromised, or unavailable signer keys.
+- Whether the selected Safe configuration supports signer replacement through ordinary Safe owner transactions. Detailed
+  key custody and signer recovery procedures stay off-repository.
 
 ## Pre-Counsel Redline and Risk Review Plan
 

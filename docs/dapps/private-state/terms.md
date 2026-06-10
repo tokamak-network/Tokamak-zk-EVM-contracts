@@ -19,8 +19,6 @@ For purposes of these Terms:
   records, and private note records. A Channel is not an exchange deposit or withdrawal network.
 - **The Great First Channel** means the dedicated initial Channel identified as `the-great-first-channel`.
 - **Join Toll** means the one-time Channel entry fee paid when a user joins a Channel.
-- **L2** means the Tonnel private application state used for Channel accounting and Private Notes. Because this term is
-  technical, these Terms use "Tonnel private application state" whenever possible.
 - **Ethereum mainnet** means the public Ethereum network where relevant Bridge, Channel-management, registration, and
   transaction records can be observed.
 - **TON** means the token used with the relevant Bridge and Channel workflows. These Terms do not state that TON itself

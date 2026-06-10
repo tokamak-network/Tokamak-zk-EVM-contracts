@@ -90,6 +90,9 @@ artifacts needed by transaction-sending channel commands:
 private-state-cli install
 ```
 
+`install` displays the current Service Terms and requires explicit human acceptance before installation proceeds. JSON
+mode cannot accept Terms for the user.
+
 By default, `install` resolves the latest `@tokamak-zk-evm/cli` from the npm registry and uses the bundled
 `@tokamak-private-dapps/groth16` dependency version selected by the installed private-state CLI package. To pin exact
 proof backend versions for a channel, pass explicit versions:
@@ -370,8 +373,8 @@ private-state-cli help transaction-fees --network mainnet
 `help transaction-fees` uses the measured gas data packaged in `assets/tx-fees.json`, the selected network's live fee data,
 and live ETH/USD pricing to print an ETH/USD fee table for transaction-sending commands. The table separates typical
 cost, based on the RPC `gasPrice`, from worst-case cost, based on `maxFeePerGas` when the network reports EIP-1559 fee
-data. User-Controlled AI Agents answering user questions about gas, transaction fees, transaction cost, or USD cost should run
-`private-state-cli help transaction-fees --network <NETWORK> --json` and answer from the returned table.
+data. Use `private-state-cli help transaction-fees --network <NETWORK> --json` when another tool needs
+machine-readable fee data.
 
 Proof-backed note commands can use a separate Ethereum transaction submitter:
 

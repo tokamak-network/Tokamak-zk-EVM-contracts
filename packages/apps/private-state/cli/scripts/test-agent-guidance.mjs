@@ -253,6 +253,10 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   expect(!stdout.includes("--acknowledge-action-impact"), "Command help must not expose the deprecated action-impact flag.");
   expect(!stdout.includes("Action impact:"), "Command help must use warning-summary wording.");
   expect(stdout.includes("Warning summary:"), "Command help should describe transaction warnings as warning summaries.");
+  expect(stdout.includes("Displays the current Service Terms and requires explicit human acceptance before installation proceeds"), "Install help should explain human Terms acceptance.");
+  expect(stdout.includes("Use --json for machine-readable fee data when another tool needs to inspect the fee table"), "Transaction-fees help should use tool-neutral JSON wording.");
+  expect(!stdout.includes("AI agents should run this command"), "Human command help should not use AI-agent-first fee wording.");
+  expect(!stdout.includes("the CLI cannot recover lost secrets"), "Command help should use no-recovery-method wording.");
   expect(stdout.includes("uninstall [--include-wallet-keys]"), "Command help should expose the uninstall wallet-key deletion option.");
   expect(stdout.includes("Default uninstall preserves wallet spending-key and viewing-key files"), "Command help should explain default uninstall wallet-key preservation.");
   expect(stdout.includes("wallet export viewing-key"), "Command help should include viewing-key export.");

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Clarified human-facing Terms, README, and command-reference wording for install-time Terms acceptance, no-recovery
+  limits, machine-readable fee output, and ordinary-user terminology.
 - Strengthened `wallet get-notes --export-evidence` plaintext evidence export warnings, command help, README guidance,
   investigator guidance, and evidence-scope documentation.
 - Added Terms section references to `help guide --json` agent guidance so User-Controlled AI Agents can read the

@@ -272,7 +272,7 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
 const ACTION_IMPACT_HELP = Object.freeze({
   warningSummary: "The CLI shows a warning summary before the command proceeds; User-Controlled AI Agents must not accept Terms or confirmations for the user.",
   illegalUse: "The command must not be used for money laundering, sanctions evasion, terrorist financing, illegal gambling, criminal-proceeds concealment, or regulatory evasion.",
-  secretRecovery: "Losing wallet secrets, viewing keys, or spending keys can prevent note discovery or note use; the CLI cannot recover lost secrets.",
+  secretRecovery: "Losing wallet secrets, viewing keys, or spending keys can prevent note discovery or note use; if all required secret material and backups are lost, no recovery method exists.",
   exchangeControlledAddress: "Do not use an exchange-controlled address as a self-custody bridge source or direct bridge withdrawal target.",
   policy: "The user must review the channel policy snapshot before accepting channel-bound actions.",
   provenance: "Public observers cannot reconstruct private note counterparty relationships or note provenance from public contract state alone.",
@@ -285,6 +285,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["readOnly", "docker", "includeLocalArtifacts", "groth16CliVersion", "tokamakZkEvmCliVersion"],
     usage: "optional --read-only, --docker, --include-local-artifacts, --groth16-cli-version, and --tokamak-zk-evm-cli-version",
     help: [
+      "Displays the current Service Terms and requires explicit human acceptance before installation proceeds",
       "Default full mode installs proof runtimes and all deployment artifacts needed by transaction-sending commands",
       "--read-only installs only artifacts needed by channel-state read commands and commands unrelated to channel state",
       "Version options install exact CLI package versions; omitted versions resolve to npm registry latest",
@@ -408,7 +409,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Uses packages/apps/private-state/cli/assets/tx-fees.json as the measured gas source packaged with the CLI",
       "Reads live fee data from the selected network RPC and live ETH/USD from CoinGecko",
-      "AI agents should run this command with --json when users ask about gas, transaction fees, transaction cost, or USD cost",
+      "Use --json for machine-readable fee data when another tool needs to inspect the fee table",
     ],
   },
   {

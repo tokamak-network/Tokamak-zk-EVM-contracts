@@ -119,8 +119,6 @@ For purposes of these Terms:
   TON total-supply reduction. The selected refund policy is that the refundable portion increases as the user's Channel
   participation time increases: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50% after 3
   days and within 7 days, and 75% after 7 days.
-- **L2** means the Tonnel private application state used for Channel accounting and Private Notes. Because this term is
-  technical, these Terms use "Tonnel private application state" whenever possible.
 - **Ethereum mainnet** means the public Ethereum network where relevant bridge, Channel-management, registration, and
   transaction records can be observed.
 - **TON** means the token used with the relevant bridge and Channel workflows. These Terms do not state that TON itself
@@ -815,6 +813,9 @@ Decision guide:
 - Finalize human `help guide` text for ordinary users. Initial final-policy pass completed; final verification remains.
 - Finalize CLI README language explaining the Service terms and the purpose of `--json`. Initial final-policy pass
   completed; final verification remains.
+- Completed an additional human-facing wording pass for Terms, CLI README, and command-reference output: install now
+  has documented explicit human Terms acceptance, human command help no longer uses AI-agent-first fee wording,
+  no-recovery wording says no recovery method exists, and the Terms definitions avoid unnecessary `L2` shorthand.
 - Finalize documentation explaining public Ethereum mainnet records, public Channel records, Official Public Observer
   limits, Self-Custody, no recovery method, and Third-Party Service risk.
 - Confirm that human-facing text is plain-language enough for ordinary users without weakening legal precision.
@@ -1556,7 +1557,9 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Integrate finalized human `help guide` text into the CLI.
 - Integrate finalized CLI README language stating that `--json` exists for User-Controlled AI Agents that help users
   complete minimum safe next actions without handling secrets or accepting Terms for users.
-- Ensure implemented documentation uses "Ethereum mainnet" for the public chain boundary.
+- Completed repository-level terminology check for the implemented human-facing Terms, README, and command-reference
+  surfaces: unnecessary `L2` shorthand was removed from Terms definitions, and public-chain boundary wording remains
+  expressed as "Ethereum mainnet" on those surfaces.
 
 ### Phase 7: Implementation verification
 

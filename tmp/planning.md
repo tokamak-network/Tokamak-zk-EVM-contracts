@@ -529,10 +529,10 @@ Current status:
 - Completed current-repository framing pass for the same surfaces. The remaining occurrences of `L1`, `L2`, and
   `--join-toll` in those audited paths are command names, option names, contract names, JSON field names, code
   identifiers, or explicit agent instructions about when not to use developer shorthand with ordinary users.
-- Terms, Privacy Notice finalization, redline/risk review, and counsel-facing release decisions remain unresolved and
-  must be completed before production terms behavior is implemented. The Privacy Notice content and initial GitHub
-  repository publication location are drafted, and the first consistency review is complete; counsel-directed changes
-  and final release approval still remain.
+- Terms finalization, redline/risk review, and counsel-facing release decisions remain unresolved and must be completed
+  before production terms behavior is implemented. The Privacy Notice content and initial GitHub repository publication
+  location are drafted, and the repository-level final consistency review is complete; counsel-directed changes and final
+  release approval still remain.
 
 ### Immediate priority: Privacy Notice preparation
 
@@ -1266,7 +1266,7 @@ before release.
 | R-08 | 8 | Add user responsibility for preserving the local evidence needed for selective disclosure, exchange review, tax records, disputes, and audits. | Section 10 mentions evidence but Section 8 should allocate the preservation duty expressly. | Applied to draft Terms. |
 | R-09 | 9 | Clarify whether Channel Operators are independent from Provider Parties unless officially appointed, and state that Channel policy may differ by Channel. | Users must distinguish the Service provider from third-party or community Channel operators. | Counsel and product decision. |
 | R-10 | 10 | Replace "Official Public Observer does not reveal user secrets" with "is not intended to receive or display user secrets" and "only displays records available to it." | Avoids an absolute security or non-disclosure guarantee. | Applied to draft Terms. |
-| R-11 | 12 | Keep the standalone Privacy Notice in `docs/dapps/private-state/privacy-notice.md` and keep the Terms cross-reference to that location unless the final publication location changes. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. The initial standalone draft, GitHub repository publication location, Terms cross-reference, and first consistency review now exist, but counsel review and final release confirmation are still required. | Initial draft and first review applied; counsel confirmation remains. |
+| R-11 | 12 | Keep the standalone Privacy Notice in `docs/dapps/private-state/privacy-notice.md` and keep the Terms cross-reference to that location unless the final publication location changes. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. The initial standalone draft, GitHub repository publication location, Terms cross-reference, and repository-level final consistency review now exist, but counsel review and final release confirmation are still required. | Repository-level final consistency review applied; counsel confirmation remains. |
 | R-12 | 13 | Clarify that User-Controlled AI Agents are selected by the user and are not agents, representatives, or service providers of Provider Parties unless expressly stated. | Reduces implied advisory, support, fiduciary, or agency relationship risk. | Applied to draft Terms. |
 | R-13 | 14 | Add explicit ZK/proof-system risk, CRS/proving-artifact risk, local proof-generation risk, and public observer indexing risk. | Current blockchain risks are broad but do not fully reflect this Service's proof and observer architecture. | Applied to draft Terms. |
 | R-14 | 16 | Do not include a nominal monetary liability cap in the current draft. Preserve broad liability exclusions to the maximum extent permitted by applicable law and preserve non-waivable liability carveouts. | The Service is non-custodial open software/public-good infrastructure, Provider Parties do not operate it for Service revenue, and Join Tolls are not Provider Party revenue. A fee-based cap would create a zero-fee problem, while a nominal cap could imply a paid-service liability model that does not fit the Service. Counsel should still confirm enforceability of the no-cap disclaimer structure and carveouts. | Selected business position; counsel confirmation remains. |
@@ -1283,7 +1283,7 @@ before release.
 | ID | Severity | Area | Risk | Proposed mitigation | Owner |
 |---|---|---|---|---|---|
 | K-01 | Medium | Provider identity | The Provider model and public Provider details are selected, and Tokamak Network PTE. LTD. is separated from Provider obligations, but counsel still needs to confirm the exact Tokamak role wording. | Insert Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and the no-residential-address publication policy; use the selected Tokamak software contributor/licensor and Third-Party Service or infrastructure/tooling provider wording; obtain counsel review of personal-liability and notice-handling implications. | Business/counsel. |
-| K-02 | Medium | Privacy/data | A standalone Privacy Notice draft now exists in the repository, the initial GitHub repository publication location is selected, the Terms cross-reference is drafted, and the first consistency review is complete. Counsel-directed changes and final release confirmation remain before production terms behavior ships. | Preserve the reviewed draft unless counsel or release review requires changes. | Product/counsel. |
+| K-02 | Low | Privacy/data | A standalone Privacy Notice draft now exists in the repository, the initial GitHub repository publication location is selected, the Terms cross-reference is drafted, and the repository-level final consistency review is complete. Counsel-directed changes and final release confirmation remain before production terms behavior ships. | Preserve the reviewed draft unless counsel or release review requires changes. | Product/counsel. |
 | K-03 | High | Consumer law | A Provider-connected forum clause may be limited or unenforceable for consumers with mandatory local rights. | Add explicit non-waivable consumer-rights and local-court carveouts as counsel directs. | Counsel. |
 | K-04 | Medium | Dispute resolution | The current draft excludes arbitration and class-action waiver provisions. This reduces clause-validity and user-friction risk but may increase litigation exposure for the individual Provider. | Confirm the no-arbitration and no-class-action-waiver strategy with counsel before implementation. | Counsel/business. |
 | K-05 | Medium | Liability | The current draft intentionally uses no nominal monetary liability cap. This matches the no-Service-revenue, open-software, non-custodial model, but counsel still needs to confirm that the disclaimer structure and non-waivable liability carveouts are appropriate for expected users. | Keep the no-monetary-cap business position, preserve broad disclaimers and mandatory-law carveouts, and obtain counsel confirmation before production terms behavior ships. | Counsel/business. |
@@ -1369,7 +1369,7 @@ Legal-validity questions for counsel:
 The following items should block implementation of production terms behavior until resolved or explicitly deferred by the
 business owner with counsel awareness:
 
-- Privacy Notice counsel-directed changes and final Terms cross-reference confirmation.
+- Privacy Notice counsel-directed changes, if any, and final Terms cross-reference confirmation.
 - Counsel confirmation that Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no published residential address are
   sufficient for the individual Provider identity and public notice/contact route; counsel confirmation of the selected
   Tokamak Network PTE. LTD. separate-role wording.
@@ -1409,8 +1409,8 @@ business owner with counsel awareness:
   user categories in the current draft. The draft must account for the technical constraint that the Service may block
   Ethereum Accounts or contract interactions, not real-world users. Counsel must confirm whether any named restrictions
   are required before release.
-- Final Privacy Notice review and counsel-directed changes remain open. The initial Privacy Notice content, GitHub
-  repository publication location, and Terms cross-reference are drafted.
+- Repository-level final Privacy Notice review is complete. Counsel-directed changes, if any, remain open. The initial
+  Privacy Notice content, GitHub repository publication location, and Terms cross-reference are drafted.
 - Required notice method for future terms changes.
 - Separate command-level prompt policy is selected: install-time Terms acceptance replaces all repeated per-command
   `--acknowledge-action-impact` options. `uninstall`, secret-bearing material exports, and plaintext note/evidence

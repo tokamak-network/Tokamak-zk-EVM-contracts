@@ -725,11 +725,8 @@ Next Privacy Notice task:
 
 Current next step:
 
-- Generate and review the Safe-compatible mainnet bridge upgrade plan through the normal `upgrade` mode. The plan must
-  deploy the new implementation and support contracts with the EOA deployer, then produce a Safe Transaction Builder
-  JSON batch for the owner-only proxy upgrades and bridge administration calls.
-- Import the Safe Transaction Builder JSON into the current bridge owner Safe, review every target/method/calldata,
-  collect the required 2-of-3 approvals, and execute the batch from the Safe.
+- Import the generated Safe Transaction Builder JSON into the current bridge owner Safe, review every
+  target/method/calldata, collect the required 2-of-3 approvals, and execute the batch from the Safe.
 - After Safe execution, regenerate final deployment artifacts and the Monitoring Packet from on-chain state before
   public documents represent the Join Toll burn-address transfer and Channel Operation Abandonment policies as deployed
   mainnet behavior.
@@ -1818,7 +1815,11 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
   `L1TokenVault` before writing the Safe batch.
 - Completed in repository documentation: document that `upgrade` does not update the canonical deployed bridge artifact
   because the Safe batch has not executed yet.
-- Next operator step: run `node bridge/scripts/deploy-bridge.mjs --network mainnet --mode upgrade`, import the generated
-  Transaction Builder JSON into the Safe, review the batch, collect 2-of-3 approvals, and execute it.
+- Completed operator step: ran `node bridge/scripts/deploy-bridge.mjs --network mainnet --mode upgrade` from commit
+  `9882c1a5e372089ca83e358ba3310fce3af1f698`, deployed the new implementation and support contracts, and generated the
+  local Safe plan under `deployment/chain-id-1/bridge-upgrade-plans/20260610T194641Z/`.
+- Next operator step: import
+  `deployment/chain-id-1/bridge-upgrade-plans/20260610T194641Z/safe-transaction-builder.1.json` into the Safe, review
+  the batch, collect 2-of-3 approvals, and execute it.
 - Deployment-dependent follow-up: after Safe execution, regenerate final bridge deployment artifacts, regenerate the
   Monitoring Packet, and verify observer indexing for `ChannelExitTollBurned` and `ChannelOperationAbandoned`.

@@ -297,6 +297,9 @@ keys, viewing keys, source files, backup files, passwords, and equivalent secret
 Users must not disclose private keys, seed phrases, wallet secrets, spending keys, viewing keys, or equivalent secrets
 to the Provider, support channels, User-Controlled AI Agents, websites, or third parties.
 
+Users may report suspected compromise of Provider-controlled systems to `cjhyuck213@gmail.com`. The Provider will assess
+reported incidents and notify affected persons or authorities when required by applicable law.
+
 ## 21. Changes To This Privacy Notice
 
 The Provider may update this Privacy Notice when the Service scope, data practices, operational settings, Third-Party

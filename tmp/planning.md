@@ -1536,6 +1536,7 @@ Minimum document changes to complete before release:
      the privacy contact; the Provider will assess and notify affected persons or authorities when required by
      applicable law.
    - Do not add detailed statutory deadlines in user-facing text unless counsel approves the exact wording.
+   - Status: Completed in `docs/dapps/private-state/privacy-notice.md` Section 20.
 5. Legal capacity:
    - Add ordinary-user wording that the Service is for users who have legal capacity to accept the Terms and operate a
      self-custody wallet. If counsel wants an age threshold, use counsel-approved wording; otherwise avoid creating a

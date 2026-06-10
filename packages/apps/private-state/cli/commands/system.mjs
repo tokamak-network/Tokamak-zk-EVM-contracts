@@ -16,6 +16,7 @@ import {
   handleUninstall,
   handleUpdate,
   loadExplicitCommandRuntime,
+  requireCurrentTermsAcceptanceForCommand,
 } from "../lib/runtime.mjs";
 
 export const systemCommands = Object.freeze({
@@ -25,6 +26,7 @@ export const systemCommands = Object.freeze({
   },
   uninstall: async (args) => {
     assertUninstallArgs(args);
+    await requireCurrentTermsAcceptanceForCommand(args);
     await handleUninstall({ args });
   },
   "set-rpc": async (args) => {

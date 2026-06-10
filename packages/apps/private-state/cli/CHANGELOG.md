@@ -9,6 +9,8 @@
   `termsVersion` and `termsHash` from the same source in human and JSON modes.
 - Changed `install --json` to report that interactive Terms acceptance is required without installing artifacts, and
   added an agent guidance item for Terms and safety-context explanation.
+- Added renewed Terms acceptance enforcement for terms-gated commands, including JSON-mode refusal when the current
+  Terms version or hash has not been accepted by the human user.
 - Aligned the CLI README RPC example with the recommended Ankr provider and removed chat-oriented wording from the
   User-Controlled AI Agent guidance section.
 - Clarified human-facing Terms, README, and command-reference wording for install-time Terms acceptance, no-recovery

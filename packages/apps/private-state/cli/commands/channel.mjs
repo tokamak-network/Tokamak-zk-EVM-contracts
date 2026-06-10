@@ -16,16 +16,19 @@ import {
   handleWorkspaceInit,
   loadExplicitCommandRuntime,
   loadWalletCommandRuntime,
+  requireCurrentTermsAcceptanceForCommand,
 } from "../lib/runtime.mjs";
 
 export const channelCommands = Object.freeze({
   "channel-create": async (args) => {
     assertCreateChannelArgs(args);
+    await requireCurrentTermsAcceptanceForCommand(args);
     const { network, provider } = loadExplicitCommandRuntime(args, { prepareArtifacts: true });
     await handleChannelCreate({ args, network, provider });
   },
   "channel-recover-workspace": async (args) => {
     assertRecoverWorkspaceArgs(args);
+    await requireCurrentTermsAcceptanceForCommand(args);
     const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args, { staticNetwork: true, prepareArtifacts: true });
     await assertProviderChainIdMatchesNetwork({ provider, network, rpcUrl });
     await handleWorkspaceInit({ args, network, provider });
@@ -37,21 +40,25 @@ export const channelCommands = Object.freeze({
   },
   "channel-set-workspace-mirror": async (args) => {
     assertSetWorkspaceMirrorArgs(args);
+    await requireCurrentTermsAcceptanceForCommand(args);
     const { network, provider } = loadExplicitCommandRuntime(args, { prepareArtifacts: true });
     await handleSetChannelWorkspaceMirror({ args, network, provider });
   },
   "channel-abandon-operation": async (args) => {
     assertAbandonChannelOperationArgs(args);
+    await requireCurrentTermsAcceptanceForCommand(args);
     const { network, provider } = loadExplicitCommandRuntime(args, { prepareArtifacts: true });
     await handleAbandonChannelOperation({ args, network, provider });
   },
   "channel-join": async (args) => {
     assertJoinChannelArgs(args);
+    await requireCurrentTermsAcceptanceForCommand(args);
     const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args, { prepareArtifacts: true });
     await handleJoinChannel({ args, network, provider, rpcUrl });
   },
   "channel-exit": async (args) => {
     assertExitChannelArgs(args);
+    await requireCurrentTermsAcceptanceForCommand(args);
     const { provider } = loadWalletCommandRuntime(args, { prepareArtifacts: true });
     await handleExitChannel({ args, provider });
   },

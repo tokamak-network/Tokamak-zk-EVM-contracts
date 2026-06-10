@@ -131,6 +131,28 @@ function createIsolatedHomeWithRpcAndReadOnlyArtifacts(networkName = "mainnet", 
   return home;
 }
 
+function writeTermsAcceptanceForHome(home, overrides = {}) {
+  const terms = readPrivateStateTermsMetadata();
+  const termsAcceptance = {
+    termsVersion: terms.termsVersion,
+    termsHash: terms.termsHash,
+    termsHashAlgorithm: terms.termsHashAlgorithm,
+    acceptedAt: "2026-06-10T00:00:00.000Z",
+    cliPackageVersion: "0.0.0-test",
+    acceptanceSource: "interactive-test-fixture",
+    acceptedByJson: false,
+    ...overrides,
+  };
+  const acceptanceDir = path.join(home, "tokamak-private-channels", "dapps", "private-state");
+  fs.mkdirSync(acceptanceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(acceptanceDir, "terms-acceptance.json"),
+    `${JSON.stringify({ termsAcceptance }, null, 2)}\n`,
+    "utf8",
+  );
+  return termsAcceptance;
+}
+
 function assertAgentGuidance(payload, expectedRefs) {
   expect(payload.agentGuidance?.source === "agents.md", "agentGuidance.source must point to agents.md.");
   expect(typeof payload.agentGuidance.step === "string", "agentGuidance.step must be present.");
@@ -211,7 +233,7 @@ function testInstallRequiresInteractiveTermsAcceptance() {
   const failure = runCliExpectFailure(["install", "--read-only"], { home });
   expect(failure.status !== 0, "install without an interactive terminal should fail.");
   expect(
-    failure.stderr.includes("install requires an interactive terminal for Service Terms acceptance."),
+    failure.stderr.includes("Service Terms acceptance requires an interactive terminal."),
     "install should reject before installing when Terms cannot be accepted interactively.",
   );
   expect(
@@ -251,6 +273,60 @@ function testInstallManifestPersistsTermsAcceptance() {
     JSON.stringify(manifest.install.termsAcceptance) === JSON.stringify(termsAcceptance),
     "Install manifest should persist the exact Terms acceptance record.",
   );
+}
+
+function testTermsGatedJsonRequiresCurrentTermsAcceptance() {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-terms-json-"));
+  const home = path.join(tempRoot, "home");
+  const outputPath = path.join(tempRoot, "wallet-secret.txt");
+  const failure = runCliExpectFailure([
+    "secret",
+    "create-wallet-secret-source",
+    "--output",
+    outputPath,
+    "--random",
+    "--json",
+  ], {
+    cwd: tempRoot,
+    home,
+  });
+  const payload = parseJson(failure.stdout);
+  expect(payload.ok === false, "Terms-gated command without acceptance should fail.");
+  expect(payload.error?.code === "TERMS_ACCEPTANCE_REQUIRED", "Missing acceptance should use TERMS_ACCEPTANCE_REQUIRED.");
+  expect(payload.error?.details?.terms?.termsHash === readPrivateStateTermsMetadata().termsHash, "Terms error should include current Terms metadata.");
+  expect(
+    payload.error?.hints?.some((hint) => String(hint).includes("without --json")),
+    "Terms error should tell the agent to rerun interactively without --json.",
+  );
+  expect(!fs.existsSync(outputPath), "Terms-gated command without acceptance must not create secret files.");
+}
+
+function testTermsGatedJsonRejectsStaleTermsAcceptance() {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-terms-stale-"));
+  const home = path.join(tempRoot, "home");
+  const outputPath = path.join(tempRoot, "wallet-secret.txt");
+  writeTermsAcceptanceForHome(home, {
+    termsHash: "stale-hash",
+  });
+  const failure = runCliExpectFailure([
+    "secret",
+    "create-wallet-secret-source",
+    "--output",
+    outputPath,
+    "--random",
+    "--json",
+  ], {
+    cwd: tempRoot,
+    home,
+  });
+  const payload = parseJson(failure.stdout);
+  expect(payload.ok === false, "Terms-gated command with stale acceptance should fail.");
+  expect(payload.error?.code === "TERMS_ACCEPTANCE_REQUIRED", "Stale acceptance should use TERMS_ACCEPTANCE_REQUIRED.");
+  expect(
+    String(payload.error?.message ?? "").includes("stale"),
+    "Stale acceptance failure should explain that the stored acceptance is stale.",
+  );
+  expect(!fs.existsSync(outputPath), "Terms-gated command with stale acceptance must not create secret files.");
 }
 
 function testGuideJsonAccountSecretMissing() {
@@ -422,7 +498,9 @@ function testSecretCommandsRegistered() {
 
 function testRandomWalletSecretHelper() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-secret-"));
+  const home = path.join(tempRoot, "home");
   const outputPath = path.join(tempRoot, "wallet-secret.txt");
+  writeTermsAcceptanceForHome(home);
   const stdout = runCli([
     "secret",
     "create-wallet-secret-source",
@@ -432,7 +510,7 @@ function testRandomWalletSecretHelper() {
     "--json",
   ], {
     cwd: tempRoot,
-    home: path.join(tempRoot, "home"),
+    home,
   });
   const payload = parseJson(stdout);
   const secret = fs.readFileSync(outputPath, "utf8").trim();
@@ -457,7 +535,7 @@ function testRandomWalletSecretHelper() {
     "--json",
   ], {
     cwd: tempRoot,
-    home: path.join(tempRoot, "home"),
+    home,
   });
   const errorPayload = parseJson(overwrite.stdout);
   expect(errorPayload.ok === false, "Overwrite attempt should fail.");
@@ -470,7 +548,9 @@ function testRandomWalletSecretHelper() {
 
 function testNonTtyPrivateKeyPromptFailsClearly() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-private-key-"));
+  const home = path.join(tempRoot, "home");
   const outputPath = path.join(tempRoot, "ethereum-private-key.txt");
+  writeTermsAcceptanceForHome(home);
   const failure = runCliExpectFailure([
     "secret",
     "create-private-key-source",
@@ -479,7 +559,7 @@ function testNonTtyPrivateKeyPromptFailsClearly() {
     "--json",
   ], {
     cwd: tempRoot,
-    home: path.join(tempRoot, "home"),
+    home,
   });
   const payload = parseJson(failure.stdout);
   expect(payload.ok === false, "Non-TTY private-key helper run should fail.");
@@ -497,6 +577,8 @@ testGuideJsonDeploymentArtifactsMissing();
 testInstallJsonDoesNotInstallOrAcceptTerms();
 testInstallRequiresInteractiveTermsAcceptance();
 testInstallManifestPersistsTermsAcceptance();
+testTermsGatedJsonRequiresCurrentTermsAcceptance();
+testTermsGatedJsonRejectsStaleTermsAcceptance();
 testGuideJsonAccountSecretMissing();
 testGuideJsonWalletMissingBeforeChannelJoin();
 testGuideHumanOutputIsUserFacing();

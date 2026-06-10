@@ -93,6 +93,7 @@ import {
   privateStateCliArtifactRequiredFiles,
   privateStateCliArtifactPaths,
   PRIVATE_STATE_INSTALL_MODES,
+  readPrivateStateCliTermsAcceptance,
   readTokamakCliPackageReport,
   requireActiveTokamakCliRuntimeRoot,
   resolveActiveGroth16ProverRuntime,
@@ -102,6 +103,7 @@ import {
   resolveTokamakCliCacheRoot,
   resolveTokamakCliResourceDirForRuntimeRoot,
   stripAnsi,
+  writePrivateStateCliTermsAcceptance,
   writePrivateStateCliInstallManifest,
 } from "./private-state-runtime-management.mjs";
 import {
@@ -164,9 +166,35 @@ const CHANNEL_WORKSPACE_MIRROR_ARCHIVE_FILES = Object.freeze(new Set([
   "block_info.json",
   "contract_codes.json",
 ]));
+const TERMS_GATED_COMMAND_IDS = Object.freeze(new Set([
+  "uninstall",
+  "secret-create-private-key-source",
+  "secret-create-wallet-secret-source",
+  "account-import",
+  "account-deposit-bridge",
+  "account-withdraw-bridge",
+  "channel-create",
+  "channel-set-workspace-mirror",
+  "channel-abandon-operation",
+  "channel-join",
+  "channel-exit",
+  "wallet-export-backup",
+  "wallet-export-viewing-key",
+  "wallet-export-spending-key",
+  "wallet-import-backup",
+  "wallet-import-viewing-key",
+  "wallet-import-spending-key",
+  "wallet-recover-workspace",
+  "wallet-deposit-channel",
+  "wallet-withdraw-channel",
+  "wallet-mint-notes",
+  "wallet-redeem-notes",
+  "wallet-transfer-notes",
+]));
 let jsonOutputRequested = false;
 
 const CLI_ERROR_CODES = Object.freeze({
+  TERMS_ACCEPTANCE_REQUIRED: "TERMS_ACCEPTANCE_REQUIRED",
   MISSING_RPC_URL: "MISSING_RPC_URL",
   UNKNOWN_WALLET: "UNKNOWN_WALLET",
   MISSING_DEPLOYMENT_ARTIFACTS: "MISSING_DEPLOYMENT_ARTIFACTS",
@@ -183,6 +211,9 @@ class PrivateStateCliError extends Error {
     super(message, options);
     this.name = "PrivateStateCliError";
     this.code = code;
+    if (options.details !== undefined) {
+      this.details = options.details;
+    }
   }
 }
 
@@ -2686,15 +2717,26 @@ async function handleUninstall({ args }) {
 }
 
 async function requireInstallTermsAcceptance({ terms, installMode }) {
+  return requireInteractiveTermsAcceptance({
+    terms,
+    contextLines: [`Install mode: ${installMode}`],
+    acceptanceSource: "interactive-install",
+  });
+}
+
+async function requireInteractiveTermsAcceptance({ terms, contextLines = [], acceptanceSource }) {
   if (!process.stdin.isTTY || !process.stderr.isTTY) {
-    throw new Error("install requires an interactive terminal for Service Terms acceptance.");
+    throw cliError(
+      CLI_ERROR_CODES.TERMS_ACCEPTANCE_REQUIRED,
+      "Service Terms acceptance requires an interactive terminal.",
+    );
   }
   const termsText = readPrivateStateTermsText();
   const lines = [
     "SERVICE TERMS: Tonnel Terms of Service",
     `Terms version: ${terms.termsVersion}`,
     `Terms hash: ${terms.termsHash}`,
-    `Install mode: ${installMode}`,
+    ...contextLines,
     "",
     termsText.trimEnd(),
     "",
@@ -2713,7 +2755,7 @@ async function requireInstallTermsAcceptance({ terms, installMode }) {
   try {
     const answer = await rl.question(lines.join("\n"));
     if (answer !== PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION) {
-      throw new Error("Service Terms acceptance phrase did not match. Nothing was installed.");
+      throw new Error("Service Terms acceptance phrase did not match. Nothing was changed.");
     }
   } finally {
     rl.close();
@@ -2724,8 +2766,94 @@ async function requireInstallTermsAcceptance({ terms, installMode }) {
     termsHashAlgorithm: terms.termsHashAlgorithm,
     acceptedAt: new Date().toISOString(),
     cliPackageVersion: privateStateCliPackageJson.version,
-    acceptanceSource: "interactive-install",
+    acceptanceSource,
     acceptedByJson: false,
+  };
+}
+
+function commandRequiresTermsAcceptance(args) {
+  if (args.command === "install") {
+    return false;
+  }
+  if (args.command === "channel-recover-workspace") {
+    return args.publishWorkspaceMirror === true;
+  }
+  if (args.command === "wallet-get-notes") {
+    return args.exportEvidence !== undefined;
+  }
+  return TERMS_GATED_COMMAND_IDS.has(args.command);
+}
+
+function termsAcceptanceMatchesCurrent(record, terms) {
+  return record
+    && typeof record === "object"
+    && record.termsVersion === terms.termsVersion
+    && record.termsHash === terms.termsHash
+    && record.termsHashAlgorithm === terms.termsHashAlgorithm
+    && record.acceptedByJson === false;
+}
+
+async function requireCurrentTermsAcceptanceForCommand(args) {
+  if (!commandRequiresTermsAcceptance(args)) {
+    return null;
+  }
+  const terms = readPrivateStateTermsMetadata();
+  let existingAcceptance = null;
+  let readError = null;
+  try {
+    existingAcceptance = readPrivateStateCliTermsAcceptance();
+  } catch (error) {
+    readError = error;
+  }
+  if (termsAcceptanceMatchesCurrent(existingAcceptance, terms)) {
+    return {
+      status: "current",
+      terms,
+      termsAcceptance: existingAcceptance,
+    };
+  }
+
+  const command = privateStateCliCommandDisplay(
+    PRIVATE_STATE_CLI_COMMANDS.find((entry) => entry.id === args.command) ?? { display: args.command },
+  );
+  const reason = readError
+    ? `Stored Service Terms acceptance could not be read: ${readError.message}`
+    : existingAcceptance
+      ? "Stored Service Terms acceptance is stale."
+      : "No Service Terms acceptance record exists.";
+
+  if (isJsonOutputRequested()) {
+    throw cliError(
+      CLI_ERROR_CODES.TERMS_ACCEPTANCE_REQUIRED,
+      [
+        `${command} requires current Service Terms acceptance before it can run.`,
+        reason,
+        "Run the command again without --json in an interactive terminal so the current Service Terms can be displayed and accepted by the user.",
+      ].join(" "),
+      {
+        details: {
+          terms,
+          existingAcceptance: existingAcceptance ?? null,
+          readError: readError?.message ?? null,
+        },
+      },
+    );
+  }
+
+  const termsAcceptance = await requireInteractiveTermsAcceptance({
+    terms,
+    contextLines: [
+      `Command: ${command}`,
+      `Reason: ${reason}`,
+    ],
+    acceptanceSource: "interactive-renewal",
+  });
+  const record = writePrivateStateCliTermsAcceptance({ termsAcceptance });
+  return {
+    status: "accepted",
+    terms,
+    termsAcceptance,
+    record,
   };
 }
 
@@ -13160,6 +13288,7 @@ function buildJsonErrorPayload(error, args = {}) {
       walletName: error?.walletName ?? (typeof args.wallet === "string" ? args.wallet : null),
       operationDir: error?.operationDir ?? null,
       retryPolicy: error?.retryPolicy ?? null,
+      details: error?.details ?? null,
       semanticMutationAllowed: typeof error?.semanticMutationAllowed === "boolean"
         ? error.semanticMutationAllowed
         : null,
@@ -13185,6 +13314,15 @@ function buildRecoveryHints(error, args = {}) {
   const walletName = typeof args.wallet === "string" && args.wallet.length > 0
     ? args.wallet
     : error?.walletName ?? extractUnknownWalletName(message) ?? "<WALLET>";
+
+  if (error?.code === CLI_ERROR_CODES.TERMS_ACCEPTANCE_REQUIRED) {
+    if (args.json !== undefined) {
+      hints.push("run the same command again without --json in an interactive terminal, read the current Service Terms, and type the exact acceptance phrase yourself");
+    } else {
+      hints.push("run the same command in an interactive terminal, read the current Service Terms, and type the exact acceptance phrase yourself");
+    }
+    hints.push("User-Controlled AI Agents must not accept Service Terms for the user");
+  }
 
   if (
     error?.code === CLI_ERROR_CODES.MISSING_RPC_URL
@@ -13296,6 +13434,7 @@ function requireSemverVersion(value, label) {
 export {
   parseArgs,
   configureOutput,
+  requireCurrentTermsAcceptanceForCommand,
   assertVersionArgs,
   printVersion,
   printHelp,

@@ -436,6 +436,44 @@ function readPrivateStateCliInstallManifest(cacheBaseRoot = resolveArtifactCache
   return readJsonIfExists(privateStateCliInstallManifestPath(cacheBaseRoot));
 }
 
+function privateStateCliTermsAcceptancePath(cacheBaseRoot = resolveArtifactCacheBaseRoot()) {
+  return path.join(privateStateCliArtifactRoot(cacheBaseRoot), "terms-acceptance.json");
+}
+
+function readPrivateStateCliTermsAcceptance(cacheBaseRoot = resolveArtifactCacheBaseRoot()) {
+  const installManifest = readPrivateStateCliInstallManifest(cacheBaseRoot);
+  return installManifest?.install?.termsAcceptance
+    ?? readJsonIfExists(privateStateCliTermsAcceptancePath(cacheBaseRoot))?.termsAcceptance
+    ?? null;
+}
+
+function writePrivateStateCliTermsAcceptance({
+  termsAcceptance,
+  cacheBaseRoot = resolveArtifactCacheBaseRoot(),
+}) {
+  const manifestPath = privateStateCliInstallManifestPath(cacheBaseRoot);
+  const installManifest = readJsonIfExists(manifestPath);
+  if (installManifest) {
+    installManifest.install = {
+      ...(installManifest.install ?? {}),
+      termsAcceptance,
+    };
+    writeJson(manifestPath, installManifest);
+    return {
+      path: manifestPath,
+      location: "install-manifest",
+      termsAcceptance,
+    };
+  }
+  const acceptancePath = privateStateCliTermsAcceptancePath(cacheBaseRoot);
+  writeJson(acceptancePath, { termsAcceptance });
+  return {
+    path: acceptancePath,
+    location: "terms-acceptance",
+    termsAcceptance,
+  };
+}
+
 function writePrivateStateCliInstallManifest({
   installMode = PRIVATE_STATE_INSTALL_MODES.FULL,
   dockerRequested,
@@ -1562,7 +1600,9 @@ export {
   installTokamakCliRuntimeForPrivateState,
   installGroth16RuntimeForPrivateState,
   installPrivateStateCliArtifacts,
+  readPrivateStateCliTermsAcceptance,
   writePrivateStateCliInstallManifest,
+  writePrivateStateCliTermsAcceptance,
   parseJsonReport,
   resolveArtifactCacheBaseRoot,
   privateStateCliArtifactPaths,

@@ -11,7 +11,7 @@ terms first, use those terms consistently, and avoid marketing language that cou
 boundaries of the system.
 
 This document is a product and implementation plan. It is not legal advice. Provider Party authority, governing law,
-venue, consumer-law carveouts, liability caps, and dispute provisions must be reviewed by counsel before release.
+venue, consumer-law carveouts, liability caps, and dispute provisions remain recorded for far-future counsel review.
 
 ## References Reviewed
 
@@ -69,8 +69,8 @@ without accepting them for the user.
 | Public monitoring surfaces must be available | Section 10 states that an Official Public Observer exists and describes its limits. |
 | Marketing must avoid mixer or privacy-coin framing | Sections 2, 5, and 7 expressly avoid or prohibit that framing. |
 
-Conclusion: the terms draft below covers every checklist item that affects Service users. Counsel should still review
-the final legal wording before production release.
+Conclusion: the terms draft below covers every checklist item that affects Service users. Far-future counsel review
+remains recorded separately from the current implementation plan.
 
 ## Ambiguity and Dispute-Risk Review
 
@@ -528,8 +528,8 @@ Current status:
 
 - Created the repository Terms release-candidate document at `docs/dapps/private-state/terms.md` with fixed section
   numbering, Provider identity, Privacy Notice cross-reference, selected Join Toll language, selected Channel Operation
-  Abandonment language, and selected dispute/liability/sanctions positions. Counsel-directed changes and final release
-  approval still remain.
+  Abandonment language, and selected dispute/liability/sanctions positions. Far-future counsel review remains recorded
+  separately from the current release-candidate text.
 - Updated the public-document drafting rule: public documents must assume selected planning items are complete and must
   not include implementation-status assumptions. Removed implementation-condition wording from the Terms release
   candidate.
@@ -543,7 +543,7 @@ Current status:
   Tokamak Network PTE. LTD. is not implied to be the Service Provider.
 - Updated CLI command-reference and transaction-warning output so real-funds commands show warning summaries without
   exposing or requiring per-command action-impact acknowledgement flags. The install-time Terms gate and renewed
-  acceptance mechanism still remain separate implementation work before production terms behavior is complete.
+  acceptance mechanism are implemented in local source.
 - Implemented the selected `uninstall` behavior: default `uninstall` preserves wallet spending-key and viewing-key files
   under the CLI secret root while deleting the rest of the local private-state CLI data, and
   `uninstall --include-wallet-keys` deletes every local private-state CLI file.
@@ -552,18 +552,17 @@ Current status:
 - Completed current-repository framing pass for the same surfaces. The remaining occurrences of `L1`, `L2`, and
   `--join-toll` in those audited paths are command names, option names, contract names, JSON field names, code
   identifiers, or explicit agent instructions about when not to use developer shorthand with ordinary users.
-- Terms counsel-facing release decisions remain unresolved and must be completed before production terms behavior is
-  implemented. The Privacy Notice content and initial GitHub repository publication location are drafted, and the
-  repository-level final consistency review is complete; counsel-directed changes and final release approval still
-  remain.
+- Terms counsel-facing review topics are deferred to a far-future review cycle by business-owner decision. The Privacy
+  Notice content and initial GitHub repository publication location are drafted, and the repository-level final
+  consistency review is complete.
 
 ### Immediate priority: Privacy Notice preparation
 
-Privacy Notice preparation has been handled for the initial GitHub repository draft before resolving the remaining Phase
-3 legal/business decisions and before implementation work. The Service scope includes an Official Public Observer,
-included Service web surfaces, support channels, logs, package distribution, and other interfaces that can process
-personal data. The project must not ship production terms behavior without a finalized Privacy Notice or a
-counsel-approved written conclusion that a different privacy publication strategy is sufficient.
+Privacy Notice preparation has been handled for the initial GitHub repository draft. The Service scope includes an
+Official Public Observer, included Service web surfaces, support channels, logs, package distribution, and other
+interfaces that can process personal data. The project must keep a finalized Privacy Notice in the repository before
+shipping production terms behavior; any different publication strategy is deferred to a later business-owner or counsel
+review decision.
 
 Completed preparation checklist for the initial draft:
 
@@ -622,8 +621,8 @@ Business-owner confirmations to preserve in the Privacy Notice draft:
 - The Provider's public privacy and notice contact is `cjhyuck213@gmail.com`.
 - The Provider's stated jurisdiction is Singapore.
 - The Provider's residential address is not published. If a physical notice address becomes legally or operationally
-  required, use a counsel-approved non-residential route such as a P.O. box, business mailing address, registered agent,
-  or counsel address.
+  required, use a non-residential route such as a P.O. box, business mailing address, registered agent, or counsel
+  address.
 - Google Drive artifact-folder ownership or publication metadata may be Provider-accessible through the artifact account,
   but individual public download logs must not be described as Provider-accessible unless a supported Google Workspace
   admin/audit setup is later confirmed for that artifact account.
@@ -738,20 +737,17 @@ Current next step:
 ### Phase 2: Complete pre-counsel redline and risk review
 
 - Run the Pre-Counsel Redline and Risk Review Plan below.
-- Produce a redlined Terms draft, risk register, counsel-question list, checklist mapping, and release-blocker list.
+- Produce a redlined Terms draft, risk register, counsel-question list, checklist mapping, and release-risk list.
 - Resolve drafting issues that do not require counsel judgment.
-- Mark all issues requiring counsel or business-owner decision before implementation.
+- Mark issues that are current implementation blockers separately from issues deferred to far-future counsel review.
 
 Current status:
 
 - Completed an initial pre-counsel operational redline/risk review pass. See "Pre-Counsel Review Results" below.
-- The review found release blockers that must be resolved before implementation: Privacy Notice counsel-directed
-  changes and final Terms cross-reference confirmation, counsel confirmation of the no-monetary-liability-cap approach
-  and non-waivable liability carveouts, consumer-law/forum carveouts,
-  sanctions/restricted jurisdictions policy, counsel confirmation of the dispute-resolution strategy, counsel
-  confirmation of Tokamak Network PTE. LTD.'s separate software contributor/licensor and Third-Party Service or
-  infrastructure/tooling provider wording, final prompt-policy verification, and final Terms/implementation consistency
-  for the selected Join Toll burn-address transfer policy.
+- The review identified legal review topics and product consistency items. The legal review topics are deferred to a
+  far-future counsel review cycle by business-owner decision. The current implementation blockers are product and
+  deployment consistency items, especially final prompt-policy verification and final Terms/implementation consistency
+  for the selected Join Toll burn-address transfer and Channel Operation Abandonment policies.
 
 ### Phase 3: Resolve open legal and business decisions
 
@@ -763,9 +759,9 @@ Current status:
   must not be treated as the Provider unless it expressly assumes Provider obligations in a separate binding Service
   document.
 - Use the recommended dispute strategy for an individual Provider: governing law and forum should default to Singapore,
-  unless counsel approves a different jurisdiction with a sufficient connection. The clause must preserve mandatory
-  consumer-law and local-court rights. Do not include arbitration, class-action waiver, collective-action waiver,
-  representative-action waiver, or jury-trial waiver provisions in the current draft unless counsel later approves them.
+  unless a later business-owner or counsel review decision selects a different jurisdiction with a sufficient connection.
+  The clause must preserve mandatory consumer-law and local-court rights. Do not include arbitration, class-action
+  waiver, collective-action waiver, representative-action waiver, or jury-trial waiver provisions in the current draft.
 - Adopt the no-monetary-liability-cap approach for the current draft. The draft position is that Provider Parties do not
   operate the Service for Service revenue, do not monetize Join Tolls, do not provide custody or paid asset-management
   services, and are not liable for use of the Service to the maximum extent permitted by applicable law. The draft must
@@ -781,8 +777,8 @@ Current status:
   sanctions, export-control, anti-money-laundering, counter-terrorist-financing, and other applicable laws. Record the
   technical constraint that the Service may not be able to block real-world users; future restrictions may be implemented
   at the Ethereum Account or contract-interaction level.
-- Preserve the drafted Privacy Notice and GitHub repository publication location unless counsel or release review
-  requires changes.
+- Preserve the drafted Privacy Notice and GitHub repository publication location unless a later business-owner or
+  counsel review decision requires changes.
 - Adopt the prompt strategy that install-time Terms acceptance replaces all per-command `--acknowledge-action-impact`
   options, while `uninstall`, secret-bearing material exports, and plaintext note or evidence exports become
   interactive human-confirmation flows. Human and `--json` modes must still print concise command-specific information
@@ -794,26 +790,26 @@ Decision guide:
 |---|---|---|
 | Provider Party | Selected: the Provider is Jehyuk Jang, an individual. Public privacy and notice contact is `cjhyuck213@gmail.com`. Stated jurisdiction is Singapore. Residential address is not published. | Use these Provider details in the Privacy Notice and Terms. Do not name Tokamak Network PTE. LTD. as Provider unless it expressly assumes provider obligations. |
 | Developer vs provider split | Selected: Tokamak Network PTE. LTD. is separate from the Provider. | Define Tokamak Network PTE. LTD. as software contributor/licensor and Third-Party Service or infrastructure/tooling provider for Tokamak-controlled repositories, package registries, published artifacts, token infrastructure, bridge infrastructure, or upstream tooling not operated by the Provider. Do not make Tokamak Network responsible for Provider obligations unless it expressly assumes them in a separate binding Service document. |
-| Global online forum | Strategy selected: use Singapore as the Provider-connected baseline jurisdiction, subject to counsel review and mandatory consumer-law carveouts. | Use a baseline governing law and forum connected to Singapore, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. |
-| Individual provider forum | Strategy selected: Singapore, subject to counsel review. | Confirm that Singapore courts and Singapore law are appropriate for Jehyuk Jang as the individual Provider, and confirm notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
+| Global online forum | Strategy selected: use Singapore as the Provider-connected baseline jurisdiction with mandatory consumer-law carveouts. | Use a baseline governing law and forum connected to Singapore, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. Far-future counsel review remains recorded. |
+| Individual provider forum | Strategy selected: Singapore. | Use Singapore courts and Singapore law for the individual Provider model. Far-future counsel review remains recorded for notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
 | Bridge owner and upgrade authority | Completed: root bridge proxy ownership was migrated from the single EOA owner to an Ethereum mainnet Safe multisig. | The current root bridge proxy owner is `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`, a Safe multisig with a 2-of-3 threshold and no timelock. Safe signer recovery details are an off-repository Safe operations matter, not a public repository decision. |
-| Liability cap | Selected: do not include a nominal monetary liability cap in the current draft. | Use broad liability exclusions to the maximum extent permitted by applicable law, explain that the Service is non-custodial open software/public-good infrastructure and not operated for Provider Party Service revenue, and preserve non-waivable liability carveouts for liability that cannot legally be excluded or limited. Counsel should confirm enforceability, but the business position is no monetary cap. |
-| Restricted users | Selected: use a principles-based restricted-use and sanctions policy without naming specific jurisdictions, sanctions lists, or sanctions authorities in the current draft. | State prohibited uses and applicable-law compliance, including sanctions, export-control, anti-money-laundering, and counter-terrorist-financing compliance. Do not promise user-level blocking unless a real user-identification and access-control system exists. Preserve the technical constraint that future restrictions may operate only at the Ethereum Account or contract-interaction level. Counsel should confirm whether named lists are required before release. |
+| Liability cap | Selected: do not include a nominal monetary liability cap in the current draft. | Use broad liability exclusions to the maximum extent permitted by applicable law, explain that the Service is non-custodial open software/public-good infrastructure and not operated for Provider Party Service revenue, and preserve non-waivable liability carveouts for liability that cannot legally be excluded or limited. Far-future counsel review remains recorded, but the current business position is no monetary cap. |
+| Restricted users | Selected: use a principles-based restricted-use and sanctions policy without naming specific jurisdictions, sanctions lists, or sanctions authorities in the current draft. | State prohibited uses and applicable-law compliance, including sanctions, export-control, anti-money-laundering, and counter-terrorist-financing compliance. Do not promise user-level blocking unless a real user-identification and access-control system exists. Preserve the technical constraint that future restrictions may operate only at the Ethereum Account or contract-interaction level. Far-future counsel review remains recorded for named-list questions. |
 | Technical blocking | Constraint recorded. | Future blacklist features may block Ethereum Accounts or contract interactions, not necessarily real-world users. Terms and docs must not overstate user-level blocking. |
 | Privacy Notice | Initial draft completed in `docs/dapps/private-state/privacy-notice.md`; initial publication location selected as GitHub repository documentation only. CLI README references the document. `tonnel.io` publication is deferred. | Review the draft against Terms definitions, Provider identity, Official Public Observer disclosures, support routes, and Third-Party Service boundaries before final Terms, guide, JSON mode, or implementation work. |
-| Provider identity and privacy contact | Selected: Jehyuk Jang; `cjhyuck213@gmail.com`; Singapore; residential address not published. | Use the email address for privacy/contact and notice routing. Keep Telegram as an official support channel, not the sole privacy contact. If a physical notice address becomes required, use a counsel-approved non-residential route such as a P.O. box, business mailing address, registered agent, or counsel address. |
-| Arbitration and class-action waiver | Not included in the current draft. | Keep these provisions out unless counsel confirms that adding them is appropriate and enforceable enough for the individual Provider model and expected user jurisdictions. |
+| Provider identity and privacy contact | Selected: Jehyuk Jang; `cjhyuck213@gmail.com`; Singapore; residential address not published. | Use the email address for privacy/contact and notice routing. Keep Telegram as an official support channel, not the sole privacy contact. If a physical notice address later becomes required, use a non-residential route such as a P.O. box, business mailing address, registered agent, or counsel address. |
+| Arbitration and class-action waiver | Not included in the current draft. | Keep these provisions out for the current implementation. Far-future counsel review may revisit whether adding them is appropriate and enforceable enough for the individual Provider model and expected user jurisdictions. |
 | Separate prompts | Selected: remove `--acknowledge-action-impact` from all commands, enforce install-time Terms acceptance, make `uninstall`, secret-bearing material exports, and plaintext note or evidence exports interactive confirmation flows, and print warning summaries for real-funds commands in both human and `--json` modes every time. | The guide, command reference, transaction-warning output, default key-preserving `uninstall`, `uninstall --include-wallet-keys`, wallet viewing-key/spending-key export confirmations, plaintext note/evidence export confirmation review, canonical Terms gate, and renewed acceptance mechanism are implemented in local source. |
 | Channel Operation Abandonment | Selected: immediate on-chain abandonment state with no grace period. | Implement leader-only abandonment in the shared bridge/vault path so existing Channels, including `the-great-first-channel`, can have new joins and `deposit-channel` blocked after the leader initiates abandonment. Do not restrict note activity, `redeem-notes`, `withdraw-channel`, or `exit-channel` on-chain. CLI must error for join/deposit on abandoned Channels and warn for other Channel activities. |
 
 ### Phase 4: Finalize human-facing documents
 
 - Finalize Terms text and section numbering. Repository release-candidate created at
-  `docs/dapps/private-state/terms.md`; counsel-directed changes and final release approval remain.
-- Completed repository-level final verification of human `help guide` text for ordinary users; counsel-directed changes,
-  if any, remain separate from CLI wording verification.
+  `docs/dapps/private-state/terms.md`; far-future counsel review remains recorded separately from the current
+  release-candidate text.
+- Completed repository-level final verification of human `help guide` text for ordinary users.
 - Completed repository-level final verification of CLI README language explaining the Service terms and the purpose of
-  `--json`; counsel-directed changes, if any, remain separate from README wording verification.
+  `--json`.
 - Completed an additional human-facing wording pass for Terms, CLI README, and command-reference output: install now
   has documented explicit human Terms acceptance, human command help no longer uses AI-agent-first fee wording,
   no-recovery wording says no recovery method exists, and the Terms definitions avoid unnecessary `L2` shorthand.
@@ -826,7 +822,7 @@ Decision guide:
   public Ethereum mainnet records, public Channel records, Official Public Observer limits, Self-Custody, no recovery
   method, and Third-Party Service risk without contradicting the checklist's exchange-boundary and monitoring themes.
 - Completed repository-level plain-language review for ordinary users and legal/compliance reviewers without weakening
-  legal precision. Counsel-directed changes and final release approval remain separate.
+  legal precision. Far-future counsel review remains recorded separately.
 
 ### Phase 5: Finalize machine-readable and agent-facing documents
 
@@ -1183,7 +1179,7 @@ The migration must preserve the following constraints:
 
 This review is a pre-legal operational risk review. It does not replace counsel review and must not be presented as a
 legal opinion. Its purpose is to identify unclear terms, likely negotiation points, missing disclosures, and issues that
-counsel should decide before public release.
+remain useful for a far-future counsel review cycle.
 
 ### Review outputs
 
@@ -1192,7 +1188,7 @@ counsel should decide before public release.
   mitigation.
 - A counsel-question list that separates business decisions from legal-validity questions.
 - A checklist mapping that confirms every `checklist.md` item remains covered after redlines.
-- A release-blocker list for provisions that should not ship without counsel approval.
+- A release-risk list that separates implementation blockers from long-term counsel-review topics.
 
 ### Governing law and forum review
 
@@ -1202,8 +1198,8 @@ counsel should decide before public release.
   consumer-protection jurisdictions.
 - Review whether a Singapore courts forum clause may be considered unfair, unenforceable, or partially unenforceable
   where a consumer is entitled to sue or defend claims in the consumer's local courts.
-- Confirm that the Terms should use court litigation in the Provider-connected forum with mandatory consumer-law
-  exceptions, and should not include arbitration or class-action waiver provisions unless counsel later approves them.
+- Record that the Terms use court litigation in the Provider-connected forum with mandatory consumer-law exceptions and
+  do not include arbitration or class-action waiver provisions for the current implementation.
 - Confirm whether the current conflict-of-law exclusion is appropriate for the Service and for international consumer
   users.
 
@@ -1211,12 +1207,12 @@ counsel should decide before public release.
 
 - Treat arbitration, class-action waiver, collective-action waiver, representative-action waiver, and jury-trial waiver
   provisions as excluded from the current draft.
-- If counsel later recommends adding any such provision, first decide the arbitral institution, seat, language, number of
-  arbitrators, emergency relief rules, confidentiality, fees, small-claims exceptions, and consumer exceptions.
+- If a later counsel or business-owner review recommends adding any such provision, first decide the arbitral
+  institution, seat, language, number of arbitrators, emergency relief rules, confidentiality, fees, small-claims
+  exceptions, and consumer exceptions.
 - Review whether any later arbitration or waiver clause would be valid in the expected user jurisdictions before adding
   it to the Terms.
-- Avoid adding arbitration or class-action waiver language unless counsel confirms the clause is enforceable enough to
-  justify the added user and regulatory friction.
+- Avoid adding arbitration or class-action waiver language in the current implementation.
 
 ### Consumer-law carveout review
 
@@ -1270,7 +1266,7 @@ counsel should decide before public release.
 
 - Determine whether the Service processes personal data through the Official Public Observer, websites, logs, package
   distribution, support channels, telemetry, RPC configuration, or other official interfaces.
-- Produce the privacy notice or document a counsel-approved reason why no privacy notice is required.
+- Produce the privacy notice.
 - Review whether public blockchain records, public Channel records, IP addresses, device data, usage logs, support
   communications, and analytics data are sufficiently disclosed.
 - Confirm that Third-Party Service data collection and retention are clearly separated from Provider Party obligations.
@@ -1287,8 +1283,8 @@ counsel should decide before public release.
 ## Pre-Counsel Review Results
 
 This section records the first pre-counsel operational review result. It is not a legal opinion and must not be used as a
-substitute for counsel review. It is intended to identify drafting changes, business decisions, and release blockers
-before implementation.
+substitute for counsel review. It is intended to identify drafting changes, business decisions, implementation blockers,
+and long-term legal review topics.
 
 ### Comparable-service coverage notes
 
@@ -1311,31 +1307,31 @@ and MetaMask self-custody guidance. The following coverage patterns are relevant
 Coverage impact for the current draft: Sections 6, 11, 13, 14, 15, 16, 17, and 20 are directionally aligned, but the
 current draft still needs counsel confirmation of Tokamak Network PTE. LTD.'s separate role wording, Privacy Notice, the
 selected no-monetary-liability-cap approach, restricted-jurisdiction policy, consumer-law carveouts, and notice mechanics
-before release.
+as long-term review topics.
 
 ### Redline items
 
 | ID | Section | Proposed change before counsel review | Rationale | Status |
 |---|---|---|---|---|
-| R-01 | 1, 2, 20 | Replace generic Provider Party references in the operative clauses with Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and the no-residential-address publication policy. Define Tokamak Network PTE. LTD. separately as software contributor/licensor and Third-Party Service or infrastructure/tooling provider for Tokamak-controlled surfaces not operated by the Provider. | Users and legal reviewers need to know who offers the Service, who developed the software, who receives notices, and who accepts provider obligations. | Applied to draft Terms; counsel to confirm final wording. |
+| R-01 | 1, 2, 20 | Replace generic Provider Party references in the operative clauses with Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and the no-residential-address publication policy. Define Tokamak Network PTE. LTD. separately as software contributor/licensor and Third-Party Service or infrastructure/tooling provider for Tokamak-controlled surfaces not operated by the Provider. | Users and legal reviewers need to know who offers the Service, who developed the software, who receives notices, and who accepts provider obligations. | Applied to draft Terms; far-future counsel review remains recorded. |
 | R-02 | 3 | Remove passive "continuing to access or use" acceptance for terms-gated CLI operations, or limit it to non-CLI informational surfaces. Require explicit acceptance for install and renewed acceptance. | The planned CLI gate relies on explicit acceptance and deterministic terms hash records. Passive acceptance may conflict with that product design. | Applied to draft Terms; verify implementation follows explicit acceptance. |
-| R-03 | 3 | Add an age-of-majority or minimum-age statement if the Service is made available to natural persons. | "Legal capacity" may be too abstract for ordinary users and consumer review. | Counsel decision. |
-| R-04 | 3, 7 | Use a principles-based restricted-use and sanctions policy in the current draft. Do not name specific restricted jurisdictions, sanctions lists, sanctions authorities, or prohibited user categories unless counsel later requires them. State that the Service may only be able to restrict Ethereum Accounts or contract interactions, not identify and block real-world users. | Comparable services often name sanctions regimes or restricted regions, but naming lists creates maintenance obligations and can be misleading when the Service lacks user-identification and user-level blocking. The current product position is to require applicable-law compliance without overpromising enforcement. | Selected business position; counsel confirmation remains. |
+| R-03 | 3 | Add an age-of-majority or minimum-age statement if the Service is made available to natural persons. | "Legal capacity" may be too abstract for ordinary users and consumer review. | Far-future counsel review topic. |
+| R-04 | 3, 7 | Use a principles-based restricted-use and sanctions policy in the current draft. Do not name specific restricted jurisdictions, sanctions lists, sanctions authorities, or prohibited user categories unless a later counsel or business-owner review requires them. State that the Service may only be able to restrict Ethereum Accounts or contract interactions, not identify and block real-world users. | Comparable services often name sanctions regimes or restricted regions, but naming lists creates maintenance obligations and can be misleading when the Service lacks user-identification and user-level blocking. The current product position is to require applicable-law compliance without overpromising enforcement. | Selected business position; far-future counsel review remains recorded. |
 | R-05 | 5 | Replace "Tonnel may prevent public contract state..." with a more precise non-guarantee: "Tonnel is designed so public contract state does not, by itself, reconstruct..." | "May prevent" is vague; a design-purpose statement is clearer while avoiding guarantees. | Applied to draft Terms. |
 | R-06 | 6 | Add a short ordinary-user warning that Provider Parties, Channel Operators, and User-Controlled AI Agents will never need the user's private keys, seed phrases, wallet secrets, spending keys, or viewing keys. | Aligns with self-custody guidance and reduces secret-disclosure risk. | Applied to draft Terms. |
 | R-07 | 7 | Keep prohibited-use wording, but avoid repeating prohibited marketing phrases outside prohibited-use and checklist contexts. | Terms can prohibit misuse without creating marketing language that suggests the Service is useful for that misuse. | Reviewed current ordinary-user and agent-facing surfaces; prohibited framing appears only in Product Compliance Position, prohibited-use/checklist contexts, or operational illegal-use warnings. Keep final wording check before release. |
 | R-08 | 8 | Add user responsibility for preserving the local evidence needed for selective disclosure, exchange review, tax records, disputes, and audits. | Section 10 mentions evidence but Section 8 should allocate the preservation duty expressly. | Applied to draft Terms. |
-| R-09 | 9 | Clarify whether Channel Operators are independent from Provider Parties unless officially appointed, and state that Channel policy may differ by Channel. | Users must distinguish the Service provider from third-party or community Channel operators. | Counsel and product decision. |
+| R-09 | 9 | Clarify whether Channel Operators are independent from Provider Parties unless officially appointed, and state that Channel policy may differ by Channel. | Users must distinguish the Service provider from third-party or community Channel operators. | Product decision complete; far-future counsel review remains recorded. |
 | R-10 | 10 | Replace "Official Public Observer does not reveal user secrets" with "is not intended to receive or display user secrets" and "only displays records available to it." | Avoids an absolute security or non-disclosure guarantee. | Applied to draft Terms. |
-| R-11 | 12 | Keep the standalone Privacy Notice in `docs/dapps/private-state/privacy-notice.md` and keep the Terms cross-reference to that location unless the final publication location changes. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. The initial standalone draft, GitHub repository publication location, Terms cross-reference, and repository-level final consistency review now exist, but counsel review and final release confirmation are still required. | Repository-level final consistency review applied; counsel confirmation remains. |
+| R-11 | 12 | Keep the standalone Privacy Notice in `docs/dapps/private-state/privacy-notice.md` and keep the Terms cross-reference to that location unless the final publication location changes. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. The initial standalone draft, GitHub repository publication location, Terms cross-reference, and repository-level final consistency review now exist. | Repository-level final consistency review applied; far-future counsel review remains recorded. |
 | R-12 | 13 | Clarify that User-Controlled AI Agents are selected by the user and are not agents, representatives, or service providers of Provider Parties unless expressly stated. | Reduces implied advisory, support, fiduciary, or agency relationship risk. | Applied to draft Terms. |
 | R-13 | 14 | Add explicit ZK/proof-system risk, CRS/proving-artifact risk, local proof-generation risk, and public observer indexing risk. | Current blockchain risks are broad but do not fully reflect this Service's proof and observer architecture. | Applied to draft Terms. |
-| R-14 | 16 | Do not include a nominal monetary liability cap in the current draft. Preserve broad liability exclusions to the maximum extent permitted by applicable law and preserve non-waivable liability carveouts. | The Service is non-custodial open software/public-good infrastructure, Provider Parties do not operate it for Service revenue, and Join Tolls are not Provider Party revenue. A fee-based cap would create a zero-fee problem, while a nominal cap could imply a paid-service liability model that does not fit the Service. Counsel should still confirm enforceability of the no-cap disclaimer structure and carveouts. | Selected business position; counsel confirmation remains. |
-| R-15 | 17 | Narrow consumer indemnity or add business-user/unlawful-use limitations if counsel recommends. | Broad consumer indemnity can be unenforceable or unfair in some jurisdictions. | Counsel decision. |
+| R-14 | 16 | Do not include a nominal monetary liability cap in the current draft. Preserve broad liability exclusions to the maximum extent permitted by applicable law and preserve non-waivable liability carveouts. | The Service is non-custodial open software/public-good infrastructure, Provider Parties do not operate it for Service revenue, and Join Tolls are not Provider Party revenue. A fee-based cap would create a zero-fee problem, while a nominal cap could imply a paid-service liability model that does not fit the Service. | Selected business position; far-future counsel review remains recorded. |
+| R-15 | 17 | Narrow consumer indemnity or add business-user/unlawful-use limitations if a later counsel or business-owner review recommends it. | Broad consumer indemnity can be unenforceable or unfair in some jurisdictions. | Far-future counsel review topic. |
 | R-16 | 18 | Specify the technical renewed-acceptance mechanism: terms version, deterministic hash, displayed terms, explicit phrase, stored record, stale-record rejection. | The product can implement this and should not rely only on legal notice wording. | Applied to draft Terms; verify implementation follows this mechanism after Terms freeze. |
-| R-17 | 20 | Use Singapore court litigation and Singapore law as the Provider-connected baseline, with mandatory consumer-law and local-court carveouts. Do not include arbitration, class-action waiver, collective-action waiver, representative-action waiver, or jury-trial waiver provisions unless counsel later approves them. | Forum and waiver clauses may be invalid or problematic for consumers in some jurisdictions. | Applied to draft Terms; counsel to confirm enforceability. |
-| R-18 | 20 | Add `cjhyuck213@gmail.com` as the public privacy and notice contact for Jehyuk Jang, and state that the Provider's residential address is not published. If a physical notice address becomes required, use a counsel-approved non-residential notice route. | Notices are incomplete without an official contact route, but residential address publication is not the default policy. | Applied to draft Terms; counsel to confirm sufficiency. |
-| R-19 | 1, 2, 9, 16 | Apply the selected Join Toll policy to Terms and implementation planning. The local source now stores Join Tolls in `L1TokenVault._tollTreasuryBalance`, records `joinTollPaid`, refunds the refundable portion from the toll treasury, and transfers the non-refundable portion to `0x000000000000000000000000000000000000dEaD` on future Channel exits. Existing already-exited users' historical non-refundable Toll portions are not in scope for retroactive burn-address transfer. The selected refund schedule is time-increasing: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days. | The user-facing economic representation must match the protocol. Because mainnet TON does not expose an external `burn` function and rejects transfer to `address(0)`, the Service must describe this as a burn-address transfer, not as TON total-supply reduction. The local source now enforces `joinTollRefundBps1 <= joinTollRefundBps2 <= joinTollRefundBps3 <= joinTollRefundBps4`; mainnet still requires the bridge upgrade before release language can represent the policy as deployed behavior. | Implemented in local source; deployment/counsel release review remains. |
+| R-17 | 20 | Use Singapore court litigation and Singapore law as the Provider-connected baseline, with mandatory consumer-law and local-court carveouts. Do not include arbitration, class-action waiver, collective-action waiver, representative-action waiver, or jury-trial waiver provisions in the current implementation. | Forum and waiver clauses may be invalid or problematic for consumers in some jurisdictions. | Applied to draft Terms; far-future counsel review remains recorded. |
+| R-18 | 20 | Add `cjhyuck213@gmail.com` as the public privacy and notice contact for Jehyuk Jang, and state that the Provider's residential address is not published. If a physical notice address becomes required, use a non-residential notice route. | Notices are incomplete without an official contact route, but residential address publication is not the default policy. | Applied to draft Terms; far-future counsel review remains recorded. |
+| R-19 | 1, 2, 9, 16 | Apply the selected Join Toll policy to Terms and implementation planning. The local source now stores Join Tolls in `L1TokenVault._tollTreasuryBalance`, records `joinTollPaid`, refunds the refundable portion from the toll treasury, and transfers the non-refundable portion to `0x000000000000000000000000000000000000dEaD` on future Channel exits. Existing already-exited users' historical non-refundable Toll portions are not in scope for retroactive burn-address transfer. The selected refund schedule is time-increasing: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days. | The user-facing economic representation must match the protocol. Because mainnet TON does not expose an external `burn` function and rejects transfer to `address(0)`, the Service must describe this as a burn-address transfer, not as TON total-supply reduction. The local source now enforces `joinTollRefundBps1 <= joinTollRefundBps2 <= joinTollRefundBps3 <= joinTollRefundBps4`; mainnet still requires the bridge upgrade before public documents represent the policy as deployed behavior. | Implemented in local source; deployment-dependent blocker remains. |
 | R-20 | Prompt policy | Remove `--acknowledge-action-impact` from every command, enforce install-time Terms acceptance, make `uninstall` interactive like `install`; default uninstall preserves wallet workspace spending-key and viewing-key files while deleting the rest, and `--include-wallet-keys` deletes everything without exception. Make secret-bearing material export commands and plaintext note/evidence export commands interactive. For each such interactive flow, print the command impact, leakage or destructive risk, precautions, and Provider Party disclaimers, then require human confirmation before continuing. For every command that handles real funds, print command-specific information and warning summaries in human mode and `--json` mode on every run without requiring a command-level acknowledgement option. | This implements the selected product policy: one-time install Terms acceptance replaces repeated action-impact acknowledgement flags, while moment-specific human confirmations remain for destructive deletion and sensitive exports, and ordinary transaction commands still show relevant warnings. | Guide/command-reference/warning-output, uninstall prompt, wallet viewing-key/spending-key export confirmation, plaintext note/evidence export confirmation review, install Terms gate, and renewed acceptance mechanism completed in local source. |
 | R-21 | 2, 9, 10, 14 | Add Channel Operation Abandonment to Terms, docs, monitoring, and implementation planning. The Channel leader may initiate abandonment on-chain with no grace period. After abandonment, new joins and `deposit-channel` are rejected for that Channel; note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel` remain unrestricted by abandonment. | This gives the Channel leader a clear public way to stop onboarding and new deposits without trapping existing users or claiming control over user notes. The feature is compatible with existing Channels if enforcement is placed in the shared upgradeable vault path for join/deposit. Existing `the-great-first-channel` note activity cannot and should not be restricted under the revised request. | Implemented in local bridge source, bridge tests, CLI command/status handling, `help guide`/`help guide --json`, `agents.md`, private-state README, bridge changelog, and private-state workflow/security docs. Mainnet deployment, public observer data support, and monitoring packet updates remain deployment-dependent. |
 
@@ -1343,12 +1339,12 @@ before release.
 
 | ID | Severity | Area | Risk | Proposed mitigation | Owner |
 |---|---|---|---|---|---|
-| K-01 | Medium | Provider identity | The Provider model and public Provider details are selected, and Tokamak Network PTE. LTD. is separated from Provider obligations, but counsel still needs to confirm the exact Tokamak role wording. | Insert Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and the no-residential-address publication policy; use the selected Tokamak software contributor/licensor and Third-Party Service or infrastructure/tooling provider wording; obtain counsel review of personal-liability and notice-handling implications. | Business/counsel. |
-| K-02 | Low | Privacy/data | A standalone Privacy Notice draft now exists in the repository, the initial GitHub repository publication location is selected, the Terms cross-reference is drafted, and the repository-level final consistency review is complete. Counsel-directed changes and final release confirmation remain before production terms behavior ships. | Preserve the reviewed draft unless counsel or release review requires changes. | Product/counsel. |
-| K-03 | High | Consumer law | A Provider-connected forum clause may be limited or unenforceable for consumers with mandatory local rights. | Add explicit non-waivable consumer-rights and local-court carveouts as counsel directs. | Counsel. |
-| K-04 | Medium | Dispute resolution | The current draft excludes arbitration and class-action waiver provisions. This reduces clause-validity and user-friction risk but may increase litigation exposure for the individual Provider. | Confirm the no-arbitration and no-class-action-waiver strategy with counsel before implementation. | Counsel/business. |
-| K-05 | Medium | Liability | The current draft intentionally uses no nominal monetary liability cap. This matches the no-Service-revenue, open-software, non-custodial model, but counsel still needs to confirm that the disclaimer structure and non-waivable liability carveouts are appropriate for expected users. | Keep the no-monetary-cap business position, preserve broad disclaimers and mandatory-law carveouts, and obtain counsel confirmation before production terms behavior ships. | Counsel/business. |
-| K-06 | Medium | Sanctions/AML | The draft uses a principles-based restricted-use and sanctions policy without naming specific restricted jurisdictions, sanctions lists, sanctions authorities, or prohibited user categories. This avoids stale lists and overpromised user-level blocking, but counsel still needs to confirm whether named restrictions, account-level restriction, screening, or additional warnings are required. | Preserve applicable-law compliance wording and the technical limitation that restrictions may operate only at the Ethereum Account or contract-interaction level unless a real user-identification system exists. | Compliance/counsel. |
+| K-01 | Medium | Provider identity | The Provider model and public Provider details are selected, and Tokamak Network PTE. LTD. is separated from Provider obligations. Far-future counsel review remains recorded for the exact Tokamak role wording. | Insert Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and the no-residential-address publication policy; use the selected Tokamak software contributor/licensor and Third-Party Service or infrastructure/tooling provider wording; preserve personal-liability and notice-handling implications for far-future counsel review. | Business/counsel. |
+| K-02 | Low | Privacy/data | A standalone Privacy Notice draft now exists in the repository, the initial GitHub repository publication location is selected, the Terms cross-reference is drafted, and the repository-level final consistency review is complete. | Preserve the reviewed draft unless a later business-owner or counsel review decision requires changes. | Product/counsel. |
+| K-03 | High | Consumer law | A Provider-connected forum clause may be limited or unenforceable for consumers with mandatory local rights. | Preserve explicit non-waivable consumer-rights and local-court carveouts; keep this as a far-future counsel review topic. | Counsel. |
+| K-04 | Medium | Dispute resolution | The current draft excludes arbitration and class-action waiver provisions. This reduces clause-validity and user-friction risk but may increase litigation exposure for the individual Provider. | Preserve the no-arbitration and no-class-action-waiver strategy for the current implementation; keep this as a far-future counsel review topic. | Counsel/business. |
+| K-05 | Medium | Liability | The current draft intentionally uses no nominal monetary liability cap. This matches the no-Service-revenue, open-software, non-custodial model. Far-future counsel review remains recorded for disclaimer structure and non-waivable liability carveouts. | Keep the no-monetary-cap business position and preserve broad disclaimers and mandatory-law carveouts. | Counsel/business. |
+| K-06 | Medium | Sanctions/AML | The draft uses a principles-based restricted-use and sanctions policy without naming specific restricted jurisdictions, sanctions lists, sanctions authorities, or prohibited user categories. This avoids stale lists and overpromised user-level blocking. Far-future counsel review remains recorded for named restrictions, account-level restriction, screening, or additional warnings. | Preserve applicable-law compliance wording and the technical limitation that restrictions may operate only at the Ethereum Account or contract-interaction level unless a real user-identification system exists. | Compliance/counsel. |
 | K-07 | Low | Privacy claims | Draft wording now avoids "may prevent" and "does not reveal" in Sections 5 and 10, but final text still needs legal and technical review for overstatement. | Keep the design-intent and observer-limit wording during final Terms review. | Product/counsel. |
 | K-08 | Medium | Self-custody | Secret-loss warning is legally useful but should be more visible in install and AI-agent flows. | Add section refs to install/JSON guide and ensure human guide explains no recovery method before secret-dependent use. | Product. |
 | K-09 | Medium | Third-party services | RPC providers, wallets, exchanges, package registries, and browsers have independent terms and data practices. | Keep Section 11 and privacy notice cross-references; add RPC-provider metadata disclosure if applicable. | Product/counsel. |
@@ -1379,8 +1375,8 @@ Business decisions to prepare before counsel review:
 - Should user indemnity apply to ordinary consumers, business users only, unlawful use only, or third-party claims only?
 - What official interfaces process personal data, including observer hosting, logs, analytics, support, package
   distribution, and telemetry?
-- Is the initial GitHub repository Privacy Notice publication location and Terms cross-reference sufficient for release,
-  or should counsel require an additional publication surface before production terms behavior ships?
+- Is the initial GitHub repository Privacy Notice publication location and Terms cross-reference sufficient, or should a
+  later business-owner or counsel review require an additional publication surface?
 - Are the selected separate prompt rules sufficient: interactive `uninstall`, interactive secret-bearing material
   exports, interactive plaintext note/evidence exports, and non-blocking warnings for every real-funds command in human
   and `--json` modes?
@@ -1420,27 +1416,16 @@ Legal-validity questions for counsel:
 | Internal note privacy limits must be disclosed | Section 5 discloses limits and non-guarantees. | Keep design-intent wording. |
 | Provider Parties and Channel Operators must not claim custody of user secrets | Sections 6, 8, and 9 disclaim possession, control, storage, and recovery of user secrets. | Section 6 now includes the stronger secret-warning text. |
 | Selective disclosure must be limited to implemented features | Section 10 ties selective disclosure to implemented features and user-preserved records. | Section 8 now allocates local evidence preservation duty. |
-| Illegal use must be prohibited | Section 7 covers money laundering, terrorist financing, sanctions evasion, regulatory evasion, fraud, illegal gambling, criminal-proceeds concealment, and exchange-monitoring evasion. | Keep; counsel to review sanctions scope. |
+| Illegal use must be prohibited | Section 7 covers money laundering, terrorist financing, sanctions evasion, regulatory evasion, fraud, illegal gambling, criminal-proceeds concealment, and exchange-monitoring evasion. | Keep; far-future counsel review remains recorded for sanctions scope. |
 | Public monitoring surfaces must be available | Section 10 identifies the Official Public Observer. | Keep; privacy notice must disclose hosted observer data if applicable. |
-| Marketing must avoid mixer or privacy-coin framing | Product Compliance Position and Sections 2, 5, and 7 avoid or prohibit that framing. | Keep terminology/framing verification before release. |
+| Marketing must avoid mixer or privacy-coin framing | Product Compliance Position and Sections 2, 5, and 7 avoid or prohibit that framing. | Keep terminology/framing verification before publishing final public documents. |
 | Channel leader abandonment must not trap users or imply custody | New Channel Operation Abandonment plan blocks only new joins and `deposit-channel`, while preserving note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel`. | No explicit `checklist.md` violation found. The feature must be documented as public operational status, not as a private-history control, exchange deposit network control, custody power, or operator backdoor. |
 
 ### Release blockers
 
-The following items should block implementation of production terms behavior until resolved or explicitly deferred by the
-business owner with counsel awareness:
+The following items are the current implementation or deployment blockers. Counsel-review topics are listed separately
+as long-term deferred review items in the release blocker triage below.
 
-- Privacy Notice counsel-directed changes, if any, and final Terms cross-reference confirmation.
-- Counsel confirmation that Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no published residential address are
-  sufficient for the individual Provider identity and public notice/contact route; counsel confirmation of the selected
-  Tokamak Network PTE. LTD. separate-role wording.
-- Counsel confirmation of the selected no-monetary-liability-cap approach and mandatory-law liability carveouts.
-- Singapore governing-law/forum wording based on the individual Provider's stated jurisdiction, including consumer-law
-  carveouts.
-- Counsel confirmation that arbitration, class-action waiver, collective-action waiver, representative-action waiver,
-  and jury-trial waiver provisions should remain excluded from the current draft.
-- Counsel confirmation of the selected principles-based sanctions/restricted-use policy and any required account-level
-  restriction or screening decision that is technically possible without overstating user-level blocking.
 - Final Terms/docs/implementation consistency for the selected Join Toll policy: future Channel exits refund the
   time-increasing refundable portion and transfer only the non-refundable portion to
   `0x000000000000000000000000000000000000dEaD`, with no retroactive burn-address transfer promise for already-exited
@@ -1457,7 +1442,15 @@ business owner with counsel awareness:
 This triage separates items that can be advanced inside the repository from items that require counsel or mainnet
 deployment. It is a planning aid and not a legal opinion.
 
-Counsel-required blockers:
+Counsel review deferral status:
+
+- Business owner decision: counsel review is deferred to a far-future review cycle.
+- The counsel-review items below remain recorded as long-term legal review topics, but they are not immediate
+  implementation blockers unless a later release decision reopens them.
+- Public documents must not state or imply that the current release is a draft, counsel-pending release, or legally
+  unreviewed release.
+
+Long-term deferred counsel-review items:
 
 - Confirm whether the Privacy Notice requires counsel-directed changes and whether the Terms cross-reference to
   `docs/dapps/private-state/privacy-notice.md` is sufficient for the selected GitHub-only initial publication location.
@@ -1497,17 +1490,19 @@ Current repository status:
 
 - Repository-level consistency checks for Terms, Privacy Notice, CLI README, human `help guide`, `help guide --json`,
   `agents.md`, and monitoring companion documents have been completed for the current local source.
-- The remaining blockers are counsel-required or deployment-dependent unless new Terms wording changes are introduced.
+- Counsel-review items are deferred by business-owner decision. The next practical blockers are deployment-dependent
+  unless new Terms wording changes are introduced.
 
 ### Practical minimum legal remediation plan
 
-This section narrows the pre-counsel work to practical changes that should be completed before release. It is based on
+This section records the pre-counsel work completed before release planning advanced to deployment-dependent blockers. It
+is based on
 common treatment in comparable self-custody/open-software services, Singapore statutory risk areas, and Singapore
 case-law direction that exclusion clauses are interpreted in context and remain subject to statutory limits such as UCTA
 reasonableness where applicable. It is not intended to expand the project into a jurisdiction-by-jurisdiction legal
 compliance program before counsel review.
 
-Minimum document changes to complete before release:
+Minimum document changes completed for the current implementation plan:
 
 1. Privacy rights and request route:
    - Add a compact Privacy Notice section that states how users may contact the Provider about Provider-controlled
@@ -1515,8 +1510,8 @@ Minimum document changes to complete before release:
      and complaints.
    - State the practical limits clearly: public blockchain records, third-party service records, user-selected RPC logs,
      and user-local CLI files cannot be deleted or corrected by the Provider.
-   - Do not add a full GDPR/CCPA-style supplement unless counsel concludes that the Service is intentionally offered to,
-     or monitors, users in a jurisdiction requiring that supplement.
+   - Do not add a full GDPR/CCPA-style supplement unless a later business-owner or counsel review concludes that the
+     Service is intentionally offered to, or monitors, users in a jurisdiction requiring that supplement.
    - Status: Completed in `docs/dapps/private-state/privacy-notice.md` Section 19.
 2. Retention and deletion limits:
    - Keep the existing operational-retention disclosures, but add a short plain statement that Provider-controlled
@@ -1529,27 +1524,27 @@ Minimum document changes to complete before release:
    - Add a concise Privacy Notice statement that official hosting, support, repository, package, artifact, analytics, and
      infrastructure providers may process data outside the user's country and that third-party services apply their own
      terms and safeguards.
-   - Avoid overpromising specific transfer mechanisms unless counsel confirms them.
+   - Avoid overpromising specific transfer mechanisms unless a later counsel review confirms them.
    - Status: Completed in `docs/dapps/private-state/privacy-notice.md` Section 18.
 4. Data breach contact:
    - Add a practical incident-contact statement: users may report suspected compromise of Provider-controlled systems to
      the privacy contact; the Provider will assess and notify affected persons or authorities when required by
      applicable law.
-   - Do not add detailed statutory deadlines in user-facing text unless counsel approves the exact wording.
+   - Do not add detailed statutory deadlines in user-facing text unless a later counsel review approves the exact
+     wording.
    - Status: Completed in `docs/dapps/private-state/privacy-notice.md` Section 20.
 5. Legal capacity:
    - Add ordinary-user wording that the Service is for users who have legal capacity to accept the Terms and operate a
-     self-custody wallet. If counsel wants an age threshold, use counsel-approved wording; otherwise avoid creating a
-     broad age-verification obligation that the Service cannot enforce.
+     self-custody wallet. If a later counsel or business-owner review adds an age threshold, use exact reviewed wording;
+     otherwise avoid creating a broad age-verification obligation that the Service cannot enforce.
    - Status: Completed in `docs/dapps/private-state/terms.md` Section 3 and
      `packages/apps/private-state/cli/assets/service-terms.md` Section 3.
 6. Liability and indemnity:
    - Keep the no-Service-revenue, non-custodial, no-recovery, no-warranty, and no-monetary-cap position.
    - Keep mandatory-law carveouts for liability that cannot be excluded or limited.
    - Do not add a nominal monetary liability cap, arbitration clause, class-action waiver, jury-trial waiver, or detailed
-     consumer-jurisdiction schedule before counsel review.
-   - For indemnity, keep the current clause for now but flag for counsel whether it should be limited to unlawful use,
-     misuse, third-party claims, or business users.
+     consumer-jurisdiction schedule in the current implementation.
+   - For indemnity, keep the current clause for now and preserve the scope question for far-future counsel review.
    - Status: Completed by review. Current Terms Sections 15, 16, 17, and 20 already preserve the selected no-warranty,
      no-Service-revenue, no-monetary-cap, mandatory-law carveout, no-arbitration/no-waiver, and counsel-flagged
      indemnity approach without requiring wording changes.
@@ -1557,8 +1552,7 @@ Minimum document changes to complete before release:
    - Keep the existing position that the Service is not custody, exchange, brokerage, hosted transfer, legal advice,
      financial advice, tax advice, or compliance advice.
    - Keep the principles-based prohibited-use and sanctions wording.
-   - Do not name restricted jurisdictions, sanctions lists, or screening mechanics unless counsel confirms that naming
-     them is necessary and operationally maintainable.
+   - Do not name restricted jurisdictions, sanctions lists, or screening mechanics in the current implementation.
    - Do not claim that the Service is unregulated, exempt, licensed, compliant, or approved by any regulator.
    - Status: Completed by review. Current public docs, CLI warning text, and canonical Terms preserve the no-custody,
      no-exchange, no-brokerage, no-hosted-transfer, no-advice, principles-based prohibited-use/sanctions approach and do
@@ -1595,14 +1589,17 @@ Items to leave for counsel instead of expanding now:
 
 ## Open Legal Decisions
 
+Status: the legal positions below are selected for current implementation and deferred to a far-future counsel review
+cycle unless the business owner later reopens them.
+
 - Provider Party model and public Provider details are selected: Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no
   published residential address. Tokamak Network PTE. LTD. is separately defined as software contributor/licensor and,
   for Tokamak-controlled surfaces not operated by the Provider, Third-Party Service or infrastructure/tooling provider;
-  counsel must confirm the wording.
-- Governing law and forum strategy is selected in principle: use Singapore with mandatory consumer-law carveouts unless
-  counsel approves a different Provider-connected jurisdiction.
+  far-future counsel review remains recorded.
+- Governing law and forum strategy is selected in principle: use Singapore with mandatory consumer-law carveouts unless a
+  later business-owner or counsel review decision selects a different Provider-connected jurisdiction.
 - Arbitration, class-action waiver, collective-action waiver, representative-action waiver, and jury-trial waiver
-  provisions are excluded from the current draft unless counsel later approves them.
+  provisions are excluded from the current draft. Far-future counsel review may revisit this decision.
 - Liability cap business position is selected: the current draft does not include a nominal monetary liability cap. The
   draft position is that Provider Parties have no liability for Service use to the maximum extent permitted by applicable
   law, that mandatory-law liability carveouts remain preserved, and that future non-refundable Join Toll portions are
@@ -1610,10 +1607,9 @@ Items to leave for counsel instead of expanding now:
 - Sanctions and restricted-jurisdiction business position is selected: use a principles-based restricted-use and
   sanctions policy without naming specific restricted jurisdictions, sanctions lists, sanctions authorities, or prohibited
   user categories in the current draft. The draft must account for the technical constraint that the Service may block
-  Ethereum Accounts or contract interactions, not real-world users. Counsel must confirm whether any named restrictions
-  are required before release.
-- Repository-level final Privacy Notice review is complete. Counsel-directed changes, if any, remain open. The initial
-  Privacy Notice content, GitHub repository publication location, and Terms cross-reference are drafted.
+  Ethereum Accounts or contract interactions, not real-world users. Far-future counsel review remains recorded.
+- Repository-level final Privacy Notice review is complete. The initial Privacy Notice content, GitHub repository
+  publication location, and Terms cross-reference are drafted.
 - Required notice method for future terms changes.
 - Separate command-level prompt policy is selected: install-time Terms acceptance replaces all repeated per-command
   `--acknowledge-action-impact` options. `uninstall`, secret-bearing material exports, and plaintext note/evidence
@@ -1624,6 +1620,9 @@ Items to leave for counsel instead of expanding now:
 
 Implementation must begin only after the Documentation and Terms Finalization Plan is complete, open legal and business
 decisions are resolved or explicitly deferred, and the canonical Terms text has been frozen for implementation.
+
+Current gating status: legal review items have been explicitly deferred by business-owner decision. Implementation may
+continue to deployment-dependent blockers as long as no new public Terms or Privacy Notice wording changes are introduced.
 
 ### Phase 1: Canonical terms source
 
@@ -1705,8 +1704,8 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 
 - Keep `--acknowledge-action-impact` removed from ordinary transaction commands and command-reference surfaces.
 - Do not keep any command-level legal acknowledgement flag for ordinary transaction commands.
-- Completed: implement the install-time Terms gate before release so ordinary transaction commands are protected by the one-time
-  Terms acceptance model rather than repeated per-command acknowledgement flags.
+- Completed: implemented the install-time Terms gate so ordinary transaction commands are protected by the one-time Terms
+  acceptance model rather than repeated per-command acknowledgement flags.
 - Completed: change `uninstall` to an interactive confirmation flow like `install`.
 - Completed: make default `uninstall` preserve wallet workspace spending-key and viewing-key files while deleting the
   rest of the local private-state CLI workspace.

@@ -259,17 +259,23 @@ Confirmed current deployment information includes:
 
 Third-Party Services may process data in additional regions according to their own infrastructure and policies.
 
-## 19. User Choices, Access, And Deletion Routes
+## 19. User Requests, Access, Correction, Withdrawal, And Deletion Limits
 
-Users can contact `cjhyuck213@gmail.com` for requests concerning Provider-controlled processing.
+Users can contact `cjhyuck213@gmail.com` for requests, notices, or complaints concerning Provider-controlled processing.
+These requests may include access requests, correction requests, withdrawal of consent where applicable, deletion or
+review requests, and complaints about Provider-controlled processing.
+
+The Provider may need information sufficient to verify the request and identify the relevant Provider-controlled record.
+The Provider will review requests within technical, legal, security, operational, and public-record limits.
 
 Requests concerning Third-Party Service data must be directed to the relevant Third-Party Service. Requests concerning
 GitHub account data, Telegram account or message data, Google account or Drive data, npm account data, CoinGecko request
 data, RPC provider logs, wallet data, browser data, or operating-system data must be handled through those services or
 software providers.
 
-Public blockchain records cannot be deleted by the Provider. Provider-controlled logs or database rows can be reviewed
-only within technical, legal, security, operational, and public-record limits after request verification.
+Public blockchain records cannot be deleted, corrected, hidden, or made private by the Provider. Provider-controlled logs
+or database rows can be reviewed only within technical, legal, security, operational, and public-record limits after
+request verification.
 
 Users can delete local CLI workspace files from their own devices. The Provider cannot delete local files from a user's
 device and cannot recover lost local secrets.

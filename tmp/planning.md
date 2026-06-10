@@ -1517,6 +1517,7 @@ Minimum document changes to complete before release:
      and user-local CLI files cannot be deleted or corrected by the Provider.
    - Do not add a full GDPR/CCPA-style supplement unless counsel concludes that the Service is intentionally offered to,
      or monitors, users in a jurisdiction requiring that supplement.
+   - Status: Completed in `docs/dapps/private-state/privacy-notice.md` Section 19.
 2. Retention and deletion limits:
    - Keep the existing operational-retention disclosures, but add a short plain statement that Provider-controlled
      operational logs and database rows are retained only as needed for operation, security, abuse prevention, debugging,

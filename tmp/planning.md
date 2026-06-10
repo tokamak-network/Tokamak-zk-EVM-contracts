@@ -1499,6 +1499,80 @@ Current repository status:
   `agents.md`, and monitoring companion documents have been completed for the current local source.
 - The remaining blockers are counsel-required or deployment-dependent unless new Terms wording changes are introduced.
 
+### Practical minimum legal remediation plan
+
+This section narrows the pre-counsel work to practical changes that should be completed before release. It is based on
+common treatment in comparable self-custody/open-software services, Singapore statutory risk areas, and Singapore
+case-law direction that exclusion clauses are interpreted in context and remain subject to statutory limits such as UCTA
+reasonableness where applicable. It is not intended to expand the project into a jurisdiction-by-jurisdiction legal
+compliance program before counsel review.
+
+Minimum document changes to complete before release:
+
+1. Privacy rights and request route:
+   - Add a compact Privacy Notice section that states how users may contact the Provider about Provider-controlled
+     processing, access requests, correction requests, consent withdrawal where applicable, deletion/review requests,
+     and complaints.
+   - State the practical limits clearly: public blockchain records, third-party service records, user-selected RPC logs,
+     and user-local CLI files cannot be deleted or corrected by the Provider.
+   - Do not add a full GDPR/CCPA-style supplement unless counsel concludes that the Service is intentionally offered to,
+     or monitors, users in a jurisdiction requiring that supplement.
+2. Retention and deletion limits:
+   - Keep the existing operational-retention disclosures, but add a short plain statement that Provider-controlled
+     operational logs and database rows are retained only as needed for operation, security, abuse prevention, debugging,
+     evidence integrity, and legal purposes, subject to technical limits.
+   - Do not promise fixed deletion periods for Neon, Vercel Blob, EC2 raw history, or public mirror artifacts unless the
+     repository implements those retention controls.
+3. International processing:
+   - Add a concise Privacy Notice statement that official hosting, support, repository, package, artifact, analytics, and
+     infrastructure providers may process data outside the user's country and that third-party services apply their own
+     terms and safeguards.
+   - Avoid overpromising specific transfer mechanisms unless counsel confirms them.
+4. Data breach contact:
+   - Add a practical incident-contact statement: users may report suspected compromise of Provider-controlled systems to
+     the privacy contact; the Provider will assess and notify affected persons or authorities when required by
+     applicable law.
+   - Do not add detailed statutory deadlines in user-facing text unless counsel approves the exact wording.
+5. Legal capacity:
+   - Add ordinary-user wording that the Service is for users who have legal capacity to accept the Terms and operate a
+     self-custody wallet. If counsel wants an age threshold, use counsel-approved wording; otherwise avoid creating a
+     broad age-verification obligation that the Service cannot enforce.
+6. Liability and indemnity:
+   - Keep the no-Service-revenue, non-custodial, no-recovery, no-warranty, and no-monetary-cap position.
+   - Keep mandatory-law carveouts for liability that cannot be excluded or limited.
+   - Do not add a nominal monetary liability cap, arbitration clause, class-action waiver, jury-trial waiver, or detailed
+     consumer-jurisdiction schedule before counsel review.
+   - For indemnity, keep the current clause for now but flag for counsel whether it should be limited to unlawful use,
+     misuse, third-party claims, or business users.
+7. Regulatory and sanctions wording:
+   - Keep the existing position that the Service is not custody, exchange, brokerage, hosted transfer, legal advice,
+     financial advice, tax advice, or compliance advice.
+   - Keep the principles-based prohibited-use and sanctions wording.
+   - Do not name restricted jurisdictions, sanctions lists, or screening mechanics unless counsel confirms that naming
+     them is necessary and operationally maintainable.
+   - Do not claim that the Service is unregulated, exempt, licensed, compliant, or approved by any regulator.
+8. Electronic acceptance evidence:
+   - Keep install-time explicit acceptance with Terms version and deterministic hash.
+   - Keep acceptance local-only unless the Provider deliberately accepts additional server-side personal-data processing.
+   - Ensure the CLI displays enough accepted-version/hash information for a user to preserve their own record.
+9. Public-document consistency:
+   - Re-run the public-document consistency pass after the minimum Privacy Notice and Terms changes.
+   - Public documents must be written as if the planned release is complete, but must not claim mainnet deployment of
+     Join Toll burn-address transfer, Channel Operation Abandonment, observer indexing, or monitoring packet changes
+     until the deployment-dependent blockers are actually completed.
+
+Items to leave for counsel instead of expanding now:
+
+- Whether Singapore PDPA applies to the individual Provider as an "organisation" for every Service surface.
+- Whether a GDPR, UK GDPR, CCPA/CPRA, or other jurisdiction-specific supplement is required.
+- Whether a physical notice address, registered agent, counsel address, or DPO-style contact label is required.
+- Whether MAS Payment Services Act or Digital Token Service Provider analysis requires any wording beyond the current
+  non-custody and no-service-revenue statements.
+- Whether consumer indemnity should be narrowed and whether the current forum clause needs jurisdiction-specific
+  consumer exceptions beyond the existing mandatory-rights carveout.
+- Whether sanctions/restricted-use language must name specific lists, authorities, jurisdictions, or account-level
+  restrictions.
+
 ## Open Legal Decisions
 
 - Provider Party model and public Provider details are selected: Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no

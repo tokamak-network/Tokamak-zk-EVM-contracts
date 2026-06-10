@@ -1550,6 +1550,9 @@ Minimum document changes to complete before release:
      consumer-jurisdiction schedule before counsel review.
    - For indemnity, keep the current clause for now but flag for counsel whether it should be limited to unlawful use,
      misuse, third-party claims, or business users.
+   - Status: Completed by review. Current Terms Sections 15, 16, 17, and 20 already preserve the selected no-warranty,
+     no-Service-revenue, no-monetary-cap, mandatory-law carveout, no-arbitration/no-waiver, and counsel-flagged
+     indemnity approach without requiring wording changes.
 7. Regulatory and sanctions wording:
    - Keep the existing position that the Service is not custody, exchange, brokerage, hosted transfer, legal advice,
      financial advice, tax advice, or compliance advice.

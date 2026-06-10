@@ -4,6 +4,8 @@
 
 - Added Terms section references to `help guide --json` agent guidance so User-Controlled AI Agents can read the
   canonical Terms before advising users.
+- Included the Terms definitions section in `help guide --json` Terms references and clarified that `agents.md` readers
+  must read referenced Terms sections before advising users.
 - Updated human guide, command reference, README, and `agents.md` wording to align with install-time Terms acceptance and
   interactive sensitive-action confirmations instead of per-command action-impact acknowledgement flags.
 - Changed transaction-sending command warning handling to print warning summaries without requiring

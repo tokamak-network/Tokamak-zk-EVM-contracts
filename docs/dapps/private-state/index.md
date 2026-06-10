@@ -28,11 +28,10 @@ state, not exchange-supported deposit assets.
 
 ### Who controls disclosure in the private-state DApp?
 
-The `private-state` DApp uses a user-controlled disclosure model. Tokamak, the bridge
-operator, and the channel leader are not designed to hold the user's spending key, viewing key, or a
-master viewing key. A user may selectively disclose evidence
-from local wallet state through Service tooling, but public logs alone are not meant to
-reconstruct every private note provenance chain.
+The `private-state` DApp uses a user-controlled disclosure model. The Provider, Tokamak Network PTE. LTD., bridge
+operators, and channel leaders are not designed to hold the user's spending key, viewing key, or a master viewing key. A
+user may selectively disclose evidence from local wallet state through Service tooling, but public logs alone are not
+meant to reconstruct every private note provenance chain.
 
 ### How are wallet backups different from wallet keys?
 

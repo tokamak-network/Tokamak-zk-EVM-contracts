@@ -27,13 +27,14 @@ This npm README uses the same terminology as the repository README:
 - `private-state note`: a channel-local application note, not an exchange-supported token or deposit asset.
 - `Join Toll`: the one-time Channel entry fee paid when a user joins a Channel.
 - `proof-backed confidential application state`: DApp state advanced by accepted proof-backed channel transitions.
-- `user-controlled selective disclosure`: optional user disclosure from local wallet state; Tokamak does not hold a master viewing key.
+- `user-controlled selective disclosure`: optional user disclosure from local wallet state; the Provider and Tokamak Network PTE. LTD. do not hold a master viewing key.
 - `viewing key`: the note-receive private key used to decrypt note-delivery events for the registered note-receive public key.
 - `spending key`: the channel-bound private application key used to authorize proof-backed note use.
 
 Tokamak Private App Channels are not an exchange deposit network. Exchange-facing token transfers and bridge
-entry or exit remain public Ethereum mainnet activity. Internal private-state note counterparty relationships and note provenance are
-not public by default and are not reconstructed by Tokamak on a user's behalf.
+entry or exit remain public Ethereum mainnet activity. Internal private-state note counterparty relationships and note
+provenance are not public by default and are not reconstructed by the Provider or Tokamak Network PTE. LTD. on a user's
+behalf.
 
 ## Address And Key-Safety Warnings
 
@@ -43,7 +44,8 @@ supported exchange assets. Always withdraw TON to a self-custody Ethereum wallet
 Bridge deposits and withdrawals are public Ethereum mainnet events. Internal note transfers are designed so public
 contract state does not automatically reconstruct the full note path.
 
-This CLI does not send your spending key, wallet secret, or private note plaintext to Tokamak.
+This CLI does not send your spending key, wallet secret, or private note plaintext to the Provider or Tokamak Network
+PTE. LTD.
 
 ## Documented Mainnet Channels
 
@@ -355,7 +357,7 @@ private-state-cli help transaction-fees --network mainnet
 `help transaction-fees` uses the measured gas data packaged in `assets/tx-fees.json`, the selected network's live fee data,
 and live ETH/USD pricing to print an ETH/USD fee table for transaction-sending commands. The table separates typical
 cost, based on the RPC `gasPrice`, from worst-case cost, based on `maxFeePerGas` when the network reports EIP-1559 fee
-data. AI agents answering user questions about gas, transaction fees, transaction cost, or USD cost should run
+data. User-Controlled AI Agents answering user questions about gas, transaction fees, transaction cost, or USD cost should run
 `private-state-cli help transaction-fees --network <NETWORK> --json` and answer from the returned table.
 
 Proof-backed note commands can use a separate Ethereum transaction submitter:

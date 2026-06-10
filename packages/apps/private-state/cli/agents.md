@@ -1,6 +1,6 @@
 # private-state CLI Agent Instructions
 
-These instructions are for AI agents guiding users through `private-state-cli`.
+These instructions are for User-Controlled AI Agents guiding users through `private-state-cli`.
 
 Start with:
 
@@ -8,9 +8,11 @@ Start with:
 private-state-cli help guide --json
 ```
 
-When the guide result contains `agentGuidance.source: "agents.md"`, read every item listed in
-`agentGuidance.refs` before telling the user what to do next. The indexed items below are written as action recipes:
-they prioritize the smallest safe user action over conceptual explanation.
+When the guide result contains `agentGuidance.source: "agents.md"`, read every item listed in `agentGuidance.refs`
+before telling the user what to do next. When the guide result contains `agentGuidance.termsSource` and
+`agentGuidance.termsRefs`, read the listed Terms sections as the legal and safety context for the next action. The
+indexed items below are written as action recipes: they prioritize the smallest safe user action over conceptual
+explanation.
 
 ## A. Operating Rules
 

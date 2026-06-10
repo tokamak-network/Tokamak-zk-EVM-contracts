@@ -539,9 +539,17 @@ Current status:
   no longer instruct users or User-Controlled AI Agents to add per-command action-impact acknowledgement flags.
 - Updated `help guide --json` agent guidance to include canonical Terms section references alongside indexed
   `agents.md` references.
+- Extended `help guide --json` Terms references to include the Definitions section and clarified in `agents.md` that
+  User-Controlled AI Agents must read the referenced Terms sections before advising users.
+- Completed an additional Provider/Tokamak role-boundary wording pass for the private-state docs index and CLI README so
+  Tokamak Network PTE. LTD. is not implied to be the Service Provider.
 - Updated CLI command-reference and transaction-warning output so real-funds commands show warning summaries without
   exposing or requiring per-command action-impact acknowledgement flags. The install-time Terms gate and renewed
   acceptance mechanism still remain separate implementation work before production terms behavior is complete.
+- Final CLI documentation freeze still depends on completing or explicitly reconciling the selected `uninstall` behavior:
+  the selected policy says default `uninstall` preserves wallet workspace spending-key and viewing-key files and
+  `uninstall --include-wallet-keys` deletes everything, while the current implementation and command reference still
+  describe the older all-local-data removal behavior.
 - Completed current-repository terminology pass for the root README, private-state DApp README, CLI README, human
   `help guide` strings, `help commands` metadata, fee-help descriptions, and `agents.md`.
 - Completed current-repository framing pass for the same surfaces. The remaining occurrences of `L1`, `L2`, and

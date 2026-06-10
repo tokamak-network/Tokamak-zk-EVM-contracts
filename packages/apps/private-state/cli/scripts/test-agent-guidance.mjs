@@ -116,6 +116,7 @@ function assertAgentGuidance(payload, expectedRefs) {
     "agentGuidance.termsSource must point to the Terms document.",
   );
   expect(Array.isArray(payload.agentGuidance.termsRefs), "agentGuidance.termsRefs must be an array.");
+  expect(payload.agentGuidance.termsRefs.includes("1"), "agentGuidance.termsRefs must include Terms definitions.");
   expect(payload.agentGuidance.termsRefs.includes("6"), "agentGuidance.termsRefs must include Self-Custody terms.");
   expect(payload.agentGuidance.termsRefs.includes("16"), "agentGuidance.termsRefs must include liability terms.");
   for (const ref of expectedRefs) {

@@ -1452,6 +1452,53 @@ business owner with counsel awareness:
 - Final redlined Terms wording for Sections 3, 5, 6, 10, 12, 13, 14, 16, 17, 18, and 20.
 - Final verification that Terms, CLI README, human `help guide`, `help guide --json`, and `agents.md` do not conflict.
 
+### Release blocker triage
+
+This triage separates items that can be advanced inside the repository from items that require counsel or mainnet
+deployment. It is a planning aid and not a legal opinion.
+
+Counsel-required blockers:
+
+- Confirm whether the Privacy Notice requires counsel-directed changes and whether the Terms cross-reference to
+  `docs/dapps/private-state/privacy-notice.md` is sufficient for the selected GitHub-only initial publication location.
+- Confirm that Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no published residential address are sufficient for
+  the individual Provider identity and public notice/contact route.
+- Confirm the selected Tokamak Network PTE. LTD. separate-role wording as software contributor/licensor and, for
+  Tokamak-controlled surfaces not operated by the Provider, Third-Party Service or infrastructure/tooling provider.
+- Confirm the no-monetary-liability-cap approach and mandatory-law liability carveouts.
+- Confirm Singapore governing-law/forum wording, including mandatory consumer-law and local-court carveouts.
+- Confirm that arbitration, class-action waiver, collective-action waiver, representative-action waiver, and jury-trial
+  waiver provisions remain excluded from the current draft.
+- Confirm the selected principles-based sanctions/restricted-use policy and whether any named restricted jurisdictions,
+  sanctions lists, sanctions authorities, account-level restrictions, screening, or additional warnings are required.
+- Confirm final redlined Terms wording for Sections 3, 5, 6, 10, 12, 13, 14, 16, 17, 18, and 20.
+
+Repository-action blockers that can be advanced without counsel:
+
+- Keep the canonical Terms file and packaged CLI Terms asset identical after any counsel or product wording changes.
+- Keep `termsVersion` and deterministic `termsHash` aligned with the final canonical Terms text.
+- Re-run repository checks that Terms, CLI README, human `help guide`, `help guide --json`, and `agents.md` do not
+  conflict after every final wording change.
+- Re-run ordinary-user and User-Controlled AI Agent wording checks after every final wording change.
+- Keep generated/public docs from manually claiming deployed behavior that has not been deployed or regenerated.
+
+Deployment-dependent blockers:
+
+- Deploy the bridge upgrade that contains the Join Toll burn-address transfer and Channel Operation Abandonment source
+  behavior before public release represents those policies as deployed mainnet behavior.
+- After the bridge upgrade is deployed, regenerate deployment artifacts and Monitoring Packet JSON so
+  `TPAC-Contract-Addresses.json`, `the-great-first-channel-Policy-Snapshot.json`, and ABI-derived monitoring data match
+  the deployed mainnet ABI and state.
+- After observer indexing is updated, verify that the Official Public Observer exposes Channel Operation Abandonment and
+  Join Toll burn-address transfer surfaces without implying custody, private-history monitoring, exchange-network
+  control, or user-level blocking.
+
+Current repository status:
+
+- Repository-level consistency checks for Terms, Privacy Notice, CLI README, human `help guide`, `help guide --json`,
+  `agents.md`, and monitoring companion documents have been completed for the current local source.
+- The remaining blockers are counsel-required or deployment-dependent unless new Terms wording changes are introduced.
+
 ## Open Legal Decisions
 
 - Provider Party model and public Provider details are selected: Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no

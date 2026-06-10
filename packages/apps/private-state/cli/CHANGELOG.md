@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a packaged canonical Service Terms source and deterministic Terms metadata so install flows report the current
+  `termsVersion` and `termsHash` from the same source in human and JSON modes.
 - Changed `install --json` to report that interactive Terms acceptance is required without installing artifacts, and
   added an agent guidance item for Terms and safety-context explanation.
 - Aligned the CLI README RPC example with the recommended Ankr provider and removed chat-oriented wording from the

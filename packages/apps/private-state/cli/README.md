@@ -90,9 +90,10 @@ artifacts needed by transaction-sending channel commands:
 private-state-cli install
 ```
 
-`install` displays the current Service Terms and requires explicit human acceptance before installation proceeds. JSON
-mode cannot accept Terms for the user, and `private-state-cli install --json` reports that interactive installation is
-required without installing artifacts.
+`install` displays the current Service Terms and requires explicit human acceptance before installation proceeds. The
+CLI package includes the canonical Terms Markdown and reports its `termsVersion` and deterministic `termsHash` in
+install results. JSON mode cannot accept Terms for the user, and `private-state-cli install --json` reports that
+interactive installation is required without installing artifacts.
 
 By default, `install` resolves the latest `@tokamak-zk-evm/cli` from the npm registry and uses the bundled
 `@tokamak-private-dapps/groth16` dependency version selected by the installed private-state CLI package. To pin exact
@@ -593,6 +594,8 @@ When `--json` is used, the CLI follows one output contract for all commands:
 - progress, warning, and informational events are JSON Lines on stderr
 - human-readable mode remains the default when `--json` is omitted
 - `install --json` reports that interactive Terms acceptance is required and does not install artifacts
+- install results include canonical Terms metadata: `termsVersion`, `termsHash`, `termsHashAlgorithm`, and Terms source
+  paths
 
 Agents should parse stdout for the final result and may stream stderr JSONL events to explain progress to the user.
 

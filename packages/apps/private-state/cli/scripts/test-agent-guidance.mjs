@@ -9,12 +9,17 @@ import { fileURLToPath } from "node:url";
 import {
   PRIVATE_STATE_CLI_COMMANDS,
 } from "../lib/private-state-cli-command-registry.mjs";
+import {
+  readPrivateStateTermsMetadata,
+  readPrivateStateTermsText,
+} from "../lib/private-state-terms.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliRoot = path.resolve(__dirname, "..");
 const cliPath = path.join(cliRoot, "private-state-bridge-cli.mjs");
 const agentsPath = path.join(cliRoot, "agents.md");
+const publicTermsPath = path.resolve(cliRoot, "../../../../docs/dapps/private-state/terms.md");
 const TEST_RPC_CONFIG = Object.freeze({
   provider: "ankr",
   rpcUrl: "https://example.invalid",
@@ -65,6 +70,22 @@ function readAgentRefs() {
     [...content.matchAll(/^### ([A-Z]\.\d+) /gmu)]
       .map((match) => match[1]),
   );
+}
+
+function testCanonicalTermsAssetMatchesPublicTerms() {
+  const packagedTerms = readPrivateStateTermsText();
+  const publicTerms = fs.readFileSync(publicTermsPath, "utf8");
+  const metadata = readPrivateStateTermsMetadata();
+
+  expect(packagedTerms === publicTerms, "Packaged canonical Terms must match docs/dapps/private-state/terms.md.");
+  expect(metadata.termsVersion === "2026-06-10", "Unexpected canonical Terms version.");
+  expect(
+    /^sha256:[0-9a-f]{64}$/u.test(metadata.termsHash),
+    `Unexpected canonical Terms hash format: ${metadata.termsHash}`,
+  );
+  expect(metadata.termsPackagePath === "assets/service-terms.md", "Unexpected packaged Terms path.");
+  expect(metadata.termsPublicPath === "docs/dapps/private-state/terms.md", "Unexpected public Terms path.");
+  expect(metadata.termsContentBytes === Buffer.byteLength(packagedTerms, "utf8"), "Terms byte length mismatch.");
 }
 
 function createIsolatedHomeWithRpc(networkName = "mainnet") {
@@ -166,8 +187,12 @@ function testGuideJsonDeploymentArtifactsMissing() {
 function testInstallJsonDoesNotInstallOrAcceptTerms() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-install-json-home-"));
   const payload = parseJson(runCli(["install", "--read-only", "--json"], { home }));
+  const terms = readPrivateStateTermsMetadata();
   expect(payload.ok === true, "install --json should return a structured result.");
   expect(payload.action === "install", "install --json should identify the install action.");
+  expect(payload.terms?.termsVersion === terms.termsVersion, "install --json should include the canonical Terms version.");
+  expect(payload.terms?.termsHash === terms.termsHash, "install --json should include the canonical Terms hash.");
+  expect(payload.terms?.termsHashAlgorithm === terms.termsHashAlgorithm, "install --json should include the Terms hash algorithm.");
   expect(payload.installed === false, "install --json must not install artifacts.");
   expect(payload.requiresInteractiveTermsAcceptance === true, "install --json should require interactive Terms acceptance.");
   expect(payload.termsAcceptanceCanBeProvidedByJson === false, "install --json must not accept Terms.");
@@ -271,6 +296,7 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   expect(stdout.includes("Warning summary:"), "Command help should describe transaction warnings as warning summaries.");
   expect(stdout.includes("Displays the current Service Terms and requires explicit human acceptance before installation proceeds"), "Install help should explain human Terms acceptance.");
   expect(stdout.includes("--json reports that interactive Terms acceptance is required and does not install artifacts"), "Install help should explain JSON mode does not install.");
+  expect(stdout.includes("Install results include the canonical Terms version and deterministic Terms hash"), "Install help should mention canonical Terms metadata.");
   expect(stdout.includes("Use --json for machine-readable fee data when another tool needs to inspect the fee table"), "Transaction-fees help should use tool-neutral JSON wording.");
   expect(!stdout.includes("AI agents should run this command"), "Human command help should not use AI-agent-first fee wording.");
   expect(!stdout.includes("the CLI cannot recover lost secrets"), "Command help should use no-recovery-method wording.");
@@ -415,6 +441,7 @@ function testNonTtyPrivateKeyPromptFailsClearly() {
 }
 
 testSecretCommandsRegistered();
+testCanonicalTermsAssetMatchesPublicTerms();
 testGuideJsonRefs();
 testGuideJsonDeploymentArtifactsMissing();
 testInstallJsonDoesNotInstallOrAcceptTerms();

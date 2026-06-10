@@ -1492,10 +1492,13 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 
 ### Phase 1: Canonical terms source
 
-- Add a canonical terms file for the Service.
-- Assign a `termsVersion`.
-- Compute a deterministic `termsHash` from the exact rendered terms content.
-- Ensure the install command and JSON mode use the same canonical terms metadata.
+- Completed: add a packaged canonical terms file for the Service at
+  `packages/apps/private-state/cli/assets/service-terms.md`.
+- Completed: assign `termsVersion` = `2026-06-10`.
+- Completed: compute a deterministic `termsHash` from the exact UTF-8 bytes of the packaged Service Terms Markdown.
+- Completed: ensure install command results and `install --json` use the same canonical terms metadata.
+- Completed: add repository test coverage that the packaged canonical Terms asset matches
+  `docs/dapps/private-state/terms.md`.
 
 ### Phase 1A: Join Toll burn-address transfer implementation
 
@@ -1629,6 +1632,8 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Verify that final docs and machine-readable guidance describe abandonment without implying custody, private-history
   access, exchange deposit network control, or user-level blocking.
 - Verified that `install --json` does not install artifacts or accept Terms.
+- Verified that `install --json` reports the canonical Terms version and deterministic Terms hash from the packaged
+  Service Terms source.
 - Verify that a changed terms hash requires renewed interactive acceptance.
 - Verify that terms-gated commands reject execution when acceptance is missing or stale.
 - Verify that per-command `--acknowledge-action-impact` options are no longer required.

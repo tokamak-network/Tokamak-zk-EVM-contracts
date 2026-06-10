@@ -560,13 +560,14 @@ possible.
 
 ## User-Controlled AI Agent Guidance
 
-User-Controlled AI Agents that guide users through this CLI should start with the state-aware guide in JSON mode:
+User-Controlled AI Agents that help users operate this CLI should start with the state-aware guide in JSON mode:
 
 ```bash
 private-state-cli help guide --json
 ```
 
-The JSON guide is the machine-readable entrypoint. Read `agentGuidance` from the result:
+The JSON guide is the machine-readable entrypoint for deciding the next safe instruction to give the user. Read
+`agentGuidance` from the result:
 
 - `agentGuidance.source` identifies the instruction file, currently [`agents.md`](agents.md)
 - `agentGuidance.refs` lists the indexed items in that file that apply to the next step
@@ -575,17 +576,19 @@ The JSON guide is the machine-readable entrypoint. Read `agentGuidance` from the
 - `agentGuidance.termsRefs` lists the Terms sections the agent must read and explain for legal and safety context
 
 The purpose of `--json` mode is to let the user's AI agent guide the user through the smallest safe next action while
-preserving the user's informed consent. JSON output should be treated as an agent instruction surface, not as a way to
-bypass human review. When a command reports required warnings, prohibitions, Terms, Channel policy, or Provider Party and
-Channel Operator disclaimers, the agent must explain those points to the user and must not accept Terms or confirmations on the user's
-behalf.
+preserving the user's informed consent. JSON output is an instruction surface for the user's tool. It is not permission
+for the tool to bypass human review, accept Terms, confirm destructive actions, confirm sensitive exports, or handle
+secret material. When a command reports required warnings, prohibitions, Terms, Channel policy, or Provider Party and
+Channel Operator disclaimers, the agent must explain those points to the user and must not accept Terms or confirmations
+on the user's behalf.
 
-After reading the referenced `agents.md` items and Terms sections, translate the recipe into a short, safe instruction for the user.
+After reading the referenced `agents.md` items and Terms sections, translate the recipe into a short, safe instruction
+for the user.
 Do not ask users to paste raw private keys, wallet secrets, seed phrases, provider passwords, or provider dashboard
 access into a conversation or prompt. Use the CLI's local helper commands for secret source files.
 
-Human `private-state-cli help guide` output is for people. It provides one plain next step and should not be treated as
-the agent's full machine-readable state. Agents should prefer `help guide --json` when deciding what to do next.
+Human `private-state-cli help guide` output is for people. It provides one plain next step. User-Controlled AI Agents
+should prefer `help guide --json` when deciding what to read and what safe instruction to give next.
 
 When `--json` is used, the CLI follows one output contract for all commands:
 

@@ -12597,7 +12597,7 @@ function guideHumanStatus(guide) {
     case "install-runtime":
       return "The selected network is known, but required local CLI files are missing.";
     case "create-private-key-source-and-import-account":
-      return `The account alias ${account} has no local Ethereum private-key source yet.`;
+      return `The local account alias ${account} is not connected to an Ethereum account on this computer yet.`;
     case "create-channel":
       return `The channel ${channel} does not exist on-chain.`;
     case "recover-channel-workspace":
@@ -12655,14 +12655,14 @@ function guideHumanNextStep(guide) {
     case "create-private-key-source-and-import-account":
       return [
         "First, run the command below. It will ask for your Ethereum private key in the terminal.",
-        "Your typing will appear as * characters. The key will be saved only on this computer as ./ethereum-private-key.txt.",
+        "Your typing will appear as * characters. The key will be saved to ./ethereum-private-key.txt on this computer.",
       ];
     case "create-channel":
       return [
         `The channel ${channel} is not created yet.`,
         "Stop here unless you are the person who should create this channel.",
-        "Only the channel creator should run the command below, because it sets the channel terms and may require a Join Toll, the one-time Channel entry fee.",
-        "Before running it, read the warning shown by the CLI and continue only if those terms match your intent.",
+        "Only the channel creator should run the command below, because it sets the channel policy, including Join Toll rules for future joiners.",
+        "Before running it, read the warning shown by the CLI and continue only if that policy matches your intent.",
       ];
     case "recover-channel-workspace":
       if (String(command).includes("--source mirror")) {
@@ -12703,7 +12703,7 @@ function guideHumanNextStep(guide) {
     case "mint-notes":
       return [
         "The channel wallet has channel balance, but it has no private notes to transfer or redeem yet.",
-        "Mint private notes from that channel balance before trying to send or withdraw privately.",
+        "Mint private notes from that channel balance before trying to transfer or redeem notes.",
         "Read the warning summary before continuing; note commitments and related public records will be created.",
       ];
     case "use-notes":

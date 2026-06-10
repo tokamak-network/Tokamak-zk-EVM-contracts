@@ -48,6 +48,8 @@
   `agentGuidance.refs`, and read the referenced `agents.md` recipes.
 - Refined human `help guide` setup wording for RPC configuration, account import verification, wallet-secret masking,
   channel creation, channel-data recovery, funding, note use, and channel exit.
+- Refined the human `help guide` private-key/channel-policy wording and clarified the README `--json` purpose for
+  User-Controlled AI Agents.
 - Added deterministic `help guide --json` coverage for post-RPC missing artifacts, missing account secrets, and missing
   wallets before channel join.
 - Clarified human channel-join guide text so users prepare the Ethereum account for any Join Toll and gas before

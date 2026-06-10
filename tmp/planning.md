@@ -1601,8 +1601,8 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 
 ### Phase 6: Human help and documentation integration
 
-- Integrate finalized human `help guide` text into the CLI.
-- Integrate finalized CLI README language stating that `--json` exists for User-Controlled AI Agents that help users
+- Completed: integrate finalized human `help guide` text into the CLI.
+- Completed: integrate finalized CLI README language stating that `--json` exists for User-Controlled AI Agents that help users
   complete minimum safe next actions without handling secrets or accepting Terms for users.
 - Completed: update `packages/apps/private-state/README.md` so its CLI overview matches the current and planned final CLI behavior:
   no ordinary command-level `--acknowledge-action-impact`, interactive install-time Terms acceptance, interactive
@@ -1656,7 +1656,7 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Completed: verify that real-funds commands print command-specific information and warning summaries in both human and `--json`
   modes without requiring a command-level acknowledgement option.
 - Verified that `help guide --json` points to canonical section numbers and does not duplicate full legal text.
-- Verify that human `help guide` remains readable for ordinary users.
+- Completed: verify that human `help guide` remains readable for ordinary users.
 - Verify that all public documents either match implemented behavior or intentionally describe the selected final state
   only after the corresponding implementation item is complete. This verification must include Terms, Privacy Notice,
   root README, private-state app README, CLI README, human `help guide`, `help guide --json`, `agents.md`, public

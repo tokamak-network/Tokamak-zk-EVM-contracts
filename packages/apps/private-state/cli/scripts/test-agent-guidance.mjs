@@ -23,6 +23,7 @@ const cliRoot = path.resolve(__dirname, "..");
 const cliPath = path.join(cliRoot, "private-state-bridge-cli.mjs");
 const runtimePath = path.join(cliRoot, "lib", "runtime.mjs");
 const agentsPath = path.join(cliRoot, "agents.md");
+const readmePath = path.join(cliRoot, "README.md");
 const publicTermsPath = path.resolve(cliRoot, "../../../../docs/dapps/private-state/terms.md");
 const TEST_RPC_CONFIG = Object.freeze({
   provider: "ankr",
@@ -459,6 +460,10 @@ function testGuideHumanPrivateKeyFlowIncludesAddressVerification() {
   });
 
   expect(
+    stdout.includes("The local account alias alice is not connected to an Ethereum account on this computer yet."),
+    "Human private-key flow should describe the missing local account in ordinary language.",
+  );
+  expect(
     stdout.includes("Run this command\nprivate-state-cli secret create-private-key-source --output ./ethereum-private-key.txt"),
     "Human private-key flow should start with the local source helper.",
   );
@@ -470,6 +475,7 @@ function testGuideHumanPrivateKeyFlowIncludesAddressVerification() {
     stdout.includes("Then confirm the imported Ethereum address:\nprivate-state-cli account get-l1-address --account alice --network mainnet"),
     "Human private-key flow should show the address verification follow-up command.",
   );
+  expect(!stdout.includes("private-key source yet"), "Human private-key flow should avoid source-file-first status wording.");
 }
 
 function testGuideHumanWalletSecretFlowExplainsMasking() {
@@ -497,6 +503,26 @@ function testGuideHumanWalletSecretFlowExplainsMasking() {
     stdout.includes("Preserve the file because it may be needed later to recover this channel wallet."),
     "Human wallet-secret flow should explain why the source file must be preserved.",
   );
+}
+
+function testReadmeJsonPurposeIsAgentSafe() {
+  const readme = fs.readFileSync(readmePath, "utf8");
+  const normalizedReadme = readme.replace(/\s+/gu, " ");
+  expect(
+    normalizedReadme.includes("The purpose of `--json` mode is to let the user's AI agent guide the user through the smallest safe next action"),
+    "README should state the JSON mode purpose.",
+  );
+  expect(
+    normalizedReadme.includes("not permission") && normalizedReadme.includes("bypass human review"),
+    "README should state that JSON mode cannot bypass human review.",
+  );
+  expect(normalizedReadme.includes("must not accept Terms or confirmations"), "README should forbid agent acceptance.");
+  expect(
+    normalizedReadme.includes("Do not ask users to paste raw private keys, wallet secrets, seed phrases"),
+    "README should forbid secret collection through prompts.",
+  );
+  expect(!normalizedReadme.includes("agent's full machine-readable state"), "README should avoid implementation-centered agent-state wording.");
+  expect(!normalizedReadme.includes("LLM Agent Guidance"), "README should not use stale LLM agent terminology.");
 }
 
 function testSecretCommandsRegistered() {
@@ -594,6 +620,7 @@ testGuideHumanOutputIsUserFacing();
 testHelpCommandsOutputUsesFinalPromptPolicy();
 testGuideHumanPrivateKeyFlowIncludesAddressVerification();
 testGuideHumanWalletSecretFlowExplainsMasking();
+testReadmeJsonPurposeIsAgentSafe();
 testRandomWalletSecretHelper();
 testNonTtyPrivateKeyPromptFailsClearly();
 

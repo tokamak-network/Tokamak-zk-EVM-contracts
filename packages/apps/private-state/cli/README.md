@@ -150,16 +150,22 @@ private-state-cli help update
 from a repository checkout or npm does not report a global install, it does not edit local source files; it prints the
 recommended `npm install -g @tokamak-private-dapps/private-state-cli@latest` command instead.
 
-Remove all local private-state CLI data with:
+Remove local private-state CLI data with:
 
 ```bash
 private-state-cli uninstall
 ```
 
-`uninstall` is intentionally interactive. It requires typing
-`I understand that the wallet secrets deleted due to this decision cannot be recovered` before deleting
-`~/tokamak-private-channels/`, including local account secrets and wallet key files, the Tokamak zk-EVM runtime cache,
-and the global CLI npm package when npm reports that it is globally installed.
+`uninstall` is intentionally interactive. By default, it deletes local workspaces, account secrets, wallet secret source
+files stored under the CLI root, installed private-state artifacts, the Groth16 workspace, the Tokamak zk-EVM runtime
+cache, and the global CLI npm package when npm reports that it is globally installed. It preserves wallet spending-key
+and viewing-key files under the CLI secret root.
+
+To delete every local private-state CLI file, including wallet spending-key and viewing-key files, run:
+
+```bash
+private-state-cli uninstall --include-wallet-keys
+```
 
 ## Commands
 

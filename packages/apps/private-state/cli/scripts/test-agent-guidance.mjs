@@ -253,6 +253,8 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   expect(!stdout.includes("--acknowledge-action-impact"), "Command help must not expose the deprecated action-impact flag.");
   expect(!stdout.includes("Action impact:"), "Command help must use warning-summary wording.");
   expect(stdout.includes("Warning summary:"), "Command help should describe transaction warnings as warning summaries.");
+  expect(stdout.includes("uninstall [--include-wallet-keys]"), "Command help should expose the uninstall wallet-key deletion option.");
+  expect(stdout.includes("Default uninstall preserves wallet spending-key and viewing-key files"), "Command help should explain default uninstall wallet-key preservation.");
 }
 
 function testGuideHumanPrivateKeyFlowIncludesAddressVerification() {

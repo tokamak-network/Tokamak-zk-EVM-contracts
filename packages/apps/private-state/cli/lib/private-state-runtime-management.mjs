@@ -1573,4 +1573,5 @@ export {
   readTokamakCliPackageReport,
   requireActiveTokamakCliRuntimeRoot,
   resolveTokamakCliResourceDirForRuntimeRoot,
+  resolveTokamakCliCacheRoot,
 };

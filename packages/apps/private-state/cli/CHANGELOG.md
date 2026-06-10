@@ -6,6 +6,10 @@
   canonical Terms before advising users.
 - Included the Terms definitions section in `help guide --json` Terms references and clarified that `agents.md` readers
   must read referenced Terms sections before advising users.
+- Changed `uninstall` so the default interactive flow preserves wallet spending-key and viewing-key files, while
+  `--include-wallet-keys` deletes every local private-state CLI file.
+- Fixed `uninstall` execution by awaiting the CLI runner entrypoint and importing the Tokamak zk-EVM runtime cache root
+  resolver used by the removal path.
 - Updated human guide, command reference, README, and `agents.md` wording to align with install-time Terms acceptance and
   interactive sensitive-action confirmations instead of per-command action-impact acknowledgement flags.
 - Changed transaction-sending command warning handling to print warning summaries without requiring

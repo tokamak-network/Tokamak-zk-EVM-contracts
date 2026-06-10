@@ -25,7 +25,7 @@ export const systemCommands = Object.freeze({
   },
   uninstall: async (args) => {
     assertUninstallArgs(args);
-    await handleUninstall();
+    await handleUninstall({ args });
   },
   "set-rpc": async (args) => {
     assertSetRpcArgs(args);

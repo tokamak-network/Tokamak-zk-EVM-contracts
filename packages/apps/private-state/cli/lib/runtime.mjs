@@ -95,6 +95,7 @@ import {
   resolveActiveTokamakCliInvocation,
   resolveArtifactCacheBaseRoot,
   resolvePrivateStateInstallRuntimeVersions,
+  resolveTokamakCliCacheRoot,
   resolveTokamakCliResourceDirForRuntimeRoot,
   stripAnsi,
   writePrivateStateCliInstallManifest,
@@ -132,8 +133,10 @@ const privateStateCliPackageRoot = path.dirname(require.resolve("../package.json
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const secretRoot = path.resolve(os.homedir(), "tokamak-private-channels", "secrets");
 const flatDeploymentArtifactPathsByChainId = new Map();
-const PRIVATE_STATE_UNINSTALL_CONFIRMATION =
-  "I understand that the wallet secrets deleted due to this decision cannot be recovered";
+const PRIVATE_STATE_UNINSTALL_PRESERVE_KEYS_CONFIRMATION =
+  "I understand that uninstall deletes local private-state data but preserves wallet keys";
+const PRIVATE_STATE_UNINSTALL_INCLUDE_KEYS_CONFIRMATION =
+  "I understand that uninstall will delete wallet keys and they cannot be recovered";
 const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
 const PRIVATE_STATE_OBSERVER_URL = "https://observer.tonnel.io";
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
@@ -2536,8 +2539,10 @@ async function handleInstallZkEvm({ args }) {
   });
 }
 
-async function handleUninstall() {
-  await requireUninstallConfirmation();
+async function handleUninstall({ args }) {
+  const includeWalletKeys = Boolean(args.includeWalletKeys);
+  await requireUninstallConfirmation({ includeWalletKeys });
+  const preservedWalletKeys = includeWalletKeys ? null : preserveWalletKeyFilesForUninstall();
 
   const privateStateRoots = uniquePaths([
     path.resolve(os.homedir(), "tokamak-private-channels"),
@@ -2552,12 +2557,15 @@ async function handleUninstall() {
     rootPath: tokamakZkEvmRoot,
   });
   const globalPackage = uninstallGlobalPrivateStateCliPackage();
+  const restoredWalletKeys = preservedWalletKeys ? restorePreservedWalletKeyFiles(preservedWalletKeys) : [];
 
   cliOutput.result({
     action: "uninstall",
     confirmationAccepted: true,
+    includeWalletKeys,
     removedPrivateStateRoots,
     removedTokamakZkEvmRoot,
+    restoredWalletKeys,
     globalPackage,
   });
 }
@@ -2592,11 +2600,25 @@ async function handleSetRpc({ args }) {
   });
 }
 
-async function requireUninstallConfirmation() {
+async function requireUninstallConfirmation({ includeWalletKeys }) {
+  if (!process.stdin.isTTY || !process.stderr.isTTY) {
+    throw new Error("uninstall requires an interactive terminal for confirmation.");
+  }
+  const confirmation = includeWalletKeys
+    ? PRIVATE_STATE_UNINSTALL_INCLUDE_KEYS_CONFIRMATION
+    : PRIVATE_STATE_UNINSTALL_PRESERVE_KEYS_CONFIRMATION;
+  const keyScope = includeWalletKeys
+    ? "Wallet spending-key and viewing-key files WILL be deleted."
+    : "Wallet spending-key and viewing-key files under the CLI secret root will be preserved.";
   const prompt = [
-    "This permanently deletes local private-state CLI workspaces, wallet secrets, installed private-state artifacts,",
-    "the Groth16 workspace, and the Tokamak zk-EVM runtime workspace.",
-    `Type exactly: ${PRIVATE_STATE_UNINSTALL_CONFIRMATION}`,
+    "WARNING SUMMARY: uninstall",
+    "This removes local private-state CLI workspaces, account secrets, wallet secret source files stored under the CLI root, installed private-state artifacts, the Groth16 workspace, and the Tokamak zk-EVM runtime workspace.",
+    keyScope,
+    "It also removes the global private-state CLI npm package when npm reports that it is globally installed.",
+    "Deleted local secrets, notes, evidence, proofs, and workspace data cannot be recovered by the Provider Parties.",
+    "Provider Parties do not possess your private keys, wallet secrets, spending keys, viewing keys, backups, notes, or recovery material.",
+    "Do not continue unless you have independently backed up every file you may need later.",
+    `Type exactly: ${confirmation}`,
     "> ",
   ].join("\n");
   const rl = readline.createInterface({
@@ -2606,11 +2628,87 @@ async function requireUninstallConfirmation() {
   });
   try {
     const answer = await rl.question(prompt);
-    if (answer !== PRIVATE_STATE_UNINSTALL_CONFIRMATION) {
+    if (answer !== confirmation) {
       throw new Error("Uninstall confirmation did not match. Nothing was deleted.");
     }
   } finally {
     rl.close();
+  }
+}
+
+function preserveWalletKeyFilesForUninstall() {
+  const entries = collectWalletKeyFilesForUninstall();
+  if (entries.length === 0) {
+    return {
+      tempRoot: null,
+      entries,
+    };
+  }
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-wallet-keys-"));
+  for (const entry of entries) {
+    const tempPath = path.join(tempRoot, entry.relativePath);
+    ensureDir(path.dirname(tempPath));
+    fs.copyFileSync(entry.path, tempPath);
+  }
+  return {
+    tempRoot,
+    entries: entries.map((entry) => ({
+      ...entry,
+      tempPath: path.join(tempRoot, entry.relativePath),
+    })),
+  };
+}
+
+function collectWalletKeyFilesForUninstall() {
+  if (!fs.existsSync(secretRoot)) {
+    return [];
+  }
+  const entries = [];
+  const stack = [secretRoot];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    for (const dirent of fs.readdirSync(current, { withFileTypes: true })) {
+      const entryPath = path.join(current, dirent.name);
+      if (dirent.isDirectory()) {
+        stack.push(entryPath);
+        continue;
+      }
+      if (!dirent.isFile() || (dirent.name !== "spending.key" && dirent.name !== "viewing.key")) {
+        continue;
+      }
+      const relativePath = path.relative(secretRoot, entryPath);
+      if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+        continue;
+      }
+      entries.push({
+        path: entryPath,
+        relativePath,
+        keyKind: dirent.name === "spending.key" ? "spending" : "viewing",
+      });
+    }
+  }
+  return entries.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
+}
+
+function restorePreservedWalletKeyFiles(preservedWalletKeys) {
+  const restored = [];
+  try {
+    for (const entry of preservedWalletKeys.entries) {
+      const targetPath = path.join(secretRoot, entry.relativePath);
+      ensureDir(path.dirname(targetPath));
+      fs.copyFileSync(entry.tempPath, targetPath);
+      protectSecretFile(targetPath, `preserved wallet ${entry.keyKind} key`);
+      restored.push({
+        keyKind: entry.keyKind,
+        path: targetPath,
+        restored: true,
+      });
+    }
+    return restored;
+  } finally {
+    if (preservedWalletKeys.tempRoot) {
+      fs.rmSync(preservedWalletKeys.tempRoot, { recursive: true, force: true });
+    }
   }
 }
 
@@ -10803,6 +10901,7 @@ function assertInstallZkEvmArgs(args) {
 
 function assertUninstallArgs(args) {
   assertAllowedCommandSchema(args, "uninstall");
+  assertBooleanFlag(args, "includeWalletKeys", "uninstall option --include-wallet-keys");
 }
 
 function assertSetRpcArgs(args) {

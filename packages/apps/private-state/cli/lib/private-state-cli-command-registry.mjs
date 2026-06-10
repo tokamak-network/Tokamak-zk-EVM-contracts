@@ -201,6 +201,13 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     option: "--read-only",
     optional: true,
   },
+  includeWalletKeys: {
+    label: "Include Wallet Keys",
+    type: "checkbox",
+    hint: "With uninstall, delete wallet spending-key and viewing-key files instead of preserving them.",
+    option: "--include-wallet-keys",
+    optional: true,
+  },
   fromGenesis: {
     label: "Scan From Genesis",
     type: "checkbox",
@@ -287,9 +294,14 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
   },
   {
     id: "uninstall",
-    description: "Interactively remove local private-state workspaces, wallet secrets, proof artifacts, Tokamak zk-EVM runtime data, and the global CLI package when installed.",
-    fields: [],
-    usage: "no options",
+    description: "Interactively remove local private-state CLI data. By default, wallet spending-key and viewing-key files are preserved.",
+    fields: ["includeWalletKeys"],
+    usage: "optional --include-wallet-keys",
+    help: [
+      "Default uninstall preserves wallet spending-key and viewing-key files under the CLI secret root",
+      "--include-wallet-keys deletes every local private-state CLI file, including wallet spending-key and viewing-key files",
+      "Both modes remove local workspaces, account secrets, wallet secret source files stored under the CLI root, proof artifacts, Tokamak zk-EVM runtime data, and the global CLI package when installed",
+    ],
   },
   {
     id: "set-rpc",

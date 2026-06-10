@@ -119,6 +119,7 @@ function assertAgentGuidance(payload, expectedRefs) {
   expect(payload.agentGuidance.termsRefs.includes("1"), "agentGuidance.termsRefs must include Terms definitions.");
   expect(payload.agentGuidance.termsRefs.includes("6"), "agentGuidance.termsRefs must include Self-Custody terms.");
   expect(payload.agentGuidance.termsRefs.includes("16"), "agentGuidance.termsRefs must include liability terms.");
+  expect(payload.agentGuidance.refs.includes("E.3"), "agentGuidance.refs must include Terms and safety context.");
   for (const ref of expectedRefs) {
     expect(payload.agentGuidance.refs.includes(ref), `Missing expected guide ref ${ref}.`);
   }
@@ -160,6 +161,21 @@ function testGuideJsonDeploymentArtifactsMissing() {
   for (const ref of payload.agentGuidance.refs) {
     expect(refs.has(ref), `Guide output references missing agents.md index ${ref}.`);
   }
+}
+
+function testInstallJsonDoesNotInstallOrAcceptTerms() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-install-json-home-"));
+  const payload = parseJson(runCli(["install", "--read-only", "--json"], { home }));
+  expect(payload.ok === true, "install --json should return a structured result.");
+  expect(payload.action === "install", "install --json should identify the install action.");
+  expect(payload.installed === false, "install --json must not install artifacts.");
+  expect(payload.requiresInteractiveTermsAcceptance === true, "install --json should require interactive Terms acceptance.");
+  expect(payload.termsAcceptanceCanBeProvidedByJson === false, "install --json must not accept Terms.");
+  expect(payload.nextSafeAction === "private-state-cli install --read-only", "install --json should preserve the requested install mode in the interactive command.");
+  expect(
+    !fs.existsSync(path.join(home, "tokamak-private-channels")),
+    "install --json must not create the private-state workspace.",
+  );
 }
 
 function testGuideJsonAccountSecretMissing() {
@@ -254,6 +270,7 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   expect(!stdout.includes("Action impact:"), "Command help must use warning-summary wording.");
   expect(stdout.includes("Warning summary:"), "Command help should describe transaction warnings as warning summaries.");
   expect(stdout.includes("Displays the current Service Terms and requires explicit human acceptance before installation proceeds"), "Install help should explain human Terms acceptance.");
+  expect(stdout.includes("--json reports that interactive Terms acceptance is required and does not install artifacts"), "Install help should explain JSON mode does not install.");
   expect(stdout.includes("Use --json for machine-readable fee data when another tool needs to inspect the fee table"), "Transaction-fees help should use tool-neutral JSON wording.");
   expect(!stdout.includes("AI agents should run this command"), "Human command help should not use AI-agent-first fee wording.");
   expect(!stdout.includes("the CLI cannot recover lost secrets"), "Command help should use no-recovery-method wording.");
@@ -400,6 +417,7 @@ function testNonTtyPrivateKeyPromptFailsClearly() {
 testSecretCommandsRegistered();
 testGuideJsonRefs();
 testGuideJsonDeploymentArtifactsMissing();
+testInstallJsonDoesNotInstallOrAcceptTerms();
 testGuideJsonAccountSecretMissing();
 testGuideJsonWalletMissingBeforeChannelJoin();
 testGuideHumanOutputIsUserFacing();

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Changed `install --json` to report that interactive Terms acceptance is required without installing artifacts, and
+  added an agent guidance item for Terms and safety-context explanation.
 - Aligned the CLI README RPC example with the recommended Ankr provider and removed chat-oriented wording from the
   User-Controlled AI Agent guidance section.
 - Clarified human-facing Terms, README, and command-reference wording for install-time Terms acceptance, no-recovery

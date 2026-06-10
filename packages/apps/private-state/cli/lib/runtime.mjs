@@ -2483,6 +2483,18 @@ async function handleInstallZkEvm({ args }) {
   const installMode = args.readOnly === true
     ? PRIVATE_STATE_INSTALL_MODES.READ_ONLY
     : PRIVATE_STATE_INSTALL_MODES.FULL;
+  if (isJsonOutputRequested()) {
+    cliOutput.result({
+      action: "install",
+      installMode,
+      installed: false,
+      requiresInteractiveTermsAcceptance: true,
+      termsAcceptanceCanBeProvidedByJson: false,
+      nextSafeAction: args.readOnly === true ? "private-state-cli install --read-only" : "private-state-cli install",
+      message: "Run the install command again without --json in an interactive terminal so the current Service Terms can be displayed and accepted by the user.",
+    });
+    return;
+  }
   const selectedVersions = installMode === PRIVATE_STATE_INSTALL_MODES.FULL
     ? await resolvePrivateStateInstallRuntimeVersions(args)
     : null;
@@ -4413,7 +4425,7 @@ function guideAgentGuidance(step, refs) {
   return {
     source: "agents.md",
     step,
-    refs,
+    refs: [...new Set([...refs, "E.3"])],
     termsSource: "docs/dapps/private-state/terms.md",
     termsRefs: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "18", "20"],
   };

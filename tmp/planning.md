@@ -830,14 +830,16 @@ Decision guide:
 
 ### Phase 5: Finalize machine-readable and agent-facing documents
 
-- Finalize `help guide --json` output contract so it references canonical Terms section numbers and `agents.md` sections
-  without duplicating full legal text. Initial output contract update completed; final verification remains.
-- Finalize `install --json` behavior for missing or stale Terms acceptance.
-- Finalize User-Controlled AI Agent directives for warnings, prohibitions, public/private boundaries, Self-Custody, no
-  recovery method, Third-Party Service risk, no professional advice, no warranties, liability limits, and Official Public
-  Observer limits.
-- Confirm that Official Machine-Readable Output cannot accept Terms, renewed Terms, or secret-handling decisions for the
-  user.
+- Completed repository-level final verification of the `help guide --json` output contract: it references canonical Terms
+  section numbers and indexed `agents.md` sections, and it does not duplicate full legal text.
+- Completed `install --json` behavior for the current pre-terms-gate implementation: JSON mode reports that
+  interactive Terms acceptance is required, returns `installed: false`, and does not install artifacts.
+- Completed User-Controlled AI Agent directive pass for warnings, prohibitions, public/private boundaries,
+  Self-Custody, no recovery method, Third-Party Service risk, no professional advice, no warranties, liability limits,
+  and Official Public Observer limits by adding `agents.md` item `E.3` and including it in every `help guide --json`
+  `agentGuidance.refs` result.
+- Confirmed and test-covered that Official Machine-Readable Output cannot accept Terms, renewed Terms, or
+  secret-handling decisions for the user in the implemented `help guide --json` and `install --json` surfaces.
 
 ### Phase 6: Final documentation verification
 
@@ -1553,12 +1555,14 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 
 ### Phase 5: JSON and User-Controlled AI Agent updates
 
-- Update `install --json` to report that human interactive acceptance is required.
-- Update `help guide --json` so User-Controlled AI Agent guidance references canonical Terms sections and `agents.md`
-  sections instead of duplicating long warnings.
-- Ensure User-Controlled AI Agent directives require explanation of public/private boundaries, prohibited uses,
-  Self-Custody, no recovery method, Third-Party Service risk, no professional advice, no warranties, liability limits,
-  and Official Public Observer limits.
+- Completed early as a repository-level safety fix: `install --json` reports that human interactive acceptance is
+  required, returns `installed: false`, and does not install artifacts.
+- Completed early as a repository-level safety fix: `help guide --json` references canonical Terms sections and indexed
+  `agents.md` sections instead of duplicating long warnings.
+- Completed early as a repository-level safety fix: User-Controlled AI Agent directives require explanation of
+  public/private boundaries, prohibited uses, Self-Custody, no recovery method, Third-Party Service risk, no
+  professional advice, no warranties, liability limits, and Official Public Observer limits through `agents.md` item
+  `E.3`, which every `help guide --json` result now references.
 
 ### Phase 6: Human help and documentation integration
 
@@ -1591,7 +1595,7 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
   upgrade, while existing Channel note activity remains unrestricted on-chain.
 - Verify that final docs and machine-readable guidance describe abandonment without implying custody, private-history
   access, exchange deposit network control, or user-level blocking.
-- Verify that `install --json` does not install or accept Terms.
+- Verified that `install --json` does not install artifacts or accept Terms.
 - Verify that a changed terms hash requires renewed interactive acceptance.
 - Verify that terms-gated commands reject execution when acceptance is missing or stale.
 - Verify that per-command `--acknowledge-action-impact` options are no longer required.
@@ -1606,5 +1610,5 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
   limits, no Provider recovery, and Provider Party disclaimer coverage.
 - Verify that real-funds commands print command-specific information and warning summaries in both human and `--json`
   modes without requiring a command-level acknowledgement option.
-- Verify that `help guide --json` points to canonical section numbers and does not duplicate full legal text.
+- Verified that `help guide --json` points to canonical section numbers and does not duplicate full legal text.
 - Verify that human `help guide` remains readable for ordinary users.

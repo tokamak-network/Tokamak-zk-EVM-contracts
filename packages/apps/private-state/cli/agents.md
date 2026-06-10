@@ -861,6 +861,31 @@ Failure recovery: if any policy field is unexpected, stop and do not join or cre
 Optional explanation: channel policy is immutable after creation or acceptance; later fixes require a new channel or
 migration.
 
+### E.3 Terms and safety context
+
+Goal: ensure the user receives the legal and safety context that applies to the next action.
+
+When to use: every `help guide --json` result that includes `agentGuidance.termsRefs`.
+
+Minimal user actions: read the short explanation and decide whether to continue.
+
+AI may ask: whether the user wants a plain-language summary of the referenced Terms sections.
+
+AI must not ask: the user to accept Terms through JSON mode, delegate Terms acceptance, share secrets, or waive future
+warnings.
+
+Command template: no command is required by this item alone.
+
+Success check: before suggesting the next command, explain the relevant public/private boundary, prohibited-use limits,
+Self-Custody, no recovery method, Third-Party Service risk, no professional advice, no warranties, liability limits,
+Official Public Observer limits, and the rule that User-Controlled AI Agents cannot accept Terms or confirmations.
+
+Failure recovery: if the user has not reviewed or accepted required Terms, stop and direct the user to the interactive
+CLI flow. Do not continue through JSON mode.
+
+Optional explanation: `agentGuidance.termsRefs` contains Terms section numbers, not the full legal text. Read those
+sections from `docs/dapps/private-state/terms.md` before advising the user.
+
 ## F. Recovery Rules
 
 ### F.1 Prefer mirror before genesis replay

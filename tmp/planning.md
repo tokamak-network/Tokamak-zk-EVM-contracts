@@ -867,16 +867,12 @@ Phase 6 repository-wide public-document review findings to resolve before public
   before release, then verify that Terms, README, public observer, monitoring packet docs, `help guide`, `help guide
   --json`, and `agents.md` all distinguish active and abandoned Channels without implying custody, user-level blocking,
   private-history monitoring, or exchange deposit network control.
-- `packages/apps/private-state/README.md` still contains stale CLI behavior: `uninstall` is described as the only
-  interactive command, `uninstall` is described as accepting no options, transaction commands are described as requiring
-  `--acknowledge-action-impact`, and evidence export is described as requiring
-  `--acknowledge-full-note-plaintext-export`. Resolution: update the app README to match the current CLI policy:
+- Resolved: `packages/apps/private-state/README.md` stale CLI behavior was updated to match the current CLI policy:
   install-time Terms acceptance, interactive destructive/sensitive exports, default wallet-key-preserving `uninstall`,
   `uninstall --include-wallet-keys`, warning summaries without per-command legal acknowledgement flags, and interactive
   evidence export confirmation.
-- `packages/apps/private-state/README.md` still links to `cli/README.md#llm-agent-guidance` and uses older `LLM agent`
-  wording. Resolution: update that link and wording to the current `User-Controlled AI Agent Guidance` section and
-  current terminology.
+- Resolved: `packages/apps/private-state/README.md` now links to the current `User-Controlled AI Agent Guidance` section
+  and uses current User-Controlled AI Agent terminology instead of stale `LLM agent` wording.
 - Release-readiness rule: public documents may assume the selected planning items are complete, but final publication
   must occur only after the corresponding implementation and verification items are complete. If any selected feature is
   intentionally deferred, public documents must be revised before publication so they do not describe the deferred
@@ -1601,7 +1597,7 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Integrate finalized human `help guide` text into the CLI.
 - Integrate finalized CLI README language stating that `--json` exists for User-Controlled AI Agents that help users
   complete minimum safe next actions without handling secrets or accepting Terms for users.
-- Update `packages/apps/private-state/README.md` so its CLI overview matches the current and planned final CLI behavior:
+- Completed: update `packages/apps/private-state/README.md` so its CLI overview matches the current and planned final CLI behavior:
   no ordinary command-level `--acknowledge-action-impact`, interactive install-time Terms acceptance, interactive
   destructive and sensitive-export confirmations, default wallet-key-preserving `uninstall`, `uninstall
   --include-wallet-keys`, interactive plaintext evidence export, and the current `User-Controlled AI Agent Guidance`

@@ -141,8 +141,8 @@ Important rules:
 - proof-backed commands print four progress phases, `loading`, `proving`, `submitting`, and `persisting`, followed by `done`;
   in `--json` mode, progress, warning, and informational events are emitted as JSON Lines on stderr
 - common failures print `Try:` recovery actions after the root error message
-- LLM agents that guide human users should read the CLI package's
-  [LLM Agent Guidance](cli/README.md#llm-agent-guidance). That section explains how to introduce
+- User-Controlled AI Agents that guide human users should read the CLI package's
+  [User-Controlled AI Agent Guidance](cli/README.md#user-controlled-ai-agent-guidance). That section explains how to introduce
   private key files, local account aliases, wallet secret source files, network RPC URLs, and
   channel policy review before walking a new user through `channel join`.
 
@@ -198,15 +198,17 @@ Join Toll means the one-time Channel entry fee paid when a user joins a Channel.
 - installs the latest public Groth16 MPC `circuit_final.zkey` from the Groth16 CRS Drive folder in full mode
 - writes Groth16 proof outputs only under the fixed runtime workspace proof directory in full mode
 - refreshes shared bridge constants derived from `tokamak-l2js`
+- displays the current Service Terms and requires explicit human acceptance before installation proceeds
+- reports that interactive Terms acceptance is required without installing artifacts when run with `--json`
 
 `uninstall`
 
-- is the CLI's only interactive command
-- requires typing `I understand that the wallet secrets deleted due to this decision cannot be recovered`
-- removes `~/tokamak-private-channels/`, including local account secrets, wallet key files, channel workspaces, installed private-state artifacts, and Groth16 proof artifacts
+- is intentionally interactive and requires typing the exact confirmation phrase printed by the command
+- by default, removes local workspaces, account secrets, wallet secret source files stored under the CLI root, installed private-state artifacts, Groth16 workspace files, and the Tokamak zk-EVM runtime workspace
+- by default, preserves wallet spending-key and viewing-key files under the CLI secret root
+- accepts `--include-wallet-keys` to delete every local private-state CLI file, including wallet spending-key and viewing-key files
 - removes the Tokamak zk-EVM runtime cache
 - attempts to remove the global `@tokamak-private-dapps/private-state-cli` npm package when npm reports that it is globally installed
-- accepts no options
 
 `set rpc`
 
@@ -284,7 +286,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - reads RPC settings from the per-network `set rpc` configuration
 - prints an immutable-channel-policy warning before first registration
 - should be treated as user acceptance of the channel's fixed verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy
-- requires `--acknowledge-action-impact`
+- prints a command-specific warning summary before transaction submission
 
 `wallet recover-workspace`
 
@@ -311,7 +313,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - does not register the user in the channel
 - does not pay the channel Join Toll
 - reads RPC settings from the per-network `set rpc` configuration
-- requires `--acknowledge-action-impact`
+- prints a command-specific warning summary before transaction submission
 
 `account get-bridge-fund`
 
@@ -363,7 +365,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - moves value from the shared bridge-level `bridgeTokenVault` into the channel-level accounting vault
 - accepts `--wallet`, `--network`, and `--amount`
 - requires an existing wallet and the matching local account secret for the wallet owner
-- requires `--acknowledge-action-impact`
+- prints a command-specific warning summary before transaction submission
 
 `wallet get-channel-fund`
 
@@ -381,7 +383,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - maps the amount-vector length to the fixed-arity `mintNotes<N>` contract entrypoint
 - requires both viewing and spending key capability so the accepted mint can be recovered through the normal note event path
 - uses the registered note-receive public key to create self-mint ciphertext outputs for later recovery
-- requires `--acknowledge-action-impact`
+- prints a command-specific warning summary before transaction submission
 
 ### 9. Transfer notes
 
@@ -397,7 +399,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - supports only `1->1`, `1->2`, and `2->1` note transfer shapes
 - refreshes local workspace state after the accepted transaction and relies on recipient-side event-log recovery rather than local recipient inbox files
 - requires both the viewing key and the spending key: the viewing key reconstructs the plaintext input notes, and the spending key authorizes the proof-backed spend
-- requires `--acknowledge-action-impact`
+- prints a command-specific warning summary before transaction submission
 
 ### 10. Recover and inspect received notes
 
@@ -410,7 +412,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - reports both unused and spent note sets plus bridge-consistency status
 - reports whether a viewing key is available; without it, the command can show encrypted-only tracked note state but cannot refresh or decrypt received-note events
 - accepts `--wallet` and `--network`
-- accepts `--export-evidence <PATH>` with `--acknowledge-full-note-plaintext-export` to write a raw evidence ZIP for `private-state-cli investigator`
+- accepts `--export-evidence <PATH>` to write a raw evidence ZIP for `private-state-cli investigator` after interactive confirmation
 
 ### 11. Redeem notes
 
@@ -420,7 +422,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - accepts `--wallet`, `--network`, and `--note-ids`
 - accepts optional `--tx-submitter <ACCOUNT>` so a separate local Ethereum account can submit the Ethereum mainnet transaction and pay gas
 - requires both the viewing key and the spending key for the same reason as `wallet transfer-notes`
-- requires `--acknowledge-action-impact`
+- prints a command-specific warning summary before transaction submission
 
 ### 12. Move value back to the shared Ethereum mainnet bridge vault
 
@@ -428,7 +430,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 
 - moves value from the channel accounting vault back into the shared bridge-level `bridgeTokenVault`
 - accepts `--wallet`, `--network`, and `--amount`
-- requires `--acknowledge-action-impact`
+- prints a command-specific warning summary before transaction submission
 
 ### 13. Exit the channel registration
 
@@ -448,4 +450,4 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - claims value from the shared bridge-level `bridgeTokenVault` back into the caller wallet
 - uses the local `--account` signer instead of channel wallet state
 - requires `--amount`, `--network`, and `--account`
-- requires `--acknowledge-action-impact`
+- prints a command-specific warning summary before transaction submission

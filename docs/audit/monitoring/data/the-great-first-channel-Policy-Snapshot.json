@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-15T04:41:06.056Z",
+  "generatedAt": "2026-06-10T20:13:43.260Z",
   "chainId": 1,
   "channelName": "the-great-first-channel",
   "channelId": "108336797649051254585401751173864353497144788660297920004548699607442466523065",
@@ -10,21 +10,39 @@
   "dappId": 1,
   "asset": "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5",
   "joinToll": "4000000000000000000",
-  "currentRootVectorHash": "0xff17171e3c6fccf964c38cab3b708f7626e841fba2cb81a61745cead699f47a2",
+  "joinTollPolicy": {
+    "burnAddress": "0x000000000000000000000000000000000000dEaD",
+    "refundSchedule": {
+      "cutoff1Seconds": "21600",
+      "cutoff2Seconds": "86400",
+      "cutoff3Seconds": "259200",
+      "refundBps1": "7500",
+      "refundBps2": "5000",
+      "refundBps3": "2500",
+      "refundBps4": "0"
+    },
+    "nonRefundablePortionHandling": "transferred-to-burn-address-on-future-channel-exit"
+  },
+  "operationStatus": {
+    "abandoned": false,
+    "abandonedAt": "0",
+    "abandonmentEffect": "New joins and channel deposits are rejected after abandonment; note activity, redeem, withdraw, and exit remain unrestricted by abandonment."
+  },
+  "currentRootVectorHash": "0x59674fc8c54f11b6e7bb79d93ca2c850a262c330237d32de8b806c776f9c4ded",
   "latestAcceptedTransition": {
     "eventName": "CurrentRootVectorObserved",
-    "transactionHash": "0x6869f9510cbae6df7e5992092febc4c0812260dd9540a3c27bd4b0d0ffea2115",
-    "blockNumber": 25061824,
-    "blockHash": "0x56831b0c44c38702a6cbe5fba6c1addced7d8fee0e4a41818b9986e4df24f730",
-    "logIndex": 312,
-    "transactionIndex": 116,
-    "timestamp": 1778381519,
-    "rootVectorHash": "0xff17171e3c6fccf964c38cab3b708f7626e841fba2cb81a61745cead699f47a2",
+    "transactionHash": "0x5e080b836148591330a0f37e67e94a8204e3150d29c1070e04c4bf01506352e5",
+    "blockNumber": 25249135,
+    "blockHash": "0xd3e181039733a9374dd9043c7ad6d5ca1bfaa6b5b0248dc6db04e679063e6a3a",
+    "logIndex": 1602,
+    "transactionIndex": 393,
+    "timestamp": 1780637795,
+    "rootVectorHash": "0x59674fc8c54f11b6e7bb79d93ca2c850a262c330237d32de8b806c776f9c4ded",
     "rootVector": [
-      "0x1bf39f29f79bb36d91c80722210520b80ebf023dfc121cf79f7a82c9dc7453ac",
-      "0x52619bab7d9d1551aed626013016e21e3368c3df8642d3f82b64dfd0bfa3d65e"
+      "0x2f45ba09d2530e2d559c6fe348c851fca67ec0495740831a6038273b19c0e5f0",
+      "0x38ac97f4a2c71b11ca9fc8066d19e43114abb2e1ec036d6f3755a249ebc6046b"
     ],
-    "explorerUrl": "https://etherscan.io/tx/0x6869f9510cbae6df7e5992092febc4c0812260dd9540a3c27bd4b0d0ffea2115#eventlog",
+    "explorerUrl": "https://etherscan.io/tx/0x5e080b836148591330a0f37e67e94a8204e3150d29c1070e04c4bf01506352e5#eventlog",
     "checkedVia": "etherscan-api"
   },
   "managedStorageAddresses": [

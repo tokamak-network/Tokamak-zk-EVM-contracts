@@ -810,15 +810,23 @@ Decision guide:
 
 - Finalize Terms text and section numbering. Repository release-candidate created at
   `docs/dapps/private-state/terms.md`; counsel-directed changes and final release approval remain.
-- Finalize human `help guide` text for ordinary users. Initial final-policy pass completed; final verification remains.
-- Finalize CLI README language explaining the Service terms and the purpose of `--json`. Initial final-policy pass
-  completed; final verification remains.
+- Completed repository-level final verification of human `help guide` text for ordinary users; counsel-directed changes,
+  if any, remain separate from CLI wording verification.
+- Completed repository-level final verification of CLI README language explaining the Service terms and the purpose of
+  `--json`; counsel-directed changes, if any, remain separate from README wording verification.
 - Completed an additional human-facing wording pass for Terms, CLI README, and command-reference output: install now
   has documented explicit human Terms acceptance, human command help no longer uses AI-agent-first fee wording,
   no-recovery wording says no recovery method exists, and the Terms definitions avoid unnecessary `L2` shorthand.
-- Finalize documentation explaining public Ethereum mainnet records, public Channel records, Official Public Observer
-  limits, Self-Custody, no recovery method, and Third-Party Service risk.
-- Confirm that human-facing text is plain-language enough for ordinary users without weakening legal precision.
+- Completed repository-level Phase 4 consistency verification for the current release-candidate documents and human
+  guide output: Terms section numbering is contiguous, the Terms and Privacy Notice cover the checklist's public
+  Ethereum mainnet boundary, Self-Custody, no-recovery, Official Public Observer, Third-Party Service, prohibited-use,
+  and user-controlled disclosure themes, the CLI README RPC example now matches the recommended Ankr provider, and the
+  README no longer uses chat-oriented wording in the User-Controlled AI Agent guidance section.
+- Completed repository-level verification that Terms, Privacy Notice, CLI README, and human guide documentation explain
+  public Ethereum mainnet records, public Channel records, Official Public Observer limits, Self-Custody, no recovery
+  method, and Third-Party Service risk without contradicting the checklist's exchange-boundary and monitoring themes.
+- Completed repository-level plain-language review for ordinary users and legal/compliance reviewers without weakening
+  legal precision. Counsel-directed changes and final release approval remain separate.
 
 ### Phase 5: Finalize machine-readable and agent-facing documents
 

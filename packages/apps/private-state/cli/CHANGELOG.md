@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Aligned the CLI README RPC example with the recommended Ankr provider and removed chat-oriented wording from the
+  User-Controlled AI Agent guidance section.
 - Clarified human-facing Terms, README, and command-reference wording for install-time Terms acceptance, no-recovery
   limits, machine-readable fee output, and ordinary-user terminology.
 - Strengthened `wallet get-notes --export-evidence` plaintext evidence export warnings, command help, README guidance,

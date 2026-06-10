@@ -524,7 +524,7 @@ key files under `~/tokamak-private-channels/secrets/<network>/wallets/<wallet>/`
 Configure the network RPC endpoint before bridge-facing or wallet recovery commands:
 
 ```bash
-private-state-cli set rpc --network mainnet --rpc-url <RPC_URL> --provider alchemy
+private-state-cli set rpc --network mainnet --rpc-url <RPC_URL> --provider ankr
 ```
 
 The CLI writes `~/tokamak-private-channels/workspace/<network>/rpc-config.env` and later commands read `RPC_URL`,
@@ -580,7 +580,7 @@ behalf.
 
 After reading the referenced `agents.md` items and Terms sections, translate the recipe into a short, safe instruction for the user.
 Do not ask users to paste raw private keys, wallet secrets, seed phrases, provider passwords, or provider dashboard
-access into chat. Use the CLI's local helper commands for secret source files.
+access into a conversation or prompt. Use the CLI's local helper commands for secret source files.
 
 Human `private-state-cli help guide` output is for people. It provides one plain next step and should not be treated as
 the agent's full machine-readable state. Agents should prefer `help guide --json` when deciding what to do next.

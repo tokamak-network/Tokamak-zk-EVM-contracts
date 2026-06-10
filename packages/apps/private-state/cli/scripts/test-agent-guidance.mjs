@@ -22,6 +22,7 @@ const __dirname = path.dirname(__filename);
 const cliRoot = path.resolve(__dirname, "..");
 const cliPath = path.join(cliRoot, "private-state-bridge-cli.mjs");
 const runtimePath = path.join(cliRoot, "lib", "runtime.mjs");
+const e2eCliPath = path.resolve(cliRoot, "..", "scripts", "e2e", "run-bridge-private-state-cli-e2e.mjs");
 const agentsPath = path.join(cliRoot, "agents.md");
 const readmePath = path.join(cliRoot, "README.md");
 const publicTermsPath = path.resolve(cliRoot, "../../../../docs/dapps/private-state/terms.md");
@@ -525,6 +526,17 @@ function testReadmeJsonPurposeIsAgentSafe() {
   expect(!normalizedReadme.includes("LLM Agent Guidance"), "README should not use stale LLM agent terminology.");
 }
 
+function testDeprecatedAcknowledgementOptionsAreAbsentFromRunnableSurfaces() {
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
+  const e2eSource = fs.readFileSync(e2eCliPath, "utf8");
+  const commandHelp = runCli(["help", "commands"]);
+  for (const source of [runtimeSource, e2eSource, commandHelp]) {
+    expect(!source.includes("--acknowledge-action-impact"), "Runnable CLI surfaces must not use --acknowledge-action-impact.");
+    expect(!source.includes("--acknowledge-full-note-plaintext-export"), "Runnable CLI surfaces must not use --acknowledge-full-note-plaintext-export.");
+  }
+  expect(!e2eSource.includes("acknowledgeActionImpact"), "E2E runner must not keep action-impact acknowledgement helpers.");
+}
+
 function testSecretCommandsRegistered() {
   const commandIds = new Set(PRIVATE_STATE_CLI_COMMANDS.map((command) => command.id));
   expect(commandIds.has("secret-create-private-key-source"), "Missing private-key source helper registry entry.");
@@ -621,6 +633,7 @@ testHelpCommandsOutputUsesFinalPromptPolicy();
 testGuideHumanPrivateKeyFlowIncludesAddressVerification();
 testGuideHumanWalletSecretFlowExplainsMasking();
 testReadmeJsonPurposeIsAgentSafe();
+testDeprecatedAcknowledgementOptionsAreAbsentFromRunnableSurfaces();
 testRandomWalletSecretHelper();
 testNonTtyPrivateKeyPromptFailsClearly();
 

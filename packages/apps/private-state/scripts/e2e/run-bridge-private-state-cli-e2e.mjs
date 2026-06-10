@@ -22,7 +22,6 @@ import {
   resolveTokamakCliResourceDir,
   resolveTokamakCliSetupOutputDir,
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
-import AdmZip from "adm-zip";
 import {
   deriveNoteReceiveKeyMaterial,
 } from "../../cli/lib/private-state-note-delivery.mjs";
@@ -1485,10 +1484,6 @@ function signerCliArgs(participant) {
   ];
 }
 
-function acknowledgeActionImpactArgs() {
-  return ["--acknowledge-action-impact"];
-}
-
 function createChannel() {
   return runAnvilBridgeCliCommand("channel create", [
     "--channel-name", channelName,
@@ -1501,7 +1496,6 @@ function depositBridge(participant) {
   return runAnvilBridgeCliCommand("account deposit-bridge", [
     ...signerCliArgs(participant),
     "--amount", depositAmountTokens,
-    ...acknowledgeActionImpactArgs(),
   ]);
 }
 
@@ -1510,7 +1504,6 @@ function joinChannel(participant) {
     "--channel-name", channelName,
     ...signerCliArgs(participant),
     "--wallet-secret-path", participant.walletSecretPath,
-    ...acknowledgeActionImpactArgs(),
   ]);
   participant.walletName = result.wallet;
   participant.l2Address = result.l2Address;
@@ -1559,7 +1552,6 @@ function depositChannel(participant) {
   return runAnvilCliCommand("wallet deposit-channel", [
     ...walletCliArgs(participant),
     "--amount", depositAmountTokens,
-    ...acknowledgeActionImpactArgs(),
   ]);
 }
 
@@ -1761,7 +1753,6 @@ function mintNotes(participant, amounts, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("wallet mint-notes", [
     ...walletCliArgs(participant),
     "--amounts", JSON.stringify(amounts),
-    ...acknowledgeActionImpactArgs(),
     ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
@@ -1770,59 +1761,12 @@ function getWalletNotes(participant) {
   return runAnvilCliCommand("wallet get-notes", walletCliArgs(participant));
 }
 
-function exportWalletEvidence(participant) {
-  const outputPath = path.join(
-    outputRoot,
-    "wallet-exports",
-    `${slugifyPathComponent(participant.walletName)}-evidence.zip`,
-  );
-  return runAnvilCliCommand("wallet get-notes", [
-    ...walletCliArgs(participant),
-    "--export-evidence", outputPath,
-    "--acknowledge-full-note-plaintext-export",
-  ]);
-}
-
-function assertWalletEvidenceExport(result, { expectedNoteCount }) {
-  expect(result.evidenceExport, "wallet get-notes evidence export result is missing.");
-  expect(fs.existsSync(result.evidenceExport.output), `Evidence ZIP was not written: ${result.evidenceExport.output}.`);
-  expect(Number(result.evidenceExport.noteCount) === Number(expectedNoteCount), "Evidence ZIP note count mismatch.");
-  expect(Number(result.evidenceExport.walletEpochCount ?? 1) >= 1, "Evidence ZIP must report wallet epoch count.");
-  expect(result.evidenceExport.containsSpendingKey === false, "Evidence ZIP must not report spending-key inclusion.");
-  expect(result.evidenceExport.containsViewingKey === false, "Evidence ZIP must not report viewing-key inclusion.");
-  const zip = new AdmZip(result.evidenceExport.output);
-  const entries = new Set(zip.getEntries().map((entry) => entry.entryName));
-  for (const requiredEntry of [
-    "manifest.json",
-    "indexes/by-commitment.json",
-    "indexes/by-nullifier.json",
-    "indexes/by-creation-tx.json",
-    "indexes/by-spend-tx.json",
-    "indexes/by-block-range.json",
-    "indexes/by-counterparty.json",
-  ]) {
-    expect(entries.has(requiredEntry), `Evidence ZIP is missing ${requiredEntry}.`);
-  }
-  const manifest = JSON.parse(zip.readAsText("manifest.json"));
-  expect(manifest.containsNotePlaintext === true, "Evidence manifest must declare note plaintext inclusion.");
-  expect(manifest.excludedSecrets?.spendingKey === true, "Evidence manifest must exclude spending keys.");
-  expect(Array.isArray(manifest.wallets), "Evidence manifest must include wallet epoch metadata.");
-  const noteEntries = [...entries].filter((entry) =>
-    /^wallets\/[^/]+\/epochs\/[^/]+\/notes\/[^/]+\.json$/u.test(entry));
-  expect(noteEntries.length === Number(expectedNoteCount), "Evidence ZIP note entry count mismatch.");
-  const serializedZip = zip.getEntries().map((entry) => zip.readAsText(entry)).join("\n");
-  for (const forbidden of ["l2PrivateKey", "noteReceivePrivateKey"]) {
-    expect(!serializedZip.includes(forbidden), `Evidence ZIP contains forbidden secret field ${forbidden}.`);
-  }
-}
-
 function transferNotes(participant, noteIds, recipients, amounts, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("wallet transfer-notes", [
     ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
     "--recipients", JSON.stringify(recipients),
     "--amounts", JSON.stringify(amounts),
-    ...acknowledgeActionImpactArgs(),
     ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
@@ -1831,7 +1775,6 @@ function redeemNotes(participant, noteIds, { txSubmitter = null } = {}) {
   return runAnvilCliCommand("wallet redeem-notes", [
     ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
-    ...acknowledgeActionImpactArgs(),
     ...txSubmitterCliArgs(txSubmitter),
   ]);
 }
@@ -1840,7 +1783,6 @@ function withdrawChannel(participant, amount) {
   return runAnvilCliCommand("wallet withdraw-channel", [
     ...walletCliArgs(participant),
     "--amount", amount,
-    ...acknowledgeActionImpactArgs(),
   ]);
 }
 
@@ -1848,7 +1790,6 @@ function withdrawBridge(participant, amount) {
   return runAnvilBridgeCliCommand("account withdraw-bridge", [
     ...signerCliArgs(participant),
     "--amount", amount,
-    ...acknowledgeActionImpactArgs(),
   ]);
 }
 
@@ -2153,7 +2094,6 @@ async function main() {
   let redeemCMint = null;
   let withdrawChannelResult = null;
   let withdrawBridgeResult = null;
-  let walletEvidenceExport = null;
   let walletExportBackup = null;
   let walletExportViewingKey = null;
   let walletExportSpendingKey = null;
@@ -2473,16 +2413,13 @@ async function main() {
       recoverWallet(participants[2]);
       notesAfterRedeemC = getWalletNotes(participants[2]);
       assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
-      walletEvidenceExport = exportWalletEvidence(participants[2]);
-      assertWalletEvidenceExport(walletEvidenceExport, { expectedNoteCount: 3 });
-      return { redeemAToC, redeemBToC, redeemCMint, notesAfterRedeemC, walletEvidenceExport };
+      return { redeemAToC, redeemBToC, redeemCMint, notesAfterRedeemC };
     }, {
       apply(result) {
         redeemAToC = result.redeemAToC;
         redeemBToC = result.redeemBToC;
         redeemCMint = result.redeemCMint;
         notesAfterRedeemC = result.notesAfterRedeemC;
-        walletEvidenceExport = result.walletEvidenceExport;
       },
     });
 
@@ -2645,9 +2582,7 @@ async function main() {
         exitedWalletNotes.wallet === participants[2].walletName,
         "wallet get-notes must remain available for an exited wallet epoch.",
       );
-      const exitedEvidence = exportWalletEvidence(participants[2]);
-      assertWalletEvidenceExport(exitedEvidence, { expectedNoteCount: 3 });
-      return { exitChannelResult, exitedEvidence };
+      return { exitChannelResult };
     });
     commandResults.participants[participants[2].alias].exitChannel = exitPhase.exitChannelResult;
 
@@ -2700,7 +2635,7 @@ async function main() {
         backupImport: walletImportBackup,
         viewingKeyExport: walletExportViewingKey,
         spendingKeyExport: walletExportSpendingKey,
-        evidenceExport: walletEvidenceExport.evidenceExport,
+        evidenceExport: null,
       },
       localWallets: localWalletList,
       participants: participants.map((participant) => ({

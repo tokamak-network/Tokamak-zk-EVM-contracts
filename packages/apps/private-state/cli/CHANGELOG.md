@@ -33,6 +33,8 @@
   `--acknowledge-action-impact`.
 - Added the same non-blocking warning-summary handling to `channel exit`, and removed stale internal
   action-impact acknowledgement checks from real-funds command validation.
+- Removed deprecated acknowledgement options from the private-state CLI e2e runner so it follows the current prompt
+  policy.
 - Revised user-facing CLI help, guide, README, fee, and agent wording to prefer "Ethereum mainnet", "Ethereum account",
   "channel-local address", and "Join Toll" over developer shorthand except where command, option, contract, or JSON field
   names require the original term.

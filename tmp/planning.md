@@ -1643,8 +1643,8 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
   Service Terms source.
 - Completed: verify that a changed terms hash requires renewed interactive acceptance.
 - Completed: verify that terms-gated commands reject execution when acceptance is missing or stale.
-- Verify that per-command `--acknowledge-action-impact` options are no longer required.
-- Verify that no command still exposes `--acknowledge-action-impact`.
+- Completed: verify that per-command `--acknowledge-action-impact` options are no longer required.
+- Completed: verify that no command still exposes `--acknowledge-action-impact`.
 - Verified command schema, command help, README, non-interactive rejection, and isolated destructive end-to-end behavior
   with a temporary HOME and fake npm for default `uninstall` wallet-key preservation and `uninstall --include-wallet-keys`
   full deletion. Destructive uninstall was not run against the user's real workspace.
@@ -1661,7 +1661,7 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
   only after the corresponding implementation item is complete. This verification must include Terms, Privacy Notice,
   root README, private-state app README, CLI README, human `help guide`, `help guide --json`, `agents.md`, public
   observer documentation, monitoring packet docs, and audit-facing docs.
-- Verify that no public document still describes `--acknowledge-action-impact` or
+- Completed: verify that no public document still describes `--acknowledge-action-impact` or
   `--acknowledge-full-note-plaintext-export` as required user options after the final prompt policy is implemented.
-- Verify that no public document uses stale `LLM Agent Guidance` anchors or older agent terminology where the intended
+- Completed: verify that no public document uses stale `LLM Agent Guidance` anchors or older agent terminology where the intended
   audience is a User-Controlled AI Agent.

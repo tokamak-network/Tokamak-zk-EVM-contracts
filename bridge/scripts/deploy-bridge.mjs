@@ -50,6 +50,7 @@ const initialDeployMode = process.env.BRIDGE_DEPLOY_MODE || "upgrade";
 const TOKAMAK_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const GROTH16_NPM_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const MAINNET_NETWORK_NAME = "mainnet";
+const SAFE_UPGRADE_PLAN_MODE = "safe-upgrade-plan";
 const MAINNET_DEPLOYMENT_DRIVE_FOLDER_ID = "12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ";
 const MAINNET_BRIDGE_SOLIDITY_DIFF_PATHS = [":(glob)bridge/src/**/*.sol"];
 const MAINNET_DEPLOYMENT_RELEVANT_DIRTY_PATHS = [
@@ -242,7 +243,7 @@ function usage() {
 
 Options:
   --network <name>  Bridge deployment network. Supported values: anvil, sepolia, mainnet
-  --mode <mode>     Deployment mode. Supported values: upgrade, redeploy-proxy
+  --mode <mode>     Deployment mode. Supported values: upgrade, redeploy-proxy, safe-upgrade-plan
   --verify          Verify deployed contracts on Etherscan after deployment artifacts are published
   --etherscan-api-key <key>
                     Etherscan API key for --verify. Defaults to BRIDGE_ETHERSCAN_API_KEY or ETHERSCAN_API_KEY.
@@ -1422,6 +1423,210 @@ function updateDeploymentAbiManifestPath(deploymentPath, canonicalAbiManifestPat
   writeJson(deploymentPath, deployment);
 }
 
+function normalizeAddress(value, label) {
+  try {
+    return ethers.getAddress(value);
+  } catch (error) {
+    fail(`Invalid ${label}: ${value}`);
+  }
+}
+
+function makeSafeTransaction({ to, iface, method, args, inputs, contractInputsValues }) {
+  const data = iface.encodeFunctionData(method, args);
+  return {
+    to: normalizeAddress(to, `${method} target`),
+    value: "0",
+    data,
+    contractMethod: {
+      name: method,
+      payable: false,
+      inputs,
+    },
+    contractInputsValues,
+  };
+}
+
+function makeSafeUpgradeTransactions(deployment) {
+  const uups = new ethers.Interface(["function upgradeTo(address newImplementation)"]);
+  const bridgeCoreAdmin = new ethers.Interface([
+    "function setChannelDeployer(address newChannelDeployer)",
+    "function setGrothVerifier(address newGrothVerifier)",
+    "function setTokamakVerifier(address newTokamakVerifier)",
+  ]);
+  const dAppManagerAdmin = new ethers.Interface(["function bindBridgeCore(address newBridgeCore)"]);
+  const addressInput = (name) => [{ name, type: "address", internalType: "address" }];
+  return [
+    makeSafeTransaction({
+      to: deployment.dAppManager,
+      iface: uups,
+      method: "upgradeTo",
+      args: [deployment.dAppManagerImplementation],
+      inputs: addressInput("newImplementation"),
+      contractInputsValues: {
+        newImplementation: normalizeAddress(deployment.dAppManagerImplementation, "DAppManager implementation"),
+      },
+    }),
+    makeSafeTransaction({
+      to: deployment.bridgeCore,
+      iface: uups,
+      method: "upgradeTo",
+      args: [deployment.bridgeCoreImplementation],
+      inputs: addressInput("newImplementation"),
+      contractInputsValues: {
+        newImplementation: normalizeAddress(deployment.bridgeCoreImplementation, "BridgeCore implementation"),
+      },
+    }),
+    makeSafeTransaction({
+      to: deployment.bridgeTokenVault,
+      iface: uups,
+      method: "upgradeTo",
+      args: [deployment.bridgeTokenVaultImplementation],
+      inputs: addressInput("newImplementation"),
+      contractInputsValues: {
+        newImplementation: normalizeAddress(deployment.bridgeTokenVaultImplementation, "L1TokenVault implementation"),
+      },
+    }),
+    makeSafeTransaction({
+      to: deployment.bridgeCore,
+      iface: bridgeCoreAdmin,
+      method: "setChannelDeployer",
+      args: [deployment.channelDeployer],
+      inputs: addressInput("newChannelDeployer"),
+      contractInputsValues: {
+        newChannelDeployer: normalizeAddress(deployment.channelDeployer, "ChannelDeployer"),
+      },
+    }),
+    makeSafeTransaction({
+      to: deployment.bridgeCore,
+      iface: bridgeCoreAdmin,
+      method: "setGrothVerifier",
+      args: [deployment.grothVerifier],
+      inputs: addressInput("newGrothVerifier"),
+      contractInputsValues: {
+        newGrothVerifier: normalizeAddress(deployment.grothVerifier, "Groth16Verifier"),
+      },
+    }),
+    makeSafeTransaction({
+      to: deployment.bridgeCore,
+      iface: bridgeCoreAdmin,
+      method: "setTokamakVerifier",
+      args: [deployment.tokamakVerifier],
+      inputs: addressInput("newTokamakVerifier"),
+      contractInputsValues: {
+        newTokamakVerifier: normalizeAddress(deployment.tokamakVerifier, "TokamakVerifier"),
+      },
+    }),
+    makeSafeTransaction({
+      to: deployment.dAppManager,
+      iface: dAppManagerAdmin,
+      method: "bindBridgeCore",
+      args: [deployment.bridgeCore],
+      inputs: addressInput("newBridgeCore"),
+      contractInputsValues: {
+        newBridgeCore: normalizeAddress(deployment.bridgeCore, "BridgeCore proxy"),
+      },
+    }),
+  ];
+}
+
+function stringifyReplacer(_key, value) {
+  return value === undefined ? null : value;
+}
+
+function serializeJSONObject(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => serializeJSONObject(item)).join(",")}]`;
+  }
+  if (typeof value === "object" && value !== null) {
+    const keys = Object.keys(value).sort();
+    let serialized = `{${JSON.stringify(keys, stringifyReplacer)}`;
+    for (const key of keys) {
+      serialized += `${serializeJSONObject(value[key])},`;
+    }
+    return `${serialized}}`;
+  }
+  return `${JSON.stringify(value, stringifyReplacer)}`;
+}
+
+function calculateSafeTransactionBuilderChecksum(batchFile) {
+  const serialized = serializeJSONObject({
+    ...batchFile,
+    meta: {
+      ...batchFile.meta,
+      name: null,
+    },
+  });
+  return ethers.keccak256(ethers.toUtf8Bytes(serialized));
+}
+
+async function assertSafeOwnsBridgeProxies({ deployment, provider }) {
+  const ownable = new ethers.Interface(["function owner() view returns (address)"]);
+  const expectedOwner = normalizeAddress(deployment.owner, "Safe owner");
+  const targets = [
+    ["DAppManager", deployment.dAppManager],
+    ["BridgeCore", deployment.bridgeCore],
+    ["L1TokenVault", deployment.bridgeTokenVault],
+  ];
+  const mismatches = [];
+  for (const [label, address] of targets) {
+    const contract = new ethers.Contract(normalizeAddress(address, `${label} proxy`), ownable, provider);
+    const owner = normalizeAddress(await contract.owner(), `${label} owner`);
+    if (owner !== expectedOwner) {
+      mismatches.push(`${label}: expected ${expectedOwner}, got ${owner}`);
+    }
+  }
+  if (mismatches.length > 0) {
+    fail([
+      "Refusing to write Safe upgrade batch because bridge proxy owners do not match the planned Safe owner.",
+      ...mismatches,
+    ].join("\n"));
+  }
+}
+
+function writeSafeUpgradePlanFiles({ deploymentPath, outputDir, chainId }) {
+  const deployment = readJson(deploymentPath);
+  const safeAddress = normalizeAddress(deployment.owner, "Safe owner");
+  const createdAt = Date.now();
+  const transactions = makeSafeUpgradeTransactions(deployment);
+  const transactionBuilder = {
+    version: "1.0",
+    chainId: String(chainId),
+    createdAt,
+    meta: {
+      name: "Tokamak Private App Channels bridge Safe upgrade",
+      description: [
+        "Upgrade the existing UUPS bridge proxies and refresh bridge verifier/deployer pointers.",
+        "Import this file into Safe Transaction Builder and review every target, method, and address before signing.",
+      ].join(" "),
+      txBuilderVersion: "1.18.0",
+      createdFromSafeAddress: safeAddress,
+      createdFromOwnerAddress: "",
+    },
+    transactions,
+  };
+  transactionBuilder.meta.checksum = calculateSafeTransactionBuilderChecksum(transactionBuilder);
+  const rawPlan = {
+    chainId: Number(chainId),
+    safe: safeAddress,
+    createdAtUtc: new Date(createdAt).toISOString(),
+    deploymentPlanPath: path.relative(projectRoot, deploymentPath),
+    warning: "These transactions must be executed by the Safe owner before this plan is treated as deployed bridge state.",
+    transactions: transactions.map((transaction, index) => ({
+      index,
+      to: transaction.to,
+      value: transaction.value,
+      data: transaction.data,
+      method: transaction.contractMethod.name,
+      inputs: transaction.contractInputsValues,
+    })),
+  };
+  const builderPath = path.join(outputDir, `safe-transaction-builder.${chainId}.json`);
+  const rawPlanPath = path.join(outputDir, `safe-upgrade-transactions.${chainId}.json`);
+  writeJson(builderPath, transactionBuilder);
+  writeJson(rawPlanPath, rawPlan);
+  return { builderPath, rawPlanPath };
+}
+
 function resolveBridgeEtherscanApiKey(cliApiKey) {
   return cliApiKey
     || readOptionalEnvTrimmed("BRIDGE_ETHERSCAN_API_KEY")
@@ -1665,6 +1870,9 @@ async function main() {
   if (verify && networkName === "anvil") {
     fail("--verify is only supported for Etherscan-backed networks, not anvil.");
   }
+  if (verify && deployMode === SAFE_UPGRADE_PLAN_MODE) {
+    fail("--verify is not supported for safe-upgrade-plan because proxy links are not updated until the Safe executes.");
+  }
   const bridgeEtherscanApiKey = verify ? resolveBridgeEtherscanApiKey(cliEtherscanApiKey) : null;
   if (verify && !bridgeEtherscanApiKey) {
     fail("BRIDGE_ETHERSCAN_API_KEY or ETHERSCAN_API_KEY is required when --verify is used.");
@@ -1679,8 +1887,8 @@ async function main() {
   }
   process.env.BRIDGE_GROTH_SOURCE = effectiveGrothSource;
 
-  if (deployMode !== "upgrade" && deployMode !== "redeploy-proxy") {
-    fail(`Unsupported deploy mode: ${deployMode}\nSupported modes: upgrade, redeploy-proxy`);
+  if (deployMode !== "upgrade" && deployMode !== "redeploy-proxy" && deployMode !== SAFE_UPGRADE_PLAN_MODE) {
+    fail(`Unsupported deploy mode: ${deployMode}\nSupported modes: upgrade, redeploy-proxy, safe-upgrade-plan`);
   }
 
   let bridgeRpcUrl;
@@ -1697,8 +1905,22 @@ async function main() {
   }
 
   const uploadTimestamp = createTimestampLabel();
-  const bridgeCanonicalDir = path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
-  const bridgePendingDir = path.join(projectRoot, "deployment", ".pending", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
+  const deploymentSnapshotKind = deployMode === SAFE_UPGRADE_PLAN_MODE ? "bridge-safe-upgrade-plans" : "bridge";
+  const bridgeCanonicalDir = path.join(
+    projectRoot,
+    "deployment",
+    `chain-id-${bridgeChainId}`,
+    deploymentSnapshotKind,
+    uploadTimestamp,
+  );
+  const bridgePendingDir = path.join(
+    projectRoot,
+    "deployment",
+    ".pending",
+    `chain-id-${bridgeChainId}`,
+    deploymentSnapshotKind,
+    uploadTimestamp,
+  );
   const latestBridgeDir = latestCompleteBridgeDir(path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge"), bridgeChainId);
   await assertMainnetProxyModeFromDrive({ networkName, deployMode, bridgeChainId });
   const sourceIntegrityLatestBridgeDir =
@@ -1795,7 +2017,7 @@ async function main() {
   } else {
     if (!fs.existsSync(canonicalBridgeInputPath)) {
       fail([
-        `Missing proxy deployment artifact for upgrade mode: ${canonicalBridgeInputPath}`,
+        `Missing proxy deployment artifact for ${deployMode} mode: ${canonicalBridgeInputPath}`,
         "Run with --mode redeploy-proxy once to bootstrap proxy addresses on this network.",
       ].join("\n"));
     }
@@ -1805,6 +2027,9 @@ async function main() {
         `Deployment artifact is not proxy-based: ${canonicalBridgeInputPath}`,
         "Run with --mode redeploy-proxy to replace it with a proxy deployment.",
       ].join("\n"));
+    }
+    if (deployMode === SAFE_UPGRADE_PLAN_MODE) {
+      forgeScript = "scripts/PrepareSafeBridgeUpgrade.s.sol:PrepareSafeBridgeUpgradeScript";
     }
   }
 
@@ -1840,7 +2065,11 @@ async function main() {
   console.log(`Groth16 artifact source: ${process.env.BRIDGE_GROTH_SOURCE}`);
   console.log(`ZK manifest: ${bridgePendingZkManifestPath}`);
 
-  if (networkName !== "anvil" && process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD !== "1") {
+  const shouldUploadBridgeArtifacts =
+    deployMode !== SAFE_UPGRADE_PLAN_MODE
+    && networkName !== "anvil"
+    && process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD !== "1";
+  if (shouldUploadBridgeArtifacts) {
     run("node", [
       path.join(projectRoot, "bridge", "scripts", "upload-bridge-artifacts.mjs"),
       String(bridgeChainId),
@@ -1848,6 +2077,8 @@ async function main() {
       uploadTimestamp,
       "--preflight",
     ]);
+  } else if (deployMode === SAFE_UPGRADE_PLAN_MODE) {
+    console.log("Skipping bridge artifact upload preflight because safe-upgrade-plan is not executed bridge state.");
   } else if (process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD === "1") {
     console.log("Skipping bridge artifact upload preflight because BRIDGE_SKIP_ARTIFACT_UPLOAD=1");
   }
@@ -1855,10 +2086,12 @@ async function main() {
   fs.mkdirSync(bridgePendingDir, { recursive: true });
   run("forge", forgeCmdArgs, { cwd: bridgeRoot });
 
-  cleanupBroadcastTraces(
-    deployMode === "redeploy-proxy" ? "DeployBridgeStack.s.sol" : "UpgradeBridgeStack.s.sol",
-    bridgeChainId,
-  );
+  const broadcastScriptName = deployMode === "redeploy-proxy"
+    ? "DeployBridgeStack.s.sol"
+    : deployMode === SAFE_UPGRADE_PLAN_MODE
+      ? "PrepareSafeBridgeUpgrade.s.sol"
+      : "UpgradeBridgeStack.s.sol";
+  cleanupBroadcastTraces(broadcastScriptName, bridgeChainId);
 
   const bridgePendingOutputPathAbs = resolveBridgePath(process.env.BRIDGE_OUTPUT_PATH);
   const bridgeAbiManifestPath = path.join(bridgeCanonicalDir, `bridge-abi-manifest.${bridgeChainId}.json`);
@@ -1879,7 +2112,21 @@ async function main() {
   syncGroth16ArtifactsForBridge(bridgeChainId, bridgePendingDir);
   syncTokamakZkpArtifactsForBridge(bridgeChainId, bridgePendingDir);
 
-  if (networkName !== "anvil" && process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD !== "1") {
+  let safePlanPaths = null;
+  if (deployMode === SAFE_UPGRADE_PLAN_MODE) {
+    const provider = new ethers.JsonRpcProvider(bridgeRpcUrl);
+    await assertSafeOwnsBridgeProxies({
+      deployment: readJson(bridgePendingOutputPathAbs),
+      provider,
+    });
+    safePlanPaths = writeSafeUpgradePlanFiles({
+      deploymentPath: bridgePendingOutputPathAbs,
+      outputDir: bridgePendingDir,
+      chainId: bridgeChainId,
+    });
+  }
+
+  if (shouldUploadBridgeArtifacts) {
     run("node", [
       path.join(projectRoot, "bridge", "scripts", "upload-bridge-artifacts.mjs"),
       String(bridgeChainId),
@@ -1890,6 +2137,8 @@ async function main() {
       "--abi-manifest-path",
       bridgePendingAbiManifestPath,
     ]);
+  } else if (deployMode === SAFE_UPGRADE_PLAN_MODE) {
+    console.log("Skipping bridge artifact upload because safe-upgrade-plan must be executed by the Safe first.");
   } else if (process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD === "1") {
     console.log("Skipping bridge artifact upload because BRIDGE_SKIP_ARTIFACT_UPLOAD=1");
   }
@@ -1901,15 +2150,20 @@ async function main() {
   fs.renameSync(bridgePendingDir, bridgeCanonicalDir);
 
   const publishedBridgeOutputPath = path.join(bridgeCanonicalDir, path.basename(canonicalBridgeOutputPath));
-  if (publishedBridgeOutputPath !== canonicalBridgeOutputPath) {
+  if (deployMode !== SAFE_UPGRADE_PLAN_MODE && publishedBridgeOutputPath !== canonicalBridgeOutputPath) {
     copyFile(publishedBridgeOutputPath, canonicalBridgeOutputPath);
   }
-  if (externalZkManifestPath) {
+  if (externalZkManifestPath && deployMode !== SAFE_UPGRADE_PLAN_MODE) {
     copyFile(canonicalZkManifestPath, externalZkManifestPath);
   }
 
   console.log(`Deployment artifact: ${publishedBridgeOutputPath}`);
   console.log(`ABI manifest: ${bridgeAbiManifestPathAbs}`);
+  if (safePlanPaths) {
+    console.log(`Safe Transaction Builder JSON: ${path.join(bridgeCanonicalDir, path.basename(safePlanPaths.builderPath))}`);
+    console.log(`Safe raw transaction plan: ${path.join(bridgeCanonicalDir, path.basename(safePlanPaths.rawPlanPath))}`);
+    console.log("This Safe upgrade plan is not final deployed bridge state until the Safe executes the batch.");
+  }
 
   if (verify) {
     await verifyBridgeDeploymentOnEtherscan({

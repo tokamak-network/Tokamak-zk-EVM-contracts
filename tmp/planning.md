@@ -725,14 +725,14 @@ Next Privacy Notice task:
 
 Current next step:
 
-- Update Terms, documentation, and implementation planning to the selected Join Toll policy: future Channel exits refund
-  a time-increasing refundable Join Toll portion to the exiting user and send only the non-refundable portion to
-  `0x000000000000000000000000000000000000dEaD`. Existing already-exited users' historical non-refundable Toll portions
-  are not in scope for retroactive burn-address transfer. The selected schedule is 0% within 24 hours after joining,
-  25% after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days.
-- Add Channel Operation Abandonment planning: leader-only immediate on-chain abandonment blocks new joins and
-  `deposit-channel`, leaves note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel` unrestricted, and
-  requires CLI errors for join/deposit plus warnings for other Channel activities.
+- Generate and review a Safe-compatible mainnet bridge upgrade plan. The plan must deploy the new implementation and
+  support contracts with the EOA deployer, then produce a Safe Transaction Builder JSON batch for the owner-only proxy
+  upgrades and bridge administration calls.
+- Import the Safe Transaction Builder JSON into the current bridge owner Safe, review every target/method/calldata,
+  collect the required 2-of-3 approvals, and execute the batch from the Safe.
+- After Safe execution, regenerate final deployment artifacts and the Monitoring Packet from on-chain state before
+  public documents represent the Join Toll burn-address transfer and Channel Operation Abandonment policies as deployed
+  mainnet behavior.
 
 ### Phase 2: Complete pre-counsel redline and risk review
 
@@ -1804,3 +1804,19 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
   `--acknowledge-full-note-plaintext-export` as required user options after the final prompt policy is implemented.
 - Completed: verify that no public document uses stale `LLM Agent Guidance` anchors or older agent terminology where the intended
   audience is a User-Controlled AI Agent.
+
+### Phase 8: Safe multisig mainnet upgrade plan
+
+- Completed in repository tooling: add `safe-upgrade-plan` mode to `bridge/scripts/deploy-bridge.mjs`.
+- Completed in repository tooling: add `bridge/scripts/PrepareSafeBridgeUpgrade.s.sol` to deploy new implementation and
+  support contracts without calling owner-only proxy or bridge administration functions.
+- Completed in repository tooling: write Safe Transaction Builder JSON and a raw transaction review plan under
+  `deployment/chain-id-<chain-id>/bridge-safe-upgrade-plans/<timestamp>/`.
+- Completed in repository tooling: verify that the planned Safe owner owns `DAppManager`, `BridgeCore`, and
+  `L1TokenVault` before writing the Safe batch.
+- Completed in repository documentation: document that `safe-upgrade-plan` does not update the canonical deployed bridge
+  artifact because the Safe batch has not executed yet.
+- Next operator step: run `node bridge/scripts/deploy-bridge.mjs --network mainnet --mode safe-upgrade-plan`, import the
+  generated Transaction Builder JSON into the Safe, review the batch, collect 2-of-3 approvals, and execute it.
+- Deployment-dependent follow-up: after Safe execution, regenerate final bridge deployment artifacts, regenerate the
+  Monitoring Packet, and verify observer indexing for `ChannelExitTollBurned` and `ChannelOperationAbandoned`.

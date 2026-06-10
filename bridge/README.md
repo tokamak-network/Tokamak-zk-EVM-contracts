@@ -85,7 +85,7 @@ Required environment variables:
 Optional environment variables:
 
 - `BRIDGE_RPC_URL_OVERRIDE`
-- `BRIDGE_DEPLOY_MODE` with `upgrade` or `redeploy-proxy`
+- `BRIDGE_DEPLOY_MODE` with `upgrade`, `redeploy-proxy`, or `safe-upgrade-plan`
 - `BRIDGE_GROTH_SOURCE` with `trusted` or `mpc`
 - `BRIDGE_OWNER`
 - `BRIDGE_DEPLOY_MOCK_ASSET`
@@ -112,6 +112,7 @@ Or select the deployment mode explicitly:
 ```bash
 node bridge/scripts/deploy-bridge.mjs --network sepolia --mode upgrade
 node bridge/scripts/deploy-bridge.mjs --network sepolia --mode redeploy-proxy
+node bridge/scripts/deploy-bridge.mjs --network mainnet --mode safe-upgrade-plan
 ```
 
 The helper derives the correct Alchemy RPC URL from the required `--network` argument:
@@ -140,13 +141,28 @@ The bridge implementation validates the locally installed `tokamak-l2js`
 `MT_DEPTH` before deployment so it fails rather than silently deploying a
 mismatched bridge configuration.
 
-The helper now has two explicit modes:
+The helper now has three explicit modes:
 
 - `upgrade`: redeploy implementations only and upgrade the existing proxies in place
 - `redeploy-proxy`: redeploy fresh proxies and fresh implementations, replacing the network-scoped deployment artifact
+- `safe-upgrade-plan`: redeploy implementation and support contracts only, then write a Safe Transaction Builder batch
+  for the proxy upgrades and bridge administration calls without treating the plan as final deployed bridge state
 
 `upgrade` never creates or replaces proxies. If the network-scoped deployment artifact is missing or is not proxy-based,
 the command fails and you must run `redeploy-proxy` intentionally.
+
+Use `safe-upgrade-plan` when the current bridge owner is a Safe multisig. This mode deploys the new `DAppManager`,
+`BridgeCore`, and `L1TokenVault` implementations plus the refreshed verifier/deployer contracts with the EOA deployer,
+then writes:
+
+- `deployment/chain-id-<chain-id>/bridge-safe-upgrade-plans/<timestamp>/safe-transaction-builder.<chain-id>.json`
+- `deployment/chain-id-<chain-id>/bridge-safe-upgrade-plans/<timestamp>/safe-upgrade-transactions.<chain-id>.json`
+
+Import the Transaction Builder JSON into the Safe, review every target and calldata, collect the required owner
+approvals, and execute the batch from the Safe. Only after the Safe execution succeeds should the operator regenerate the
+main bridge deployment artifact and Monitoring Packet from on-chain state. The `safe-upgrade-plan` mode intentionally
+does not update `deployment/chain-id-<chain-id>/bridge/<timestamp>/` or the network-scoped latest bridge artifact,
+because the Safe batch has not executed yet.
 
 The script writes one timestamped deployment artifact per chain under `deployment/` by default:
 

@@ -63,6 +63,26 @@ deployment artifact.
 
 ### Local Pending
 
+#### Safe multisig bridge upgrade planning mode
+
+Status: **Local pending**
+
+Deployment requirement: **No bridge deployment required**
+
+Summary:
+
+- Adds `safe-upgrade-plan` mode to `bridge/scripts/deploy-bridge.mjs` for bridge deployments
+  whose current owner is a Safe multisig.
+- Adds `bridge/scripts/PrepareSafeBridgeUpgrade.s.sol` to deploy new implementation and support
+  contracts without calling owner-only proxy or bridge administration functions from the EOA
+  deployer.
+- Writes Safe Transaction Builder JSON and a raw transaction review plan under
+  `deployment/chain-id-<chain-id>/bridge-safe-upgrade-plans/<timestamp>/`.
+- Refuses to write the Safe batch unless the planned Safe owner owns `DAppManager`, `BridgeCore`,
+  and `L1TokenVault`.
+- Intentionally does not update the canonical deployed bridge artifact until the Safe batch has
+  been executed and final deployment artifacts are regenerated from on-chain state.
+
 #### Join Toll refund and burn-address transfer policy
 
 Status: **Local pending**

@@ -313,6 +313,11 @@ private-state-cli wallet export viewing-key --network mainnet --wallet <WALLET> 
 private-state-cli wallet export spending-key --network mainnet --wallet <WALLET> --output ./wallet-spending.key
 ```
 
+These export commands are intentionally interactive. They print a warning summary and require the user to type the exact
+confirmation phrase before writing secret-bearing `.key` files. A viewing-key export can reveal readable note history
+when other required wallet state is available. A spending-key export can authorize note use when other required wallet
+state is available. Do not send exported key files to User-Controlled AI Agents, support channels, or untrusted parties.
+
 Import those capabilities only when the target machine should receive them:
 
 ```bash

@@ -3617,7 +3617,7 @@ function handleWalletExportBackup({ args }) {
   });
 }
 
-function handleWalletExportKey({ args, keyKind }) {
+async function handleWalletExportKey({ args, keyKind }) {
   const outputPath = path.resolve(String(requireArg(args.output, "--output")));
   expect(!fs.existsSync(outputPath), `Export output already exists: ${outputPath}.`);
   ensureDir(path.dirname(outputPath));
@@ -3628,6 +3628,7 @@ function handleWalletExportKey({ args, keyKind }) {
     ? walletSpendingKeySecretPath(networkName, walletName)
     : walletViewingKeySecretPath(networkName, walletName);
   expect(fs.existsSync(secretPath), `Wallet ${walletName} is missing its ${keyKind} key.`);
+  await requireWalletKeyExportConfirmation({ keyKind });
   const payload = JSON.parse(readSecretFile(secretPath, `${keyKind} key`));
   validateWalletKeyPayload(payload, keyKind);
   fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
@@ -5582,6 +5583,39 @@ async function requirePlaintextEvidenceExportConfirmation() {
     const answer = await rl.question(lines.join("\n"));
     if (answer !== confirmation) {
       throw new Error("wallet get-notes --export-evidence confirmation did not match. No evidence ZIP was written.");
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+async function requireWalletKeyExportConfirmation({ keyKind }) {
+  const confirmation = `I understand this export contains my ${keyKind} private key`;
+  const authority = keyKind === "spending"
+    ? "spend, transfer, or redeem Private Notes when other required wallet state is available"
+    : "read and reconstruct note history addressed to this wallet when other required wallet state is available";
+  const lines = [
+    `WARNING SUMMARY: wallet export ${keyKind}-key`,
+    `- This export writes the wallet ${keyKind} private key into a local .key file.`,
+    `- Anyone who obtains this file may be able to ${authority}.`,
+    "- Store the file offline or in a secure password manager, share it only with devices or people you intentionally trust, and delete extra copies when they are no longer needed.",
+    "- Provider Parties cannot recover leaked key material, undo disclosure, reverse transactions, or restore lost files.",
+    "- User-Controlled AI Agents must not type this confirmation for the user or receive the exported key file.",
+    `Type exactly: ${confirmation}`,
+    "> ",
+  ];
+  if (!process.stdin.isTTY || !process.stderr.isTTY) {
+    throw new Error(`wallet export ${keyKind}-key requires an interactive terminal for secret-bearing export confirmation.`);
+  }
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stderr,
+    terminal: process.stdin.isTTY && process.stderr.isTTY,
+  });
+  try {
+    const answer = await rl.question(lines.join("\n"));
+    if (answer !== confirmation) {
+      throw new Error(`wallet export ${keyKind}-key confirmation did not match. No key file was written.`);
     }
   } finally {
     rl.close();

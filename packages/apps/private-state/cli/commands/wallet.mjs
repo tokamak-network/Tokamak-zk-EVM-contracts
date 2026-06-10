@@ -33,11 +33,11 @@ export const walletCommands = Object.freeze({
   },
   "wallet-export-viewing-key": async (args) => {
     assertWalletExportKeyArgs(args, "wallet-export-viewing-key");
-    handleWalletExportKey({ args, keyKind: "viewing" });
+    await handleWalletExportKey({ args, keyKind: "viewing" });
   },
   "wallet-export-spending-key": async (args) => {
     assertWalletExportKeyArgs(args, "wallet-export-spending-key");
-    handleWalletExportKey({ args, keyKind: "spending" });
+    await handleWalletExportKey({ args, keyKind: "spending" });
   },
   "wallet-import-backup": async (args) => {
     assertWalletImportBackupArgs(args);

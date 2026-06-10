@@ -607,16 +607,26 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
   {
     id: "wallet-export-viewing-key",
     display: "wallet export viewing-key",
-    description: "Export a secret .key file containing the wallet viewing private key and public viewing-key metadata.",
+    description: "Export a secret .key file containing the wallet viewing private key and public viewing-key metadata after interactive confirmation.",
     fields: ["network", "wallet", "output"],
     usage: "--network, --wallet, and --output",
+    help: [
+      "Requires an interactive terminal because the output file contains secret-bearing viewing authority",
+      "Anyone with the exported file may be able to read and reconstruct note history addressed to this wallet when other required wallet state is available",
+      "User-Controlled AI Agents must not confirm this export or receive the exported key file",
+    ],
   },
   {
     id: "wallet-export-spending-key",
     display: "wallet export spending-key",
-    description: "Export a secret .key file containing the wallet spending private key and public spending-key metadata.",
+    description: "Export a secret .key file containing the wallet spending private key and public spending-key metadata after interactive confirmation.",
     fields: ["network", "wallet", "output"],
     usage: "--network, --wallet, and --output",
+    help: [
+      "Requires an interactive terminal because the output file contains secret-bearing spending authority",
+      "Anyone with the exported file may be able to spend, transfer, or redeem Private Notes when other required wallet state is available",
+      "User-Controlled AI Agents must not confirm this export or receive the exported key file",
+    ],
   },
   {
     id: "wallet-import-backup",

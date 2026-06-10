@@ -255,6 +255,9 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   expect(stdout.includes("Warning summary:"), "Command help should describe transaction warnings as warning summaries.");
   expect(stdout.includes("uninstall [--include-wallet-keys]"), "Command help should expose the uninstall wallet-key deletion option.");
   expect(stdout.includes("Default uninstall preserves wallet spending-key and viewing-key files"), "Command help should explain default uninstall wallet-key preservation.");
+  expect(stdout.includes("wallet export viewing-key"), "Command help should include viewing-key export.");
+  expect(stdout.includes("Requires an interactive terminal because the output file contains secret-bearing viewing authority"), "Viewing-key export help should explain interactive confirmation.");
+  expect(stdout.includes("Requires an interactive terminal because the output file contains secret-bearing spending authority"), "Spending-key export help should explain interactive confirmation.");
 }
 
 function testGuideHumanPrivateKeyFlowIncludesAddressVerification() {

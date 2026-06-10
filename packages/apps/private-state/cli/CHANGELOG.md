@@ -10,6 +10,8 @@
   `--include-wallet-keys` deletes every local private-state CLI file.
 - Fixed `uninstall` execution by awaiting the CLI runner entrypoint and importing the Tokamak zk-EVM runtime cache root
   resolver used by the removal path.
+- Changed wallet viewing-key and spending-key exports to require interactive secret-bearing export confirmation before
+  writing `.key` files.
 - Updated human guide, command reference, README, and `agents.md` wording to align with install-time Terms acceptance and
   interactive sensitive-action confirmations instead of per-command action-impact acknowledgement flags.
 - Changed transaction-sending command warning handling to print warning summaries without requiring

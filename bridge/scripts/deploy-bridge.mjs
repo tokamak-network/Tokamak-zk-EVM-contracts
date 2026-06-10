@@ -50,7 +50,6 @@ const initialDeployMode = process.env.BRIDGE_DEPLOY_MODE || "upgrade";
 const TOKAMAK_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const GROTH16_NPM_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const MAINNET_NETWORK_NAME = "mainnet";
-const SAFE_UPGRADE_PLAN_MODE = "safe-upgrade-plan";
 const MAINNET_DEPLOYMENT_DRIVE_FOLDER_ID = "12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ";
 const MAINNET_BRIDGE_SOLIDITY_DIFF_PATHS = [":(glob)bridge/src/**/*.sol"];
 const MAINNET_DEPLOYMENT_RELEVANT_DIRTY_PATHS = [
@@ -243,7 +242,7 @@ function usage() {
 
 Options:
   --network <name>  Bridge deployment network. Supported values: anvil, sepolia, mainnet
-  --mode <mode>     Deployment mode. Supported values: upgrade, redeploy-proxy, safe-upgrade-plan
+  --mode <mode>     Deployment mode. Supported values: upgrade, redeploy-proxy
   --verify          Verify deployed contracts on Etherscan after deployment artifacts are published
   --etherscan-api-key <key>
                     Etherscan API key for --verify. Defaults to BRIDGE_ETHERSCAN_API_KEY or ETHERSCAN_API_KEY.
@@ -1870,8 +1869,8 @@ async function main() {
   if (verify && networkName === "anvil") {
     fail("--verify is only supported for Etherscan-backed networks, not anvil.");
   }
-  if (verify && deployMode === SAFE_UPGRADE_PLAN_MODE) {
-    fail("--verify is not supported for safe-upgrade-plan because proxy links are not updated until the Safe executes.");
+  if (verify && deployMode === "upgrade") {
+    fail("--verify is not supported for upgrade because proxy links are not updated until the Safe executes.");
   }
   const bridgeEtherscanApiKey = verify ? resolveBridgeEtherscanApiKey(cliEtherscanApiKey) : null;
   if (verify && !bridgeEtherscanApiKey) {
@@ -1887,8 +1886,8 @@ async function main() {
   }
   process.env.BRIDGE_GROTH_SOURCE = effectiveGrothSource;
 
-  if (deployMode !== "upgrade" && deployMode !== "redeploy-proxy" && deployMode !== SAFE_UPGRADE_PLAN_MODE) {
-    fail(`Unsupported deploy mode: ${deployMode}\nSupported modes: upgrade, redeploy-proxy, safe-upgrade-plan`);
+  if (deployMode !== "upgrade" && deployMode !== "redeploy-proxy") {
+    fail(`Unsupported deploy mode: ${deployMode}\nSupported modes: upgrade, redeploy-proxy`);
   }
 
   let bridgeRpcUrl;
@@ -1905,7 +1904,7 @@ async function main() {
   }
 
   const uploadTimestamp = createTimestampLabel();
-  const deploymentSnapshotKind = deployMode === SAFE_UPGRADE_PLAN_MODE ? "bridge-safe-upgrade-plans" : "bridge";
+  const deploymentSnapshotKind = deployMode === "upgrade" ? "bridge-upgrade-plans" : "bridge";
   const bridgeCanonicalDir = path.join(
     projectRoot,
     "deployment",
@@ -2011,7 +2010,7 @@ async function main() {
   process.env.BRIDGE_INPUT_PATH = canonicalBridgeInputPath;
   process.env.BRIDGE_ARTIFACT_TIMESTAMP = uploadTimestamp;
 
-  let forgeScript = "scripts/UpgradeBridgeStack.s.sol:UpgradeBridgeStackScript";
+  let forgeScript = "scripts/PrepareSafeBridgeUpgrade.s.sol:PrepareSafeBridgeUpgradeScript";
   if (deployMode === "redeploy-proxy") {
     forgeScript = "scripts/DeployBridgeStack.s.sol:DeployBridgeStackScript";
   } else {
@@ -2027,9 +2026,6 @@ async function main() {
         `Deployment artifact is not proxy-based: ${canonicalBridgeInputPath}`,
         "Run with --mode redeploy-proxy to replace it with a proxy deployment.",
       ].join("\n"));
-    }
-    if (deployMode === SAFE_UPGRADE_PLAN_MODE) {
-      forgeScript = "scripts/PrepareSafeBridgeUpgrade.s.sol:PrepareSafeBridgeUpgradeScript";
     }
   }
 
@@ -2066,7 +2062,7 @@ async function main() {
   console.log(`ZK manifest: ${bridgePendingZkManifestPath}`);
 
   const shouldUploadBridgeArtifacts =
-    deployMode !== SAFE_UPGRADE_PLAN_MODE
+    deployMode !== "upgrade"
     && networkName !== "anvil"
     && process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD !== "1";
   if (shouldUploadBridgeArtifacts) {
@@ -2077,8 +2073,8 @@ async function main() {
       uploadTimestamp,
       "--preflight",
     ]);
-  } else if (deployMode === SAFE_UPGRADE_PLAN_MODE) {
-    console.log("Skipping bridge artifact upload preflight because safe-upgrade-plan is not executed bridge state.");
+  } else if (deployMode === "upgrade") {
+    console.log("Skipping bridge artifact upload preflight because upgrade plans are not executed bridge state.");
   } else if (process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD === "1") {
     console.log("Skipping bridge artifact upload preflight because BRIDGE_SKIP_ARTIFACT_UPLOAD=1");
   }
@@ -2088,9 +2084,7 @@ async function main() {
 
   const broadcastScriptName = deployMode === "redeploy-proxy"
     ? "DeployBridgeStack.s.sol"
-    : deployMode === SAFE_UPGRADE_PLAN_MODE
-      ? "PrepareSafeBridgeUpgrade.s.sol"
-      : "UpgradeBridgeStack.s.sol";
+    : "PrepareSafeBridgeUpgrade.s.sol";
   cleanupBroadcastTraces(broadcastScriptName, bridgeChainId);
 
   const bridgePendingOutputPathAbs = resolveBridgePath(process.env.BRIDGE_OUTPUT_PATH);
@@ -2113,7 +2107,7 @@ async function main() {
   syncTokamakZkpArtifactsForBridge(bridgeChainId, bridgePendingDir);
 
   let safePlanPaths = null;
-  if (deployMode === SAFE_UPGRADE_PLAN_MODE) {
+  if (deployMode === "upgrade") {
     const provider = new ethers.JsonRpcProvider(bridgeRpcUrl);
     await assertSafeOwnsBridgeProxies({
       deployment: readJson(bridgePendingOutputPathAbs),
@@ -2137,8 +2131,8 @@ async function main() {
       "--abi-manifest-path",
       bridgePendingAbiManifestPath,
     ]);
-  } else if (deployMode === SAFE_UPGRADE_PLAN_MODE) {
-    console.log("Skipping bridge artifact upload because safe-upgrade-plan must be executed by the Safe first.");
+  } else if (deployMode === "upgrade") {
+    console.log("Skipping bridge artifact upload because the upgrade must be executed by the Safe first.");
   } else if (process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD === "1") {
     console.log("Skipping bridge artifact upload because BRIDGE_SKIP_ARTIFACT_UPLOAD=1");
   }
@@ -2150,10 +2144,10 @@ async function main() {
   fs.renameSync(bridgePendingDir, bridgeCanonicalDir);
 
   const publishedBridgeOutputPath = path.join(bridgeCanonicalDir, path.basename(canonicalBridgeOutputPath));
-  if (deployMode !== SAFE_UPGRADE_PLAN_MODE && publishedBridgeOutputPath !== canonicalBridgeOutputPath) {
+  if (deployMode !== "upgrade" && publishedBridgeOutputPath !== canonicalBridgeOutputPath) {
     copyFile(publishedBridgeOutputPath, canonicalBridgeOutputPath);
   }
-  if (externalZkManifestPath && deployMode !== SAFE_UPGRADE_PLAN_MODE) {
+  if (externalZkManifestPath && deployMode !== "upgrade") {
     copyFile(canonicalZkManifestPath, externalZkManifestPath);
   }
 

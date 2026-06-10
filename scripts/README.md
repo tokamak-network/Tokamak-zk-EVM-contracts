@@ -22,7 +22,7 @@ For bridge deployment and upgrades, use:
 
 - `bridge/scripts/deploy-bridge.mjs`
 - `bridge/scripts/DeployBridgeStack.s.sol`
-- `bridge/scripts/UpgradeBridgeStack.s.sol`
+- `bridge/scripts/PrepareSafeBridgeUpgrade.s.sol`
 
 `bridge/scripts/deploy-bridge.mjs` directly refreshes the Tokamak verifier,
 bridge-facing Tokamak constants, the Groth16 runtime CRS, and the Groth16

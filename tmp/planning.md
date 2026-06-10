@@ -725,9 +725,9 @@ Next Privacy Notice task:
 
 Current next step:
 
-- Generate and review a Safe-compatible mainnet bridge upgrade plan. The plan must deploy the new implementation and
-  support contracts with the EOA deployer, then produce a Safe Transaction Builder JSON batch for the owner-only proxy
-  upgrades and bridge administration calls.
+- Generate and review the Safe-compatible mainnet bridge upgrade plan through the normal `upgrade` mode. The plan must
+  deploy the new implementation and support contracts with the EOA deployer, then produce a Safe Transaction Builder
+  JSON batch for the owner-only proxy upgrades and bridge administration calls.
 - Import the Safe Transaction Builder JSON into the current bridge owner Safe, review every target/method/calldata,
   collect the required 2-of-3 approvals, and execute the batch from the Safe.
 - After Safe execution, regenerate final deployment artifacts and the Monitoring Packet from on-chain state before
@@ -1805,18 +1805,20 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
 - Completed: verify that no public document uses stale `LLM Agent Guidance` anchors or older agent terminology where the intended
   audience is a User-Controlled AI Agent.
 
-### Phase 8: Safe multisig mainnet upgrade plan
+### Phase 8: Safe multisig mainnet upgrade flow
 
-- Completed in repository tooling: add `safe-upgrade-plan` mode to `bridge/scripts/deploy-bridge.mjs`.
+- Completed in repository tooling: replace the previous EOA-executed `upgrade` mode in
+  `bridge/scripts/deploy-bridge.mjs` with a Safe-based upgrade plan flow.
 - Completed in repository tooling: add `bridge/scripts/PrepareSafeBridgeUpgrade.s.sol` to deploy new implementation and
   support contracts without calling owner-only proxy or bridge administration functions.
+- Completed in repository tooling: remove the previous direct EOA upgrade script.
 - Completed in repository tooling: write Safe Transaction Builder JSON and a raw transaction review plan under
-  `deployment/chain-id-<chain-id>/bridge-safe-upgrade-plans/<timestamp>/`.
+  `deployment/chain-id-<chain-id>/bridge-upgrade-plans/<timestamp>/`.
 - Completed in repository tooling: verify that the planned Safe owner owns `DAppManager`, `BridgeCore`, and
   `L1TokenVault` before writing the Safe batch.
-- Completed in repository documentation: document that `safe-upgrade-plan` does not update the canonical deployed bridge
-  artifact because the Safe batch has not executed yet.
-- Next operator step: run `node bridge/scripts/deploy-bridge.mjs --network mainnet --mode safe-upgrade-plan`, import the
-  generated Transaction Builder JSON into the Safe, review the batch, collect 2-of-3 approvals, and execute it.
+- Completed in repository documentation: document that `upgrade` does not update the canonical deployed bridge artifact
+  because the Safe batch has not executed yet.
+- Next operator step: run `node bridge/scripts/deploy-bridge.mjs --network mainnet --mode upgrade`, import the generated
+  Transaction Builder JSON into the Safe, review the batch, collect 2-of-3 approvals, and execute it.
 - Deployment-dependent follow-up: after Safe execution, regenerate final bridge deployment artifacts, regenerate the
   Monitoring Packet, and verify observer indexing for `ChannelExitTollBurned` and `ChannelOperationAbandoned`.

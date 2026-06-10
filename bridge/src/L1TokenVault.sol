@@ -37,6 +37,9 @@ contract L1TokenVault is
     error UnsupportedAssetTransferBehavior(uint256 expectedDelta, uint256 actualDelta);
     error NotRegisteredInChannel(address user, uint256 channelId);
     error InsufficientTollTreasuryBalance(uint256 available, uint256 requested);
+    error OnlyChannelLeader(uint256 channelId, address expectedLeader, address actualCaller);
+    error ChannelOperationAlreadyAbandoned(uint256 channelId, uint64 abandonedAt);
+    error ChannelOperationIsAbandoned(uint256 channelId, uint64 abandonedAt);
 
     struct ChannelVaultUpdateContext {
         ChannelManager channelManager;
@@ -49,6 +52,7 @@ contract L1TokenVault is
     uint256 private _tollTreasuryBalance;
 
     mapping(address => uint256) private _availableBalances;
+    mapping(uint256 => uint64) public channelOperationAbandonedAt;
 
     event AssetsFunded(address indexed user, uint256 amount);
     event StorageWriteObserved(address indexed storageAddr, uint256 storageKey, uint256 value);
@@ -59,6 +63,9 @@ contract L1TokenVault is
     );
     event ChannelExitTollBurned(
         address indexed user, uint256 indexed channelId, uint256 amount, address indexed burnAddress
+    );
+    event ChannelOperationAbandoned(
+        uint256 indexed channelId, address indexed leader, uint64 abandonedAt
     );
 
     constructor() {
@@ -111,6 +118,7 @@ contract L1TokenVault is
     ) external nonReentrant returns (bool) {
         address channelManagerAddress = channelRegistry.getChannelManager(channelId);
         if (channelManagerAddress == address(0)) revert UnknownChannel(channelId);
+        _requireChannelOperationActive(channelId);
         ChannelManager channelManager = ChannelManager(channelManagerAddress);
         uint256 joinTollAmount = channelManager.joinToll();
 
@@ -125,7 +133,12 @@ contract L1TokenVault is
 
         _tollTreasuryBalance += joinTollAmount;
         channelManager.registerChannelTokenVaultIdentity(
-            msg.sender, l2Address, channelTokenVaultKey, leafIndex, noteReceivePubKey, joinTollAmount
+            msg.sender,
+            l2Address,
+            channelTokenVaultKey,
+            leafIndex,
+            noteReceivePubKey,
+            joinTollAmount
         );
 
         emit ChannelJoinTollPaid(msg.sender, channelId, joinTollAmount);
@@ -137,6 +150,7 @@ contract L1TokenVault is
         BridgeStructs.GrothProof calldata proof,
         BridgeStructs.GrothUpdate calldata update
     ) external nonReentrant returns (bool) {
+        _requireChannelOperationActive(channelId);
         ChannelVaultUpdateContext memory context =
             _prepareChannelVaultUpdate(channelId, msg.sender, update);
         if (update.updatedUserValue <= update.currentUserValue) revert InvalidAmount();
@@ -224,6 +238,24 @@ contract L1TokenVault is
         return true;
     }
 
+    function abandonChannelOperation(uint256 channelId) external nonReentrant returns (bool) {
+        address channelManagerAddress = channelRegistry.getChannelManager(channelId);
+        if (channelManagerAddress == address(0)) revert UnknownChannel(channelId);
+        ChannelManager channelManager = ChannelManager(channelManagerAddress);
+        address leader = channelManager.leader();
+        if (msg.sender != leader) revert OnlyChannelLeader(channelId, leader, msg.sender);
+
+        uint64 existingAbandonedAt = channelOperationAbandonedAt[channelId];
+        if (existingAbandonedAt != 0) {
+            revert ChannelOperationAlreadyAbandoned(channelId, existingAbandonedAt);
+        }
+
+        uint64 abandonedAt = uint64(block.timestamp);
+        channelOperationAbandonedAt[channelId] = abandonedAt;
+        emit ChannelOperationAbandoned(channelId, msg.sender, abandonedAt);
+        return true;
+    }
+
     function claimToWallet(uint256 amount) external nonReentrant {
         if (amount == 0) revert InvalidAmount();
         if (_availableBalances[msg.sender] < amount) revert InsufficientAvailableBalance();
@@ -250,6 +282,11 @@ contract L1TokenVault is
 
     function tollTreasuryBalance() external view returns (uint256) {
         return _tollTreasuryBalance;
+    }
+
+    function _requireChannelOperationActive(uint256 channelId) private view {
+        uint64 abandonedAt = channelOperationAbandonedAt[channelId];
+        if (abandonedAt != 0) revert ChannelOperationIsAbandoned(channelId, abandonedAt);
     }
 
     function _requireL2ValueInField(uint256 value) private pure {

@@ -50,13 +50,15 @@ The normal flow is:
 13. `account withdraw-bridge`
 
 `channel create` is permissionless at the bridge level. The caller becomes the channel leader and
-chooses the initial join toll. `channel join` pays that toll directly from the L1 wallet, binds the user's L1 identity to a channel-specific L2 identity, and registers the note-receive public key for encrypted note delivery.
+chooses the initial join toll. `channel join` pays that toll directly from the Ethereum wallet,
+binds the user's Ethereum identity to a channel-specific private application identity, and registers
+the note-receive public key for encrypted note delivery.
 
 `set rpc` is the per-network RPC configuration step. It stores the endpoint URL plus fixed
 `eth_getLogs` scan limits under the local workspace. Ordinary bridge-facing and wallet commands read
 that configuration instead of accepting per-command RPC URL overrides.
 
-Users should run this flow from a self-custody L1 wallet. An exchange deposit address is
+Users should run this flow from a self-custody Ethereum wallet. An exchange deposit address is
 not a private-state wallet address: the exchange does not hold the user's channel workspace, wallet
 spending key, viewing key, or recovery context.
 
@@ -116,6 +118,12 @@ events, verifier snapshots, and channel policy are publicly observable for the c
 `private-state` DApp. Internal note provenance and sender-recipient relationships are not
 automatically reconstructed from public data alone; selective disclosure is controlled by the user
 within the limits of implemented wallet tooling.
+
+The channel leader may also abandon Channel operation on-chain. Abandonment is immediate and blocks
+only new `channel join` and `wallet deposit-channel` actions for that Channel. It does not block
+existing note activity, `wallet redeem-notes`, `wallet withdraw-channel`, or `channel exit`, and it
+does not give the leader custody, recovery authority, note-viewing authority, exchange-network
+control, or user-level blocking power.
 
 ## 4. Workspace And Wallet Artifacts
 

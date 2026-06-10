@@ -1,5 +1,6 @@
 import {
   assertCreateChannelArgs,
+  assertAbandonChannelOperationArgs,
   assertExitChannelArgs,
   assertGetChannelArgs,
   assertJoinChannelArgs,
@@ -7,6 +8,7 @@ import {
   assertRecoverWorkspaceArgs,
   assertSetWorkspaceMirrorArgs,
   handleChannelCreate,
+  handleAbandonChannelOperation,
   handleExitChannel,
   handleGetChannel,
   handleJoinChannel,
@@ -37,6 +39,11 @@ export const channelCommands = Object.freeze({
     assertSetWorkspaceMirrorArgs(args);
     const { network, provider } = loadExplicitCommandRuntime(args, { prepareArtifacts: true });
     await handleSetChannelWorkspaceMirror({ args, network, provider });
+  },
+  "channel-abandon-operation": async (args) => {
+    assertAbandonChannelOperationArgs(args);
+    const { network, provider } = loadExplicitCommandRuntime(args, { prepareArtifacts: true });
+    await handleAbandonChannelOperation({ args, network, provider });
   },
   "channel-join": async (args) => {
     assertJoinChannelArgs(args);

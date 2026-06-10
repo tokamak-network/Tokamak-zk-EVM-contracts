@@ -168,6 +168,7 @@ const CLI_ERROR_CODES = Object.freeze({
   UNKNOWN_WALLET: "UNKNOWN_WALLET",
   MISSING_DEPLOYMENT_ARTIFACTS: "MISSING_DEPLOYMENT_ARTIFACTS",
   MISSING_CHANNEL_REGISTRATION: "MISSING_CHANNEL_REGISTRATION",
+  CHANNEL_OPERATION_ABANDONED: "CHANNEL_OPERATION_ABANDONED",
   STALE_WORKSPACE: "STALE_WORKSPACE",
   STALE_CHANNEL_ROOT: "STALE_CHANNEL_ROOT",
   TX_DRY_RUN_FAILED: "TX_DRY_RUN_FAILED",
@@ -824,6 +825,11 @@ async function handleGetChannel({ args, network, provider }) {
     bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
     provider,
   );
+  const bridgeTokenVault = new Contract(
+    channelInfo.bridgeTokenVault,
+    bridgeResources.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+    provider,
+  );
   const asset = getAddress(channelInfo.asset);
   const [
     canonicalAssetDecimals,
@@ -833,6 +839,7 @@ async function handleGetChannel({ args, network, provider }) {
     managedStorageAddresses,
     policySnapshot,
     refundSchedule,
+    channelOperation,
   ] = await Promise.all([
     fetchTokenDecimals(provider, asset),
     channelManager.joinToll(),
@@ -844,6 +851,13 @@ async function handleGetChannel({ args, network, provider }) {
       dappId: Number(channelInfo.dappId),
     }),
     readChannelRefundSchedule(channelManager),
+    readChannelOperationAbandonmentStatus({
+      workspace: {
+        channelName,
+        channelId: channelId.toString(),
+      },
+      bridgeTokenVault,
+    }),
   ]);
 
   cliOutput.result({
@@ -866,6 +880,7 @@ async function handleGetChannel({ args, network, provider }) {
     managedStorageAddresses: normalizedAddressVector(managedStorageAddresses),
     policySnapshot,
     refundSchedule,
+    channelOperation,
     bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
     workspaceMirror: await readChannelWorkspaceMirror({ bridgeCore, channelId }),
   });
@@ -902,6 +917,82 @@ async function handleSetChannelWorkspaceMirror({ args, network, provider }) {
     previousUrl,
     url: currentUrl,
     bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
+    gasUsed: receiptGasUsed(receipt),
+    txUrl: explorerTxUrl(network, receipt.hash),
+    receipt: sanitizeReceipt(receipt),
+  });
+}
+
+async function handleAbandonChannelOperation({ args, network, provider }) {
+  const channelName = requireArg(args.channelName, "--channel-name");
+  const signer = requireL1Signer(args, provider);
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const bridgeCore = new Contract(
+    bridgeResources.bridgeDeployment.bridgeCore,
+    bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
+    provider,
+  );
+  const channelId = deriveChannelIdFromName(channelName);
+  const channelInfo = await bridgeCore.getChannel(channelId);
+  expect(channelInfo.exists, `Unknown channel ${channelName} (${channelId.toString()}).`);
+  expect(
+    ethers.toBigInt(getAddress(signer.address)) === ethers.toBigInt(getAddress(channelInfo.leader)),
+    "Only the on-chain channel leader can abandon channel operation.",
+  );
+
+  const bridgeTokenVault = new Contract(
+    channelInfo.bridgeTokenVault,
+    bridgeResources.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+    signer,
+  );
+  expect(
+    contractInterfaceHasFunction(bridgeTokenVault, "abandonChannelOperation"),
+    "Installed bridge artifacts do not support channel operation abandonment. Update the private-state CLI artifacts after the bridge upgrade.",
+  );
+  const beforeStatus = await readChannelOperationAbandonmentStatus({
+    workspace: {
+      channelName,
+      channelId: channelId.toString(),
+    },
+    bridgeTokenVault,
+  });
+  expect(
+    !beforeStatus.isAbandoned,
+    `Channel ${channelName} (${channelId.toString()}) has already been abandoned.`,
+  );
+
+  const receipt = await dryRunThenSubmitTransaction({
+    operationName: "channel abandon-operation",
+    call: contractTxCall(
+      bridgeTokenVault.abandonChannelOperation,
+      [channelId],
+      undefined,
+      bridgeTokenVault.interface,
+    ),
+  });
+  const channelOperation = await readChannelOperationAbandonmentStatus({
+    workspace: {
+      channelName,
+      channelId: channelId.toString(),
+    },
+    bridgeTokenVault,
+  });
+
+  cliOutput.result({
+    action: "channel abandon-operation",
+    channelName,
+    channelId: channelId.toString(),
+    leader: getAddress(signer.address),
+    bridgeTokenVault: getAddress(channelInfo.bridgeTokenVault),
+    channelOperation,
+    blockedCommands: ["channel join", "wallet deposit-channel"],
+    allowedCommands: [
+      "wallet mint-notes",
+      "wallet transfer-notes",
+      "wallet redeem-notes",
+      "wallet withdraw-channel",
+      "channel exit",
+    ],
     gasUsed: receiptGasUsed(receipt),
     txUrl: explorerTxUrl(network, receipt.hash),
     receipt: sanitizeReceipt(receipt),
@@ -4124,14 +4215,27 @@ async function inspectGuideChannel({ channelName, network, provider, artifactsIn
         bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
         provider,
       );
-      const [joinToll, refundSchedule, workspaceMirror] = await Promise.all([
+      const bridgeTokenVault = new Contract(
+        channelInfo.bridgeTokenVault,
+        bridgeResources.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+        provider,
+      );
+      const [joinToll, refundSchedule, workspaceMirror, channelOperation] = await Promise.all([
         channelManager.joinToll(),
         readChannelRefundSchedule(channelManager),
         readChannelWorkspaceMirror({ bridgeCore, channelId }),
+        readChannelOperationAbandonmentStatus({
+          workspace: {
+            channelName,
+            channelId: channelId.toString(),
+          },
+          bridgeTokenVault,
+        }),
       ]);
       result.onchain.joinTollBaseUnits = joinToll.toString();
       result.onchain.refundSchedule = refundSchedule;
       result.onchain.workspaceMirror = workspaceMirror;
+      result.onchain.channelOperation = channelOperation;
     }
   } catch (error) {
     result.error = error.message;
@@ -4225,6 +4329,7 @@ async function inspectGuideWallet({ walletName, networkName, provider, artifacts
     unusedNoteBalanceBaseUnits: null,
     unusedNoteBalanceTokens: null,
     spentNoteCount: null,
+    channelOperation: null,
     error: workspaceError,
   };
   if (workspaceError || !result.exists) {
@@ -4250,6 +4355,7 @@ async function inspectGuideWallet({ walletName, networkName, provider, artifacts
 
     if (provider && artifactsInstalled && walletChannelWorkspaceIsReady(walletContext)) {
       const context = await loadWorkspaceContext(walletContext.wallet.channelName, networkName, provider);
+      result.channelOperation = await readChannelOperationAbandonmentStatus(context);
       const registration = await context.channelManager.getChannelTokenVaultRegistration(result.l1Address);
       result.registrationExists = Boolean(registration.exists);
       if (registration.exists) {
@@ -4270,6 +4376,8 @@ async function inspectGuideWallet({ walletName, networkName, provider, artifacts
 }
 
 function applyGuideNextAction(guide) {
+  const channelOperation = guideChannelOperationStatus(guide);
+  const channelAbandoned = Boolean(channelOperation?.isAbandoned);
   if (guide.state.local?.walletSelectorError && guide.selectors.network) {
     setGuideNextAction(guide, {
       command: `wallet list --network ${guide.selectors.network}`,
@@ -4335,6 +4443,15 @@ function applyGuideNextAction(guide) {
     return;
   }
   if (guide.selectors.wallet && guide.state.wallet && !guide.state.wallet.exists) {
+    if (channelAbandoned) {
+      const channelName = guide.selectors.channelName ?? guide.state.channel?.channelName ?? "<CHANNEL>";
+      setGuideNextAction(guide, {
+        command: `channel get-meta --channel-name ${channelName} --network ${guide.selectors.network}`,
+        why: "The selected Channel is abandoned. New channel joins are disabled, so do not create a new wallet for this Channel.",
+        agentGuidance: guideAgentGuidance("channel-operation-abandoned", ["D.15", "E.1", "E.2"]),
+      });
+      return;
+    }
     const channelName = guide.selectors.channelName ?? guide.state.channel?.channelName ?? "<CHANNEL>";
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
@@ -4349,6 +4466,15 @@ function applyGuideNextAction(guide) {
     return;
   }
   if (guide.state.wallet?.registrationExists === false) {
+    if (channelAbandoned) {
+      const channelName = guide.state.wallet.channelName ?? guide.selectors.channelName ?? "<CHANNEL>";
+      setGuideNextAction(guide, {
+        command: `channel get-meta --channel-name ${channelName} --network ${guide.selectors.network}`,
+        why: "The selected Channel is abandoned. New channel joins are disabled for wallets that are not already registered.",
+        agentGuidance: guideAgentGuidance("channel-operation-abandoned", ["D.15", "E.1", "E.2"]),
+      });
+      return;
+    }
     const channelName = guide.state.wallet.channelName ?? guide.selectors.channelName ?? "<CHANNEL>";
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
@@ -4367,7 +4493,20 @@ function applyGuideNextAction(guide) {
     : ethers.toBigInt(guide.state.wallet.channelBalanceBaseUnits);
   const unusedNotes = guide.state.wallet?.unusedNoteCount ?? null;
 
-  if (guide.state.wallet?.exists && bridgeBalance === 0n && (channelBalance === null || channelBalance === 0n) && unusedNotes === 0) {
+  if (guide.state.wallet?.exists && channelAbandoned && channelBalance === 0n && unusedNotes === 0) {
+    setGuideNextAction(guide, {
+      command: `channel exit --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
+      why: "The Channel is abandoned and the wallet has no channel balance or unused private notes. New channel deposits are disabled, so channel exit is the remaining cleanup path.",
+      candidates: [
+        `channel get-meta --channel-name ${guide.state.wallet.channelName ?? guide.selectors.channelName ?? "<CHANNEL>"} --network ${guide.selectors.network}`,
+        `account withdraw-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${guide.selectors.account ?? "<ACCOUNT>"}`,
+      ],
+      agentGuidance: guideAgentGuidance("channel-operation-abandoned", ["D.15", "E.1", "E.2"]),
+    });
+    return;
+  }
+
+  if (!channelAbandoned && guide.state.wallet?.exists && bridgeBalance === 0n && (channelBalance === null || channelBalance === 0n) && unusedNotes === 0) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
       command: `account deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account}`,
@@ -4377,6 +4516,18 @@ function applyGuideNextAction(guide) {
     return;
   }
   if (guide.state.wallet?.exists && bridgeBalance !== null && bridgeBalance > 0n && channelBalance === 0n) {
+    if (channelAbandoned) {
+      setGuideNextAction(guide, {
+        command: `channel exit --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
+        why: "The Channel is abandoned and wallet deposit-channel is disabled. The wallet has zero channel balance, so channel exit remains available.",
+        candidates: [
+          `channel get-meta --channel-name ${guide.state.wallet.channelName ?? guide.selectors.channelName ?? "<CHANNEL>"} --network ${guide.selectors.network}`,
+          `account withdraw-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${guide.selectors.account ?? "<ACCOUNT>"}`,
+        ],
+        agentGuidance: guideAgentGuidance("channel-operation-abandoned", ["D.15", "E.1", "E.2"]),
+      });
+      return;
+    }
     setGuideNextAction(guide, {
       command: `wallet deposit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amount <TOKENS>`,
       why: "The account has funds in the shared bridge vault, but the wallet has no channel accounting balance.",
@@ -4418,6 +4569,10 @@ function applyGuideNextAction(guide) {
     why: "Provide more selectors so the guide can choose a single next safe action.",
     agentGuidance: guideAgentGuidance("collect-selectors", ["A.1", "D.1", "H.1"]),
   });
+}
+
+function guideChannelOperationStatus(guide) {
+  return guide.state.wallet?.channelOperation ?? guide.state.channel?.onchain?.channelOperation ?? null;
 }
 
 function setGuideNextAction(guide, { command, why, candidates = [], agentGuidance = null }) {
@@ -4870,6 +5025,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     network,
     provider,
   });
+  await requireChannelOperationActive(context, "channel join");
   const signer = requireL1Signer(args, provider);
   const walletName = walletNameForChannelAndAddress(context.workspace.channelName, signer.address);
   const existingRegistration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
@@ -5020,6 +5176,7 @@ async function handleExitChannel({ args, provider }) {
   });
   const ownerSigner = requireWalletOwnerSigner(walletContext, provider);
   const network = contextResult.network;
+  await warnIfChannelOperationAbandoned(context, "channel exit");
   expect(
     channelFund === 0n,
     [
@@ -5085,6 +5242,11 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   });
   const context = contextResult.context;
   const network = contextResult.network;
+  if (direction === "deposit") {
+    await requireChannelOperationActive(context, operationName);
+  } else {
+    await warnIfChannelOperationAbandoned(context, operationName);
+  }
   expect(
     ethers.toBigInt(walletContext.wallet.channelId) === ethers.toBigInt(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
@@ -8004,6 +8166,7 @@ async function executeWalletDirectTemplateCommand({
   });
   expect(preparedContextResult?.context, "Internal error: prepared channel context is required before proof generation.");
   const contextResult = preparedContextResult;
+  await warnIfChannelOperationAbandoned(contextResult.context, operationName);
   const execution = await executeWalletTemplateSend({
     wallet,
     signer,
@@ -8827,6 +8990,90 @@ function precheckTokamakExecution({ context, payload, functionProof, aPubBlockHa
       === ethers.toBigInt(normalizeBytes32Hex(context.workspace.aPubBlockHash)),
     `${operationName} proof precheck failed: generated aPubBlockHash does not match the channel aPubBlockHash.`,
   );
+}
+
+function contractInterfaceHasFunction(contract, functionName) {
+  try {
+    return Boolean(contract.interface.getFunction(functionName));
+  } catch {
+    return false;
+  }
+}
+
+async function readChannelOperationAbandonmentStatus(context) {
+  const channelId = ethers.toBigInt(context.workspace.channelId);
+  const status = {
+    supported: false,
+    isAbandoned: false,
+    channelName: context.workspace.channelName,
+    channelId: channelId.toString(),
+    abandonedAt: null,
+    abandonedAtIso: null,
+    error: null,
+  };
+  if (!contractInterfaceHasFunction(context.bridgeTokenVault, "channelOperationAbandonedAt")) {
+    return status;
+  }
+  status.supported = true;
+  let abandonedAt;
+  try {
+    abandonedAt = ethers.toBigInt(await context.bridgeTokenVault.channelOperationAbandonedAt(channelId));
+  } catch (error) {
+    status.supported = false;
+    status.error = error?.shortMessage ?? error?.message ?? String(error);
+    return status;
+  }
+  if (abandonedAt !== 0n) {
+    status.isAbandoned = true;
+    status.abandonedAt = abandonedAt.toString();
+    status.abandonedAtIso = new Date(Number(abandonedAt) * 1000).toISOString();
+  }
+  return status;
+}
+
+async function requireChannelOperationActive(context, operationName) {
+  const status = await readChannelOperationAbandonmentStatus(context);
+  if (!status.isAbandoned) {
+    return status;
+  }
+  throw cliError(
+    CLI_ERROR_CODES.CHANNEL_OPERATION_ABANDONED,
+    [
+      `${operationName} cannot continue because Channel operation has been abandoned for ${status.channelName} (${status.channelId}).`,
+      "New channel joins and wallet deposit-channel are disabled for this Channel.",
+      "Existing users can still use note activity, wallet redeem-notes, wallet withdraw-channel, and channel exit subject to ordinary proof, balance, and secret requirements.",
+    ].join(" "),
+  );
+}
+
+async function warnIfChannelOperationAbandoned(context, operationName) {
+  const status = await readChannelOperationAbandonmentStatus(context);
+  if (!status.isAbandoned) {
+    return status;
+  }
+  cliOutput.warning(
+    "channel-operation-abandoned",
+    [
+      `CHANNEL OPERATION WARNING: ${status.channelName} (${status.channelId}) is abandoned.`,
+      "New channel joins and wallet deposit-channel are disabled for this Channel.",
+      `${operationName} is not blocked by abandonment, but users should understand that the Channel no longer accepts new joins or channel deposits.`,
+    ].join("\n"),
+    {
+      action: operationName,
+      channelName: status.channelName,
+      channelId: status.channelId,
+      abandonedAt: status.abandonedAt,
+      abandonedAtIso: status.abandonedAtIso,
+      blockedCommands: ["channel join", "wallet deposit-channel"],
+      allowedCommands: [
+        "note activity",
+        "wallet redeem-notes",
+        "wallet withdraw-channel",
+        "channel exit",
+      ],
+    },
+  );
+  return status;
 }
 
 function contractTxCall(contractMethod, args = [], overrides = undefined, contractInterface = null) {
@@ -11111,6 +11358,10 @@ function assertSetWorkspaceMirrorArgs(args) {
   requireWorkspaceMirrorUrl(args.url);
 }
 
+function assertAbandonChannelOperationArgs(args) {
+  assertAllowedCommandSchema(args, "channel-abandon-operation");
+}
+
 function assertDepositBridgeArgs(args) {
   assertAllowedCommandSchema(args, "account-deposit-bridge");
   assertActionImpactArg(args, "account deposit-bridge");
@@ -12171,6 +12422,8 @@ function guideHumanStatus(guide) {
       return "The wallet has private notes available for inspection before transfer or redemption.";
     case "exit-channel":
       return "The wallet has zero channel balance and appears eligible for channel exit.";
+    case "channel-operation-abandoned":
+      return `The channel ${channel} is abandoned. New joins and channel deposits are disabled.`;
     case "discover-wallet-name":
       return "The selected wallet name is malformed or not found locally.";
     case "collect-selectors":
@@ -12269,6 +12522,12 @@ function guideHumanNextStep(guide) {
         "Exit is only for a channel wallet with no remaining channel balance.",
         "Run exit only if you are sure you no longer need this channel wallet.",
       ];
+    case "channel-operation-abandoned":
+      return [
+        `The channel ${channel} no longer accepts new joins or channel deposits.`,
+        "Existing registered users can still use private-note activity, redeem notes, withdraw channel balance, and exit when ordinary requirements are met.",
+        "Use the command below to inspect the current channel status before choosing any further action.",
+      ];
     case "discover-wallet-name":
       return [
         "The wallet name is not valid or not known.",
@@ -12347,6 +12606,8 @@ function guideHumanAfterSuccess(guide) {
       return ["Use note IDs from that output for a later transfer or redeem command."];
     case "exit-channel":
       return ["Keep local wallet evidence files until you are sure no later review or dispute evidence is needed."];
+    case "channel-operation-abandoned":
+      return ["Do not run channel join or wallet deposit-channel for this Channel."];
     case "discover-wallet-name":
       return [`Rerun the guide with one wallet name printed by the list command: ${formatGuideCliCommand(`help guide --network ${network} --wallet <WALLET>`)}`];
     case "collect-selectors":
@@ -12915,6 +13176,13 @@ function buildRecoveryHints(error, args = {}) {
     hints.push(`private-state-cli help guide --network ${networkName} --channel-name ${channelName} --account ${accountName}`);
   }
 
+  if (error?.code === CLI_ERROR_CODES.CHANNEL_OPERATION_ABANDONED) {
+    hints.push(`private-state-cli channel get-meta --channel-name ${channelName} --network ${networkName}`);
+    hints.push(`existing users may still run: private-state-cli wallet redeem-notes --wallet ${walletName} --network ${networkName} --note-ids <JSON_ARRAY>`);
+    hints.push(`existing users may still run: private-state-cli wallet withdraw-channel --wallet ${walletName} --network ${networkName} --amount <TOKENS>`);
+    hints.push(`after channel balance is zero: private-state-cli channel exit --wallet ${walletName} --network ${networkName}`);
+  }
+
   if (error?.code === CLI_ERROR_CODES.STALE_WORKSPACE) {
     hints.push(`private-state-cli channel get-meta --channel-name ${channelName} --network ${networkName}`);
     hints.push(`if workspaceMirror is set: private-state-cli channel recover-workspace --channel-name ${channelName} --network ${networkName} --source mirror`);
@@ -13009,6 +13277,7 @@ export {
   assertWalletGetChannelFundArgs,
   assertExitChannelArgs,
   assertCreateChannelArgs,
+  assertAbandonChannelOperationArgs,
   assertRecoverWorkspaceArgs,
   assertGetChannelArgs,
   assertSetWorkspaceMirrorArgs,
@@ -13044,6 +13313,7 @@ export {
   handleWalletGetChannelFund,
   handleExitChannel,
   handleChannelCreate,
+  handleAbandonChannelOperation,
   handleWorkspaceInit,
   handleGetChannel,
   handleSetChannelWorkspaceMirror,

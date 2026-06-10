@@ -1342,7 +1342,7 @@ before release.
 | R-18 | 20 | Add `cjhyuck213@gmail.com` as the public privacy and notice contact for Jehyuk Jang, and state that the Provider's residential address is not published. If a physical notice address becomes required, use a counsel-approved non-residential notice route. | Notices are incomplete without an official contact route, but residential address publication is not the default policy. | Applied to draft Terms; counsel to confirm sufficiency. |
 | R-19 | 1, 2, 9, 16 | Apply the selected Join Toll policy to Terms and implementation planning. The local source now stores Join Tolls in `L1TokenVault._tollTreasuryBalance`, records `joinTollPaid`, refunds the refundable portion from the toll treasury, and transfers the non-refundable portion to `0x000000000000000000000000000000000000dEaD` on future Channel exits. Existing already-exited users' historical non-refundable Toll portions are not in scope for retroactive burn-address transfer. The selected refund schedule is time-increasing: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days. | The user-facing economic representation must match the protocol. Because mainnet TON does not expose an external `burn` function and rejects transfer to `address(0)`, the Service must describe this as a burn-address transfer, not as TON total-supply reduction. The local source now enforces `joinTollRefundBps1 <= joinTollRefundBps2 <= joinTollRefundBps3 <= joinTollRefundBps4`; mainnet still requires the bridge upgrade before release language can represent the policy as deployed behavior. | Implemented in local source; deployment/counsel release review remains. |
 | R-20 | Prompt policy | Remove `--acknowledge-action-impact` from every command, enforce install-time Terms acceptance, make `uninstall` interactive like `install`; default uninstall preserves wallet workspace spending-key and viewing-key files while deleting the rest, and `--include-wallet-keys` deletes everything without exception. Make secret-bearing material export commands and plaintext note/evidence export commands interactive. For each such interactive flow, print the command impact, leakage or destructive risk, precautions, and Provider Party disclaimers, then require human confirmation before continuing. For every command that handles real funds, print command-specific information and warning summaries in human mode and `--json` mode on every run without requiring a command-level acknowledgement option. | This implements the selected product policy: one-time install Terms acceptance replaces repeated action-impact acknowledgement flags, while moment-specific human confirmations remain for destructive deletion and sensitive exports, and ordinary transaction commands still show relevant warnings. | Guide/command-reference/warning-output, uninstall prompt, wallet viewing-key/spending-key export confirmation, and plaintext note/evidence export confirmation review completed; install Terms gate and renewed acceptance remain. |
-| R-21 | 2, 9, 10, 14 | Add Channel Operation Abandonment to Terms, docs, monitoring, and implementation planning. The Channel leader may initiate abandonment on-chain with no grace period. After abandonment, new joins and `deposit-channel` are rejected for that Channel; note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel` remain unrestricted by abandonment. | This gives the Channel leader a clear public way to stop onboarding and new deposits without trapping existing users or claiming control over user notes. The feature is compatible with existing Channels if enforcement is placed in the shared upgradeable vault path for join/deposit. Existing `the-great-first-channel` note activity cannot and should not be restricted under the revised request. | Selected product decision; implement after canonical Terms/docs are updated. |
+| R-21 | 2, 9, 10, 14 | Add Channel Operation Abandonment to Terms, docs, monitoring, and implementation planning. The Channel leader may initiate abandonment on-chain with no grace period. After abandonment, new joins and `deposit-channel` are rejected for that Channel; note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel` remain unrestricted by abandonment. | This gives the Channel leader a clear public way to stop onboarding and new deposits without trapping existing users or claiming control over user notes. The feature is compatible with existing Channels if enforcement is placed in the shared upgradeable vault path for join/deposit. Existing `the-great-first-channel` note activity cannot and should not be restricted under the revised request. | Implemented in local bridge source, bridge tests, CLI command/status handling, `help guide`/`help guide --json`, `agents.md`, private-state README, bridge changelog, and private-state workflow/security docs. Mainnet deployment, public observer data support, and monitoring packet updates remain deployment-dependent. |
 
 ### Risk register
 
@@ -1521,25 +1521,28 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 
 ### Phase 1B: Channel Operation Abandonment implementation
 
-- Add an on-chain Channel Operation Abandonment state in the shared bridge/vault enforcement path, preferably in
+- Completed: add an on-chain Channel Operation Abandonment state in the shared bridge/vault enforcement path, preferably in
   `L1TokenVault` or another upgradeable contract that `L1TokenVault` can check before join and deposit execution.
-- Add `abandonChannelOperation(channelId)` or equivalent. The caller must be the current Channel leader read from the
+- Completed: add `abandonChannelOperation(channelId)` or equivalent. The caller must be the current Channel leader read from the
   canonical `ChannelManager.leader()` for the target `channelId`.
-- Record `channelOperationAbandonedAt[channelId]` and emit a public event with `channelId`, leader, and timestamp.
-- Do not add a grace period. The Channel becomes abandoned in the same transaction that records abandonment.
-- Reject `joinChannel(channelId, ...)` when the target Channel is abandoned.
-- Reject `depositToChannelVault(channelId, ...)` when the target Channel is abandoned.
-- Do not restrict `executeChannelTransaction`, note activity, `redeem-notes`, `withdrawFromChannelVault`, or
+- Completed: record `channelOperationAbandonedAt[channelId]` and emit a public event with `channelId`, leader, and timestamp.
+- Completed: do not add a grace period. The Channel becomes abandoned in the same transaction that records abandonment.
+- Completed: reject `joinChannel(channelId, ...)` when the target Channel is abandoned.
+- Completed: reject `depositToChannelVault(channelId, ...)` when the target Channel is abandoned.
+- Completed: do not restrict `executeChannelTransaction`, note activity, `redeem-notes`, `withdrawFromChannelVault`, or
   `exitChannel` because of abandonment.
-- Preserve compatibility with existing Channels, including `the-great-first-channel`, for the join/deposit enforcement
+- Completed in local source: preserve compatibility with existing Channels, including `the-great-first-channel`, for the join/deposit enforcement
   path because those actions pass through the shared vault. Do not claim retroactive or on-chain restriction of existing
-  Channel note activity.
-- Update the CLI to read Channel Operation Abandonment status before Channel-scoped commands.
-- In the CLI, return an error before `channel join` and `wallet deposit-channel` when the target Channel is abandoned.
-- In the CLI, print an additional warning before other Channel activities when the target Channel is abandoned, including
+  Channel note activity. Existing mainnet Channels receive this behavior after the shared vault upgrade is deployed.
+- Completed: add `channel abandon-operation` so the Channel leader can initiate abandonment through the CLI.
+- Completed: update the CLI to read Channel Operation Abandonment status before Channel-scoped commands.
+- Completed: in the CLI, return an error before `channel join` and `wallet deposit-channel` when the target Channel is abandoned.
+- Completed: in the CLI, print an additional warning before other Channel activities when the target Channel is abandoned, including
   note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel`.
-- Update `help guide`, `help guide --json`, `agents.md`, README, Terms, public observer, and monitoring packet docs so
-  users and User-Controlled AI Agents can distinguish active and abandoned Channels.
+- Completed for repository source/docs: update `help guide`, `help guide --json`, `agents.md`, README, Terms, and private-state
+  workflow/security docs so users and User-Controlled AI Agents can distinguish active and abandoned Channels.
+- Deployment-dependent: update public observer data support and monitoring packet docs after the bridge upgrade is
+  deployed and the observer indexes `ChannelOperationAbandoned` from the upgraded mainnet ABI.
 - Checklist review result: no explicit `checklist.md` violation was found because this plan preserves transparent L1
   boundaries, does not make private notes exchange-depositable, does not add a custody or viewing-key backdoor, and keeps
   redeem/withdraw/exit paths available. The final wording must still avoid presenting abandonment as exchange-network
@@ -1623,16 +1626,16 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Completed: verify that refund quotes increase or remain flat as elapsed Channel participation time increases.
 - Completed: verify the selected schedule exactly: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50%
   after 3 days and within 7 days, and 75% after 7 days.
-- Verify that only the Channel leader can initiate Channel Operation Abandonment for that Channel.
-- Verify that abandonment is immediate and records a public timestamp/event.
-- Verify that abandoned Channels reject new `joinChannel` and `depositToChannelVault` calls.
-- Verify that abandoned Channels still allow `withdrawFromChannelVault` and `exitChannel`.
-- Verify that abandonment does not restrict `executeChannelTransaction` or note activity on-chain.
-- Verify that the CLI errors for `channel join` and `wallet deposit-channel` on abandoned Channels.
-- Verify that the CLI warns, but does not block, other Channel activity on abandoned Channels.
-- Verify that `the-great-first-channel` can be covered by join/deposit abandonment enforcement after the shared vault
+- Completed: verify that only the Channel leader can initiate Channel Operation Abandonment for that Channel.
+- Completed: verify that abandonment is immediate and records a public timestamp/event.
+- Completed: verify that abandoned Channels reject new `joinChannel` and `depositToChannelVault` calls.
+- Completed: verify that abandoned Channels still allow `withdrawFromChannelVault` and `exitChannel`.
+- Completed: verify that abandonment does not restrict `executeChannelTransaction` or note activity on-chain.
+- Completed by source-level CLI checks: verify that the CLI errors for `channel join` and `wallet deposit-channel` on abandoned Channels.
+- Completed by source-level CLI checks: verify that the CLI warns, but does not block, other Channel activity on abandoned Channels.
+- Completed by shared-vault source design: verify that `the-great-first-channel` can be covered by join/deposit abandonment enforcement after the shared vault
   upgrade, while existing Channel note activity remains unrestricted on-chain.
-- Verify that final docs and machine-readable guidance describe abandonment without implying custody, private-history
+- Completed: verify that final docs and machine-readable guidance describe abandonment without implying custody, private-history
   access, exchange deposit network control, or user-level blocking.
 - Verified that `install --json` does not install artifacts or accept Terms.
 - Verified that `install --json` reports the canonical Terms version and deterministic Terms hash from the packaged

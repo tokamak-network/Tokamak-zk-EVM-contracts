@@ -84,6 +84,24 @@ Summary:
 - Treats the change as future-only and does not add retroactive handling for users who
   already exited before this implementation ships.
 
+#### Channel Operation Abandonment policy
+
+Status: **Local pending**
+
+Deployment requirement: **Bridge UUPS upgrade required**
+
+Summary:
+
+- Adds a leader-only `L1TokenVault.abandonChannelOperation(channelId)` function.
+- Records the public abandonment timestamp in `channelOperationAbandonedAt(channelId)`.
+- Emits `ChannelOperationAbandoned(channelId, leader, abandonedAt)`.
+- Rejects future `joinChannel(...)` calls for abandoned channels.
+- Rejects future `depositToChannelVault(...)` calls for abandoned channels.
+- Leaves `withdrawFromChannelVault(...)`, `exitChannel(...)`, and `ChannelManager.executeChannelTransaction(...)`
+  unrestricted by abandonment.
+- Supports existing channels after the shared `L1TokenVault` proxy is upgraded because
+  join and deposit enforcement runs through the shared vault path.
+
 ## Mainnet Deployments
 
 ### 2026-05-11 Bridge Mainnet Upgrade

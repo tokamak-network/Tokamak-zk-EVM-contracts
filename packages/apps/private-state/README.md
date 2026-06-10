@@ -267,9 +267,17 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 
 `channel get-meta`
 
-- reads whether a channel exists and reports its manager, vault, Join Toll, refund schedule, and immutable policy snapshot
+- reads whether a channel exists and reports its manager, vault, Join Toll, refund schedule, Channel Operation status, and immutable policy snapshot
 - reads RPC settings from the per-network `set rpc` configuration
 - is the lightest inspection command when a user or channel creator wants to review policy before joining or creating local wallet state
+
+`channel abandon-operation`
+
+- is a channel leader command that immediately records Channel Operation Abandonment on Ethereum mainnet
+- disables new `channel join` and `wallet deposit-channel` actions for the selected channel
+- does not block existing note activity, `wallet redeem-notes`, `wallet withdraw-channel`, or `channel exit`
+- should be used only when the channel leader intends to stop onboarding and new channel deposits for that channel
+- reads RPC settings from the per-network `set rpc` configuration
 
 ### 4. Join the channel-specific wallet and private application identity
 
@@ -277,6 +285,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 
 - derives the channel-specific private application identity
 - pays any Join Toll directly from the Ethereum wallet, not from bridge-deposited balance
+- fails if the selected channel has been abandoned
 - registers the caller's channel-local address, channel token-vault storage key, leaf index, and note-receive public key on-chain
 - creates wallet note metadata, viewing-key metadata, and spending-key metadata
 - requires `--wallet-secret-path <PATH>` to read an existing source secret file once for spending-key derivation
@@ -365,6 +374,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - moves value from the shared bridge-level `bridgeTokenVault` into the channel-level accounting vault
 - accepts `--wallet`, `--network`, and `--amount`
 - requires an existing wallet and the matching local account secret for the wallet owner
+- fails if the selected channel has been abandoned
 - prints a command-specific warning summary before transaction submission
 
 `wallet get-channel-fund`
@@ -383,6 +393,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - maps the amount-vector length to the fixed-arity `mintNotes<N>` contract entrypoint
 - requires both viewing and spending key capability so the accepted mint can be recovered through the normal note event path
 - uses the registered note-receive public key to create self-mint ciphertext outputs for later recovery
+- prints an additional warning when the selected channel has been abandoned, but abandonment does not block this command
 - prints a command-specific warning summary before transaction submission
 
 ### 9. Transfer notes
@@ -399,6 +410,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - supports only `1->1`, `1->2`, and `2->1` note transfer shapes
 - refreshes local workspace state after the accepted transaction and relies on recipient-side event-log recovery rather than local recipient inbox files
 - requires both the viewing key and the spending key: the viewing key reconstructs the plaintext input notes, and the spending key authorizes the proof-backed spend
+- prints an additional warning when the selected channel has been abandoned, but abandonment does not block this command
 - prints a command-specific warning summary before transaction submission
 
 ### 10. Recover and inspect received notes
@@ -422,6 +434,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - accepts `--wallet`, `--network`, and `--note-ids`
 - accepts optional `--tx-submitter <ACCOUNT>` so a separate local Ethereum account can submit the Ethereum mainnet transaction and pay gas
 - requires both the viewing key and the spending key for the same reason as `wallet transfer-notes`
+- prints an additional warning when the selected channel has been abandoned, but abandonment does not block this command
 - prints a command-specific warning summary before transaction submission
 
 ### 12. Move value back to the shared Ethereum mainnet bridge vault
@@ -430,6 +443,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 
 - moves value from the channel accounting vault back into the shared bridge-level `bridgeTokenVault`
 - accepts `--wallet`, `--network`, and `--amount`
+- prints an additional warning when the selected channel has been abandoned, but abandonment does not block this command
 - prints a command-specific warning summary before transaction submission
 
 ### 13. Exit the channel registration
@@ -443,6 +457,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
   burn address
 - accepts `--wallet` and `--network`
 - does not accept `--force`; both the CLI and the bridge contract require a zero channel balance
+- prints an additional warning when the selected channel has been abandoned, but abandonment does not block this command
 
 ### 14. Claim the shared Ethereum mainnet bridge deposit
 

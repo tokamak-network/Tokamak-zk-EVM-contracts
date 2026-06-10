@@ -810,6 +810,37 @@ Failure recovery: if balances or notes remain, resolve them before exit.
 
 Optional explanation: exit is allowed only when the wallet state satisfies CLI and bridge contract requirements.
 
+### D.15 Handle abandoned Channel operation
+
+Goal: avoid new joins and channel deposits after a Channel has been abandoned while keeping existing user exit paths
+available.
+
+When to use: `help guide --json`, `channel get-meta --json`, or a command warning reports
+`channelOperation.isAbandoned: true`.
+
+Minimal user actions: inspect channel metadata once, then avoid `channel join` and `wallet deposit-channel` for that
+Channel. Existing registered users may continue note activity, `wallet redeem-notes`, `wallet withdraw-channel`, and
+`channel exit` when ordinary balance, proof, and secret requirements are met.
+
+AI may ask: whether the user is already registered in the Channel and which remaining action they intend to take.
+
+AI must not ask: wallet secrets, private keys, seed phrases, note plaintext, or any data that would imply the Channel
+leader can recover or inspect user notes.
+
+Command template:
+
+```bash
+private-state-cli channel get-meta --channel-name <CHANNEL> --network <NETWORK> --json
+```
+
+Success check: `channelOperation.isAbandoned` confirms the current on-chain status.
+
+Failure recovery: for unregistered users, stop instead of suggesting join. For existing users, choose only an allowed
+next action: inspect notes, redeem notes, withdraw channel balance, exit, or withdraw bridge balance.
+
+Optional explanation: Channel Operation Abandonment is a public Channel status. It stops onboarding and new channel
+deposits; it is not custody, recovery, note inspection, exchange control, or user-level blocking.
+
 ## E. User Confirmation And Policy
 
 ### E.1 Warning summary review

@@ -471,9 +471,7 @@ contract BridgeFlowTest is Test {
 
     function testOnlyLeaderCanUpdateChannelWorkspaceMirror() public {
         vm.expectRevert(
-            abi.encodeWithSelector(
-                BridgeCore.OnlyChannelLeader.selector, channelId, leader, alice
-            )
+            abi.encodeWithSelector(BridgeCore.OnlyChannelLeader.selector, channelId, leader, alice)
         );
         vm.prank(alice);
         bridgeCore.setChannelWorkspaceMirror(channelId, "https://mirror.example");
@@ -570,6 +568,145 @@ contract BridgeFlowTest is Test {
         BridgeStructs.ChannelTokenVaultRegistration memory reregistered =
             channelManager.getChannelTokenVaultRegistration(alice);
         assertTrue(reregistered.exists);
+    }
+
+    function testLeaderCanAbandonChannelOperation() public {
+        vm.warp(1_234);
+        vm.recordLogs();
+
+        vm.prank(leader);
+        bool abandoned = bridgeTokenVault.abandonChannelOperation(channelId);
+        assertTrue(abandoned);
+        assertEq(bridgeTokenVault.channelOperationAbandonedAt(channelId), uint64(block.timestamp));
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 abandonedTopic = keccak256("ChannelOperationAbandoned(uint256,address,uint64)");
+        bool abandonedEventFound;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(bridgeTokenVault) && logs[i].topics[0] == abandonedTopic)
+            {
+                abandonedEventFound = true;
+                assertEq(uint256(logs[i].topics[1]), channelId);
+                assertEq(address(uint160(uint256(logs[i].topics[2]))), leader);
+                assertEq(abi.decode(logs[i].data, (uint64)), uint64(block.timestamp));
+            }
+        }
+        assertTrue(abandonedEventFound);
+    }
+
+    function testRejectsNonLeaderChannelOperationAbandonment() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L1TokenVault.OnlyChannelLeader.selector, channelId, leader, alice
+            )
+        );
+        vm.prank(alice);
+        bridgeTokenVault.abandonChannelOperation(channelId);
+    }
+
+    function testRejectsRepeatedChannelOperationAbandonment() public {
+        vm.warp(1_234);
+        vm.prank(leader);
+        bridgeTokenVault.abandonChannelOperation(channelId);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L1TokenVault.ChannelOperationAlreadyAbandoned.selector,
+                channelId,
+                uint64(block.timestamp)
+            )
+        );
+        vm.prank(leader);
+        bridgeTokenVault.abandonChannelOperation(channelId);
+    }
+
+    function testRejectsAbandonedChannelJoin() public {
+        vm.warp(1_234);
+        vm.prank(leader);
+        bridgeTokenVault.abandonChannelOperation(channelId);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L1TokenVault.ChannelOperationIsAbandoned.selector,
+                channelId,
+                uint64(block.timestamp)
+            )
+        );
+        vm.prank(bob);
+        bridgeTokenVault.joinChannel(
+            channelId, bob, bytes32(uint256(18)), 18, _defaultNoteReceivePubKey()
+        );
+    }
+
+    function testRejectsAbandonedChannelDeposit() public {
+        bytes32 key = bytes32(uint256(111));
+        vm.prank(alice);
+        bridgeTokenVault.fund(100 ether);
+        _joinChannel(channelId, alice, alice, key, 111);
+
+        vm.warp(1_234);
+        vm.prank(leader);
+        bridgeTokenVault.abandonChannelOperation(channelId);
+
+        uint256[5] memory pubSignals = _depositPublicSignals();
+        BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
+            currentRootVector: _initialChannelRootVector(),
+            updatedRoot: bytes32(pubSignals[1]),
+            currentUserKey: key,
+            currentUserValue: pubSignals[3],
+            updatedUserKey: key,
+            updatedUserValue: pubSignals[4]
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L1TokenVault.ChannelOperationIsAbandoned.selector,
+                channelId,
+                uint64(block.timestamp)
+            )
+        );
+        vm.prank(alice);
+        bridgeTokenVault.depositToChannelVault(channelId, _depositProof(), update);
+    }
+
+    function testAbandonedChannelStillAllowsWithdrawAndExit() public {
+        bytes32 key = bytes32(uint256(111));
+        vm.prank(alice);
+        bridgeTokenVault.fund(100 ether);
+        _joinChannel(channelId, alice, alice, key, 111);
+        _mockGrothVerifierAcceptsAllProofs();
+
+        uint256[5] memory depositSignals = _depositPublicSignals();
+        BridgeStructs.GrothUpdate memory depositUpdate = BridgeStructs.GrothUpdate({
+            currentRootVector: _initialChannelRootVector(),
+            updatedRoot: bytes32(depositSignals[1]),
+            currentUserKey: key,
+            currentUserValue: depositSignals[3],
+            updatedUserKey: key,
+            updatedUserValue: depositSignals[4]
+        });
+        vm.prank(alice);
+        bridgeTokenVault.depositToChannelVault(channelId, _depositProof(), depositUpdate);
+
+        vm.prank(leader);
+        bridgeTokenVault.abandonChannelOperation(channelId);
+
+        BridgeStructs.GrothUpdate memory withdrawUpdate = BridgeStructs.GrothUpdate({
+            currentRootVector: _channelRootVectorWithVaultRoot(bytes32(depositSignals[1])),
+            updatedRoot: bytes32(uint256(0xABCD)),
+            currentUserKey: key,
+            currentUserValue: depositSignals[4],
+            updatedUserKey: key,
+            updatedUserValue: 0
+        });
+        vm.prank(alice);
+        bool withdrawn =
+            bridgeTokenVault.withdrawFromChannelVault(channelId, _withdrawProof(), withdrawUpdate);
+        assertTrue(withdrawn);
+
+        vm.prank(alice);
+        bool exited = bridgeTokenVault.exitChannel(channelId);
+        assertTrue(exited);
     }
 
     function testRejectsDAppRegistrationWithMultipleTokenVaultStorages() public {
@@ -1523,6 +1660,28 @@ contract BridgeFlowTest is Test {
         }
 
         assertEq(rootVectorObservedCount, 1);
+    }
+
+    function testAbandonedChannelStillAllowsTokamakExecution() public {
+        ChannelManager localChannelManager = _createExecutionChannel(3, "tokamak-after-abandon");
+        uint256 localChannelId = localChannelManager.channelId();
+        vm.prank(leader);
+        bridgeTokenVault.abandonChannelOperation(localChannelId);
+
+        bytes32[] memory currentRoots = _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT);
+        bytes32[] memory updatedRoots = _rootVector(bytes32(uint256(555)), bytes32(uint256(777)));
+        BridgeStructs.TokamakProofPayload memory proofPayload =
+            _buildExecutableTokamakProofPayload(appContract, APP_SIG, currentRoots, updatedRoots);
+
+        vm.mockCall(
+            address(tokamakVerifier),
+            abi.encodeWithSelector(ITokamakVerifier.verify.selector),
+            abi.encode(true)
+        );
+        bool accepted =
+            localChannelManager.executeChannelTransaction(proofPayload, _executionFunctionProof());
+        assertTrue(accepted);
+        assertEq(localChannelManager.currentRootVectorHash(), _hashRootVector(updatedRoots));
     }
 
     function testTokamakVerificationEmitsObservedEventTopicZeroCorrectly() public {

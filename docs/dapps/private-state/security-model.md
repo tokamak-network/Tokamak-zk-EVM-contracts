@@ -75,6 +75,7 @@ For this DApp, the public monitoring surface includes:
 - L1 bridge deposits and withdrawal claims
 - channel creation and immutable policy snapshots
 - channel join and token-vault identity registration
+- channel operation abandonment status
 - accepted proof-backed transitions
 - root-vector movement and observed storage writes
 - commitments, nullifiers, and encrypted note-delivery events surfaced by the DApp
@@ -93,6 +94,10 @@ intermediate user note transfers, and does not have a protocol backdoor to recon
 note provenance. Channel
 leaders may operate public metadata or availability services, such as a workspace mirror, but those
 services are availability aids rather than custody or viewing authorities.
+The channel leader may abandon Channel operation on-chain, but that status blocks only new joins and
+new `wallet deposit-channel` actions. It does not block existing note activity, `wallet redeem-notes`,
+`wallet withdraw-channel`, or `channel exit`, and it is not a custody, recovery, note-viewing,
+exchange-control, or user-level blocking mechanism.
 
 Selective disclosure is therefore user-controlled in the current DApp. A user may disclose selected
 wallet-derived evidence where implemented tooling supports it. Documentation and external

@@ -105,8 +105,8 @@ acceptance method provided by the Provider.
 
 If the user does not accept these Terms, the user must not access, install, or use the Service.
 
-The user represents that the user has legal capacity to accept these Terms. If the user acts for an organization, the
-user represents that the user has authority to bind that organization.
+The user represents that the user has legal capacity to accept these Terms and to operate a self-custody wallet. If the
+user acts for an organization, the user represents that the user has authority to bind that organization.
 
 The user represents that use of the Service is not prohibited by laws applicable to the user. The user represents that
 use would not violate applicable sanctions, export control, anti-money laundering, counter-terrorist financing,

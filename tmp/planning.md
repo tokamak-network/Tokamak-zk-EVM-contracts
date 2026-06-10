@@ -1541,6 +1541,8 @@ Minimum document changes to complete before release:
    - Add ordinary-user wording that the Service is for users who have legal capacity to accept the Terms and operate a
      self-custody wallet. If counsel wants an age threshold, use counsel-approved wording; otherwise avoid creating a
      broad age-verification obligation that the Service cannot enforce.
+   - Status: Completed in `docs/dapps/private-state/terms.md` Section 3 and
+     `packages/apps/private-state/cli/assets/service-terms.md` Section 3.
 6. Liability and indemnity:
    - Keep the no-Service-revenue, non-custodial, no-recovery, no-warranty, and no-monetary-cap position.
    - Keep mandatory-law carveouts for liability that cannot be excluded or limited.

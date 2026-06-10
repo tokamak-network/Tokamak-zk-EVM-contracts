@@ -850,6 +850,38 @@ Decision guide:
   Terms for users.
 - Freeze the canonical Terms text for implementation only after these checks pass.
 
+Phase 6 repository-wide public-document review findings to resolve before public finalization:
+
+- Terms and CLI README already describe install-time Terms acceptance as required behavior, but the current human
+  `install` implementation has not yet rendered the Terms, persisted an acceptance record, or enforced a deterministic
+  `termsHash`. Resolution: keep the final-public-document strategy that documents the intended final state, but do not
+  treat the documentation set as release-ready until the interactive install gate, canonical terms source, and renewed
+  acceptance mechanism are implemented and verified.
+- Terms already describe the selected future Join Toll policy: increasing refund percentages over time and transfer of
+  each non-refundable portion to `0x000000000000000000000000000000000000dEaD`. The current contracts still implement
+  the old refund-only behavior and the old decreasing-refund validation. Resolution: implement Phase 1A before release,
+  then verify that public documents and implementation both describe future exits as refund plus burn-address transfer
+  without describing the transfer as TON total-supply reduction.
+- Terms already describe Channel Operation Abandonment as an available on-chain state. The current bridge and CLI do not
+  yet implement abandonment state, events, join/deposit rejection, or CLI warnings. Resolution: implement Phase 1B
+  before release, then verify that Terms, README, public observer, monitoring packet docs, `help guide`, `help guide
+  --json`, and `agents.md` all distinguish active and abandoned Channels without implying custody, user-level blocking,
+  private-history monitoring, or exchange deposit network control.
+- `packages/apps/private-state/README.md` still contains stale CLI behavior: `uninstall` is described as the only
+  interactive command, `uninstall` is described as accepting no options, transaction commands are described as requiring
+  `--acknowledge-action-impact`, and evidence export is described as requiring
+  `--acknowledge-full-note-plaintext-export`. Resolution: update the app README to match the current CLI policy:
+  install-time Terms acceptance, interactive destructive/sensitive exports, default wallet-key-preserving `uninstall`,
+  `uninstall --include-wallet-keys`, warning summaries without per-command legal acknowledgement flags, and interactive
+  evidence export confirmation.
+- `packages/apps/private-state/README.md` still links to `cli/README.md#llm-agent-guidance` and uses older `LLM agent`
+  wording. Resolution: update that link and wording to the current `User-Controlled AI Agent Guidance` section and
+  current terminology.
+- Release-readiness rule: public documents may assume the selected planning items are complete, but final publication
+  must occur only after the corresponding implementation and verification items are complete. If any selected feature is
+  intentionally deferred, public documents must be revised before publication so they do not describe the deferred
+  feature as current behavior.
+
 ## Bridge Governance Migration Plan
 
 This section records the completed migration of root bridge owner and upgrade authority from a single EOA to an Ethereum
@@ -1569,6 +1601,11 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Integrate finalized human `help guide` text into the CLI.
 - Integrate finalized CLI README language stating that `--json` exists for User-Controlled AI Agents that help users
   complete minimum safe next actions without handling secrets or accepting Terms for users.
+- Update `packages/apps/private-state/README.md` so its CLI overview matches the current and planned final CLI behavior:
+  no ordinary command-level `--acknowledge-action-impact`, interactive install-time Terms acceptance, interactive
+  destructive and sensitive-export confirmations, default wallet-key-preserving `uninstall`, `uninstall
+  --include-wallet-keys`, interactive plaintext evidence export, and the current `User-Controlled AI Agent Guidance`
+  link and terminology.
 - Completed repository-level terminology check for the implemented human-facing Terms, README, and command-reference
   surfaces: unnecessary `L2` shorthand was removed from Terms definitions, and public-chain boundary wording remains
   expressed as "Ethereum mainnet" on those surfaces.
@@ -1612,3 +1649,11 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
   modes without requiring a command-level acknowledgement option.
 - Verified that `help guide --json` points to canonical section numbers and does not duplicate full legal text.
 - Verify that human `help guide` remains readable for ordinary users.
+- Verify that all public documents either match implemented behavior or intentionally describe the selected final state
+  only after the corresponding implementation item is complete. This verification must include Terms, Privacy Notice,
+  root README, private-state app README, CLI README, human `help guide`, `help guide --json`, `agents.md`, public
+  observer documentation, monitoring packet docs, and audit-facing docs.
+- Verify that no public document still describes `--acknowledge-action-impact` or
+  `--acknowledge-full-note-plaintext-export` as required user options after the final prompt policy is implemented.
+- Verify that no public document uses stale `LLM Agent Guidance` anchors or older agent terminology where the intended
+  audience is a User-Controlled AI Agent.

@@ -94,6 +94,8 @@ private-state-cli install
 CLI package includes the canonical Terms Markdown and reports its `termsVersion` and deterministic `termsHash` in
 install results. JSON mode cannot accept Terms for the user, and `private-state-cli install --json` reports that
 interactive installation is required without installing artifacts.
+The acceptance record is stored in the user's local private-state CLI workspace and is not sent to the Provider by
+default.
 
 By default, `install` resolves the latest `@tokamak-zk-evm/cli` from the npm registry and uses the bundled
 `@tokamak-private-dapps/groth16` dependency version selected by the installed private-state CLI package. To pin exact

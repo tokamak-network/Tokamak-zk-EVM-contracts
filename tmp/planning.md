@@ -1567,6 +1567,10 @@ Minimum document changes to complete before release:
    - Keep install-time explicit acceptance with Terms version and deterministic hash.
    - Keep acceptance local-only unless the Provider deliberately accepts additional server-side personal-data processing.
    - Ensure the CLI displays enough accepted-version/hash information for a user to preserve their own record.
+   - Status: Completed by implementation and documentation review. Install and renewed acceptance require explicit
+     interactive human acceptance, display the current Terms version and deterministic hash, persist the accepted
+     version/hash metadata in the local CLI workspace, reject stale acceptance records, and document that the acceptance
+     record is local by default.
 9. Public-document consistency:
    - Re-run the public-document consistency pass after the minimum Privacy Notice and Terms changes.
    - Public documents must be written as if the planned release is complete, but must not claim mainnet deployment of

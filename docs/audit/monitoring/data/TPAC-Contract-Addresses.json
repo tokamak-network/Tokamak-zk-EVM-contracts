@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-15T04:41:06.055Z",
+  "generatedAt": "2026-06-10T03:06:37Z",
   "chainId": 1,
   "chain": "ethereum-mainnet",
   "canonicalTonContractAddress": "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5",
@@ -70,15 +70,21 @@
   },
   "ownerAdminMultisigTimelockAddresses": {
     "owners": {
-      "bridgeCore": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7",
-      "dAppManager": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7",
-      "bridgeTokenVault": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7"
+      "bridgeCore": "0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3",
+      "dAppManager": "0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3",
+      "bridgeTokenVault": "0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3"
     },
     "deployer": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7",
-    "configuredOwner": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7",
-    "multisig": null,
+    "configuredOwner": "0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3",
+    "multisig": "0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3",
     "timelock": null,
-    "note": "Current artifacts expose a single owner address. No multisig or timelock address is recorded in the deployment artifact."
+    "multisigThreshold": "2-of-3",
+    "ownershipMigrationTxHashes": {
+      "bridgeCore": "0xbf02088103cc8082136d3832daa46ac668ad1beee27e353ef8a8102f39690691",
+      "dAppManager": "0x921c168547b2fc284bf9aa9bf981cf79c1dca4e1ac0cfdb4cc40144e6631aef3",
+      "bridgeTokenVault": "0xaabe73295adcfc3f5380c66ce46df36dd0adcd47c94fe41757c32ef81ba1044e"
+    },
+    "note": "Root bridge proxy ownership was transferred from the deployer EOA to a Safe multisig with a 2-of-3 threshold. No timelock is configured."
   },
   "treasuryOrFeeRecipientAddresses": {
     "channelJoinTollRecipient": "0x32e6EE3d9820F0843E3e596132368747d36425F0",

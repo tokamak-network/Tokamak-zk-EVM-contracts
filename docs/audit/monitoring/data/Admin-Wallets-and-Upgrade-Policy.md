@@ -8,9 +8,25 @@ deployment. The external policy model for upgrades and per-channel immutability 
 
 | Contract | Owner |
 | --- | --- |
-| bridgeCore | [0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7](https://etherscan.io/address/0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7) |
-| dAppManager | [0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7](https://etherscan.io/address/0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7) |
-| bridgeTokenVault | [0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7](https://etherscan.io/address/0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7) |
+| bridgeCore | [0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3](https://etherscan.io/address/0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3) |
+| dAppManager | [0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3](https://etherscan.io/address/0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3) |
+| bridgeTokenVault | [0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3](https://etherscan.io/address/0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3) |
+
+## Multisig And Timelock
+
+The root bridge proxy owner is the Safe multisig
+[0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3](https://etherscan.io/address/0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3)
+with a 2-of-3 threshold and no timelock.
+
+Ownership was transferred from the deployment EOA
+[0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7](https://etherscan.io/address/0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7)
+through the following transactions:
+
+| Contract | Ownership transfer transaction |
+| --- | --- |
+| bridgeCore | [0xbf02088103cc8082136d3832daa46ac668ad1beee27e353ef8a8102f39690691](https://etherscan.io/tx/0xbf02088103cc8082136d3832daa46ac668ad1beee27e353ef8a8102f39690691) |
+| dAppManager | [0x921c168547b2fc284bf9aa9bf981cf79c1dca4e1ac0cfdb4cc40144e6631aef3](https://etherscan.io/tx/0x921c168547b2fc284bf9aa9bf981cf79c1dca4e1ac0cfdb4cc40144e6631aef3) |
+| bridgeTokenVault | [0xaabe73295adcfc3f5380c66ce46df36dd0adcd47c94fe41757c32ef81ba1044e](https://etherscan.io/tx/0xaabe73295adcfc3f5380c66ce46df36dd0adcd47c94fe41757c32ef81ba1044e) |
 
 ## Proxies
 
@@ -24,4 +40,6 @@ deployment. The external policy model for upgrades and per-channel immutability 
 
 - Current root bridge proxies use the UUPS proxy pattern.
 - An empty EIP-1967 admin slot is expected for the current UUPS deployment.
+- The Safe multisig can authorize UUPS upgrades and root bridge owner-only administration actions.
+- No timelock delay is currently configured.
 - Existing channel policy snapshots are not rewritten by later DApp metadata or bridge verifier default changes.

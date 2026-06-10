@@ -763,7 +763,7 @@ Decision guide:
 | Developer vs provider split | Selected: Tokamak Network PTE. LTD. is separate from the Provider. | Define Tokamak Network PTE. LTD. as software contributor/licensor and, where applicable, Third-Party Service or infrastructure/tooling provider for Tokamak-controlled repositories, package registries, published artifacts, token infrastructure, bridge infrastructure, or upstream tooling. Do not make Tokamak Network responsible for Provider obligations unless it expressly assumes them in a separate binding Service document. |
 | Global online forum | Strategy selected: use Singapore as the Provider-connected baseline jurisdiction, subject to counsel review and mandatory consumer-law carveouts. | Use a baseline governing law and forum connected to Singapore, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. |
 | Individual provider forum | Strategy selected: Singapore, subject to counsel review. | Confirm that Singapore courts and Singapore law are appropriate for Jehyuk Jang as the individual Provider, and confirm notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
-| Bridge owner and upgrade authority | New plan: migrate root bridge proxy ownership from the current single EOA owner to an Ethereum mainnet multisig. | Select the multisig address, signer set, and threshold before any on-chain ownership transfer. Prefer at least 2-of-3 for minimum redundancy, and 3-of-5 if enough independent signers are available. Do not transfer ownership until the multisig address, owners, threshold, and transaction simulation are verified. Safe signer recovery details are an off-repository Safe operations matter, not a public repository decision. |
+| Bridge owner and upgrade authority | Completed: root bridge proxy ownership was migrated from the single EOA owner to an Ethereum mainnet Safe multisig. | The current root bridge proxy owner is `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`, a Safe multisig with a 2-of-3 threshold and no timelock. Safe signer recovery details are an off-repository Safe operations matter, not a public repository decision. |
 | Liability cap | Undecided. | Decide after counsel review. If no Provider Party revenue is earned, a cap cannot be based only on retained Service fees without creating a zero-cap problem. Consider whether a fixed cap is needed despite the no-revenue model and the selected burn-address transfer policy for non-refundable Join Toll portions. |
 | Restricted users | Undecided. | State prohibited uses and sanctions compliance, but do not promise user-level blocking unless a real user-identification and access-control system exists. |
 | Technical blocking | Constraint recorded. | Future blacklist features may block Ethereum Accounts or contract interactions, not necessarily real-world users. Terms and docs must not overstate user-level blocking. |
@@ -804,19 +804,19 @@ Decision guide:
 
 ## Bridge Governance Migration Plan
 
-This plan covers moving the root bridge owner and upgrade authority from a single EOA to an Ethereum mainnet multisig.
-It does not execute any on-chain transaction and does not change Channel leader authority for existing Channels.
+This section records the completed migration of root bridge owner and upgrade authority from a single EOA to an Ethereum
+mainnet Safe multisig. The migration did not change Channel leader authority for existing Channels.
 
 ### Current governance state
 
 - `BridgeCore`, `DAppManager`, and `L1TokenVault` are UUPS proxy contracts that use `OwnableUpgradeable`.
 - Each contract authorizes upgrades through `_authorizeUpgrade(address) internal override onlyOwner`.
-- The current recorded owner for `BridgeCore`, `DAppManager`, and `L1TokenVault` is the single EOA
-  `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7`.
-- The current deployment artifacts record no multisig and no timelock.
+- The current recorded owner for `BridgeCore`, `DAppManager`, and `L1TokenVault` is the Safe multisig
+  `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`.
+- The current deployment artifacts record the Safe multisig and no timelock.
 - The EIP-1967 admin slot is expected to remain empty because the deployment uses UUPS proxies.
-- Moving ownership changes who can authorize upgrades and owner-only bridge administration. It does not rewrite existing
-  Channel policy snapshots or transfer control over user secrets.
+- The Safe multisig can authorize upgrades and owner-only bridge administration. This does not rewrite existing Channel
+  policy snapshots or transfer control over user secrets.
 
 ### Target state
 
@@ -873,7 +873,7 @@ deployment has changed:
 
 | Role | Address |
 |---|---|
-| Current owner EOA | `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7` |
+| Previous owner EOA | `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7` |
 | `BridgeCore` proxy | `0x992E2Ae206620d811832a8F697c526c4f95974b6` |
 | `DAppManager` proxy | `0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA` |
 | `L1TokenVault` proxy | `0xf127Aef661c815ad46c5159146078f6F1E9f5F61` |
@@ -881,8 +881,7 @@ deployment has changed:
 | Current `DAppManager` implementation | `0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5` |
 | Current `L1TokenVault` implementation | `0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710` |
 
-The selected multisig address is not yet decided. Use `MULTISIG_ADDRESS` as the placeholder in commands and scripts until
-the final address is selected and verified.
+The selected multisig address is `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`.
 
 ### Multisig selection requirements
 
@@ -947,7 +946,8 @@ cast code "$MULTISIG_ADDRESS" --rpc-url "$ETH_RPC_URL"
 
 Expected preflight results:
 
-- All three `owner()` calls return `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7`.
+- All three `owner()` calls return the pre-migration owner
+  `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7`.
 - `cast code "$MULTISIG_ADDRESS"` returns non-empty bytecode.
 - Safe UI and on-chain Safe reads show the selected signer list and threshold.
 - The proxy implementation addresses match the known mainnet addresses above.
@@ -970,7 +970,7 @@ Preflight result on 2026-06-10:
 
 ### Execution plan
 
-- Execute ownership transfers from the current owner EOA.
+- Execute ownership transfers from the then-current owner EOA.
 - Prefer a scripted or checklist-driven sequence that signs and submits exactly the three ownership-transfer
   transactions.
 - After each transaction confirms, immediately verify the corresponding `owner()` value.
@@ -1000,7 +1000,7 @@ cast send 0xf127Aef661c815ad46c5159146078f6F1E9f5F61 \
   --rpc-url "$ETH_RPC_URL" --private-key "$PRIVATE_KEY"
 ```
 
-The command form above is only an execution shape. Use the safest available signing method for the current owner EOA.
+The command form above is only an execution shape. Use the safest available signing method for the then-current owner EOA.
 Do not paste a private key into an untrusted shell, chat tool, ticket, or browser.
 
 Equivalent calldata for each target proxy:
@@ -1044,6 +1044,20 @@ Expected post-transfer results:
 - The implementation addresses are unchanged from the preflight snapshot.
 - The EIP-1967 admin slots remain empty.
 
+Post-transfer result on 2026-06-10:
+
+- Ownership transfer transactions:
+  - `BridgeCore`: `0xbf02088103cc8082136d3832daa46ac668ad1beee27e353ef8a8102f39690691`,
+  - `DAppManager`: `0x921c168547b2fc284bf9aa9bf981cf79c1dca4e1ac0cfdb4cc40144e6631aef3`,
+  - `L1TokenVault`: `0xaabe73295adcfc3f5380c66ce46df36dd0adcd47c94fe41757c32ef81ba1044e`.
+- `BridgeCore.owner()`, `DAppManager.owner()`, and `L1TokenVault.owner()` all return
+  `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`.
+- Safe threshold remains 2-of-3.
+- Implementation slots remained unchanged.
+- EIP-1967 admin slots remained empty.
+- `the-great-first-channel` still resolves to Channel manager
+  `0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7`.
+
 ### Safe-side operational verification
 
 After ownership transfer, perform one Safe-side dry operational check before any real upgrade:
@@ -1058,16 +1072,17 @@ After ownership transfer, perform one Safe-side dry operational check before any
 
 After successful on-chain transfer:
 
-- Update `docs/audit/monitoring/data/TPAC-Contract-Addresses.json`:
+- Completed: update `docs/audit/monitoring/data/TPAC-Contract-Addresses.json`:
   - set the three owner fields to the multisig address,
   - set `multisig` to the multisig address,
   - keep `timelock` as `null` unless a timelock is actually deployed and owns the contracts,
   - update the governance note.
-- Update `docs/audit/monitoring/data/Admin-Wallets-and-Upgrade-Policy.md` with the multisig address, signer threshold,
-  no-timelock status if applicable, and UUPS upgrade policy.
-- Update any monitoring packet or observer documentation that reports admin wallets or upgrade authority.
-- Update Terms and README language if they describe the owner as a single EOA or describe upgrade authority in a way that
-  becomes stale.
+- Completed: update `docs/audit/monitoring/data/Admin-Wallets-and-Upgrade-Policy.md` with the multisig address, signer
+  threshold, no-timelock status, ownership transfer transactions, and UUPS upgrade policy.
+- Completed: update `docs/whitepaper.md` to remove stale single-EOA launch wording and describe the current Safe
+  multisig owner posture.
+- Remaining: update any additional monitoring packet, observer documentation, Terms, README, or release notes if later
+  review finds stale owner or upgrade-authority wording.
 - Public user-facing documentation should use neutral on-chain wording such as "the root bridge proxy owner is the Safe
   multisig at `<address>` with a 2-of-3 threshold and no timelock" after migration. It must not say "Provider-controlled
   Safe" or similar signer-control wording, and it must not imply independent third-party governance, community
@@ -1092,10 +1107,7 @@ The migration must preserve the following constraints:
 
 ### Open decisions before execution
 
-- Decide the exact signing path for the current owner EOA. Preferred direction: the operator signs the three
-  `transferOwnership` transactions directly from the current owner EOA without exposing the private key to shell history,
-  chat tools, tickets, or browsers outside the selected wallet flow.
-- Confirm that no unrelated owner-only transaction is queued or executed until post-transfer verification is complete.
+- None. Execution and post-transfer verification are complete.
 
 ## Pre-Counsel Redline and Risk Review Plan
 

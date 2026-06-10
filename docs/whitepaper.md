@@ -658,7 +658,7 @@ The purpose of listing these issues is to prevent the white paper from overstati
 can be acceptable for launch only when the reader can see who bears it, how it is constrained, and
 what operational response remains available.
 
-Privileged owner authority is an accepted trust assumption. The bridge owner can upgrade root UUPS contracts, update future verifier defaults, and change future-channel policy surfaces. Existing channels snapshot their policy, but root custody and future-channel governance still depend on disciplined owner operation. A timelock or multisig can improve this later, but the present launch model accepts owner trust.
+Privileged owner authority is an accepted trust assumption. The root bridge proxy owner is a Safe multisig with a 2-of-3 threshold and no timelock. The multisig can upgrade root UUPS contracts, update future verifier defaults, and change future-channel policy surfaces. Existing channels snapshot their policy, but root custody and future-channel governance still depend on disciplined owner operation. The multisig reduces single-EOA key risk, but it does not remove owner trust or add a timelock delay.
 
 DApp metadata and verifier update mistakes are operationally accepted. The owner can register or update a bad DApp policy for future channels. The digest gate prevents a channel creator from accidentally creating a channel against a registry value that changed after review, but it does not prove that the reviewed policy is semantically correct. The practical control is publication, review, and visible channel migration if a bad policy is discovered.
 

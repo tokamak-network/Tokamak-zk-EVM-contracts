@@ -1530,6 +1530,7 @@ Minimum document changes to complete before release:
      infrastructure providers may process data outside the user's country and that third-party services apply their own
      terms and safeguards.
    - Avoid overpromising specific transfer mechanisms unless counsel confirms them.
+   - Status: Completed in `docs/dapps/private-state/privacy-notice.md` Section 18.
 4. Data breach contact:
    - Add a practical incident-contact statement: users may report suspected compromise of Provider-controlled systems to
      the privacy contact; the Provider will assess and notify affected persons or authorities when required by

@@ -252,6 +252,10 @@ Retention depends on the data surface:
 
 The Service and Third-Party Services may process or store data in multiple jurisdictions.
 
+Official hosting, support, repository, package-distribution, artifact-distribution, analytics, and infrastructure
+providers may process data outside the user's country. Third-Party Services apply their own terms, privacy notices,
+security practices, and any transfer safeguards described by those services.
+
 Confirmed current deployment information includes:
 
 - The Official Public Observer and included Tonnel web surfaces are hosted on Vercel.

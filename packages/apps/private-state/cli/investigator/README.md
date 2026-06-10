@@ -6,13 +6,13 @@ This directory contains a static browser tool for filtering a local raw evidence
 private-state-cli wallet get-notes \
   --network <NETWORK> \
   --wallet <WALLET> \
-  --export-evidence ./wallet-evidence.zip \
-  --acknowledge-full-note-plaintext-export
+  --export-evidence ./wallet-evidence.zip
 ```
 
-Open `index.html` in a modern browser, load the raw ZIP, choose the disclosure request type, inspect the graph, and
-build a narrower user-consent disclosure ZIP. From an installed CLI package, `private-state-cli investigator` prints
-the bundled HTML path and opens it in the default browser.
+The export command asks for interactive confirmation before writing plaintext note evidence. Open `index.html` in a
+modern browser, load the raw ZIP, choose the disclosure request type, inspect the graph, and build a narrower
+user-consent disclosure ZIP. From an installed CLI package, `private-state-cli investigator` prints the bundled HTML path
+and opens it in the default browser.
 
 The tool does not run a server and does not send files over the network. It reads the selected ZIP in
 the browser. It can write a new ZIP with selected note records plus directly referenced transaction,
@@ -43,7 +43,7 @@ workspace with `wallet recover-workspace` and export a new evidence ZIP with `wa
 - creation or spend block range
 - current note status
 - relationship direction
-- available counterparty L2 address metadata
+- available counterparty channel-local address metadata
 - user-provided bridge deposit or withdraw transaction context
 
 Counterparty filtering is only as complete as the relationship hints present in the raw evidence

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added Terms section references to `help guide --json` agent guidance so User-Controlled AI Agents can read the
+  canonical Terms before advising users.
+- Updated human guide, command reference, README, and `agents.md` wording to align with install-time Terms acceptance and
+  interactive sensitive-action confirmations instead of per-command action-impact acknowledgement flags.
+- Changed transaction-sending command warning handling to print warning summaries without requiring
+  `--acknowledge-action-impact`.
 - Revised user-facing CLI help, guide, README, fee, and agent wording to prefer "Ethereum mainnet", "Ethereum account",
   "channel-local address", and "Join Toll" over developer shorthand except where command, option, contract, or JSON field
   names require the original term.

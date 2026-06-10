@@ -10,6 +10,10 @@ The Service Privacy Notice is published in the repository:
 
 - https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/docs/dapps/private-state/privacy-notice.md
 
+The Service Terms of Service are published in the repository:
+
+- https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/docs/dapps/private-state/terms.md
+
 ## Terminology And Exchange Boundary
 
 This npm README uses the same terminology as the repository README:
@@ -41,10 +45,9 @@ contract state does not automatically reconstruct the full note path.
 
 This CLI does not send your spending key, wallet secret, or private note plaintext to Tokamak.
 
-## Tokamak-Operated Mainnet Channels
+## Documented Mainnet Channels
 
-The table below lists private-state mainnet channels directly opened by Tokamak Network. Dates are
-UTC.
+The table below lists private-state mainnet channels documented by this package. Dates are UTC.
 
 | Channel name | Channel creator / leader | Created at | Genesis block | Channel manager |
 | --- | --- | --- | ---: | --- |
@@ -178,13 +181,16 @@ Use `private-state-cli help commands` for the full command list and required opt
 continues to print the same command list for shell compatibility. Add `--json` to either form to print the command
 reference as structured JSON on stdout.
 
-### Action-impact acknowledgement
+### Command Warnings And User Confirmation
 
-Transaction-sending bridge, channel, and note commands require `--acknowledge-action-impact`. Before submitting any
-transaction, the CLI prints a static action-impact summary covering whether the command emits public Ethereum mainnet events, whether
-it changes private-state note state, which addresses or amounts become public, which note facts are not public by default,
-illegal-use prohibition, secret-recovery limits, and channel policy acceptance. In non-interactive contexts, such as
-scripts and LLM-assisted execution, the command fails unless the flag is present.
+The CLI prints warning summaries before commands that send transactions, move funds, accept Channel policy, expose
+plaintext evidence, or delete local data. These warnings explain whether the command emits public Ethereum mainnet
+events, whether it changes private-state note state, which addresses or amounts become public, which note facts are not
+public by default, illegal-use prohibitions, no-recovery limits, and Channel policy acceptance.
+
+Terms acceptance is handled at install and renewal time. Destructive commands and sensitive exports use interactive
+confirmation prompts. User-Controlled AI Agents must explain warnings to the user, but they must not accept Terms,
+confirm destructive actions, or handle secret material for the user.
 
 Static warning scope:
 
@@ -314,7 +320,7 @@ commands that submit bridge or channel-registration transactions.
 Export a local full-note evidence bundle with:
 
 ```bash
-private-state-cli wallet get-notes --network mainnet --wallet <WALLET> --export-evidence ./wallet-evidence.zip --acknowledge-full-note-plaintext-export
+private-state-cli wallet get-notes --network mainnet --wallet <WALLET> --export-evidence ./wallet-evidence.zip
 ```
 
 This ZIP is an input for `private-state-cli investigator`. It contains plaintext for all locally known
@@ -355,7 +361,7 @@ data. AI agents answering user questions about gas, transaction fees, transactio
 Proof-backed note commands can use a separate Ethereum transaction submitter:
 
 ```bash
-private-state-cli wallet mint-notes --wallet <WALLET> --network mainnet --amounts '[1]' --acknowledge-action-impact --tx-submitter <ACCOUNT>
+private-state-cli wallet mint-notes --wallet <WALLET> --network mainnet --amounts '[1]' --tx-submitter <ACCOUNT>
 ```
 
 `--tx-submitter <ACCOUNT>` is available on `wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`. The wallet still proves
@@ -376,7 +382,6 @@ private-state-cli wallet transfer-notes \
   --note-ids '["0xNOTE1","0xNOTE2"]' \
   --recipients '["0xRECIPIENT1","0xRECIPIENT2"]' \
   --amounts '["1.5","2"]' \
-  --acknowledge-action-impact \
   --tx-submitter <ACCOUNT>
 ```
 
@@ -436,7 +441,7 @@ Create one before joining a channel:
 
 ```bash
 private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt
-private-state-cli channel join --channel-name <CHANNEL> --network mainnet --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
+private-state-cli channel join --channel-name <CHANNEL> --network mainnet --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
 ```
 
 The default helper flow lets the user type a wallet secret so it can be retained more easily. If random generation is
@@ -481,8 +486,8 @@ secret source used at `channel join`. `wallet recover-workspace --wallet-secret-
 rederivation only for active channel registrations. Importing `wallet-viewing.key` or `wallet-spending.key` restores the
 corresponding capability without rerunning derivation, but a backup ZIP alone never restores either capability.
 
-`wallet get-notes --export-evidence <PATH> --acknowledge-full-note-plaintext-export` writes a local raw evidence ZIP.
-The bundle is not a key export. It includes plaintext note facts for locally known notes so that
+`wallet get-notes --export-evidence <PATH>` writes a local raw evidence ZIP after interactive confirmation. The bundle
+is not a key export. It includes plaintext note facts for locally known notes so that
 `private-state-cli investigator` can create narrower consent-disclosure packages without requiring viewing-key or
 spending-key sharing.
 
@@ -532,9 +537,9 @@ provider's documented `eth_getLogs` policy, then retry the recovery command.
 Canonical CLI secrets are checked on read: macOS/Linux uses `0600`, while Windows uses ACL repair and inspection when
 possible.
 
-## LLM Agent Guidance
+## User-Controlled AI Agent Guidance
 
-LLM agents that guide users through this CLI should start with the state-aware guide in JSON mode:
+User-Controlled AI Agents that guide users through this CLI should start with the state-aware guide in JSON mode:
 
 ```bash
 private-state-cli help guide --json
@@ -545,14 +550,16 @@ The JSON guide is the machine-readable entrypoint. Read `agentGuidance` from the
 - `agentGuidance.source` identifies the instruction file, currently [`agents.md`](agents.md)
 - `agentGuidance.refs` lists the indexed items in that file that apply to the next step
 - `agentGuidance.step` is the symbolic guide step that selected those refs
+- `agentGuidance.termsSource` identifies the Terms document
+- `agentGuidance.termsRefs` lists the Terms sections the agent must read and explain for legal and safety context
 
 The purpose of `--json` mode is to let the user's AI agent guide the user through the smallest safe next action while
 preserving the user's informed consent. JSON output should be treated as an agent instruction surface, not as a way to
-bypass human review. When a command reports required warnings, prohibitions, terms, channel policy, or developer/operator
-disclaimers, the agent must explain those points to the user and must not accept terms or confirmations on the user's
+bypass human review. When a command reports required warnings, prohibitions, Terms, Channel policy, or Provider Party and
+Channel Operator disclaimers, the agent must explain those points to the user and must not accept Terms or confirmations on the user's
 behalf.
 
-After reading the referenced `agents.md` items, translate the recipe into a short, safe instruction for the user.
+After reading the referenced `agents.md` items and Terms sections, translate the recipe into a short, safe instruction for the user.
 Do not ask users to paste raw private keys, wallet secrets, seed phrases, provider passwords, or provider dashboard
 access into chat. Use the CLI's local helper commands for secret source files.
 

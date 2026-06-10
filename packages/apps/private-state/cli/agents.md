@@ -269,18 +269,16 @@ Goal: join a channel and create/register the local private-state wallet using th
 When to use: after the Ethereum account is imported, RPC is configured, the channel/workspace is ready, and the wallet
 secret source exists.
 
-Minimal user actions: review the channel policy and action-impact warning, explicitly confirm, then run the join
-command.
+Minimal user actions: review the channel policy and CLI warning summary, then run the join command directly.
 
-AI may ask: channel name, network, account alias, wallet secret source path, and explicit confirmation for
-`--acknowledge-action-impact`.
+AI may ask: channel name, network, account alias, and wallet secret source path.
 
 AI must not ask: wallet secret contents, Ethereum private key contents, seed phrase, or password/passphrase contents.
 
 Command template:
 
 ```bash
-private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
+private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
 ```
 
 Success check:
@@ -290,8 +288,9 @@ private-state-cli wallet list --network <NETWORK> --channel-name <CHANNEL> --jso
 private-state-cli wallet get-meta --wallet <WALLET> --network <NETWORK> --json
 ```
 
-Failure recovery: if the channel workspace is missing, follow D.7. If acknowledgement is missing, follow E.1 and E.2.
-If registration already exists, use wallet recovery or normal wallet commands instead of joining again.
+Failure recovery: if the channel workspace is missing, follow D.7. If the user is not ready to accept the policy or
+warning summary, stop and do not join. If registration already exists, use wallet recovery or normal wallet commands
+instead of joining again.
 
 Optional explanation: joining creates/registers the private-state wallet for that channel and may pay the Join Toll
 directly from the Ethereum account.
@@ -624,25 +623,26 @@ mirror.
 
 ### D.8 Join channel
 
-Goal: complete channel join only after policy and action-impact review.
+Goal: complete channel join only after policy and warning review.
 
 When to use: the account, RPC, artifacts, channel workspace, and wallet secret source are ready.
 
-Minimal user actions: review the warning, explicitly confirm, then run B.7.
+Minimal user actions: review the warning and run B.7 directly.
 
-AI may ask: explicit confirmation for `--acknowledge-action-impact`.
+AI may ask: whether the user has read the channel policy and warning summary.
 
 AI must not ask: wallet secret contents, private key contents, seed phrase, or password/passphrase contents.
 
 Command template:
 
 ```bash
-private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
+private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
 ```
 
 Success check: run `wallet list` and `wallet get-meta` as shown in B.7.
 
-Failure recovery: if acknowledgement is missing, follow E.1 and E.2. If workspace is missing, follow D.7.
+Failure recovery: if the user is not ready to accept the policy or warning summary, stop. If workspace is missing,
+follow D.7.
 
 Optional explanation: channel join may pay a Join Toll directly from the Ethereum account.
 
@@ -676,16 +676,16 @@ Goal: deposit funds into the shared bridge vault only when the joined wallet nee
 
 When to use: the wallet is joined and no bridge, channel, or unused-note balance is available.
 
-Minimal user actions: review public impact, confirm, then run the deposit command.
+Minimal user actions: review the public warning summary, then run the deposit command.
 
-AI may ask: amount, network, account alias, and explicit acknowledgement confirmation.
+AI may ask: amount, network, and account alias.
 
 AI must not ask: private keys, wallet secrets, seed phrases, or provider credentials.
 
 Command template:
 
 ```bash
-private-state-cli account deposit-bridge --amount <TOKENS> --network <NETWORK> --account <ACCOUNT> --acknowledge-action-impact
+private-state-cli account deposit-bridge --amount <TOKENS> --network <NETWORK> --account <ACCOUNT>
 ```
 
 Success check:
@@ -694,7 +694,8 @@ Success check:
 private-state-cli account get-bridge-fund --account <ACCOUNT> --network <NETWORK> --json
 ```
 
-Failure recovery: if acknowledgement is missing, follow E.1 and E.2. If RPC or account is missing, return to D.3 or D.4.
+Failure recovery: if the user is not ready after reading the warning summary, stop. If RPC or account is missing, return
+to D.3 or D.4.
 
 Optional explanation: bridge funding is public and does not create private notes by itself.
 
@@ -704,16 +705,16 @@ Goal: move already-bridged funds into channel accounting for the joined wallet.
 
 When to use: bridge balance exists but channel balance is zero.
 
-Minimal user actions: review public/private action impact, confirm, then run one channel deposit command.
+Minimal user actions: review the public/private warning summary, then run one channel deposit command.
 
-AI may ask: wallet name, network, amount, and explicit acknowledgement confirmation.
+AI may ask: wallet name, network, and amount.
 
 AI must not ask: wallet secrets, private keys, seed phrases, or provider credentials.
 
 Command template:
 
 ```bash
-private-state-cli wallet deposit-channel --wallet <WALLET> --network <NETWORK> --amount <TOKENS> --acknowledge-action-impact
+private-state-cli wallet deposit-channel --wallet <WALLET> --network <NETWORK> --amount <TOKENS>
 ```
 
 Success check:
@@ -722,7 +723,8 @@ Success check:
 private-state-cli wallet get-channel-fund --wallet <WALLET> --network <NETWORK> --json
 ```
 
-Failure recovery: if bridge balance is missing, follow D.10. If acknowledgement is missing, follow E.1 and E.2.
+Failure recovery: if bridge balance is missing, follow D.10. If the user is not ready after reading the warning summary,
+stop.
 
 Optional explanation: channel funding prepares balance for note minting; it is separate from bridge funding.
 
@@ -732,7 +734,7 @@ Goal: create spendable private notes from channel balance.
 
 When to use: channel balance exists and unused note count is zero or insufficient.
 
-Minimal user actions: choose note amounts, review action impact, confirm, then run mint.
+Minimal user actions: choose note amounts, review the warning summary, then run mint.
 
 AI may ask: wallet name, network, amounts JSON, optional transaction submitter account, and explicit confirmation.
 
@@ -741,7 +743,7 @@ AI must not ask: wallet secrets, private keys, seed phrases, or note plaintext b
 Command template:
 
 ```bash
-private-state-cli wallet mint-notes --wallet <WALLET> --network <NETWORK> --amounts <JSON_ARRAY> --acknowledge-action-impact
+private-state-cli wallet mint-notes --wallet <WALLET> --network <NETWORK> --amounts <JSON_ARRAY>
 ```
 
 Success check:
@@ -750,7 +752,8 @@ Success check:
 private-state-cli wallet get-notes --wallet <WALLET> --network <NETWORK> --json
 ```
 
-Failure recovery: if channel balance is missing, follow D.11. If acknowledgement is missing, follow E.1 and E.2.
+Failure recovery: if channel balance is missing, follow D.11. If the user is not ready after reading the warning summary,
+stop.
 
 Optional explanation: minting turns channel balance into notes that can later be transferred or redeemed.
 
@@ -760,11 +763,10 @@ Goal: transfer or redeem existing notes without assuming the required notes exis
 
 When to use: the wallet has unused notes.
 
-Minimal user actions: inspect notes, choose note IDs and recipients/amounts, review action impact, confirm, then run the
+Minimal user actions: inspect notes, choose note IDs and recipients/amounts, review the warning summary, then run the
 selected note command.
 
-AI may ask: wallet name, network, selected note IDs, recipients, amounts, optional transaction submitter account, and
-explicit confirmation.
+AI may ask: wallet name, network, selected note IDs, recipients, amounts, and optional transaction submitter account.
 
 AI must not ask: wallet secrets, private keys, seed phrases, or unrelated note plaintext.
 
@@ -806,31 +808,31 @@ Failure recovery: if balances or notes remain, resolve them before exit.
 
 Optional explanation: exit is allowed only when the wallet state satisfies CLI and bridge contract requirements.
 
-## E. Acknowledgements and Policy
+## E. User Confirmation And Policy
 
-### E.1 Action-impact confirmation
+### E.1 Warning summary review
 
-Goal: ensure the user understands externally visible effects before acknowledged commands.
+Goal: ensure the user understands externally visible effects before transaction-sending commands.
 
-When to use: before any command requiring `--acknowledge-action-impact`.
+When to use: before any command that sends a transaction, moves funds, creates or consumes notes, exports sensitive data,
+or deletes local data.
 
-Minimal user actions: read the impact summary and explicitly confirm.
+Minimal user actions: read the CLI warning summary and decide whether to continue.
 
-AI may ask: whether the user confirms after reading the action-impact warning.
+AI may ask: whether the user wants to continue after reading the warning summary.
 
 AI must not ask: secrets, private keys, wallet secrets, seed phrases, or blanket future approval.
 
-Command template:
+Command template: use the command returned by `help guide --json` or the relevant recipe without adding legal
+confirmation flags.
 
-```bash
-private-state-cli <COMMAND> ... --acknowledge-action-impact
-```
+Success check: the user runs the command directly after reviewing the warning summary.
 
-Success check: the user gives explicit confirmation for this command instance.
+Failure recovery: if the user is not ready to continue, stop. Do not accept Terms, confirm destructive prompts, or submit
+confirmation text for the user.
 
-Failure recovery: if confirmation is missing, do not add the flag or execute the command.
-
-Optional explanation: acknowledged commands may emit public events, move funds, accept policy, or affect wallet state.
+Optional explanation: warning summaries may cover public events, fund movement, Channel policy, sensitive exports, or
+wallet-state changes.
 
 ### E.2 Channel policy confirmation
 
@@ -847,10 +849,10 @@ AI must not ask: secrets or credentials.
 Command template:
 
 ```bash
-private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
+private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
 ```
 
-Success check: the user explicitly confirms before the command is run with acknowledgement.
+Success check: the user runs the command only after reading the Channel policy.
 
 Failure recovery: if any policy field is unexpected, stop and do not join or create the channel.
 
@@ -1031,16 +1033,16 @@ Goal: keep bridge funding guidance accurate before note workflows.
 
 When to use: bridge balance is missing or the guide recommends bridge deposit.
 
-Minimal user actions: choose amount, review action impact, confirm, and run the bridge deposit command.
+Minimal user actions: choose amount, review the warning summary, and run the bridge deposit command.
 
-AI may ask: amount, network, account alias, and acknowledgement confirmation.
+AI may ask: amount, network, and account alias.
 
 AI must not ask: private keys, wallet secrets, seed phrases, or provider credentials.
 
 Command template:
 
 ```bash
-private-state-cli account deposit-bridge --amount <TOKENS> --network <NETWORK> --account <ACCOUNT> --acknowledge-action-impact
+private-state-cli account deposit-bridge --amount <TOKENS> --network <NETWORK> --account <ACCOUNT>
 ```
 
 Success check: `account get-bridge-fund --json` shows available bridge balance.
@@ -1055,16 +1057,16 @@ Goal: move bridge funds into channel accounting only after wallet join.
 
 When to use: bridge balance exists but channel balance is zero.
 
-Minimal user actions: choose amount, review action impact, confirm, and run channel deposit.
+Minimal user actions: choose amount, review the warning summary, and run channel deposit.
 
-AI may ask: amount, wallet name, network, and acknowledgement confirmation.
+AI may ask: amount, wallet name, and network.
 
 AI must not ask: wallet secrets, private keys, seed phrases, or provider credentials.
 
 Command template:
 
 ```bash
-private-state-cli wallet deposit-channel --wallet <WALLET> --network <NETWORK> --amount <TOKENS> --acknowledge-action-impact
+private-state-cli wallet deposit-channel --wallet <WALLET> --network <NETWORK> --amount <TOKENS>
 ```
 
 Success check: `wallet get-channel-fund --json` shows channel balance.
@@ -1079,16 +1081,16 @@ Goal: create notes only after channel balance exists.
 
 When to use: the wallet has channel balance and no usable notes.
 
-Minimal user actions: choose amounts, review action impact, confirm, and run mint.
+Minimal user actions: choose amounts, review the warning summary, and run mint.
 
-AI may ask: amounts JSON, wallet name, network, optional transaction submitter, and acknowledgement confirmation.
+AI may ask: amounts JSON, wallet name, network, and optional transaction submitter.
 
 AI must not ask: wallet secrets, private keys, seed phrases, or unrelated note plaintext.
 
 Command template:
 
 ```bash
-private-state-cli wallet mint-notes --wallet <WALLET> --network <NETWORK> --amounts <JSON_ARRAY> --acknowledge-action-impact
+private-state-cli wallet mint-notes --wallet <WALLET> --network <NETWORK> --amounts <JSON_ARRAY>
 ```
 
 Success check: `wallet get-notes --json` shows unused notes.
@@ -1105,8 +1107,7 @@ When to use: the user wants to transfer or redeem notes.
 
 Minimal user actions: inspect notes, select existing note IDs, then confirm the intended transfer or redeem command.
 
-AI may ask: selected note IDs, recipients, amounts, wallet name, network, optional transaction submitter, and
-acknowledgement confirmation.
+AI may ask: selected note IDs, recipients, amounts, wallet name, network, and optional transaction submitter.
 
 AI must not ask: wallet secrets, private keys, seed phrases, or unrelated note plaintext.
 
@@ -1139,7 +1140,7 @@ AI must not ask: private keys, wallet secrets, seed phrases, or submitter privat
 Command template:
 
 ```bash
-private-state-cli wallet transfer-notes --wallet <WALLET> --network <NETWORK> --note-ids <JSON_ARRAY> --recipients <JSON_ARRAY> --amounts <JSON_ARRAY> --acknowledge-action-impact --tx-submitter <ACCOUNT>
+private-state-cli wallet transfer-notes --wallet <WALLET> --network <NETWORK> --note-ids <JSON_ARRAY> --recipients <JSON_ARRAY> --amounts <JSON_ARRAY> --tx-submitter <ACCOUNT>
 ```
 
 Success check: the command accepts the submitter alias and submits with that local account.
@@ -1213,7 +1214,7 @@ When to use: the AI runs any `private-state-cli ... --json` command on behalf of
 
 Minimal user actions: none beyond authorizing the command when needed.
 
-AI may ask: whether to proceed with an acknowledged or transaction-sending command.
+AI may ask: whether to proceed with a transaction-sending command.
 
 AI must not ask: the user to manually parse JSONL progress events or reveal secrets from logs.
 

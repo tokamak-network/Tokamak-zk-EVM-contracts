@@ -41,24 +41,23 @@ A user may reference public data without disclosing wallet secrets:
 - verifier, DApp metadata, source verification, ABI, bytecode hash, owner, proxy, and upgrade data
   published in this Monitoring Packet
 
-These materials can support statements such as "this L1 address joined this channel", "this bridge
-deposit occurred", "this withdrawal claim occurred", or "this transition was accepted by the public
-channel contracts." They do not, by themselves, prove the full private note path.
+These materials can support statements such as "this Ethereum account joined this channel", "this bridge deposit
+occurred", "this withdrawal claim occurred", or "this transition was accepted by the public channel contracts." They do
+not, by themselves, prove the full private note path.
 
 ## User-Held Evidence A User May Voluntarily Submit
 
 A user may voluntarily generate wallet-derived facts that they can inspect locally. The CLI provides
-`wallet get-notes --export-evidence <PATH> --acknowledge-full-note-plaintext-export` as a local raw
-evidence bundle export. When the selected wallet has retained exited epochs, those local epochs are
-included so the user can still inspect historical notes after channel exit. This raw bundle is not
-the final exchange submission package. The local investigator opened by `private-state-cli
-investigator`, or directly at `packages/apps/private-state/cli/investigator/index.html`, filters the raw
-bundle into a narrower user-consent package for the specific request.
+`wallet get-notes --export-evidence <PATH>` as a local raw evidence bundle export after interactive confirmation. When
+the selected wallet has retained exited epochs, those local epochs are included so the user can still inspect historical
+notes after channel exit. This raw bundle is not the final exchange submission package. The local investigator opened by
+`private-state-cli investigator`, or directly at `packages/apps/private-state/cli/investigator/index.html`, filters the
+raw bundle into a narrower user-consent package for the specific request.
 
 Examples of user-held facts include:
 
 - wallet registration metadata shown by read-only wallet inspection
-- the user's local L2 address and its match against the on-chain channel registration
+- the user's local channel address and its match against the on-chain channel registration
 - locally tracked note commitment and nullifier values
 - locally decrypted note amount and status for notes addressed to the user's registered
   note-receive public key

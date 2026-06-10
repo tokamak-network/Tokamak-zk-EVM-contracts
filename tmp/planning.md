@@ -535,6 +535,13 @@ Current status:
 - Updated the public-document drafting rule: public documents must assume selected planning items are complete and must
   not include implementation-status assumptions. Removed implementation-condition wording from the Terms release
   candidate.
+- Updated human `help guide`, CLI README, and `agents.md` wording for the selected prompt policy: public guide surfaces
+  no longer instruct users or User-Controlled AI Agents to add per-command action-impact acknowledgement flags.
+- Updated `help guide --json` agent guidance to include canonical Terms section references alongside indexed
+  `agents.md` references.
+- Updated CLI command-reference and transaction-warning output so real-funds commands show warning summaries without
+  exposing or requiring per-command action-impact acknowledgement flags. The install-time Terms gate and renewed
+  acceptance mechanism still remain separate implementation work before production terms behavior is complete.
 - Completed current-repository terminology pass for the root README, private-state DApp README, CLI README, human
   `help guide` strings, `help commands` metadata, fee-help descriptions, and `agents.md`.
 - Completed current-repository framing pass for the same surfaces. The remaining occurrences of `L1`, `L2`, and
@@ -791,15 +798,16 @@ Decision guide:
 | Privacy Notice | Initial draft completed in `docs/dapps/private-state/privacy-notice.md`; initial publication location selected as GitHub repository documentation only. CLI README references the document. `tonnel.io` publication is deferred. | Review the draft against Terms definitions, Provider identity, Official Public Observer disclosures, support routes, and Third-Party Service boundaries before final Terms, guide, JSON mode, or implementation work. |
 | Provider identity and privacy contact | Selected: Jehyuk Jang; `cjhyuck213@gmail.com`; Singapore; residential address not published. | Use the email address for privacy/contact and notice routing. Keep Telegram as an official support channel, not the sole privacy contact. If a physical notice address becomes required, use a counsel-approved non-residential route such as a P.O. box, business mailing address, registered agent, or counsel address. |
 | Arbitration and class-action waiver | Not included in the current draft. | Keep these provisions out unless counsel confirms that adding them is appropriate and enforceable enough for the individual Provider model and expected user jurisdictions. |
-| Separate prompts | Selected: remove `--acknowledge-action-impact` from all commands after install-time Terms acceptance is enforced. Make `uninstall`, secret-bearing material exports, and plaintext note or evidence exports interactive confirmation flows. Print warning summaries for real-funds commands in both human and `--json` modes every time. | Implement only after the canonical Terms and Terms gate are frozen. Do not keep a command-level legal acknowledgement flag for ordinary transaction commands. |
+| Separate prompts | Selected: remove `--acknowledge-action-impact` from all commands, enforce install-time Terms acceptance, make `uninstall`, secret-bearing material exports, and plaintext note or evidence exports interactive confirmation flows, and print warning summaries for real-funds commands in both human and `--json` modes every time. | The guide, command reference, and transaction-warning output no longer expose or require the per-command action-impact flag. The canonical Terms gate, renewed acceptance mechanism, and full sensitive-action prompt implementation remain before production terms behavior is complete. |
 | Channel Operation Abandonment | Selected: immediate on-chain abandonment state with no grace period. | Implement leader-only abandonment in the shared bridge/vault path so existing Channels, including `the-great-first-channel`, can have new joins and `deposit-channel` blocked after the leader initiates abandonment. Do not restrict note activity, `redeem-notes`, `withdraw-channel`, or `exit-channel` on-chain. CLI must error for join/deposit on abandoned Channels and warn for other Channel activities. |
 
 ### Phase 4: Finalize human-facing documents
 
 - Finalize Terms text and section numbering. Repository release-candidate created at
   `docs/dapps/private-state/terms.md`; counsel-directed changes and final release approval remain.
-- Finalize human `help guide` text for ordinary users.
-- Finalize CLI README language explaining the Service terms and the purpose of `--json`.
+- Finalize human `help guide` text for ordinary users. Initial final-policy pass completed; final verification remains.
+- Finalize CLI README language explaining the Service terms and the purpose of `--json`. Initial final-policy pass
+  completed; final verification remains.
 - Finalize documentation explaining public Ethereum mainnet records, public Channel records, Official Public Observer
   limits, Self-Custody, no recovery method, and Third-Party Service risk.
 - Confirm that human-facing text is plain-language enough for ordinary users without weakening legal precision.
@@ -807,7 +815,7 @@ Decision guide:
 ### Phase 5: Finalize machine-readable and agent-facing documents
 
 - Finalize `help guide --json` output contract so it references canonical Terms section numbers and `agents.md` sections
-  without duplicating full legal text.
+  without duplicating full legal text. Initial output contract update completed; final verification remains.
 - Finalize `install --json` behavior for missing or stale Terms acceptance.
 - Finalize User-Controlled AI Agent directives for warnings, prohibitions, public/private boundaries, Self-Custody, no
   recovery method, Third-Party Service risk, no professional advice, no warranties, liability limits, and Official Public
@@ -1288,7 +1296,7 @@ before release.
 | R-17 | 20 | Use Singapore court litigation and Singapore law as the Provider-connected baseline, with mandatory consumer-law and local-court carveouts. Do not include arbitration, class-action waiver, collective-action waiver, representative-action waiver, or jury-trial waiver provisions unless counsel later approves them. | Forum and waiver clauses may be invalid or problematic for consumers in some jurisdictions. | Applied to draft Terms; counsel to confirm enforceability. |
 | R-18 | 20 | Add `cjhyuck213@gmail.com` as the public privacy and notice contact for Jehyuk Jang, and state that the Provider's residential address is not published. If a physical notice address becomes required, use a counsel-approved non-residential notice route. | Notices are incomplete without an official contact route, but residential address publication is not the default policy. | Applied to draft Terms; counsel to confirm sufficiency. |
 | R-19 | 1, 2, 9, 16 | Apply the selected Join Toll policy to Terms and implementation planning. The current reviewed implementation stores Join Tolls in `L1TokenVault._tollTreasuryBalance`, records `joinTollPaid`, and pays exit refunds from the toll treasury according to the Channel refund schedule. The selected change is future-only: on Channel exit, refund the refundable portion to the exiting user and transfer the non-refundable portion to `0x000000000000000000000000000000000000dEaD`. Existing already-exited users' historical non-refundable Toll portions are not in scope for retroactive burn-address transfer. The selected refund schedule is time-increasing: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days. | The user-facing economic representation must match the protocol. Because mainnet TON does not expose an external `burn` function and rejects transfer to `address(0)`, the Service must describe this as a burn-address transfer, not as TON total-supply reduction. The current implementation enforces the opposite refund direction with `joinTollRefundBps1 >= joinTollRefundBps2 >= joinTollRefundBps3 >= joinTollRefundBps4`; this must be inverted before the new schedule is described as implemented behavior. | Selected product decision; update Terms/docs and implement after canonical Terms freeze. |
-| R-20 | Prompt policy | Remove `--acknowledge-action-impact` from every command after install-time Terms acceptance is enforced. Make `uninstall` interactive like `install`; default uninstall preserves wallet workspace spending-key and viewing-key files while deleting the rest, and `--include-wallet-keys` deletes everything without exception. Make secret-bearing material export commands and plaintext note/evidence export commands interactive. For each such interactive flow, print the command impact, leakage or destructive risk, precautions, and Provider Party disclaimers, then require human confirmation before continuing. For every command that handles real funds, print command-specific information and warning summaries in human mode and `--json` mode on every run without requiring a command-level acknowledgement option. | This implements the selected product policy: one-time install Terms acceptance replaces repeated action-impact acknowledgement flags, while moment-specific human confirmations remain for destructive deletion and sensitive exports, and ordinary transaction commands still show relevant warnings. | Selected plan; implement only after canonical Terms and the Terms gate are frozen. |
+| R-20 | Prompt policy | Remove `--acknowledge-action-impact` from every command, enforce install-time Terms acceptance, make `uninstall` interactive like `install`; default uninstall preserves wallet workspace spending-key and viewing-key files while deleting the rest, and `--include-wallet-keys` deletes everything without exception. Make secret-bearing material export commands and plaintext note/evidence export commands interactive. For each such interactive flow, print the command impact, leakage or destructive risk, precautions, and Provider Party disclaimers, then require human confirmation before continuing. For every command that handles real funds, print command-specific information and warning summaries in human mode and `--json` mode on every run without requiring a command-level acknowledgement option. | This implements the selected product policy: one-time install Terms acceptance replaces repeated action-impact acknowledgement flags, while moment-specific human confirmations remain for destructive deletion and sensitive exports, and ordinary transaction commands still show relevant warnings. | Guide/command-reference/warning-output pass completed; install Terms gate, renewed acceptance, uninstall prompt, and export prompt completion remain. |
 | R-21 | 2, 9, 10, 14 | Add Channel Operation Abandonment to Terms, docs, monitoring, and implementation planning. The Channel leader may initiate abandonment on-chain with no grace period. After abandonment, new joins and `deposit-channel` are rejected for that Channel; note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel` remain unrestricted by abandonment. | This gives the Channel leader a clear public way to stop onboarding and new deposits without trapping existing users or claiming control over user notes. The feature is compatible with existing Channels if enforcement is placed in the shared upgradeable vault path for join/deposit. Existing `the-great-first-channel` note activity cannot and should not be restricted under the revised request. | Selected product decision; implement after canonical Terms/docs are updated. |
 
 ### Risk register
@@ -1504,10 +1512,12 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
   Channel membership, Channel accounting, or public observer state.
 - Do not allow JSON mode or User-Controlled AI Agent mode to write an acceptance record.
 
-### Phase 4: Remove per-command action-impact acknowledgement
+### Phase 4: Complete warning-summary and confirmation prompt implementation
 
-- Remove `--acknowledge-action-impact` from individual commands only after the install-time terms gate is enforced.
+- Keep `--acknowledge-action-impact` removed from ordinary transaction commands and command-reference surfaces.
 - Do not keep any command-level legal acknowledgement flag for ordinary transaction commands.
+- Implement the install-time Terms gate before release so ordinary transaction commands are protected by the one-time
+  Terms acceptance model rather than repeated per-command acknowledgement flags.
 - Change `uninstall` to an interactive confirmation flow like `install`.
 - Make default `uninstall` preserve wallet workspace spending-key and viewing-key files while deleting the rest of the
   local private-state CLI workspace.
@@ -1566,7 +1576,7 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Verify that `install --json` does not install or accept Terms.
 - Verify that a changed terms hash requires renewed interactive acceptance.
 - Verify that terms-gated commands reject execution when acceptance is missing or stale.
-- Verify that per-command `--acknowledge-action-impact` options are no longer required after the terms gate is active.
+- Verify that per-command `--acknowledge-action-impact` options are no longer required.
 - Verify that no command still exposes `--acknowledge-action-impact`.
 - Verify that default `uninstall` preserves wallet workspace spending-key and viewing-key files, while
   `uninstall --include-wallet-keys` deletes all local private-state CLI data without exception.

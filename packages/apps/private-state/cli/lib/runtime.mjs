@@ -134,8 +134,6 @@ const secretRoot = path.resolve(os.homedir(), "tokamak-private-channels", "secre
 const flatDeploymentArtifactPathsByChainId = new Map();
 const PRIVATE_STATE_UNINSTALL_CONFIRMATION =
   "I understand that the wallet secrets deleted due to this decision cannot be recovered";
-const ACTION_IMPACT_CONFIRMATION =
-  "I understand the public and private impact of this action";
 const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
 const PRIVATE_STATE_OBSERVER_URL = "https://observer.tonnel.io";
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
@@ -442,40 +440,15 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
 async function requireActionImpactAcknowledgement(commandId, args, details = {}) {
   const summary = ACTION_IMPACT_SUMMARIES[commandId];
   if (!summary) {
-    throw new Error(`Missing action-impact summary for ${commandId}.`);
+    throw new Error(`Missing warning summary for ${commandId}.`);
   }
+  void args;
   printActionImpactSummary(summary, details);
-  if (args.acknowledgeActionImpact === true) {
-    return;
-  }
-  if (args.acknowledgeActionImpact !== undefined) {
-    throw new Error(`${summary.display} option --acknowledge-action-impact does not accept a value.`);
-  }
-  if (!process.stdin.isTTY) {
-    throw new Error(`${summary.display} requires --acknowledge-action-impact after reviewing the action-impact warning.`);
-  }
-  const prompt = [
-    `Type exactly: ${ACTION_IMPACT_CONFIRMATION}`,
-    "> ",
-  ].join("\n");
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stderr,
-    terminal: process.stdin.isTTY && process.stderr.isTTY,
-  });
-  try {
-    const answer = await rl.question(prompt);
-    if (answer !== ACTION_IMPACT_CONFIRMATION) {
-      throw new Error(`${summary.display} action-impact confirmation did not match. No transaction was submitted.`);
-    }
-  } finally {
-    rl.close();
-  }
 }
 
 function printActionImpactSummary(summary, details) {
   const lines = [
-    `ACTION IMPACT SUMMARY: ${summary.display}`,
+    `WARNING SUMMARY: ${summary.display}`,
     `- Ethereum mainnet public event: ${summary.l1PublicEvent}`,
     `- Private note state change: ${summary.privateNoteState}`,
     "- Public addresses and amounts:",
@@ -486,12 +459,12 @@ function printActionImpactSummary(summary, details) {
     `- Illegal-use prohibition: Do not use this command for money laundering, sanctions evasion, terrorist financing, illegal gambling, criminal-proceeds concealment, or regulatory evasion.`,
     `- Secret recovery: Losing wallet secrets, viewing keys, or spending keys can prevent note discovery or note use. If all required secret material and backups are lost, no recovery method exists.`,
     `- Channel policy: ${summary.policy}`,
+    "- User confirmation: Read this warning yourself. User-Controlled AI Agents must not accept Terms or confirmations for you.",
   ];
   if (summary.exchangeControlledAddressWarning) {
     lines.push(`- Exchange-controlled address warning: ${summary.exchangeControlledAddressWarning}`);
   }
-  lines.push(`- Confirmation: pass --acknowledge-action-impact or type the exact confirmation phrase when prompted.`);
-  cliOutput.warning("action-impact", lines.join("\n"), {
+  cliOutput.warning("warning-summary", lines.join("\n"), {
     command: summary.display,
     l1PublicEvent: summary.l1PublicEvent,
     privateNoteState: summary.privateNoteState,
@@ -3121,7 +3094,7 @@ function handleInvestigator() {
     browserOpenCommand: browser.command,
     browserOpenError: browser.error,
     nextSteps: [
-      "Create a raw evidence ZIP with wallet get-notes --export-evidence and --acknowledge-full-note-plaintext-export.",
+      "Create a raw evidence ZIP with wallet get-notes --export-evidence and complete the interactive confirmation.",
       "Load the raw evidence ZIP in the browser investigator.",
       "Filter the raw bundle and export a user-consent disclosure ZIP.",
       "Do not submit the raw evidence ZIP unless full wallet-history disclosure is intended.",
@@ -3345,7 +3318,7 @@ async function handleCreateWalletSecretSource({ args }) {
     outputPath,
     random,
     secretPrinted: false,
-    nextCommand: `channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ${shellQuotePath(outputPath)} --acknowledge-action-impact`,
+    nextCommand: `channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ${shellQuotePath(outputPath)}`,
   });
 }
 
@@ -4250,7 +4223,7 @@ function applyGuideNextAction(guide) {
       command: "secret create-wallet-secret-source --output ./wallet-secret.txt",
       why: "Create a wallet secret source file before joining the channel. Prefer user-typed wallet secrets; use random generation only when the user explicitly asks for it.",
       candidates: [
-        `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact`,
+        `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path ./wallet-secret.txt`,
         "secret create-wallet-secret-source --output ./wallet-secret.txt --random",
       ],
       agentGuidance: guideAgentGuidance("create-wallet-secret-source-and-join-channel", ["B.4", "B.5", "B.6", "B.7", "D.5", "D.8", "E.1", "E.2"]),
@@ -4261,7 +4234,7 @@ function applyGuideNextAction(guide) {
     const channelName = guide.state.wallet.channelName ?? guide.selectors.channelName ?? "<CHANNEL>";
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
-      command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact`,
+      command: `channel join --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path ./wallet-secret.txt`,
       why: "The local wallet exists, but the corresponding Ethereum address is not registered in the channel; joining pays any Join Toll directly from the Ethereum wallet.",
       agentGuidance: guideAgentGuidance("join-channel-with-existing-wallet-secret-source", ["B.7", "D.8", "E.1", "E.2"]),
     });
@@ -4279,7 +4252,7 @@ function applyGuideNextAction(guide) {
   if (guide.state.wallet?.exists && bridgeBalance === 0n && (channelBalance === null || channelBalance === 0n) && unusedNotes === 0) {
     const account = guide.selectors.account ?? "<ACCOUNT>";
     setGuideNextAction(guide, {
-      command: `account deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account} --acknowledge-action-impact`,
+      command: `account deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account}`,
       why: "The wallet is joined, but there is no bridge balance, channel balance, or local unused note to spend; bridge deposits fund channel liquidity and do not pay Join Tolls.",
       agentGuidance: guideAgentGuidance("fund-bridge", ["D.10", "E.1", "G.1"]),
     });
@@ -4287,7 +4260,7 @@ function applyGuideNextAction(guide) {
   }
   if (guide.state.wallet?.exists && bridgeBalance !== null && bridgeBalance > 0n && channelBalance === 0n) {
     setGuideNextAction(guide, {
-      command: `wallet deposit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amount <TOKENS> --acknowledge-action-impact`,
+      command: `wallet deposit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amount <TOKENS>`,
       why: "The account has funds in the shared bridge vault, but the wallet has no channel accounting balance.",
       agentGuidance: guideAgentGuidance("fund-channel", ["D.11", "E.1", "G.2"]),
     });
@@ -4295,7 +4268,7 @@ function applyGuideNextAction(guide) {
   }
   if (guide.state.wallet?.exists && channelBalance !== null && channelBalance > 0n && unusedNotes === 0) {
     setGuideNextAction(guide, {
-      command: `wallet mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <JSON_ARRAY> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
+      command: `wallet mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <JSON_ARRAY> [--tx-submitter <ACCOUNT>]`,
       why: "The wallet has channel balance and no unused private notes yet. Use --tx-submitter only when a separate imported local Ethereum account should submit the transaction and pay gas.",
       agentGuidance: guideAgentGuidance("mint-notes", ["D.12", "E.1", "G.3", "G.5"]),
     });
@@ -4303,11 +4276,11 @@ function applyGuideNextAction(guide) {
   }
   if (guide.state.wallet?.exists && unusedNotes !== null && unusedNotes > 0) {
     setGuideNextAction(guide, {
-      command: `wallet transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <JSON_ARRAY> --recipients <JSON_ARRAY> --amounts <JSON_ARRAY> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
+      command: `wallet transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <JSON_ARRAY> --recipients <JSON_ARRAY> --amounts <JSON_ARRAY> [--tx-submitter <ACCOUNT>]`,
       why: "The wallet has unused private notes. It can transfer or redeem those notes. Use --tx-submitter only when a separate imported local Ethereum account should submit the transaction and pay gas.",
       candidates: [
         `wallet get-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
-        `wallet redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <JSON_ARRAY> --acknowledge-action-impact [--tx-submitter <ACCOUNT>]`,
+        `wallet redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <JSON_ARRAY> [--tx-submitter <ACCOUNT>]`,
       ],
       agentGuidance: guideAgentGuidance("use-notes", ["D.13", "E.1", "G.4", "G.5"]),
     });
@@ -4341,6 +4314,8 @@ function guideAgentGuidance(step, refs) {
     source: "agents.md",
     step,
     refs,
+    termsSource: "docs/dapps/private-state/terms.md",
+    termsRefs: ["2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "18", "20"],
   };
 }
 
@@ -5446,15 +5421,18 @@ async function handleWalletGetNotes({ args, provider }) {
   const unusedTotal = canComputeTotals ? unusedTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n) : null;
   const spentTotal = canComputeTotals ? spentTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n) : null;
   const evidenceExport = args.exportEvidence
-    ? await exportWalletGetNotesEvidenceBundle({
-      args,
-      provider,
-      walletContext: wallet,
-      walletMetadata,
-      context,
-      unusedTrackedNotes,
-      spentTrackedNotes,
-    })
+    ? await (async () => {
+      await requirePlaintextEvidenceExportConfirmation();
+      return exportWalletGetNotesEvidenceBundle({
+        args,
+        provider,
+        walletContext: wallet,
+        walletMetadata,
+        context,
+        unusedTrackedNotes,
+        spentTrackedNotes,
+      });
+    })()
     : null;
 
   cliOutput.result({
@@ -5481,6 +5459,35 @@ async function handleWalletGetNotes({ args, provider }) {
     noteReceiveScanRange: noteReceiveFreshness.recoveredDeliveryState?.scanRange ?? null,
     evidenceExport,
   });
+}
+
+async function requirePlaintextEvidenceExportConfirmation() {
+  const confirmation = "I understand this export contains plaintext note evidence";
+  const lines = [
+    "WARNING SUMMARY: wallet get-notes --export-evidence",
+    "- This export writes plaintext note facts for locally known notes into a local evidence ZIP.",
+    "- The export is not a key export, but it can reveal sensitive wallet history and note evidence.",
+    "- Store it locally, share it only with parties you choose, and delete extra copies when they are no longer needed.",
+    "- Provider Parties cannot recover leaked plaintext evidence or undo third-party disclosure.",
+    `Type exactly: ${confirmation}`,
+    "> ",
+  ];
+  if (!process.stdin.isTTY) {
+    throw new Error("wallet get-notes --export-evidence requires an interactive terminal for plaintext evidence export confirmation.");
+  }
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stderr,
+    terminal: process.stdin.isTTY && process.stderr.isTTY,
+  });
+  try {
+    const answer = await rl.question(lines.join("\n"));
+    if (answer !== confirmation) {
+      throw new Error("wallet get-notes --export-evidence confirmation did not match. No evidence ZIP was written.");
+    }
+  } finally {
+    rl.close();
+  }
 }
 
 async function exportWalletGetNotesEvidenceBundle({
@@ -10900,27 +10907,15 @@ function assertTxSubmitterArg(args) {
 }
 
 function assertActionImpactArg(args, commandName) {
-  assertBooleanFlag(args, "acknowledgeActionImpact", `${commandName} option --acknowledge-action-impact`);
-  if (args.acknowledgeActionImpact !== true && !process.stdin.isTTY) {
-    throw new Error(`${commandName} requires --acknowledge-action-impact after reviewing the action-impact warning.`);
-  }
+  void args;
+  void commandName;
 }
 
 function assertWalletGetNotesArgs(args) {
   assertAllowedCommandSchema(args, "wallet-get-notes");
   if (args.exportEvidence !== undefined) {
     requireArg(args.exportEvidence, "--export-evidence");
-    if (args.acknowledgeFullNotePlaintextExport !== true) {
-      throw new Error(
-        "wallet get-notes --export-evidence requires --acknowledge-full-note-plaintext-export.",
-      );
-    }
   }
-  assertBooleanFlag(
-    args,
-    "acknowledgeFullNotePlaintextExport",
-    "wallet get-notes option --acknowledge-full-note-plaintext-export",
-  );
 }
 
 function assertCreateChannelArgs(args) {
@@ -11920,8 +11915,8 @@ Secret source options:
       private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt
   Then import the Ethereum account once:
       private-state-cli account import --account <ACCOUNT> --network <NAME> --private-key-file ./ethereum-private-key.txt
-  Join a channel with the wallet secret source after reviewing the action-impact warning:
-      private-state-cli channel join --channel-name <NAME> --network <NAME> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact
+  Join a channel with the wallet secret source after reading the channel policy and warning summary:
+      private-state-cli channel join --channel-name <NAME> --network <NAME> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
   Configure each network RPC endpoint once with set rpc. The CLI has no default RPC URL; if you do not
   already prefer a provider, Ankr is the recommended provider for this workflow:
       private-state-cli set rpc --network mainnet --rpc-url <URL> --provider ankr
@@ -12084,31 +12079,31 @@ function guideHumanNextStep(guide) {
         "Create a wallet secret source file before joining the channel. Type a strong password or passphrase you can keep.",
         "Your typing will appear as * characters. Preserve the file because it may be needed later to recover this channel wallet.",
         "Before joining, make sure the Ethereum account can pay any channel Join Toll directly from that account, plus gas.",
-        "After creating the file, review the channel policy and action-impact warning before running channel join.",
+        "After creating the file, read the channel policy and warning summary before running channel join.",
       ];
     case "join-channel-with-existing-wallet-secret-source":
       return [
         "This wallet is not registered in the channel yet.",
         "Before joining, make sure the Ethereum account can pay any channel Join Toll directly from that account, plus gas.",
-        "Use your existing wallet secret source file, then review the channel policy and action-impact warning before joining.",
+        "Use your existing wallet secret source file, then read the channel policy and warning summary before joining.",
       ];
     case "fund-bridge":
       return [
         "Start with a public deposit from the Ethereum account into the bridge.",
         "This does not create private notes yet; it only makes funds available for the later channel-balance step.",
-        "Review the action-impact warning before continuing.",
+        "Read the warning summary before continuing; this sends a public Ethereum mainnet transaction.",
       ];
     case "fund-channel":
       return [
         "The public bridge deposit exists, but this channel wallet does not have channel balance yet.",
         "Move funds into the channel next. After that, you can mint private notes.",
-        "Review the action-impact warning before continuing.",
+        "Read the warning summary before continuing; this changes public channel accounting.",
       ];
     case "mint-notes":
       return [
         "The channel wallet has channel balance, but it has no private notes to transfer or redeem yet.",
         "Mint private notes from that channel balance before trying to send or withdraw privately.",
-        "Review the action-impact warning before continuing.",
+        "Read the warning summary before continuing; note commitments and related public records will be created.",
       ];
     case "use-notes":
       return [
@@ -12180,7 +12175,7 @@ function guideHumanAfterSuccess(guide) {
       return [`Rerun the guide with the same channel selector: ${formatGuideCliCommand(`help guide --network ${network} --channel-name ${channel}`)}`];
     case "create-wallet-secret-source-and-join-channel": {
       const joinCommand = findGuideCandidateCommand(guide, "channel join ")
-        ?? `channel join --channel-name ${channel} --network ${network} --account ${account} --wallet-secret-path ./wallet-secret.txt --acknowledge-action-impact`;
+        ?? `channel join --channel-name ${channel} --network ${network} --account ${account} --wallet-secret-path ./wallet-secret.txt`;
       return [
         "Then join the channel:",
         formatGuideCliCommand(joinCommand),
@@ -12762,7 +12757,7 @@ function buildRecoveryHints(error, args = {}) {
   }
 
   if (error?.code === CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION) {
-    hints.push(`private-state-cli channel join --channel-name ${channelName} --network ${networkName} --account ${accountName} --wallet-secret-path <PATH> --acknowledge-action-impact`);
+    hints.push(`private-state-cli channel join --channel-name ${channelName} --network ${networkName} --account ${accountName} --wallet-secret-path <PATH>`);
     hints.push(`private-state-cli help guide --network ${networkName} --channel-name ${channelName} --account ${accountName}`);
   }
 

@@ -111,6 +111,13 @@ function assertAgentGuidance(payload, expectedRefs) {
   expect(payload.agentGuidance?.source === "agents.md", "agentGuidance.source must point to agents.md.");
   expect(typeof payload.agentGuidance.step === "string", "agentGuidance.step must be present.");
   expect(Array.isArray(payload.agentGuidance.refs), "agentGuidance.refs must be an array.");
+  expect(
+    payload.agentGuidance.termsSource === "docs/dapps/private-state/terms.md",
+    "agentGuidance.termsSource must point to the Terms document.",
+  );
+  expect(Array.isArray(payload.agentGuidance.termsRefs), "agentGuidance.termsRefs must be an array.");
+  expect(payload.agentGuidance.termsRefs.includes("6"), "agentGuidance.termsRefs must include Self-Custody terms.");
+  expect(payload.agentGuidance.termsRefs.includes("16"), "agentGuidance.termsRefs must include liability terms.");
   for (const ref of expectedRefs) {
     expect(payload.agentGuidance.refs.includes(ref), `Missing expected guide ref ${ref}.`);
   }
@@ -234,9 +241,17 @@ function testGuideHumanOutputIsUserFacing() {
   expect(!stdout.includes("Use --json only when an AI"), "Human guide output must not include AI/script-only JSON guidance.");
   expect(!stdout.includes("Agent Guidance"), "Human guide output must not show AI-only guidance refs.");
   expect(!stdout.includes("Refs:"), "Human guide output must not show agents.md refs.");
+  expect(!stdout.includes("termsRefs"), "Human guide output must not show Terms refs.");
   expect(!stdout.includes("Privacy Tip"), "Human guide output must not show unrelated global privacy tips.");
   expect(!stdout.includes("Mirror Tip"), "Human guide output must not show unrelated mirror tips.");
   expect(!/\bchat\b/iu.test(stdout), "Human guide output should not use chat-oriented wording.");
+}
+
+function testHelpCommandsOutputUsesFinalPromptPolicy() {
+  const stdout = runCli(["help", "commands"]);
+  expect(!stdout.includes("--acknowledge-action-impact"), "Command help must not expose the deprecated action-impact flag.");
+  expect(!stdout.includes("Action impact:"), "Command help must use warning-summary wording.");
+  expect(stdout.includes("Warning summary:"), "Command help should describe transaction warnings as warning summaries.");
 }
 
 function testGuideHumanPrivateKeyFlowIncludesAddressVerification() {
@@ -374,6 +389,7 @@ testGuideJsonDeploymentArtifactsMissing();
 testGuideJsonAccountSecretMissing();
 testGuideJsonWalletMissingBeforeChannelJoin();
 testGuideHumanOutputIsUserFacing();
+testHelpCommandsOutputUsesFinalPromptPolicy();
 testGuideHumanPrivateKeyFlowIncludesAddressVerification();
 testGuideHumanWalletSecretFlowExplainsMasking();
 testRandomWalletSecretHelper();

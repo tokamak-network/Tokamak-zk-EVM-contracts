@@ -233,6 +233,8 @@ logging practices.
 
 Retention depends on the data surface:
 
+- Provider-controlled operational logs and database rows are retained only as needed for operation, security, abuse
+  prevention, debugging, evidence integrity, and legal purposes, subject to technical limits.
 - Public Ethereum mainnet records and public Channel records are public blockchain records and cannot be deleted by the
   Provider.
 - Vercel runtime logs for the confirmed Hobby plan are retained for 1 hour.

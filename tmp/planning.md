@@ -1524,6 +1524,7 @@ Minimum document changes to complete before release:
      evidence integrity, and legal purposes, subject to technical limits.
    - Do not promise fixed deletion periods for Neon, Vercel Blob, EC2 raw history, or public mirror artifacts unless the
      repository implements those retention controls.
+   - Status: Completed in `docs/dapps/private-state/privacy-notice.md` Section 17.
 3. International processing:
    - Add a concise Privacy Notice statement that official hosting, support, repository, package, artifact, analytics, and
      infrastructure providers may process data outside the user's country and that third-party services apply their own

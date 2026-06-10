@@ -752,7 +752,9 @@ Current status:
   implemented behavior.
 - Adopt the new Join Toll refund cutoffs: cutoff 1 is 24 hours, cutoff 2 is 3 days, and cutoff 3 is 7 days. The selected
   refund basis points are 0, 2,500, 5,000, and 7,500.
-- Keep restricted jurisdictions and sanctions-list naming undecided pending counsel and compliance policy. Record the
+- Adopt a principles-based restricted-use and sanctions policy for the current draft. Do not name specific restricted
+  jurisdictions, sanctions lists, or sanctions authorities in the current draft. Require users to comply with applicable
+  sanctions, export-control, anti-money-laundering, counter-terrorist-financing, and other applicable laws. Record the
   technical constraint that the Service may not be able to block real-world users; future restrictions may be implemented
   at the Ethereum Account or contract-interaction level.
 - Preserve the drafted Privacy Notice and GitHub repository publication location unless counsel or release review
@@ -772,7 +774,7 @@ Decision guide:
 | Individual provider forum | Strategy selected: Singapore, subject to counsel review. | Confirm that Singapore courts and Singapore law are appropriate for Jehyuk Jang as the individual Provider, and confirm notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
 | Bridge owner and upgrade authority | Completed: root bridge proxy ownership was migrated from the single EOA owner to an Ethereum mainnet Safe multisig. | The current root bridge proxy owner is `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`, a Safe multisig with a 2-of-3 threshold and no timelock. Safe signer recovery details are an off-repository Safe operations matter, not a public repository decision. |
 | Liability cap | Selected: do not include a nominal monetary liability cap in the current draft. | Use broad liability exclusions to the maximum extent permitted by applicable law, explain that the Service is non-custodial open software/public-good infrastructure and not operated for Provider Party Service revenue, and preserve non-waivable liability carveouts for liability that cannot legally be excluded or limited. Counsel should confirm enforceability, but the business position is no monetary cap. |
-| Restricted users | Undecided. | State prohibited uses and sanctions compliance, but do not promise user-level blocking unless a real user-identification and access-control system exists. |
+| Restricted users | Selected: use a principles-based restricted-use and sanctions policy without naming specific jurisdictions, sanctions lists, or sanctions authorities in the current draft. | State prohibited uses and applicable-law compliance, including sanctions, export-control, anti-money-laundering, and counter-terrorist-financing compliance. Do not promise user-level blocking unless a real user-identification and access-control system exists. Preserve the technical constraint that future restrictions may operate only at the Ethereum Account or contract-interaction level. Counsel should confirm whether named lists are required before release. |
 | Technical blocking | Constraint recorded. | Future blacklist features may block Ethereum Accounts or contract interactions, not necessarily real-world users. Terms and docs must not overstate user-level blocking. |
 | Privacy Notice | Initial draft completed in `docs/dapps/private-state/privacy-notice.md`; initial publication location selected as GitHub repository documentation only. CLI README references the document. `tonnel.io` publication is deferred. | Review the draft against Terms definitions, Provider identity, Official Public Observer disclosures, support routes, and Third-Party Service boundaries before final Terms, guide, JSON mode, or implementation work. |
 | Provider identity and privacy contact | Selected: Jehyuk Jang; `cjhyuck213@gmail.com`; Singapore; residential address not published. | Use the email address for privacy/contact and notice routing. Keep Telegram as an official support channel, not the sole privacy contact. If a physical notice address becomes required, use a counsel-approved non-residential route such as a P.O. box, business mailing address, registered agent, or counsel address. |
@@ -1168,7 +1170,8 @@ counsel should decide before public release.
 
 - Review sanctions and restricted-jurisdiction wording against the Provider Party's applicable sanctions regimes and
   operational policy.
-- Decide whether the Terms should name specific restricted jurisdictions, sanctions lists, or prohibited user categories.
+- Review the selected principles-based approach, under which the current draft does not name specific restricted
+  jurisdictions, sanctions lists, sanctions authorities, or prohibited user categories.
 - Review whether the Service needs geoblocking, access controls, screening, warnings, or additional user representations.
 - Confirm that prohibited-use language covers money laundering, terrorist financing, sanctions evasion, regulatory
   evasion, criminal-proceeds concealment, exchange-monitoring evasion, fraud, illegal gambling, ransomware, and market
@@ -1256,7 +1259,7 @@ before release.
 | R-01 | 1, 2, 20 | Replace generic Provider Party references in the operative clauses with Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and the no-residential-address publication policy. Define Tokamak Network PTE. LTD. separately as software contributor/licensor and, where applicable, Third-Party Service or infrastructure/tooling provider. | Users and legal reviewers need to know who offers the Service, who developed the software, who receives notices, and who accepts provider obligations. | Applied to draft Terms; counsel to confirm final wording. |
 | R-02 | 3 | Remove passive "continuing to access or use" acceptance for terms-gated CLI operations, or limit it to non-CLI informational surfaces. Require explicit acceptance for install and renewed acceptance. | The planned CLI gate relies on explicit acceptance and deterministic terms hash records. Passive acceptance may conflict with that product design. | Applied to draft Terms; verify implementation follows explicit acceptance. |
 | R-03 | 3 | Add an age-of-majority or minimum-age statement if the Service is made available to natural persons. | "Legal capacity" may be too abstract for ordinary users and consumer review. | Counsel decision. |
-| R-04 | 3, 7 | Decide whether to name restricted jurisdictions and sanctions authorities, or keep a principles-based restriction with a policy reference. State that the Service may only be able to restrict Ethereum Accounts or contract interactions, not identify and block real-world users. | Comparable services often name sanctions regimes or restricted regions. Naming improves specificity but creates maintenance obligations; overpromising user-level blocking would be inaccurate. | Counsel and policy decision. |
+| R-04 | 3, 7 | Use a principles-based restricted-use and sanctions policy in the current draft. Do not name specific restricted jurisdictions, sanctions lists, sanctions authorities, or prohibited user categories unless counsel later requires them. State that the Service may only be able to restrict Ethereum Accounts or contract interactions, not identify and block real-world users. | Comparable services often name sanctions regimes or restricted regions, but naming lists creates maintenance obligations and can be misleading when the Service lacks user-identification and user-level blocking. The current product position is to require applicable-law compliance without overpromising enforcement. | Selected business position; counsel confirmation remains. |
 | R-05 | 5 | Replace "Tonnel may prevent public contract state..." with a more precise non-guarantee: "Tonnel is designed so public contract state does not, by itself, reconstruct..." | "May prevent" is vague; a design-purpose statement is clearer while avoiding guarantees. | Applied to draft Terms. |
 | R-06 | 6 | Add a short ordinary-user warning that Provider Parties, Channel Operators, and User-Controlled AI Agents will never need the user's private keys, seed phrases, wallet secrets, spending keys, or viewing keys. | Aligns with self-custody guidance and reduces secret-disclosure risk. | Applied to draft Terms. |
 | R-07 | 7 | Keep prohibited-use wording, but avoid repeating prohibited marketing phrases outside prohibited-use and checklist contexts. | Terms can prohibit misuse without creating marketing language that suggests the Service is useful for that misuse. | Reviewed current ordinary-user and agent-facing surfaces; prohibited framing appears only in Product Compliance Position, prohibited-use/checklist contexts, or operational illegal-use warnings. Keep final wording check before release. |
@@ -1284,7 +1287,7 @@ before release.
 | K-03 | High | Consumer law | A Provider-connected forum clause may be limited or unenforceable for consumers with mandatory local rights. | Add explicit non-waivable consumer-rights and local-court carveouts as counsel directs. | Counsel. |
 | K-04 | Medium | Dispute resolution | The current draft excludes arbitration and class-action waiver provisions. This reduces clause-validity and user-friction risk but may increase litigation exposure for the individual Provider. | Confirm the no-arbitration and no-class-action-waiver strategy with counsel before implementation. | Counsel/business. |
 | K-05 | Medium | Liability | The current draft intentionally uses no nominal monetary liability cap. This matches the no-Service-revenue, open-software, non-custodial model, but counsel still needs to confirm that the disclaimer structure and non-waivable liability carveouts are appropriate for expected users. | Keep the no-monetary-cap business position, preserve broad disclaimers and mandatory-law carveouts, and obtain counsel confirmation before production terms behavior ships. | Counsel/business. |
-| K-06 | High | Sanctions/AML | Restricted jurisdictions and screening obligations are not operationally defined, and the Service may lack technical methods to block real-world users. | Decide named restrictions and account-level restriction policy without promising user-level blocking. | Compliance/counsel. |
+| K-06 | Medium | Sanctions/AML | The draft uses a principles-based restricted-use and sanctions policy without naming specific restricted jurisdictions, sanctions lists, sanctions authorities, or prohibited user categories. This avoids stale lists and overpromised user-level blocking, but counsel still needs to confirm whether named restrictions, account-level restriction, screening, or additional warnings are required. | Preserve applicable-law compliance wording and the technical limitation that restrictions may operate only at the Ethereum Account or contract-interaction level unless a real user-identification system exists. | Compliance/counsel. |
 | K-07 | Low | Privacy claims | Draft wording now avoids "may prevent" and "does not reveal" in Sections 5 and 10, but final text still needs legal and technical review for overstatement. | Keep the design-intent and observer-limit wording during final Terms review. | Product/counsel. |
 | K-08 | Medium | Self-custody | Secret-loss warning is legally useful but should be more visible in install and AI-agent flows. | Add section refs to install/JSON guide and ensure human guide explains no recovery method before secret-dependent use. | Product. |
 | K-09 | Medium | Third-party services | RPC providers, wallets, exchanges, package registries, and browsers have independent terms and data practices. | Keep Section 11 and privacy notice cross-references; add RPC-provider metadata disclosure if applicable. | Product/counsel. |
@@ -1304,9 +1307,10 @@ Business decisions to prepare before counsel review:
   contributor/licensor and Third-Party Service or infrastructure/tooling provider wording legally sufficient?
 - Is the Service intended for all ordinary users, only users in selected jurisdictions, or only non-restricted users who
   pass some operational access control?
-- Should the Terms name restricted jurisdictions and sanctions lists, or refer to applicable sanctions regimes generally?
-  If the Service can block only Ethereum Accounts or contract interactions, what should the Terms say about the limits of
-  user-level blocking?
+- Is the selected principles-based sanctions and restricted-use approach sufficient, or must the Terms name specific
+  restricted jurisdictions, sanctions lists, sanctions authorities, or prohibited user categories? If the Service can
+  block only Ethereum Accounts or contract interactions, what should the Terms say about the limits of user-level
+  blocking?
 - Should the Service use Singapore court litigation with mandatory consumer-law carveouts, and no arbitration or
   class-action waiver provisions?
 - Is the selected no-monetary-liability-cap approach appropriate for a non-custodial open-software/public-good Service
@@ -1374,8 +1378,8 @@ business owner with counsel awareness:
   carveouts.
 - Counsel confirmation that arbitration, class-action waiver, collective-action waiver, representative-action waiver,
   and jury-trial waiver provisions should remain excluded from the current draft.
-- Sanctions/restricted jurisdictions policy and any account-level restriction or screening decision that is technically
-  possible without overstating user-level blocking.
+- Counsel confirmation of the selected principles-based sanctions/restricted-use policy and any required account-level
+  restriction or screening decision that is technically possible without overstating user-level blocking.
 - Final Terms/docs/implementation consistency for the selected Join Toll policy: future Channel exits refund the
   time-increasing refundable portion and transfer only the non-refundable portion to
   `0x000000000000000000000000000000000000dEaD`, with no retroactive burn-address transfer promise for already-exited
@@ -1400,8 +1404,11 @@ business owner with counsel awareness:
   draft position is that Provider Parties have no liability for Service use to the maximum extent permitted by applicable
   law, that mandatory-law liability carveouts remain preserved, and that future non-refundable Join Toll portions are
   not Provider Party revenue because they are transferred to `0x000000000000000000000000000000000000dEaD`.
-- Required sanctions and restricted-jurisdiction wording remains undecided. The draft must account for the technical
-  constraint that the Service may block Ethereum Accounts or contract interactions, not real-world users.
+- Sanctions and restricted-jurisdiction business position is selected: use a principles-based restricted-use and
+  sanctions policy without naming specific restricted jurisdictions, sanctions lists, sanctions authorities, or prohibited
+  user categories in the current draft. The draft must account for the technical constraint that the Service may block
+  Ethereum Accounts or contract interactions, not real-world users. Counsel must confirm whether any named restrictions
+  are required before release.
 - Final Privacy Notice review and counsel-directed changes remain open. The initial Privacy Notice content, GitHub
   repository publication location, and Terms cross-reference are drafted.
 - Required notice method for future terms changes.

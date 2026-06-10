@@ -36,8 +36,10 @@ A user may reference public data without disclosing wallet secrets:
 - channel creation and channel policy snapshot for `the-great-first-channel`
 - channel join and L1/L2 identity registration event for the user's address
 - registered note-receive public key coordinates emitted during channel registration
-- channel operation abandonment event and public operation status
-- channel exit refund and burn-address transfer events
+- channel operation abandonment event and public operation status, when present in the deployed ABI and regenerated
+  Monitoring Packet
+- channel exit refund events, and burn-address transfer events when present in the deployed ABI and regenerated
+  Monitoring Packet
 - accepted transition events and root-vector movement related to the channel
 - commitment observations, nullifier observations, and encrypted note-delivery events
 - verifier, DApp metadata, source verification, ABI, bytecode hash, owner, proxy, and upgrade data

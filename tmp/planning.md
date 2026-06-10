@@ -1576,6 +1576,10 @@ Minimum document changes to complete before release:
    - Public documents must be written as if the planned release is complete, but must not claim mainnet deployment of
      Join Toll burn-address transfer, Channel Operation Abandonment, observer indexing, or monitoring packet changes
      until the deployment-dependent blockers are actually completed.
+   - Status: Completed by repository-wide public-document review. Terms, Privacy Notice, CLI README, human `help guide`,
+     `help guide --json`, `agents.md`, and monitoring companion documents were rechecked. Monitoring Packet companion
+     rows for Join Toll burn-address transfer and Channel Operation Abandonment now remain marked pending until the
+     bridge upgrade is deployed and the packet is regenerated.
 
 Items to leave for counsel instead of expanding now:
 

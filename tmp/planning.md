@@ -170,6 +170,8 @@ For purposes of these Terms:
 - Through the Service, Provider Parties do not provide exchange deposit services, exchange withdrawal services,
   brokerage, custodial wallet services, hosted transfer services, asset recovery services, compliance services, or tax
   services.
+- The Service is made available as open software and public-good infrastructure. Provider Parties do not operate the
+  Service as a fee-generating custodial, brokerage, exchange, hosted transfer, or paid asset-management service.
 - Join Tolls paid through the Service must not be monetized by Provider Parties. The final Terms must describe the
   selected future-exit policy as a burn-address transfer of the non-refundable Join Toll portion to
   `0x000000000000000000000000000000000000dEaD`, not as a TON total-supply reduction.
@@ -363,6 +365,9 @@ ownership, control, or destination of assets.
 
 ### 16. Limitation of liability
 
+- The Service is non-custodial open software and public-good infrastructure, and is not operated for Provider Party
+  Service revenue. The user accesses and uses the Service at the user's own risk to the maximum extent permitted by
+  applicable law.
 - To the maximum extent permitted by applicable law, Provider Parties are not liable for indirect, incidental, special,
   consequential, exemplary, punitive, or similar damages.
 - To the maximum extent permitted by applicable law, Provider Parties are not liable for lost profits, loss of data, lost
@@ -718,7 +723,8 @@ Current status:
 
 - Completed an initial pre-counsel operational redline/risk review pass. See "Pre-Counsel Review Results" below.
 - The review found release blockers that must be resolved before implementation: Privacy Notice counsel-directed
-  changes and final Terms cross-reference confirmation, liability cap decision, consumer-law/forum carveouts,
+  changes and final Terms cross-reference confirmation, counsel confirmation of the no-monetary-liability-cap approach
+  and non-waivable liability carveouts, consumer-law/forum carveouts,
   sanctions/restricted jurisdictions policy, counsel confirmation of the dispute-resolution strategy, counsel
   confirmation of Tokamak Network PTE. LTD.'s separate software contributor/licensor and Third-Party Service or
   infrastructure/tooling provider wording, final prompt-policy verification, and final Terms/implementation consistency
@@ -736,9 +742,10 @@ Current status:
   unless counsel approves a different jurisdiction with a sufficient connection. The clause must preserve mandatory
   consumer-law and local-court rights. Do not include arbitration, class-action waiver, collective-action waiver,
   representative-action waiver, or jury-trial waiver provisions in the current draft unless counsel later approves them.
-- Keep liability-cap amount and formula undecided pending counsel review, but preserve the draft position that Provider
-  Parties are not liable for use of the Service to the maximum extent permitted by applicable law. The draft must state
-  that Join Tolls are not Provider Party revenue; for future Channel exits after implementation, the non-refundable Join
+- Adopt the no-monetary-liability-cap approach for the current draft. The draft position is that Provider Parties do not
+  operate the Service for Service revenue, do not monetize Join Tolls, do not provide custody or paid asset-management
+  services, and are not liable for use of the Service to the maximum extent permitted by applicable law. The draft must
+  still preserve non-waivable liability carveouts. For future Channel exits after implementation, the non-refundable Join
   Toll portion is sent to `0x000000000000000000000000000000000000dEaD`.
 - Adopt the Join Toll refund schedule direction change: refund percentage increases with longer Channel participation
   time. The current implementation uses the opposite direction and must be updated before the new policy is described as
@@ -764,7 +771,7 @@ Decision guide:
 | Global online forum | Strategy selected: use Singapore as the Provider-connected baseline jurisdiction, subject to counsel review and mandatory consumer-law carveouts. | Use a baseline governing law and forum connected to Singapore, but add mandatory consumer-law carveouts because global online users may retain local non-waivable rights. |
 | Individual provider forum | Strategy selected: Singapore, subject to counsel review. | Confirm that Singapore courts and Singapore law are appropriate for Jehyuk Jang as the individual Provider, and confirm notice handling, personal-liability exposure, and any tax/accounting issues tied to grants, sponsorships, reimbursements, operating expenses, or non-fee funding. |
 | Bridge owner and upgrade authority | Completed: root bridge proxy ownership was migrated from the single EOA owner to an Ethereum mainnet Safe multisig. | The current root bridge proxy owner is `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`, a Safe multisig with a 2-of-3 threshold and no timelock. Safe signer recovery details are an off-repository Safe operations matter, not a public repository decision. |
-| Liability cap | Undecided. | Decide after counsel review. If no Provider Party revenue is earned, a cap cannot be based only on retained Service fees without creating a zero-cap problem. Consider whether a fixed cap is needed despite the no-revenue model and the selected burn-address transfer policy for non-refundable Join Toll portions. |
+| Liability cap | Selected: do not include a nominal monetary liability cap in the current draft. | Use broad liability exclusions to the maximum extent permitted by applicable law, explain that the Service is non-custodial open software/public-good infrastructure and not operated for Provider Party Service revenue, and preserve non-waivable liability carveouts for liability that cannot legally be excluded or limited. Counsel should confirm enforceability, but the business position is no monetary cap. |
 | Restricted users | Undecided. | State prohibited uses and sanctions compliance, but do not promise user-level blocking unless a real user-identification and access-control system exists. |
 | Technical blocking | Constraint recorded. | Future blacklist features may block Ethereum Accounts or contract interactions, not necessarily real-world users. Terms and docs must not overstate user-level blocking. |
 | Privacy Notice | Initial draft completed in `docs/dapps/private-state/privacy-notice.md`; initial publication location selected as GitHub repository documentation only. CLI README references the document. `tonnel.io` publication is deferred. | Review the draft against Terms definitions, Provider identity, Official Public Observer disclosures, support routes, and Third-Party Service boundaries before final Terms, guide, JSON mode, or implementation work. |
@@ -1171,7 +1178,8 @@ counsel should decide before public release.
 
 ### Liability, warranty, and indemnity review
 
-- Decide whether the Terms need a liability cap and, if so, the cap amount and cap formula.
+- Review the selected no-monetary-liability-cap approach and confirm that it is appropriate for the Service's
+  no-Service-revenue, open-software, non-custodial model.
 - Review whether the current warranty disclaimer is valid for consumer users and mandatory local-law rights.
 - Review whether the liability exclusion for lost secrets, failed transactions, third-party failures, exchange actions,
   regulatory actions, and tax consequences is enforceable or should be narrowed.
@@ -1237,8 +1245,9 @@ and MetaMask self-custody guidance. The following coverage patterns are relevant
   phrases, private keys, or passwords.
 
 Coverage impact for the current draft: Sections 6, 11, 13, 14, 15, 16, 17, and 20 are directionally aligned, but the
-current draft still needs counsel confirmation of Tokamak Network PTE. LTD.'s separate role wording, Privacy Notice,
-liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notice mechanics before release.
+current draft still needs counsel confirmation of Tokamak Network PTE. LTD.'s separate role wording, Privacy Notice, the
+selected no-monetary-liability-cap approach, restricted-jurisdiction policy, consumer-law carveouts, and notice mechanics
+before release.
 
 ### Redline items
 
@@ -1257,7 +1266,7 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | R-11 | 12 | Keep the standalone Privacy Notice in `docs/dapps/private-state/privacy-notice.md` and keep the Terms cross-reference to that location unless the final publication location changes. | The Service scope includes official hosted observer and possible logs/support/package-distribution data. The initial standalone draft, GitHub repository publication location, Terms cross-reference, and first consistency review now exist, but counsel review and final release confirmation are still required. | Initial draft and first review applied; counsel confirmation remains. |
 | R-12 | 13 | Clarify that User-Controlled AI Agents are selected by the user and are not agents, representatives, or service providers of Provider Parties unless expressly stated. | Reduces implied advisory, support, fiduciary, or agency relationship risk. | Applied to draft Terms. |
 | R-13 | 14 | Add explicit ZK/proof-system risk, CRS/proving-artifact risk, local proof-generation risk, and public observer indexing risk. | Current blockchain risks are broad but do not fully reflect this Service's proof and observer architecture. | Applied to draft Terms. |
-| R-14 | 16 | Decide whether to include a liability cap and, if so, the cap formula and carveouts. Preserve the draft statement that Provider Parties are not liable for use of the Service to the maximum extent permitted by applicable law. | Current draft has exclusions but no aggregate cap; comparable services often use a cap. A no-Provider-revenue model may make fee-based cap formulas unsuitable, even with the selected burn-address transfer policy for non-refundable Join Toll portions. | Release blocker. |
+| R-14 | 16 | Do not include a nominal monetary liability cap in the current draft. Preserve broad liability exclusions to the maximum extent permitted by applicable law and preserve non-waivable liability carveouts. | The Service is non-custodial open software/public-good infrastructure, Provider Parties do not operate it for Service revenue, and Join Tolls are not Provider Party revenue. A fee-based cap would create a zero-fee problem, while a nominal cap could imply a paid-service liability model that does not fit the Service. Counsel should still confirm enforceability of the no-cap disclaimer structure and carveouts. | Selected business position; counsel confirmation remains. |
 | R-15 | 17 | Narrow consumer indemnity or add business-user/unlawful-use limitations if counsel recommends. | Broad consumer indemnity can be unenforceable or unfair in some jurisdictions. | Counsel decision. |
 | R-16 | 18 | Specify the technical renewed-acceptance mechanism: terms version, deterministic hash, displayed terms, explicit phrase, stored record, stale-record rejection. | The product can implement this and should not rely only on legal notice wording. | Applied to draft Terms; verify implementation follows this mechanism after Terms freeze. |
 | R-17 | 20 | Use Singapore court litigation and Singapore law as the Provider-connected baseline, with mandatory consumer-law and local-court carveouts. Do not include arbitration, class-action waiver, collective-action waiver, representative-action waiver, or jury-trial waiver provisions unless counsel later approves them. | Forum and waiver clauses may be invalid or problematic for consumers in some jurisdictions. | Applied to draft Terms; counsel to confirm enforceability. |
@@ -1274,7 +1283,7 @@ liability cap, restricted-jurisdiction policy, consumer-law carveouts, and notic
 | K-02 | Medium | Privacy/data | A standalone Privacy Notice draft now exists in the repository, the initial GitHub repository publication location is selected, the Terms cross-reference is drafted, and the first consistency review is complete. Counsel-directed changes and final release confirmation remain before production terms behavior ships. | Preserve the reviewed draft unless counsel or release review requires changes. | Product/counsel. |
 | K-03 | High | Consumer law | A Provider-connected forum clause may be limited or unenforceable for consumers with mandatory local rights. | Add explicit non-waivable consumer-rights and local-court carveouts as counsel directs. | Counsel. |
 | K-04 | Medium | Dispute resolution | The current draft excludes arbitration and class-action waiver provisions. This reduces clause-validity and user-friction risk but may increase litigation exposure for the individual Provider. | Confirm the no-arbitration and no-class-action-waiver strategy with counsel before implementation. | Counsel/business. |
-| K-05 | High | Liability | No liability cap is specified. Broad exclusions without cap may be incomplete or less predictable, and a no-Provider-revenue model may make fee-based caps unsuitable even after non-refundable Join Toll portions are sent to a burn address. | Decide whether a fixed cap is needed and what carveouts apply. | Counsel/business. |
+| K-05 | Medium | Liability | The current draft intentionally uses no nominal monetary liability cap. This matches the no-Service-revenue, open-software, non-custodial model, but counsel still needs to confirm that the disclaimer structure and non-waivable liability carveouts are appropriate for expected users. | Keep the no-monetary-cap business position, preserve broad disclaimers and mandatory-law carveouts, and obtain counsel confirmation before production terms behavior ships. | Counsel/business. |
 | K-06 | High | Sanctions/AML | Restricted jurisdictions and screening obligations are not operationally defined, and the Service may lack technical methods to block real-world users. | Decide named restrictions and account-level restriction policy without promising user-level blocking. | Compliance/counsel. |
 | K-07 | Low | Privacy claims | Draft wording now avoids "may prevent" and "does not reveal" in Sections 5 and 10, but final text still needs legal and technical review for overstatement. | Keep the design-intent and observer-limit wording during final Terms review. | Product/counsel. |
 | K-08 | Medium | Self-custody | Secret-loss warning is legally useful but should be more visible in install and AI-agent flows. | Add section refs to install/JSON guide and ensure human guide explains no recovery method before secret-dependent use. | Product. |
@@ -1300,8 +1309,8 @@ Business decisions to prepare before counsel review:
   user-level blocking?
 - Should the Service use Singapore court litigation with mandatory consumer-law carveouts, and no arbitration or
   class-action waiver provisions?
-- What liability cap, if any, is commercially acceptable when Join Tolls are not intended to be Provider Party revenue
-  and non-refundable future-exit Join Toll portions are sent to a burn address?
+- Is the selected no-monetary-liability-cap approach appropriate for a non-custodial open-software/public-good Service
+  that is not operated for Provider Party Service revenue and does not monetize Join Tolls?
 - Should user indemnity apply to ordinary consumers, business users only, unlawful use only, or third-party claims only?
 - What official interfaces process personal data, including observer hosting, logs, analytics, support, package
   distribution, and telemetry?
@@ -1325,7 +1334,8 @@ Legal-validity questions for counsel:
 - What consumer-law, cooling-off, withdrawal, language, accessibility, or local notice requirements apply?
 - Is the current decision to omit arbitration, class-action waiver, collective-action waiver, representative-action
   waiver, and jury-trial waiver provisions advisable for the expected user base?
-- Are the warranty disclaimer, liability exclusions, liability cap, and indemnity enforceable as drafted?
+- Are the warranty disclaimer, liability exclusions, no-monetary-liability-cap approach, mandatory-law carveouts, and
+  indemnity enforceable as drafted?
 - Are sanctions, AML, anti-evasion, restricted-jurisdiction, and export-control provisions sufficient for the individual
   Provider, any separate Tokamak Network PTE. LTD. role, and the Service's expected availability?
 - Does the privacy notice need GDPR, Singapore PDPA, UK GDPR, CCPA/CPRA, or other jurisdiction-specific coverage?
@@ -1359,7 +1369,7 @@ business owner with counsel awareness:
 - Counsel confirmation that Jehyuk Jang, `cjhyuck213@gmail.com`, Singapore, and no published residential address are
   sufficient for the individual Provider identity and public notice/contact route; counsel confirmation of the selected
   Tokamak Network PTE. LTD. separate-role wording.
-- Liability cap decision and carveouts.
+- Counsel confirmation of the selected no-monetary-liability-cap approach and mandatory-law liability carveouts.
 - Singapore governing-law/forum wording based on the individual Provider's stated jurisdiction, including consumer-law
   carveouts.
 - Counsel confirmation that arbitration, class-action waiver, collective-action waiver, representative-action waiver,
@@ -1386,9 +1396,10 @@ business owner with counsel awareness:
   counsel approves a different Provider-connected jurisdiction.
 - Arbitration, class-action waiver, collective-action waiver, representative-action waiver, and jury-trial waiver
   provisions are excluded from the current draft unless counsel later approves them.
-- Liability cap remains undecided. The draft position is that Provider Parties have no liability for Service use to the
-  maximum extent permitted by applicable law, and that future non-refundable Join Toll portions are not Provider Party
-  revenue because they are transferred to `0x000000000000000000000000000000000000dEaD`.
+- Liability cap business position is selected: the current draft does not include a nominal monetary liability cap. The
+  draft position is that Provider Parties have no liability for Service use to the maximum extent permitted by applicable
+  law, that mandatory-law liability carveouts remain preserved, and that future non-refundable Join Toll portions are
+  not Provider Party revenue because they are transferred to `0x000000000000000000000000000000000000dEaD`.
 - Required sanctions and restricted-jurisdiction wording remains undecided. The draft must account for the technical
   constraint that the Service may block Ethereum Accounts or contract interactions, not real-world users.
 - Final Privacy Notice review and counsel-directed changes remain open. The initial Privacy Notice content, GitHub

@@ -69,10 +69,6 @@ The Service includes the Private-State DApp, Tonnel, The Great First Channel, Br
 observer services, official documentation, official examples, official deployment artifacts, official proof-runtime
 artifacts, and related software or interfaces officially made available by the Provider.
 
-References in these Terms to a Service feature apply only when that feature is officially made available. If current
-software or smart contracts do not yet implement a described feature, that feature must not be treated as available until
-it is implemented and officially released.
-
 Tonnel is the branded name for Tokamak Private App Channels. Tonnel is an opt-in private application-channel system used
 from a Self-Custody Ethereum Account. The Great First Channel is a Channel within Tonnel.
 
@@ -83,20 +79,18 @@ asset recovery services, compliance services, or tax services.
 The Service is made available as open software and public-good infrastructure. Provider Parties do not operate the
 Service as a fee-generating custodial, brokerage, exchange, hosted transfer, or paid asset-management service.
 
-Join Tolls paid through the Service must not be monetized by Provider Parties. For future Channel exits after the
-relevant implementation is officially released, the refundable portion is returned to the exiting user and the
-non-refundable portion is transferred to `0x000000000000000000000000000000000000dEaD`. These Terms describe that
-non-refundable portion as a burn-address transfer, not as a TON total-supply reduction.
+Join Tolls paid through the Service must not be monetized by Provider Parties. When a user exits a Channel, the
+refundable portion is returned to the exiting user and the non-refundable portion is transferred to
+`0x000000000000000000000000000000000000dEaD`. These Terms describe that non-refundable portion as a burn-address
+transfer, not as a TON total-supply reduction.
 
-For future Channel exits after the relevant implementation is officially released, the Join Toll refund percentage
-increases with longer Channel participation time: 0% within 24 hours after joining, 25% after 24 hours and within 3
-days, 50% after 3 days and within 7 days, and 75% after 7 days. The remaining non-refundable portion is transferred to
-`0x000000000000000000000000000000000000dEaD`.
+The Join Toll refund percentage increases with longer Channel participation time: 0% within 24 hours after joining, 25%
+after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days. The remaining
+non-refundable portion is transferred to `0x000000000000000000000000000000000000dEaD`.
 
-A Channel leader may initiate Channel Operation Abandonment when that feature is officially available. Once initiated
-on-chain, the affected Channel immediately rejects new joins and new `deposit-channel` actions. Other note activity,
-`redeem-notes`, `withdraw-channel`, and `exit-channel` remain available subject to ordinary proof, balance, registration,
-and transaction requirements.
+A Channel leader may initiate Channel Operation Abandonment. Once initiated on-chain, the affected Channel immediately
+rejects new joins and new `deposit-channel` actions. Other note activity, `redeem-notes`, `withdraw-channel`, and
+`exit-channel` remain available subject to ordinary proof, balance, registration, and transaction requirements.
 
 Nothing in these Terms is a determination of the regulatory status of any person, entity, software, transaction, network,
 token, or service under applicable law.
@@ -121,9 +115,8 @@ use would not violate applicable sanctions, export control, anti-money launderin
 securities, commodities, tax, data-protection, or other applicable laws.
 
 The Service is based on public blockchain infrastructure. Provider Parties may not have a technical method to identify,
-screen, or block every natural person or legal entity that attempts to use the Service. If account-level restrictions are
-implemented, they may block Ethereum Accounts or contract interactions, not necessarily the real-world person or entity
-behind an address.
+screen, or block every natural person or legal entity that attempts to use the Service. Account-level restrictions may
+block Ethereum Accounts or contract interactions, not necessarily the real-world person or entity behind an address.
 
 ## 4. Public Ethereum Mainnet Records
 
@@ -235,7 +228,7 @@ Ethereum mainnet and public Channel records.
 The user may need to preserve local evidence to explain asset history, transaction history, Private Note ownership, or
 facts the user chooses to prove.
 
-Selective disclosure depends on implemented software features and on records preserved by the user.
+Selective disclosure depends on Service features and on records preserved by the user.
 
 ## 11. Third-Party Services
 
@@ -330,10 +323,8 @@ compromise, or unauthorized access.
 To the maximum extent permitted by applicable law, Provider Parties are not liable for the user's access to, use of,
 inability to use, or reliance on the Service.
 
-Join Tolls and other Service fees, if any, must not be described as Provider Party revenue unless an implemented
-protocol, treasury, or operating flow actually routes value to Provider Parties. If the implemented protocol transfers
-any Join Toll or non-refunded fee amount to a burn address, that amount does not create a custodial, refund, credit,
-account-balance, or revenue-sharing relationship between the user and Provider Parties.
+Join Tolls are not Provider Party revenue. Non-refunded Join Toll amounts transferred to a burn address do not create a
+custodial, refund, credit, account-balance, or revenue-sharing relationship between the user and Provider Parties.
 
 Nothing in these Terms excludes or limits liability that cannot be excluded or limited under applicable law, including
 liability for fraud, willful misconduct, gross negligence, death, or personal injury where such exclusion or limitation is

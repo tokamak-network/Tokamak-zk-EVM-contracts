@@ -89,6 +89,10 @@ The following drafting choices reduce ambiguity and dispute risk:
   terms and collected a fresh acceptance record.
 - Avoid statements that imply Provider Parties can reverse Ethereum mainnet transactions, recover lost secrets, guarantee
   exchange treatment, or guarantee legal, tax, accounting, regulatory, or compliance outcomes.
+- Draft public documents under the assumption that selected planning items have been completed. Public Terms, Privacy
+  Notice, README, help, and agent-facing documents must not include implementation-status assumptions such as "if
+  implemented", "when released", or "future implementation". If a missing business or legal decision prevents
+  completion-assumption drafting, move that decision ahead of public-document drafting.
 
 ## Draft Terms Content
 
@@ -528,6 +532,9 @@ Current status:
   numbering, Provider identity, Privacy Notice cross-reference, selected Join Toll language, selected Channel Operation
   Abandonment language, and selected dispute/liability/sanctions positions. Counsel-directed changes and final release
   approval still remain.
+- Updated the public-document drafting rule: public documents must assume selected planning items are complete and must
+  not include implementation-status assumptions. Removed implementation-condition wording from the Terms release
+  candidate.
 - Completed current-repository terminology pass for the root README, private-state DApp README, CLI README, human
   `help guide` strings, `help commands` metadata, fee-help descriptions, and `agents.md`.
 - Completed current-repository framing pass for the same surfaces. The remaining occurrences of `L1`, `L2`, and

@@ -26,12 +26,12 @@ No. TON custody and exchange-facing TON transfers remain on the transparent Ethe
 has left any exchange custody path. Private-state notes are channel-local application
 state, not exchange-supported deposit assets.
 
-### Who controls disclosure in the current private-state DApp?
+### Who controls disclosure in the private-state DApp?
 
-The current `private-state` DApp uses a user-controlled disclosure model. Tokamak, the bridge
+The `private-state` DApp uses a user-controlled disclosure model. Tokamak, the bridge
 operator, and the channel leader are not designed to hold the user's spending key, viewing key, or a
 master viewing key. A user may selectively disclose evidence
-from local wallet state where implemented tooling supports it, but public logs alone are not meant to
+from local wallet state through Service tooling, but public logs alone are not meant to
 reconstruct every private note provenance chain.
 
 ### How are wallet backups different from wallet keys?
@@ -53,7 +53,7 @@ Use the following positioning terms consistently:
   transparent Ethereum mainnet surface.
 - `user-controlled private note state`: note ownership and note recovery depend on user-held local
   secrets.
-- `selective disclosure capable architecture`: disclosure is user-controlled where implemented
+- `selective disclosure capable architecture`: disclosure is user-controlled where Service
   wallet tooling supports selected evidence export.
 - `privacy-preserving DApp channel`: this is an opt-in DApp channel, not an exchange
   deposit network and not a change to TON's Ethereum mainnet transfer rules.

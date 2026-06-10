@@ -11,8 +11,8 @@ surfaces.
 
 This Privacy Notice should be read together with the [Tonnel Terms of Service](terms.md).
 
-This Privacy Notice applies to the Service as currently made available. The current Service web surfaces include
-`tonnel.io` and `www.tonnel.io`. The current Service scope does not include `airdrop.tonnel.io`.
+This Privacy Notice applies to the Service. The Service web surfaces include `tonnel.io` and `www.tonnel.io`. The Service
+scope does not include `airdrop.tonnel.io`.
 
 The Service uses public blockchain infrastructure. Public blockchain records are public by design and may be copied,
 indexed, stored, analyzed, or redistributed by anyone.
@@ -110,12 +110,12 @@ files at inspection time.
 Official repository documentation is published through GitHub. GitHub may process page requests, GitHub account data if
 the user is signed in, repository paths viewed, comments, issues, pull requests, and other GitHub-controlled metadata.
 
-The current Service web surfaces `tonnel.io` and `www.tonnel.io` are Vercel-hosted Tonnel web surfaces. Use of those
-surfaces may involve Vercel request metadata and Vercel Web Analytics data. The confirmed Vercel team settings for those
-surfaces are: Hobby plan, 1 hour runtime-log retention, 1 month Web Analytics reporting window, Observability Plus
-disabled, and no configured Vercel Log Drains.
+The Service web surfaces `tonnel.io` and `www.tonnel.io` are Vercel-hosted Tonnel web surfaces. Use of those surfaces may
+involve Vercel request metadata and Vercel Web Analytics data. The confirmed Vercel team settings for those surfaces are:
+Hobby plan, 1 hour runtime-log retention, 1 month Web Analytics reporting window, Observability Plus disabled, and no
+configured Vercel Log Drains.
 
-The current Service scope does not include `airdrop.tonnel.io`.
+The Service scope does not include `airdrop.tonnel.io`.
 
 ## 8. Artifact Distribution Through Google Drive
 

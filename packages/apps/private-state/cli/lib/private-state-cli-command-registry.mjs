@@ -287,6 +287,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Displays the current Service Terms and requires explicit human acceptance before installation proceeds",
       "--json reports that interactive Terms acceptance is required and does not install artifacts",
+      "Install results include the canonical Terms version and deterministic Terms hash",
       "Default full mode installs proof runtimes and all deployment artifacts needed by transaction-sending commands",
       "--read-only installs only artifacts needed by channel-state read commands and commands unrelated to channel state",
       "Version options install exact CLI package versions; omitted versions resolve to npm registry latest",

@@ -65,6 +65,9 @@ import {
   requireCanonicalGroth16CompatibleBackendVersion,
 } from "@tokamak-private-dapps/groth16/public-drive-crs";
 import {
+  readPrivateStateTermsMetadata,
+} from "./private-state-terms.mjs";
+import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
@@ -2483,10 +2486,12 @@ async function handleInstallZkEvm({ args }) {
   const installMode = args.readOnly === true
     ? PRIVATE_STATE_INSTALL_MODES.READ_ONLY
     : PRIVATE_STATE_INSTALL_MODES.FULL;
+  const terms = readPrivateStateTermsMetadata();
   if (isJsonOutputRequested()) {
     cliOutput.result({
       action: "install",
       installMode,
+      terms,
       installed: false,
       requiresInteractiveTermsAcceptance: true,
       termsAcceptanceCanBeProvidedByJson: false,
@@ -2530,6 +2535,7 @@ async function handleInstallZkEvm({ args }) {
   cliOutput.result({
     action: "install",
     installMode,
+    terms,
     selectedVersions,
     tokamakCli: tokamakCliRuntime?.entryPath ?? null,
     runtimeRoot: tokamakCliRuntime?.runtimeRoot ?? null,

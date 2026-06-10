@@ -116,7 +116,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         channelDeployer = channelDeployer_;
         grothVerifier = grothVerifier_;
         tokamakVerifier = tokamakVerifier_;
-        _setJoinTollRefundSchedule(6 hours, 7_500, 24 hours, 5_000, 3 days, 2_500, 0);
+        _setJoinTollRefundSchedule(24 hours, 0, 3 days, 2_500, 7 days, 5_000, 7_500);
     }
 
     function setChannelDeployer(ChannelDeployer channelDeployer_) external onlyOwner {
@@ -330,7 +330,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         if (
             cutoff1 == 0 || cutoff1 >= cutoff2 || cutoff2 >= cutoff3 || bps1 > BPS_DENOMINATOR
                 || bps2 > BPS_DENOMINATOR || bps3 > BPS_DENOMINATOR || bps4 > BPS_DENOMINATOR
-                || bps1 < bps2 || bps2 < bps3 || bps3 < bps4
+                || bps1 > bps2 || bps2 > bps3 || bps3 > bps4
         ) {
             revert InvalidJoinTollRefundSchedule();
         }

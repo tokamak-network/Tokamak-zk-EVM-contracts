@@ -2632,11 +2632,11 @@ async function main() {
       );
       assertBigIntEq(
         exitChannelResult.refundAmountBaseUnits,
-        (joinTollBaseUnits * 75n) / 100n,
+        0n,
         "participant-c exit-channel refund amount",
       );
       expect(
-        Number(exitChannelResult.refundBps) === 7500,
+        Number(exitChannelResult.refundBps) === 0,
         `participant-c exit-channel refundBps mismatch: ${exitChannelResult.refundBps}.`,
       );
       assertExitedWalletWorkspace(exitChannelResult, participants[2]);
@@ -2663,8 +2663,8 @@ async function main() {
       );
       assertBigIntEq(
         ethers.toBigInt(l1BalanceAfterClaim) - ethers.toBigInt(l1BalanceBeforeClaim),
-        claimAmountBaseUnits + ((joinTollBaseUnits * 75n) / 100n),
-        "participant-c L1 ERC20 claim delta including exit refund",
+        claimAmountBaseUnits,
+        "participant-c L1 ERC20 claim delta including any exit refund",
       );
       for (const participant of participants.slice(0, 2)) {
         assertBigIntEq(

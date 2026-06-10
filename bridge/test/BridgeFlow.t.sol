@@ -504,13 +504,13 @@ contract BridgeFlowTest is Test {
     }
 
     function testChannelSnapshotsRefundScheduleAtCreation() public {
-        bridgeCore.setJoinTollRefundSchedule(1 hours, 1_000, 2 hours, 500, 4 hours, 250, 0);
+        bridgeCore.setJoinTollRefundSchedule(1 hours, 1_000, 2 hours, 2_000, 4 hours, 3_000, 4_000);
 
         _joinChannel(channelId, alice, alice, bytes32(uint256(17)), 17);
         (uint256 existingRefundAmount, uint16 existingRefundBps) =
             channelManager.getExitTollRefundQuote(alice);
-        assertEq(existingRefundBps, 7_500);
-        assertEq(existingRefundAmount, (DEFAULT_JOIN_TOLL * 7_500) / 10_000);
+        assertEq(existingRefundBps, 0);
+        assertEq(existingRefundAmount, 0);
 
         (address secondManagerAddress,) =
             _createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_TOLL, _dAppMetadataDigest(1));
@@ -522,18 +522,45 @@ contract BridgeFlowTest is Test {
         assertEq(secondRefundAmount, (DEFAULT_JOIN_TOLL * 1_000) / 10_000);
     }
 
+    function testRejectsDecreasingJoinTollRefundSchedule() public {
+        vm.expectRevert(BridgeCore.InvalidJoinTollRefundSchedule.selector);
+        bridgeCore.setJoinTollRefundSchedule(24 hours, 7_500, 3 days, 5_000, 7 days, 2_500, 0);
+    }
+
+    function testAllowsFlatJoinTollRefundSchedule() public {
+        bridgeCore.setJoinTollRefundSchedule(24 hours, 2_500, 3 days, 2_500, 7 days, 2_500, 2_500);
+
+        assertEq(bridgeCore.defaultJoinTollRefundBps1(), 2_500);
+        assertEq(bridgeCore.defaultJoinTollRefundBps2(), 2_500);
+        assertEq(bridgeCore.defaultJoinTollRefundBps3(), 2_500);
+        assertEq(bridgeCore.defaultJoinTollRefundBps4(), 2_500);
+    }
+
+    function testDefaultJoinTollRefundScheduleIncreasesOverTime() public view {
+        assertEq(bridgeCore.defaultJoinTollRefundCutoff1(), 24 hours);
+        assertEq(bridgeCore.defaultJoinTollRefundBps1(), 0);
+        assertEq(bridgeCore.defaultJoinTollRefundCutoff2(), 3 days);
+        assertEq(bridgeCore.defaultJoinTollRefundBps2(), 2_500);
+        assertEq(bridgeCore.defaultJoinTollRefundCutoff3(), 7 days);
+        assertEq(bridgeCore.defaultJoinTollRefundBps3(), 5_000);
+        assertEq(bridgeCore.defaultJoinTollRefundBps4(), 7_500);
+    }
+
     function testExitChannelRefundsAccordingToTimeBucketAndClearsRegistration() public {
         _joinChannel(channelId, alice, alice, bytes32(uint256(17)), 17);
 
-        vm.warp(block.timestamp + 7 hours);
+        vm.warp(block.timestamp + 4 days);
 
         uint256 balanceBefore = asset.balanceOf(alice);
+        address burnAddress = bridgeTokenVault.JOIN_TOLL_BURN_ADDRESS();
+        uint256 burnAddressBalanceBefore = asset.balanceOf(burnAddress);
         vm.prank(alice);
         bool exited = bridgeTokenVault.exitChannel(channelId);
         assertTrue(exited);
 
         assertEq(asset.balanceOf(alice), balanceBefore + 0.5 ether);
-        assertEq(bridgeTokenVault.tollTreasuryBalance(), 0.5 ether);
+        assertEq(asset.balanceOf(burnAddress), burnAddressBalanceBefore + 0.5 ether);
+        assertEq(bridgeTokenVault.tollTreasuryBalance(), 0);
 
         BridgeStructs.ChannelTokenVaultRegistration memory registration =
             channelManager.getChannelTokenVaultRegistration(alice);

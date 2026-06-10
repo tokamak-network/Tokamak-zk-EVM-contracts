@@ -432,17 +432,18 @@ Mitigation:
 - The channel creator chooses the initial join toll at `createChannel(...)`.
 - `ChannelManager` records `joinTollPaid` and `joinedAt` per registration.
 - Exit is allowed only after the channel-token-vault balance is zero.
-- Exit refunds a time-decayed fraction of the paid join toll and frees the reserved L1, L2, storage
-  key, and leaf-index bindings only after unregistering succeeds.
-- The bridge tracks join tolls in `_tollTreasuryBalance`; the only current outflow path is decayed
-  exit refund.
+- Exit refunds the time-based refundable portion of the paid join toll and frees the reserved L1, L2,
+  storage key, and leaf-index bindings only after unregistering succeeds.
+- The bridge tracks join tolls in `_tollTreasuryBalance`; exit transfers the refundable portion to the
+  exiting user and transfers the non-refundable portion to
+  `0x000000000000000000000000000000000000dEaD`.
 
 Evidence:
 
 - Code: `bridge/src/L1TokenVault.sol::joinChannel(...)` charges the channel join toll and records it
   in treasury accounting.
 - Code: `bridge/src/L1TokenVault.sol::exitChannel(...)` queries the refund quote, unregisters the
-  user, and pays only the decayed refund.
+  user, pays the refundable portion, and transfers the non-refundable portion to the burn address.
 - Code: `bridge/src/ChannelManager.sol::registerChannelTokenVaultIdentity(...)` records
   `joinTollPaid` and `joinedAt`.
 - Code: `bridge/src/ChannelManager.sol::getExitTollRefundQuote(...)` computes the refund from the

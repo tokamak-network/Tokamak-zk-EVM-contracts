@@ -152,9 +152,9 @@ contract ChannelManager {
                 || joinTollRefundCutoff2_ >= joinTollRefundCutoff3_
                 || joinTollRefundBps1_ > BPS_DENOMINATOR || joinTollRefundBps2_ > BPS_DENOMINATOR
                 || joinTollRefundBps3_ > BPS_DENOMINATOR || joinTollRefundBps4_ > BPS_DENOMINATOR
-                || joinTollRefundBps1_ < joinTollRefundBps2_
-                || joinTollRefundBps2_ < joinTollRefundBps3_
-                || joinTollRefundBps3_ < joinTollRefundBps4_
+                || joinTollRefundBps1_ > joinTollRefundBps2_
+                || joinTollRefundBps2_ > joinTollRefundBps3_
+                || joinTollRefundBps3_ > joinTollRefundBps4_
         ) {
             revert InvalidJoinTollRefundSchedule();
         }

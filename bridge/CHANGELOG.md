@@ -63,7 +63,26 @@ deployment artifact.
 
 ### Local Pending
 
-None at the time this entry was written.
+#### Join Toll refund and burn-address transfer policy
+
+Status: **Local pending**
+
+Deployment requirement: **Bridge UUPS upgrade required**
+
+Summary:
+
+- Changes the default Join Toll refund schedule to a time-increasing policy: 0% within
+  24 hours after joining, 25% after 24 hours and within 3 days, 50% after 3 days and
+  within 7 days, and 75% after 7 days.
+- Inverts Join Toll refund schedule validation so configured refund percentages must stay
+  flat or increase as participation time increases.
+- Updates `L1TokenVault.exitChannel(...)` so future exits transfer the refundable portion
+  to the exiting user and transfer the non-refundable portion to
+  `0x000000000000000000000000000000000000dEaD`.
+- Reduces `_tollTreasuryBalance` by both the refunded amount and the burn-address transfer
+  amount.
+- Treats the change as future-only and does not add retroactive handling for users who
+  already exited before this implementation ships.
 
 ## Mainnet Deployments
 

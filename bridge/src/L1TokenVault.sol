@@ -24,6 +24,7 @@ contract L1TokenVault is
 
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
         0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
+    address public constant JOIN_TOLL_BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
 
     error InvalidAmount();
     error KeyMismatch();
@@ -55,6 +56,9 @@ contract L1TokenVault is
     event ChannelJoinTollPaid(address indexed user, uint256 indexed channelId, uint256 amount);
     event ChannelExitRefunded(
         address indexed user, uint256 indexed channelId, uint256 amount, uint16 refundBps
+    );
+    event ChannelExitTollBurned(
+        address indexed user, uint256 indexed channelId, uint256 amount, address indexed burnAddress
     );
 
     constructor() {
@@ -169,14 +173,18 @@ contract L1TokenVault is
         if (!registration.exists) revert NotRegisteredInChannel(msg.sender, channelId);
 
         (uint256 refundAmount, uint16 refundBps) = channelManager.getExitTollRefundQuote(msg.sender);
+        uint256 burnAddressTransferAmount = registration.joinTollPaid - refundAmount;
+        uint256 tollOutflowAmount = refundAmount + burnAddressTransferAmount;
         channelManager.unregisterChannelTokenVaultIdentity(msg.sender);
 
-        if (refundAmount != 0) {
-            if (_tollTreasuryBalance < refundAmount) {
-                revert InsufficientTollTreasuryBalance(_tollTreasuryBalance, refundAmount);
+        if (tollOutflowAmount != 0) {
+            if (_tollTreasuryBalance < tollOutflowAmount) {
+                revert InsufficientTollTreasuryBalance(_tollTreasuryBalance, tollOutflowAmount);
             }
-            _tollTreasuryBalance -= refundAmount;
+            _tollTreasuryBalance -= tollOutflowAmount;
+        }
 
+        if (refundAmount != 0) {
             uint256 vaultBalanceBefore = asset.balanceOf(address(this));
             uint256 recipientBalanceBefore = asset.balanceOf(msg.sender);
             asset.safeTransfer(msg.sender, refundAmount);
@@ -188,6 +196,28 @@ contract L1TokenVault is
             if (recipientBalanceDelta != refundAmount) {
                 revert UnsupportedAssetTransferBehavior(refundAmount, recipientBalanceDelta);
             }
+        }
+
+        if (burnAddressTransferAmount != 0) {
+            uint256 vaultBalanceBefore = asset.balanceOf(address(this));
+            uint256 burnAddressBalanceBefore = asset.balanceOf(JOIN_TOLL_BURN_ADDRESS);
+            asset.safeTransfer(JOIN_TOLL_BURN_ADDRESS, burnAddressTransferAmount);
+            uint256 vaultBalanceDelta = vaultBalanceBefore - asset.balanceOf(address(this));
+            if (vaultBalanceDelta != burnAddressTransferAmount) {
+                revert UnsupportedAssetTransferBehavior(
+                    burnAddressTransferAmount, vaultBalanceDelta
+                );
+            }
+            uint256 burnAddressBalanceDelta =
+                asset.balanceOf(JOIN_TOLL_BURN_ADDRESS) - burnAddressBalanceBefore;
+            if (burnAddressBalanceDelta != burnAddressTransferAmount) {
+                revert UnsupportedAssetTransferBehavior(
+                    burnAddressTransferAmount, burnAddressBalanceDelta
+                );
+            }
+            emit ChannelExitTollBurned(
+                msg.sender, channelId, burnAddressTransferAmount, JOIN_TOLL_BURN_ADDRESS
+            );
         }
 
         emit ChannelExitRefunded(msg.sender, channelId, refundAmount, refundBps);

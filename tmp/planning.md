@@ -857,11 +857,10 @@ Phase 6 repository-wide public-document review findings to resolve before public
   `termsHash`. Resolution: keep the final-public-document strategy that documents the intended final state, but do not
   treat the documentation set as release-ready until the interactive install gate, canonical terms source, and renewed
   acceptance mechanism are implemented and verified.
-- Terms already describe the selected future Join Toll policy: increasing refund percentages over time and transfer of
-  each non-refundable portion to `0x000000000000000000000000000000000000dEaD`. The current contracts still implement
-  the old refund-only behavior and the old decreasing-refund validation. Resolution: implement Phase 1A before release,
-  then verify that public documents and implementation both describe future exits as refund plus burn-address transfer
-  without describing the transfer as TON total-supply reduction.
+- Resolved in local source: Terms describe the selected future Join Toll policy, and Phase 1A implementation now matches
+  it: increasing refund percentages over time and transfer of each non-refundable portion to
+  `0x000000000000000000000000000000000000dEaD`. Mainnet still requires the corresponding bridge upgrade before public
+  release can represent the policy as deployed behavior.
 - Terms already describe Channel Operation Abandonment as an available on-chain state. The current bridge and CLI do not
   yet implement abandonment state, events, join/deposit rejection, or CLI warnings. Resolution: implement Phase 1B
   before release, then verify that Terms, README, public observer, monitoring packet docs, `help guide`, `help guide
@@ -1341,7 +1340,7 @@ before release.
 | R-16 | 18 | Specify the technical renewed-acceptance mechanism: terms version, deterministic hash, displayed terms, explicit phrase, stored record, stale-record rejection. | The product can implement this and should not rely only on legal notice wording. | Applied to draft Terms; verify implementation follows this mechanism after Terms freeze. |
 | R-17 | 20 | Use Singapore court litigation and Singapore law as the Provider-connected baseline, with mandatory consumer-law and local-court carveouts. Do not include arbitration, class-action waiver, collective-action waiver, representative-action waiver, or jury-trial waiver provisions unless counsel later approves them. | Forum and waiver clauses may be invalid or problematic for consumers in some jurisdictions. | Applied to draft Terms; counsel to confirm enforceability. |
 | R-18 | 20 | Add `cjhyuck213@gmail.com` as the public privacy and notice contact for Jehyuk Jang, and state that the Provider's residential address is not published. If a physical notice address becomes required, use a counsel-approved non-residential notice route. | Notices are incomplete without an official contact route, but residential address publication is not the default policy. | Applied to draft Terms; counsel to confirm sufficiency. |
-| R-19 | 1, 2, 9, 16 | Apply the selected Join Toll policy to Terms and implementation planning. The current reviewed implementation stores Join Tolls in `L1TokenVault._tollTreasuryBalance`, records `joinTollPaid`, and pays exit refunds from the toll treasury according to the Channel refund schedule. The selected change is future-only: on Channel exit, refund the refundable portion to the exiting user and transfer the non-refundable portion to `0x000000000000000000000000000000000000dEaD`. Existing already-exited users' historical non-refundable Toll portions are not in scope for retroactive burn-address transfer. The selected refund schedule is time-increasing: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days. | The user-facing economic representation must match the protocol. Because mainnet TON does not expose an external `burn` function and rejects transfer to `address(0)`, the Service must describe this as a burn-address transfer, not as TON total-supply reduction. The current implementation enforces the opposite refund direction with `joinTollRefundBps1 >= joinTollRefundBps2 >= joinTollRefundBps3 >= joinTollRefundBps4`; this must be inverted before the new schedule is described as implemented behavior. | Selected product decision; update Terms/docs and implement after canonical Terms freeze. |
+| R-19 | 1, 2, 9, 16 | Apply the selected Join Toll policy to Terms and implementation planning. The local source now stores Join Tolls in `L1TokenVault._tollTreasuryBalance`, records `joinTollPaid`, refunds the refundable portion from the toll treasury, and transfers the non-refundable portion to `0x000000000000000000000000000000000000dEaD` on future Channel exits. Existing already-exited users' historical non-refundable Toll portions are not in scope for retroactive burn-address transfer. The selected refund schedule is time-increasing: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days. | The user-facing economic representation must match the protocol. Because mainnet TON does not expose an external `burn` function and rejects transfer to `address(0)`, the Service must describe this as a burn-address transfer, not as TON total-supply reduction. The local source now enforces `joinTollRefundBps1 <= joinTollRefundBps2 <= joinTollRefundBps3 <= joinTollRefundBps4`; mainnet still requires the bridge upgrade before release language can represent the policy as deployed behavior. | Implemented in local source; deployment/counsel release review remains. |
 | R-20 | Prompt policy | Remove `--acknowledge-action-impact` from every command, enforce install-time Terms acceptance, make `uninstall` interactive like `install`; default uninstall preserves wallet workspace spending-key and viewing-key files while deleting the rest, and `--include-wallet-keys` deletes everything without exception. Make secret-bearing material export commands and plaintext note/evidence export commands interactive. For each such interactive flow, print the command impact, leakage or destructive risk, precautions, and Provider Party disclaimers, then require human confirmation before continuing. For every command that handles real funds, print command-specific information and warning summaries in human mode and `--json` mode on every run without requiring a command-level acknowledgement option. | This implements the selected product policy: one-time install Terms acceptance replaces repeated action-impact acknowledgement flags, while moment-specific human confirmations remain for destructive deletion and sensitive exports, and ordinary transaction commands still show relevant warnings. | Guide/command-reference/warning-output, uninstall prompt, wallet viewing-key/spending-key export confirmation, and plaintext note/evidence export confirmation review completed; install Terms gate and renewed acceptance remain. |
 | R-21 | 2, 9, 10, 14 | Add Channel Operation Abandonment to Terms, docs, monitoring, and implementation planning. The Channel leader may initiate abandonment on-chain with no grace period. After abandonment, new joins and `deposit-channel` are rejected for that Channel; note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel` remain unrestricted by abandonment. | This gives the Channel leader a clear public way to stop onboarding and new deposits without trapping existing users or claiming control over user notes. The feature is compatible with existing Channels if enforcement is placed in the shared upgradeable vault path for join/deposit. Existing `the-great-first-channel` note activity cannot and should not be restricted under the revised request. | Selected product decision; implement after canonical Terms/docs are updated. |
 
@@ -1362,7 +1361,7 @@ before release.
 | K-11 | Medium | AI agents | User-Controlled AI Agents could be perceived as acting with official authority if JSON directives are too prescriptive. | State that AI agents are user-selected tools and cannot accept terms, handle secrets, or create advisory relationship. | Product/counsel. |
 | K-12 | Medium | Evidence/observer | Official Public Observer may be insufficient for exchange, tax, audit, or compliance review. | Preserve observer-limit wording and add local evidence preservation duties. | Product/compliance. |
 | K-13 | Low | Terminology | Final terminology search for ordinary-user and agent-facing surfaces found only `--join-toll` as a command option in the private-state app README and one `L1` occurrence in `agents.md` that explicitly instructs agents not to use `L1` with ordinary users. Technical documents may still use `L1` and `L2` where the target reader is technical. | Keep final terminology search before release; no current ordinary-user wording change is required from this pass. | Product. |
-| K-14 | High | Burn-address transfer and refund direction | Current implementation does not yet apply the selected future-exit burn-address transfer policy. `L1TokenVault.joinChannel` transfers Join Toll tokens into the vault and increments `_tollTreasuryBalance`; current `exitChannel` pays refundable amounts from `_tollTreasuryBalance` and leaves the non-refundable portion in the vault. Current `ChannelManager` validation also requires refund percentages to stay flat or decrease over time, and current default cutoffs are 6 hours, 24 hours, and 3 days. | Implement and test future-only exit behavior: refund the refundable portion, transfer the non-refundable portion to `0x000000000000000000000000000000000000dEaD`, and reduce `_tollTreasuryBalance` by both amounts. Invert the refund schedule validation so refund percentages stay flat or increase over time. Change default cutoffs to 24 hours, 3 days, and 7 days, with refund basis points 0, 2,500, 5,000, and 7,500. Do not promise retroactive handling for already-exited users. | Product/security/counsel. |
+| K-14 | Medium | Burn-address transfer and refund direction | Resolved in local source but not yet mainnet-deployed. `L1TokenVault.exitChannel` now refunds the refundable portion, transfers the non-refundable portion to `0x000000000000000000000000000000000000dEaD`, and reduces `_tollTreasuryBalance` by both amounts. `ChannelManager` and `BridgeCore` now require refund percentages to stay flat or increase over time, and the default cutoffs are 24 hours, 3 days, and 7 days. | Preserve the future-only policy, avoid retroactive promises for already-exited users, and complete the bridge upgrade before representing the policy as deployed behavior. | Product/security/counsel. |
 | K-15 | Medium | Channel abandonment | Channel abandonment can be misunderstood as a pause, emergency recovery, custody control, or operator ability to censor existing note use. | Define it narrowly: leader-only, immediate, public, no grace period, blocks only new joins and `deposit-channel`, does not restrict note activity, `redeem-notes`, `withdraw-channel`, or `exit-channel`. Add observer/CLI status display and checklist-facing wording that existing users can still redeem, withdraw, and exit. | Product/security/counsel. |
 
 ### Counsel-question list
@@ -1502,20 +1501,21 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 
 ### Phase 1A: Join Toll burn-address transfer implementation
 
-- Update `ChannelManager` refund schedule validation so `joinTollRefundBps1 <= joinTollRefundBps2 <=
+- Completed: update `ChannelManager` refund schedule validation so `joinTollRefundBps1 <= joinTollRefundBps2 <=
   joinTollRefundBps3 <= joinTollRefundBps4`. Equal adjacent values remain valid, but the configured refund percentage
   must not decrease as participation time increases.
-- Update `BridgeCore` default Join Toll refund schedule to cutoff 1 = 24 hours, bps 1 = 0; cutoff 2 = 3 days, bps 2 =
-  2,500; cutoff 3 = 7 days, bps 3 = 5,000; bps 4 = 7,500.
-- Update `L1TokenVault.exitChannel` so future Channel exits calculate `burnAddressTransferAmount =
+- Completed: update `BridgeCore` default Join Toll refund schedule to cutoff 1 = 24 hours, bps 1 = 0; cutoff 2 = 3
+  days, bps 2 = 2,500; cutoff 3 = 7 days, bps 3 = 5,000; bps 4 = 7,500.
+- Completed: update `L1TokenVault.exitChannel` so future Channel exits calculate `burnAddressTransferAmount =
   registration.joinTollPaid - refundAmount`.
-- Transfer `refundAmount` to the exiting user when non-zero.
-- Transfer `burnAddressTransferAmount` to `0x000000000000000000000000000000000000dEaD` when non-zero.
-- Reduce `_tollTreasuryBalance` by `refundAmount + burnAddressTransferAmount`.
-- Treat the change as future-only. Do not add a retroactive migration promise for users who already exited before this
-  implementation ships.
-- Terms and docs must describe the non-refundable portion as a burn-address transfer, not as TON total-supply reduction.
-- Terms and docs must describe the refund schedule as time-increasing, so early exits have a larger non-refundable
+- Completed: transfer `refundAmount` to the exiting user when non-zero.
+- Completed: transfer `burnAddressTransferAmount` to `0x000000000000000000000000000000000000dEaD` when non-zero.
+- Completed: reduce `_tollTreasuryBalance` by `refundAmount + burnAddressTransferAmount`.
+- Completed: treat the change as future-only. Do not add a retroactive migration promise for users who already exited
+  before this implementation ships.
+- Completed: Terms and docs describe the non-refundable portion as a burn-address transfer, not as TON total-supply
+  reduction.
+- Completed: Terms and docs describe the refund schedule as time-increasing, so early exits have a larger non-refundable
   burn-address-transfer portion than later exits: 0% refund within 24 hours after joining, 25% after 24 hours and within
   3 days, 50% after 3 days and within 7 days, and 75% after 7 days.
 
@@ -1612,13 +1612,16 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 ### Phase 7: Implementation verification
 
 - Verify that interactive install blocks installation until Terms are accepted.
-- Verify that future `exitChannel` calls refund the refundable Join Toll portion and transfer the non-refundable portion
+- Completed: verify that future `exitChannel` calls refund the refundable Join Toll portion and transfer the non-refundable portion
   to `0x000000000000000000000000000000000000dEaD`.
-- Verify that `_tollTreasuryBalance` decreases by both the refunded amount and the burn-address transfer amount.
-- Verify that Terms and docs do not describe the Join Toll burn-address transfer as TON total-supply reduction.
-- Verify that `ChannelManager` rejects decreasing Join Toll refund schedules and accepts flat or increasing schedules.
-- Verify that refund quotes increase or remain flat as elapsed Channel participation time increases.
-- Verify the selected schedule exactly: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50%
+- Completed: verify that `_tollTreasuryBalance` decreases by both the refunded amount and the burn-address transfer
+  amount.
+- Completed: verify that Terms and docs do not describe the Join Toll burn-address transfer as TON total-supply
+  reduction.
+- Completed: verify that `ChannelManager` rejects decreasing Join Toll refund schedules and accepts flat or increasing
+  schedules.
+- Completed: verify that refund quotes increase or remain flat as elapsed Channel participation time increases.
+- Completed: verify the selected schedule exactly: 0% within 24 hours after joining, 25% after 24 hours and within 3 days, 50%
   after 3 days and within 7 days, and 75% after 7 days.
 - Verify that only the Channel leader can initiate Channel Operation Abandonment for that Channel.
 - Verify that abandonment is immediate and records a public timestamp/event.

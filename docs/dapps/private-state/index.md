@@ -7,7 +7,7 @@ This directory contains the design, protocol, security, and implementation docum
 ### What is the private-state DApp?
 
 `private-state` is a bridge-coupled zk-note payment DApp for Tokamak Private App Channels. It keeps
-canonical token custody on L1 through the bridge, while channel-local accounting balances, note
+canonical token custody on Ethereum mainnet through the bridge, while channel-local accounting balances, note
 commitments, nullifiers, and encrypted note-delivery events live in proof-backed confidential
 application state.
 
@@ -21,8 +21,8 @@ material to decide which encrypted notes are theirs.
 
 ### Is it an exchange deposit network?
 
-No. TON custody and exchange-facing TON transfers remain on the transparent L1 token surface.
-`private-state` is an opt-in application channel used from a self-custody L1 wallet after the user
+No. TON custody and exchange-facing TON transfers remain on the transparent Ethereum mainnet token surface.
+`private-state` is an opt-in application channel used from a self-custody Ethereum mainnet wallet after the user
 has left any exchange custody path. Private-state notes are channel-local application
 state, not exchange-supported deposit assets.
 
@@ -49,18 +49,18 @@ Use the following positioning terms consistently:
 
 - `proof-backed confidential application state`: private-state activity is accepted through proofs,
   not through a trusted operator transcript.
-- `L1-transparent bridge edge`: bridge deposits, withdrawals, and custody movements remain on the
-  transparent L1 surface.
+- `Ethereum-mainnet-transparent bridge edge`: bridge deposits, withdrawals, and custody movements remain on the
+  transparent Ethereum mainnet surface.
 - `user-controlled private note state`: note ownership and note recovery depend on user-held local
   secrets.
 - `selective disclosure capable architecture`: disclosure is user-controlled where implemented
   wallet tooling supports selected evidence export.
 - `privacy-preserving DApp channel`: this is an opt-in DApp channel, not an exchange
-  deposit network and not a change to TON's L1 transfer rules.
-- `TON custody remains anchored on L1`: the canonical token stays under the bridge's L1 custody
-  boundary while channel-local state records accounting and notes.
-- `internal note transfer privacy, transparent L1 entry/exit`: note-transfer provenance is private
-  by design, while bridge entry and exit remain public L1 events.
+  deposit network and not a change to TON's Ethereum mainnet transfer rules.
+- `TON custody remains anchored on Ethereum mainnet`: the canonical token stays under the bridge's Ethereum mainnet
+  custody boundary while channel-local state records accounting and notes.
+- `internal note transfer privacy, transparent Ethereum mainnet entry/exit`: note-transfer provenance is private
+  by design, while bridge entry and exit remain public Ethereum mainnet events.
 
 ### What should users check before joining a channel?
 
@@ -72,8 +72,9 @@ accepting that policy for the channel lifetime.
 ## Reading Order
 
 1. [Private-State Background Theory](background-theory.md)
-   Start here. Defines the custody model, zk-L2 assumptions, liquid accounting balance, notes, note
-   commitments, nullifiers, and the ownership-versus-readability distinction.
+   Start here. Defines the custody model, Tonnel private application state assumptions, liquid
+   accounting balance, notes, note commitments, nullifiers, and the ownership-versus-readability
+   distinction.
 2. [Private-State Contract Specification](contract-spec.md)
    Maps the concepts from the background document to the two Solidity contracts, their storage, and
    their public state-transition semantics.
@@ -81,13 +82,18 @@ accepting that policy for the channel lifetime.
    Explains why the user-facing entrypoints are fixed-arity and lists the validity constraints that
    each mint, transfer, and redeem shape must satisfy.
 4. [Private-State Security Model](security-model.md)
-   Documents bridge-inherited security assumptions, finite leaf collision risk, future nullifier collision probability, separated wallet capabilities, channel-bound L2 derivation, note-receive key derivation, and recovery behavior.
+   Documents bridge-inherited security assumptions, finite leaf collision risk, future nullifier
+   collision probability, separated wallet capabilities, channel-bound Tonnel private application
+   state derivation, note-receive key derivation, and recovery behavior.
 5. [Private-State Workflow](workflow.md)
    Describes the CLI workflow, wallet/workspace artifacts, bridge registration metadata, proof input bundle format, event recovery flow, and bridge-DApp execution coupling.
 6. [Channel Workspace Mirror Protocol](channel-workspace-mirror-protocol.md)
    Defines the optional static server protocol that channel leaders can use to publish signed
    workspace checkpoints and delta bundles for old channels.
-7. [Tonnel Privacy Notice](privacy-notice.md)
+7. [Tonnel Terms of Service](terms.md)
+   Defines the Service scope, user responsibilities, Self-Custody duties, public Ethereum mainnet
+   records, risk disclosures, liability limits, Third-Party Services, and dispute provisions.
+8. [Tonnel Privacy Notice](privacy-notice.md)
    Explains Service data processing, public blockchain records, official observer and mirror processing,
    third-party services, retention, user choices, and the Provider privacy contact.
 

@@ -524,15 +524,19 @@ create public terms behavior. The next planned work is to finalize the Service t
 
 Current status:
 
+- Created the repository Terms release-candidate document at `docs/dapps/private-state/terms.md` with fixed section
+  numbering, Provider identity, Privacy Notice cross-reference, selected Join Toll language, selected Channel Operation
+  Abandonment language, and selected dispute/liability/sanctions positions. Counsel-directed changes and final release
+  approval still remain.
 - Completed current-repository terminology pass for the root README, private-state DApp README, CLI README, human
   `help guide` strings, `help commands` metadata, fee-help descriptions, and `agents.md`.
 - Completed current-repository framing pass for the same surfaces. The remaining occurrences of `L1`, `L2`, and
   `--join-toll` in those audited paths are command names, option names, contract names, JSON field names, code
   identifiers, or explicit agent instructions about when not to use developer shorthand with ordinary users.
-- Terms finalization, redline/risk review, and counsel-facing release decisions remain unresolved and must be completed
-  before production terms behavior is implemented. The Privacy Notice content and initial GitHub repository publication
-  location are drafted, and the repository-level final consistency review is complete; counsel-directed changes and final
-  release approval still remain.
+- Terms counsel-facing release decisions remain unresolved and must be completed before production terms behavior is
+  implemented. The Privacy Notice content and initial GitHub repository publication location are drafted, and the
+  repository-level final consistency review is complete; counsel-directed changes and final release approval still
+  remain.
 
 ### Immediate priority: Privacy Notice preparation
 
@@ -785,7 +789,8 @@ Decision guide:
 
 ### Phase 4: Finalize human-facing documents
 
-- Finalize Terms text and section numbering.
+- Finalize Terms text and section numbering. Repository release-candidate created at
+  `docs/dapps/private-state/terms.md`; counsel-directed changes and final release approval remain.
 - Finalize human `help guide` text for ordinary users.
 - Finalize CLI README language explaining the Service terms and the purpose of `--json`.
 - Finalize documentation explaining public Ethereum mainnet records, public Channel records, Official Public Observer

@@ -9,6 +9,8 @@ the private-state DApp, Tonnel, The Great First Channel, the private-state CLI, 
 workspace mirror services, official documentation, official support channels, and related official artifact distribution
 surfaces.
 
+This Privacy Notice should be read together with the [Tonnel Terms of Service](terms.md).
+
 This Privacy Notice applies to the Service as currently made available. The current Service web surfaces include
 `tonnel.io` and `www.tonnel.io`. The current Service scope does not include `airdrop.tonnel.io`.
 

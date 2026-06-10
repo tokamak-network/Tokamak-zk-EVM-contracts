@@ -21,6 +21,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliRoot = path.resolve(__dirname, "..");
 const cliPath = path.join(cliRoot, "private-state-bridge-cli.mjs");
+const runtimePath = path.join(cliRoot, "lib", "runtime.mjs");
 const agentsPath = path.join(cliRoot, "agents.md");
 const publicTermsPath = path.resolve(cliRoot, "../../../../docs/dapps/private-state/terms.md");
 const TEST_RPC_CONFIG = Object.freeze({
@@ -417,9 +418,17 @@ function testGuideHumanOutputIsUserFacing() {
 
 function testHelpCommandsOutputUsesFinalPromptPolicy() {
   const stdout = runCli(["help", "commands"]);
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
   expect(!stdout.includes("--acknowledge-action-impact"), "Command help must not expose the deprecated action-impact flag.");
   expect(!stdout.includes("Action impact:"), "Command help must use warning-summary wording.");
   expect(stdout.includes("Warning summary:"), "Command help should describe transaction warnings as warning summaries.");
+  expect(stdout.includes("channel exit"), "Command help should include channel exit.");
+  expect(
+    stdout.includes("Warning summary: emits public channel exit and Join Toll refund events"),
+    "Channel exit help should describe its warning summary.",
+  );
+  expect(!runtimeSource.includes("requireActionImpactAcknowledgement"), "Runtime should not use action-impact acknowledgement internals.");
+  expect(!runtimeSource.includes("assertActionImpactArg"), "Runtime should not retain action-impact argument checks.");
   expect(stdout.includes("Displays the current Service Terms and requires explicit human acceptance before installation proceeds"), "Install help should explain human Terms acceptance.");
   expect(stdout.includes("--json reports that interactive Terms acceptance is required and does not install artifacts"), "Install help should explain JSON mode does not install.");
   expect(stdout.includes("Install results include the canonical Terms version and deterministic Terms hash"), "Install help should mention canonical Terms metadata.");

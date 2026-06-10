@@ -31,6 +31,8 @@
   interactive sensitive-action confirmations instead of per-command action-impact acknowledgement flags.
 - Changed transaction-sending command warning handling to print warning summaries without requiring
   `--acknowledge-action-impact`.
+- Added the same non-blocking warning-summary handling to `channel exit`, and removed stale internal
+  action-impact acknowledgement checks from real-funds command validation.
 - Revised user-facing CLI help, guide, README, fee, and agent wording to prefer "Ethereum mainnet", "Ethereum account",
   "channel-local address", and "Join Toll" over developer shorthand except where command, option, contract, or JSON field
   names require the original term.

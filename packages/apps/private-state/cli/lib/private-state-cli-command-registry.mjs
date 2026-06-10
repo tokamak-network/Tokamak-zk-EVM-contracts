@@ -726,6 +726,13 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     usage: "--wallet and --network",
     help: [
       "Refreshes the local channel workspace through the saved recovery index before checking the channel balance when the scan fits the 7,200-block pre-command budget",
+      "Warning summary: emits public channel exit and Join Toll refund events exposing the Ethereum account, channel id, refund quote, transaction hash, and wallet registration exit status.",
+      "Private note plaintext and prior note provenance are not public by default, but the wallet epoch is locally marked as exited.",
+      ACTION_IMPACT_HELP.provenance,
+      ACTION_IMPACT_HELP.policy,
+      ACTION_IMPACT_HELP.secretRecovery,
+      ACTION_IMPACT_HELP.illegalUse,
+      ACTION_IMPACT_HELP.warningSummary,
       "Marks the current local wallet epoch as exited and keeps its note metadata available for historical evidence export",
     ],
   },

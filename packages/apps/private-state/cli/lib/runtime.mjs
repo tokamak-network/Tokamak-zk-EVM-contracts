@@ -338,7 +338,7 @@ function printImmutableChannelPolicyWarning({
   });
 }
 
-const ACTION_IMPACT_SUMMARIES = Object.freeze({
+const COMMAND_WARNING_SUMMARIES = Object.freeze({
   "account-deposit-bridge": {
     display: "account deposit-bridge",
     l1PublicEvent: "Yes. ERC-20 approval and bridge vault funding transactions are public Ethereum mainnet events.",
@@ -389,6 +389,25 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
     ],
     noteProvenance: "Future note provenance is not made public by joining.",
     policy: "Joining accepts the displayed immutable channel policy snapshot.",
+  },
+  "channel-exit": {
+    display: "channel exit",
+    l1PublicEvent: "Yes. The channel exit transaction, wallet registration exit status, and any Join Toll refund are public Ethereum mainnet data.",
+    privateNoteState: "No new private notes are created or spent by this action. Locally, the current wallet epoch is marked as exited.",
+    publicFields: ({ l1Address, l2Address, channelName, channelId, currentUserValue, refundAmount, refundBps }) => [
+      `Channel: ${channelName} (${channelId})`,
+      `Ethereum account: ${l1Address}`,
+      `Registered channel-local address: ${l2Address}`,
+      `Required current channel balance in base units: ${currentUserValue}`,
+      `Quoted Join Toll refund: ${refundAmount}`,
+      `Refund rate in basis points: ${refundBps}`,
+      "Exit transaction hash, block number, event logs, and wallet registration exit status.",
+    ],
+    notPublic: [
+      "Private note plaintext, historical note counterparties, and prior note provenance are not revealed by the exit transaction alone.",
+    ],
+    noteProvenance: "Public observers cannot reconstruct prior internal note provenance from this exit action alone.",
+    policy: "This action uses the channel policy snapshot accepted by the registered wallet, including the Join Toll refund schedule.",
   },
   "wallet-deposit-channel": {
     display: "wallet deposit-channel",
@@ -478,16 +497,16 @@ const ACTION_IMPACT_SUMMARIES = Object.freeze({
   },
 });
 
-async function requireActionImpactAcknowledgement(commandId, args, details = {}) {
-  const summary = ACTION_IMPACT_SUMMARIES[commandId];
+async function printCommandWarningSummary(commandId, args, details = {}) {
+  const summary = COMMAND_WARNING_SUMMARIES[commandId];
   if (!summary) {
     throw new Error(`Missing warning summary for ${commandId}.`);
   }
   void args;
-  printActionImpactSummary(summary, details);
+  printWarningSummary(summary, details);
 }
 
-function printActionImpactSummary(summary, details) {
+function printWarningSummary(summary, details) {
   const lines = [
     `WARNING SUMMARY: ${summary.display}`,
     `- Ethereum mainnet public event: ${summary.l1PublicEvent}`,
@@ -2330,7 +2349,7 @@ async function handleDepositBridge({ args, network, provider }) {
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
-  await requireActionImpactAcknowledgement("account-deposit-bridge", args, {
+  await printCommandWarningSummary("account-deposit-bridge", args, {
     l1Address: signer.address,
     amountInput,
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
@@ -5250,7 +5269,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     channelManager: context.workspace.channelManager,
     policySnapshot: context.workspace.policySnapshot,
   });
-  await requireActionImpactAcknowledgement("channel-join", args, {
+  await printCommandWarningSummary("channel-join", args, {
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
     noteReceivePubKey: JSON.stringify(noteReceiveKeyMaterial.noteReceivePubKey),
@@ -5364,6 +5383,15 @@ async function handleExitChannel({ args, provider }) {
     ].join(" "),
   );
   const [refundAmount, refundBps] = await context.channelManager.getExitTollRefundQuote(ownerSigner.address);
+  await printCommandWarningSummary("channel-exit", args, {
+    l1Address: ownerSigner.address,
+    l2Address: walletContext.wallet.l2Address,
+    channelName: context.workspace.channelName,
+    channelId: context.workspace.channelId,
+    currentUserValue: channelFund.toString(),
+    refundAmount: ethers.formatUnits(refundAmount, Number(context.workspace.canonicalAssetDecimals)),
+    refundBps: Number(refundBps),
+  });
   const receipt = await dryRunThenSubmitTransaction({
     operationName: "channel exit",
     call: contractTxCall(
@@ -5434,7 +5462,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   const { signer, l2Identity } = restoreWalletParticipant(walletContext, provider);
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
-  await requireActionImpactAcknowledgement(args.command, args, {
+  await printCommandWarningSummary(args.command, args, {
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
     amountInput,
@@ -5572,7 +5600,7 @@ async function handleWithdrawBridge({ args, network, provider }) {
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
-  await requireActionImpactAcknowledgement("account-withdraw-bridge", args, {
+  await printCommandWarningSummary("account-withdraw-bridge", args, {
     l1Address: signer.address,
     amountInput,
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
@@ -5703,7 +5731,7 @@ async function handleMintNotes({ args, provider }) {
     ownerSigner: signer,
     provider,
   });
-  await requireActionImpactAcknowledgement("wallet-mint-notes", args, {
+  await printCommandWarningSummary("wallet-mint-notes", args, {
     l1Address: txSubmitter.address,
     l2Address: l2Identity.l2Address,
     amounts: baseUnitAmounts.map(({ amountInput }) => amountInput).join(", "),
@@ -5778,7 +5806,7 @@ async function handleRedeemNotes({ args, provider }) {
     ownerSigner: signer,
     provider,
   });
-  await requireActionImpactAcknowledgement("wallet-redeem-notes", args, {
+  await printCommandWarningSummary("wallet-redeem-notes", args, {
     l1Address: txSubmitter.address,
     l2Address: l2Identity.l2Address,
     noteIds: noteIds.join(", "),
@@ -6693,7 +6721,7 @@ async function handleTransferNotes({ args, provider }) {
     ownerSigner: signer,
     provider,
   });
-  await requireActionImpactAcknowledgement("wallet-transfer-notes", args, {
+  await printCommandWarningSummary("wallet-transfer-notes", args, {
     l1Address: txSubmitter.address,
     l2Address: wallet.wallet.l2Address,
     noteIds: noteIds.join(", "),
@@ -11354,7 +11382,6 @@ function assertBooleanFlag(args, key, label) {
 
 function assertWalletChannelMoveArgs(args, commandName) {
   assertAllowedCommandSchema(args, commandName);
-  assertActionImpactArg(args, COMMAND_ARG_SCHEMAS[commandName]?.label ?? commandName);
 }
 
 function assertInstallZkEvmArgs(args) {
@@ -11447,7 +11474,6 @@ function assertAccountImportArgs(args) {
 
 function assertMintNotesArgs(args) {
   assertAllowedCommandSchema(args, "wallet-mint-notes");
-  assertActionImpactArg(args, "wallet mint-notes");
   assertTxSubmitterArg(args);
   parseAmountVector(args.amounts, {
     allowZeroEntries: true,
@@ -11457,14 +11483,12 @@ function assertMintNotesArgs(args) {
 
 function assertRedeemNotesArgs(args) {
   assertAllowedCommandSchema(args, "wallet-redeem-notes");
-  assertActionImpactArg(args, "wallet redeem-notes");
   assertTxSubmitterArg(args);
   selectRedeemNotesMethod(parseNoteIdVector(args.noteIds).length);
 }
 
 function assertTransferNotesArgs(args) {
   assertAllowedCommandSchema(args, "wallet-transfer-notes");
-  assertActionImpactArg(args, "wallet transfer-notes");
   assertTxSubmitterArg(args);
   const noteIds = parseNoteIdVector(args.noteIds);
   const recipients = parseRecipientVector(args.recipients);
@@ -11483,11 +11507,6 @@ function assertTxSubmitterArg(args) {
   if (args.txSubmitter === true || String(args.txSubmitter).trim() === "") {
     throw new Error("--tx-submitter requires a local account name.");
   }
-}
-
-function assertActionImpactArg(args, commandName) {
-  void args;
-  void commandName;
 }
 
 function assertWalletGetNotesArgs(args) {
@@ -11542,7 +11561,6 @@ function assertAbandonChannelOperationArgs(args) {
 
 function assertDepositBridgeArgs(args) {
   assertAllowedCommandSchema(args, "account-deposit-bridge");
-  assertActionImpactArg(args, "account deposit-bridge");
 }
 
 function assertAccountGetBridgeFundArgs(args) {
@@ -11556,7 +11574,6 @@ function assertRecoverWalletArgs(args) {
 
 function assertJoinChannelArgs(args) {
   assertAllowedCommandSchema(args, "channel-join");
-  assertActionImpactArg(args, "channel join");
 }
 
 function assertWalletGetMetaArgs(args) {
@@ -11601,7 +11618,6 @@ function assertWalletImportKeyArgs(args, commandName) {
 
 function assertWithdrawBridgeArgs(args) {
   assertAllowedCommandSchema(args, "account-withdraw-bridge");
-  assertActionImpactArg(args, "account withdraw-bridge");
 }
 
 function assertWalletGetChannelFundArgs(args) {

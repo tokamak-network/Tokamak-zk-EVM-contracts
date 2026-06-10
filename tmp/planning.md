@@ -1584,7 +1584,7 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Completed: change plaintext note/evidence export commands to interactive confirmation flows. Before export, print
   plaintext disclosure risk, full wallet-history or evidence-scope risk, sharing precautions, no Provider recovery,
   User-Controlled AI Agent handling limits, and Provider Party disclaimers, then require explicit human confirmation.
-- For every command that handles real funds, print command-specific information and warning summaries on every run in
+- Completed: for every command that handles real funds, print command-specific information and warning summaries on every run in
   human mode and in `--json` mode. These summaries must be non-blocking unless the command also falls into an
   interactive destructive or sensitive-export category above.
 
@@ -1653,7 +1653,7 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 - Verified plaintext note/evidence export confirmation wording, command help, README, investigator README, and
   evidence-scope documentation for plaintext disclosure risk, wallet-history scope, User-Controlled AI Agent handling
   limits, no Provider recovery, and Provider Party disclaimer coverage.
-- Verify that real-funds commands print command-specific information and warning summaries in both human and `--json`
+- Completed: verify that real-funds commands print command-specific information and warning summaries in both human and `--json`
   modes without requiring a command-level acknowledgement option.
 - Verified that `help guide --json` points to canonical section numbers and does not duplicate full legal text.
 - Verify that human `help guide` remains readable for ordinary users.

@@ -1550,10 +1550,10 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 
 ### Phase 2: Interactive install gate
 
-- Change `private-state-cli install` from non-interactive to interactive.
-- Render the canonical Terms before installation.
-- Require explicit human acceptance before installation proceeds.
-- Persist the accepted `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source in Service
+- Completed: change `private-state-cli install` from non-interactive to interactive.
+- Completed: render the canonical Terms before installation.
+- Completed: require explicit human acceptance before installation proceeds.
+- Completed: persist the accepted `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source in Service
   state.
 
 ### Phase 3: Renewed acceptance mechanism
@@ -1614,7 +1614,7 @@ decisions are resolved or explicitly deferred, and the canonical Terms text has 
 
 ### Phase 7: Implementation verification
 
-- Verify that interactive install blocks installation until Terms are accepted.
+- Completed: verify that interactive install blocks installation until Terms are accepted.
 - Completed: verify that future `exitChannel` calls refund the refundable Join Toll portion and transfer the non-refundable portion
   to `0x000000000000000000000000000000000000dEaD`.
 - Completed: verify that `_tollTreasuryBalance` decreases by both the refunded amount and the burn-address transfer

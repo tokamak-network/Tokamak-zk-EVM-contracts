@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Changed human `install` to display the canonical Service Terms, require the exact interactive acceptance phrase, and
+  persist the accepted Terms version, hash, timestamp, CLI package version, and acceptance source in the install
+  manifest before installation proceeds.
 - Added a packaged canonical Service Terms source and deterministic Terms metadata so install flows report the current
   `termsVersion` and `termsHash` from the same source in human and JSON modes.
 - Changed `install --json` to report that interactive Terms acceptance is required without installing artifacts, and

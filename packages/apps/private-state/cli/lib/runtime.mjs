@@ -65,6 +65,7 @@ import {
   requireCanonicalGroth16CompatibleBackendVersion,
 } from "@tokamak-private-dapps/groth16/public-drive-crs";
 import {
+  readPrivateStateTermsText,
   readPrivateStateTermsMetadata,
 } from "./private-state-terms.mjs";
 import {
@@ -140,6 +141,8 @@ const PRIVATE_STATE_UNINSTALL_PRESERVE_KEYS_CONFIRMATION =
   "I understand that uninstall deletes local private-state data but preserves wallet keys";
 const PRIVATE_STATE_UNINSTALL_INCLUDE_KEYS_CONFIRMATION =
   "I understand that uninstall will delete wallet keys and they cannot be recovered";
+const PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION =
+  "I accept the Tonnel Terms of Service";
 const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
 const PRIVATE_STATE_OBSERVER_URL = "https://observer.tonnel.io";
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
@@ -2591,6 +2594,7 @@ async function handleInstallZkEvm({ args }) {
     });
     return;
   }
+  const termsAcceptance = await requireInstallTermsAcceptance({ terms, installMode });
   const selectedVersions = installMode === PRIVATE_STATE_INSTALL_MODES.FULL
     ? await resolvePrivateStateInstallRuntimeVersions(args)
     : null;
@@ -2618,6 +2622,7 @@ async function handleInstallZkEvm({ args }) {
     dockerRequested: Boolean(args.docker),
     includeLocalArtifacts: Boolean(args.includeLocalArtifacts),
     localDeploymentBaseRoot,
+    termsAcceptance,
     deploymentArtifacts,
     selectedVersions,
     tokamakCliRuntime,
@@ -2627,6 +2632,7 @@ async function handleInstallZkEvm({ args }) {
     action: "install",
     installMode,
     terms,
+    termsAcceptance,
     selectedVersions,
     tokamakCli: tokamakCliRuntime?.entryPath ?? null,
     runtimeRoot: tokamakCliRuntime?.runtimeRoot ?? null,
@@ -2677,6 +2683,50 @@ async function handleUninstall({ args }) {
     restoredWalletKeys,
     globalPackage,
   });
+}
+
+async function requireInstallTermsAcceptance({ terms, installMode }) {
+  if (!process.stdin.isTTY || !process.stderr.isTTY) {
+    throw new Error("install requires an interactive terminal for Service Terms acceptance.");
+  }
+  const termsText = readPrivateStateTermsText();
+  const lines = [
+    "SERVICE TERMS: Tonnel Terms of Service",
+    `Terms version: ${terms.termsVersion}`,
+    `Terms hash: ${terms.termsHash}`,
+    `Install mode: ${installMode}`,
+    "",
+    termsText.trimEnd(),
+    "",
+    "Acceptance required",
+    "Read the Terms above before continuing.",
+    "Provider Parties do not possess your private keys, wallet secrets, spending keys, viewing keys, backups, notes, or recovery material.",
+    "User-Controlled AI Agents must not accept these Terms for you.",
+    `Type exactly: ${PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION}`,
+    "> ",
+  ];
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stderr,
+    terminal: process.stdin.isTTY && process.stderr.isTTY,
+  });
+  try {
+    const answer = await rl.question(lines.join("\n"));
+    if (answer !== PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION) {
+      throw new Error("Service Terms acceptance phrase did not match. Nothing was installed.");
+    }
+  } finally {
+    rl.close();
+  }
+  return {
+    termsVersion: terms.termsVersion,
+    termsHash: terms.termsHash,
+    termsHashAlgorithm: terms.termsHashAlgorithm,
+    acceptedAt: new Date().toISOString(),
+    cliPackageVersion: privateStateCliPackageJson.version,
+    acceptanceSource: "interactive-install",
+    acceptedByJson: false,
+  };
 }
 
 async function handleSetRpc({ args }) {

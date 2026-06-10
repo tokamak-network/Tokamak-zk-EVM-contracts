@@ -13,6 +13,9 @@ import {
   readPrivateStateTermsMetadata,
   readPrivateStateTermsText,
 } from "../lib/private-state-terms.mjs";
+import {
+  writePrivateStateCliInstallManifest,
+} from "../lib/private-state-runtime-management.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -200,6 +203,53 @@ function testInstallJsonDoesNotInstallOrAcceptTerms() {
   expect(
     !fs.existsSync(path.join(home, "tokamak-private-channels")),
     "install --json must not create the private-state workspace.",
+  );
+}
+
+function testInstallRequiresInteractiveTermsAcceptance() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-install-human-home-"));
+  const failure = runCliExpectFailure(["install", "--read-only"], { home });
+  expect(failure.status !== 0, "install without an interactive terminal should fail.");
+  expect(
+    failure.stderr.includes("install requires an interactive terminal for Service Terms acceptance."),
+    "install should reject before installing when Terms cannot be accepted interactively.",
+  );
+  expect(
+    !fs.existsSync(path.join(home, "tokamak-private-channels")),
+    "install without Terms acceptance must not create the private-state workspace.",
+  );
+}
+
+function testInstallManifestPersistsTermsAcceptance() {
+  const cacheBaseRoot = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-install-manifest-"));
+  const terms = readPrivateStateTermsMetadata();
+  const termsAcceptance = {
+    termsVersion: terms.termsVersion,
+    termsHash: terms.termsHash,
+    termsHashAlgorithm: terms.termsHashAlgorithm,
+    acceptedAt: "2026-06-10T00:00:00.000Z",
+    cliPackageVersion: "0.0.0-test",
+    acceptanceSource: "interactive-install",
+    acceptedByJson: false,
+  };
+  const { manifestPath, manifest } = writePrivateStateCliInstallManifest({
+    installMode: "read-only",
+    dockerRequested: false,
+    includeLocalArtifacts: false,
+    localDeploymentBaseRoot: null,
+    termsAcceptance,
+    deploymentArtifacts: {
+      cacheBaseRoot,
+      installed: [],
+    },
+    selectedVersions: null,
+    tokamakCliRuntime: null,
+    groth16Runtime: null,
+  });
+  expect(fs.existsSync(manifestPath), "Install manifest should be written.");
+  expect(
+    JSON.stringify(manifest.install.termsAcceptance) === JSON.stringify(termsAcceptance),
+    "Install manifest should persist the exact Terms acceptance record.",
   );
 }
 
@@ -445,6 +495,8 @@ testCanonicalTermsAssetMatchesPublicTerms();
 testGuideJsonRefs();
 testGuideJsonDeploymentArtifactsMissing();
 testInstallJsonDoesNotInstallOrAcceptTerms();
+testInstallRequiresInteractiveTermsAcceptance();
+testInstallManifestPersistsTermsAcceptance();
 testGuideJsonAccountSecretMissing();
 testGuideJsonWalletMissingBeforeChannelJoin();
 testGuideHumanOutputIsUserFacing();

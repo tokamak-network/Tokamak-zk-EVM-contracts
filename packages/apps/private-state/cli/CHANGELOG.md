@@ -13,11 +13,11 @@
 - Changed human `install` to open a nonce-protected local browser Terms page by default, require browser-based human
   acceptance before installation proceeds, keep `--terminal-terms` as an explicit terminal fallback, print an immediate
   acknowledgement before long-running install work begins, and persist the accepted Terms version, hash, timestamp, CLI
-  package version, acceptance source, acceptance method, and accepted category IDs in the install manifest.
+  package version, acceptance source, acceptance method, and Terms coverage metadata in the install manifest.
 - Added a packaged canonical Service Terms source and deterministic Terms metadata so install flows report the current
   `termsVersion` and `termsHash` from the same source in human and JSON modes.
-- Changed `install --json` to report that browser-based interactive Terms acceptance is required, include the human
-  acceptance categories, avoid installing artifacts, and provide agent guidance for Terms and safety-context explanation.
+- Changed `install --json` to report that browser-based interactive Terms acceptance is required, include Terms
+  references, avoid installing artifacts, and provide agent guidance for Terms and safety-context explanation.
 - Added renewed Terms acceptance enforcement for terms-gated commands, including JSON-mode refusal when the current
   Terms version or hash has not been accepted by the human user.
 - Aligned the CLI README RPC example with the recommended Ankr provider and removed chat-oriented wording from the

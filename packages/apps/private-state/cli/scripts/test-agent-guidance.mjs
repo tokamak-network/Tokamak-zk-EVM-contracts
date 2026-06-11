@@ -226,18 +226,12 @@ function testInstallJsonDoesNotInstallOrAcceptTerms() {
   expect(payload.terms_acceptance_flow === "browser_localhost_interactive", "install --json should describe the browser-localhost Terms acceptance flow.");
   expect(payload.termsAcceptanceCanBeProvidedByJson === false, "install --json must not accept Terms.");
   expect(
-    Array.isArray(payload.terms_acceptance_categories) && payload.terms_acceptance_categories.length === 6,
-    "install --json should describe the human Terms acceptance categories.",
+    Array.isArray(payload.terms_refs) && payload.terms_refs.includes("1") && payload.terms_refs.includes("20"),
+    "install --json should describe the relevant Terms references.",
   );
   expect(
-    payload.terms_acceptance_categories.every((category) =>
-      typeof category.id === "string"
-      && Array.isArray(category.terms_refs)
-      && category.acceptance_mode === "browser_checkbox"
-      && typeof category.browser_control_label === "string"
-      && String(category.fallback_acceptance_phrase ?? "").includes(category.id)
-    ),
-    "Each install --json Terms acceptance category should include browser and fallback acceptance metadata.",
+    payload.terms_acceptance_action === "accept_terms_and_continue_installation_button",
+    "install --json should describe the single browser acceptance action.",
   );
   expect(payload.nextSafeAction === "private-state-cli install --read-only", "install --json should preserve the requested install mode in the interactive command.");
   expect(
@@ -456,7 +450,7 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   expect(!runtimeSource.includes("assertActionImpactArg"), "Runtime should not retain action-impact argument checks.");
   expect(stdout.includes("Opens a local browser Terms page and requires explicit human acceptance before installation proceeds"), "Install help should explain browser-based human Terms acceptance.");
   expect(stdout.includes("Use --terminal-terms only when the local browser flow cannot be used"), "Install help should explain the terminal fallback.");
-  expect(stdout.includes("--json reports that browser-based interactive Terms acceptance is required, includes the acceptance categories, and does not install artifacts"), "Install help should explain JSON mode does not install and reports browser acceptance categories.");
+  expect(stdout.includes("--json reports that browser-based interactive Terms acceptance is required, includes Terms references, and does not install artifacts"), "Install help should explain JSON mode does not install and reports Terms references.");
   expect(stdout.includes("Install results include the canonical Terms version and deterministic Terms hash"), "Install help should mention canonical Terms metadata.");
   expect(stdout.includes("Use --json for machine-readable fee data when another tool needs to inspect the fee table"), "Transaction-fees help should use tool-neutral JSON wording.");
   expect(!stdout.includes("AI agents should run this command"), "Human command help should not use AI-agent-first fee wording.");

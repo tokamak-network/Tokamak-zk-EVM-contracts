@@ -144,6 +144,8 @@ const PRIVATE_STATE_UNINSTALL_PRESERVE_KEYS_CONFIRMATION =
   "I understand that uninstall deletes local private-state data but preserves wallet keys";
 const PRIVATE_STATE_UNINSTALL_INCLUDE_KEYS_CONFIRMATION =
   "I understand that uninstall will delete wallet keys and they cannot be recovered";
+const PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION =
+  "I accept the Tonnel Service Terms";
 const PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES = Object.freeze([
   Object.freeze({
     id: "scope-and-eligibility",
@@ -2698,7 +2700,8 @@ async function handleInstallZkEvm({ args }) {
       requiresInteractiveTermsAcceptance: true,
       terms_acceptance_flow: "browser_localhost_interactive",
       termsAcceptanceCanBeProvidedByJson: false,
-      terms_acceptance_categories: privateStateTermsAcceptanceCategoriesForOutput(),
+      terms_refs: privateStateTermsRefsForOutput(),
+      terms_acceptance_action: "accept_terms_and_continue_installation_button",
       nextSafeAction: args.readOnly === true ? "private-state-cli install --read-only" : "private-state-cli install",
       message: "Run the install command again without --json in an interactive terminal. The CLI will open a local browser Terms page for the human user to review and accept before installation proceeds.",
     });
@@ -2805,7 +2808,7 @@ async function requireInstallTermsAcceptance({ terms, installMode, terminalTerms
       terms,
       contextLines: [`Install mode: ${installMode}`],
       acceptanceSource: "interactive-install-terminal",
-      finalAcknowledgement: "All required Terms categories accepted. Starting installation...",
+      finalAcknowledgement: "Terms accepted. Starting installation...",
     });
   }
   return requireBrowserTermsAcceptance({
@@ -2843,8 +2846,8 @@ async function requireBrowserTermsAcceptance({
     contextLines,
     nonce,
   });
-  if (acceptance.acceptedCategoryIds.length !== PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.length) {
-    throw new Error("Browser Terms acceptance did not include every required category. Nothing was changed.");
+  if (acceptance.accepted !== true) {
+    throw new Error("Browser Terms acceptance was not completed. Nothing was changed.");
   }
   process.stderr.write(`${finalAcknowledgement}\n`);
   return {
@@ -2868,7 +2871,6 @@ async function openBrowserTermsAcceptancePage({
   contextLines,
   nonce,
 }) {
-  const expectedCategoryIds = PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.map((category) => category.id);
   let resolveAcceptance;
   let rejectAcceptance;
   let accepted = false;
@@ -2896,10 +2898,8 @@ async function openBrowserTermsAcceptancePage({
         const body = await readRequestBodyText(request);
         const form = new URLSearchParams(body);
         const token = form.get("token");
-        const acceptedCategoryIds = form.getAll("category");
-        const allCategoriesAccepted = expectedCategoryIds.every((id) => acceptedCategoryIds.includes(id));
-        if (token !== nonce || !allCategoriesAccepted) {
-          writeBrowserTermsResponse(response, 400, "text/plain; charset=utf-8", "Terms acceptance was incomplete or invalid.");
+        if (token !== nonce) {
+          writeBrowserTermsResponse(response, 400, "text/plain; charset=utf-8", "Terms acceptance was invalid.");
           return;
         }
         accepted = true;
@@ -2909,7 +2909,7 @@ async function openBrowserTermsAcceptancePage({
           "text/html; charset=utf-8",
           browserTermsAcceptedHtml(),
         );
-        resolveAcceptance({ acceptedCategoryIds });
+        resolveAcceptance({ accepted: true });
         return;
       }
       writeBrowserTermsResponse(response, 404, "text/plain; charset=utf-8", "Not found.");
@@ -2974,18 +2974,7 @@ function writeBrowserTermsResponse(response, statusCode, contentType, body) {
   response.end(body);
 }
 
-function browserTermsAcceptanceHtml({ terms, termsText, contextLines, nonce }) {
-  const categories = PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.map((category) => `
-        <label class="category">
-          <input type="checkbox" name="category" value="${escapeHtml(category.id)}" required>
-          <span>
-            <strong>${escapeHtml(category.title)}</strong>
-            <small>Terms sections: ${escapeHtml(category.termsRefs.join(", "))}</small>
-          </span>
-        </label>`).join("\n");
-  const context = contextLines.length > 0
-    ? `<p class="context">${contextLines.map((line) => escapeHtml(line)).join("<br>")}</p>`
-    : "";
+function browserTermsAcceptanceHtml({ terms, termsText, nonce }) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -3000,14 +2989,9 @@ function browserTermsAcceptanceHtml({ terms, termsText, contextLines, nonce }) {
     h2 { margin-top: 32px; }
     .panel { background: #fff; border: 1px solid #d8dde3; border-radius: 8px; padding: 20px; }
     .meta { display: grid; gap: 6px; margin: 16px 0; color: #34383f; }
-    .context { margin: 12px 0 0; color: #34383f; }
-    .category { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid #d8dde3; border-radius: 6px; margin: 10px 0; background: #fbfcfd; }
-    .category input { margin-top: 4px; width: 18px; height: 18px; }
-    .category small { display: block; margin-top: 3px; color: #5d6673; }
     pre { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; background: #fff; border: 1px solid #d8dde3; border-radius: 8px; padding: 18px; max-height: 55vh; overflow: auto; }
-    .warning { border-left: 4px solid #1f6feb; padding: 12px 14px; background: #eef6ff; margin: 18px 0; }
+    .notice { margin: 16px 0 0; color: #34383f; }
     button { font: inherit; font-weight: 700; padding: 12px 18px; border: 0; border-radius: 6px; background: #111; color: #fff; cursor: pointer; }
-    button:disabled { background: #9ca3af; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -3016,33 +3000,18 @@ function browserTermsAcceptanceHtml({ terms, termsText, contextLines, nonce }) {
     <section class="panel">
       <div class="meta">
         <div><strong>Terms version:</strong> ${escapeHtml(terms.termsVersion)}</div>
-        <div><strong>Terms hash:</strong> ${escapeHtml(terms.termsHash)}</div>
       </div>
-      ${context}
-      <div class="warning">
-        Read these Terms yourself before accepting. User-Controlled AI Agents must not accept these Terms for you.
-      </div>
+      <p class="notice">Please review the Service Terms below. Installation will continue after you accept them.</p>
     </section>
 
-    <h2>Acceptance Categories</h2>
+    <h2>Service Terms</h2>
+    <pre>${escapeHtml(termsText.trimEnd())}</pre>
+
     <form method="post" action="/accept" class="panel">
       <input type="hidden" name="token" value="${escapeHtml(nonce)}">
-      ${categories}
-      <button id="accept-button" type="submit" disabled>Accept Terms and Continue Installation</button>
+      <button id="accept-button" type="submit">Accept Terms and Continue Installation</button>
     </form>
-
-    <h2>Full Service Terms</h2>
-    <pre>${escapeHtml(termsText.trimEnd())}</pre>
   </main>
-  <script>
-    const categoryInputs = Array.from(document.querySelectorAll('input[name="category"]'));
-    const acceptButton = document.getElementById("accept-button");
-    function updateAcceptButton() {
-      acceptButton.disabled = !categoryInputs.every((input) => input.checked);
-    }
-    categoryInputs.forEach((input) => input.addEventListener("change", updateAcceptButton));
-    updateAcceptButton();
-  </script>
 </body>
 </html>`;
 }
@@ -3084,7 +3053,7 @@ async function requireTerminalTermsAcceptance({
   terms,
   contextLines = [],
   acceptanceSource,
-  finalAcknowledgement = "All required Terms categories accepted. Continuing...",
+  finalAcknowledgement = "Terms accepted. Continuing...",
 }) {
   if (!process.stdin.isTTY || !process.stderr.isTTY) {
     throw cliError(
@@ -3098,45 +3067,29 @@ async function requireTerminalTermsAcceptance({
     output: process.stderr,
     terminal: process.stdin.isTTY && process.stderr.isTTY,
   });
-  const acceptedCategories = [];
+  const acceptedAt = new Date().toISOString();
+  const acceptedCategories = PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.map((category) => ({
+    id: category.id,
+    title: category.title,
+    termsRefs: [...category.termsRefs],
+    acceptedAt,
+  }));
   try {
-    for (const [index, category] of PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.entries()) {
-      const acceptancePhrase = privateStateTermsCategoryAcceptancePhrase(category);
-      const categoryText = privateStateTermsCategoryText(termsText, category);
-      const lines = [
-        "SERVICE TERMS: Tonnel Terms of Service",
-        ...(index === 0
-          ? [
-              `Terms version: ${terms.termsVersion}`,
-              `Terms hash: ${terms.termsHash}`,
-              ...contextLines,
-            ]
-          : []),
-        "",
-        `Acceptance category ${index + 1}/${PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.length}: ${category.title}`,
-        `Category ID: ${category.id}`,
-        `Terms sections: ${category.termsRefs.join(", ")}`,
-        "",
-        categoryText.trimEnd(),
-        "",
-        "Acceptance required",
-        "Read this Terms category before continuing.",
-        "Provider Parties do not possess your private keys, wallet secrets, spending keys, viewing keys, backups, notes, or recovery material.",
-        "User-Controlled AI Agents must not accept this category for you.",
-        `Type exactly: ${acceptancePhrase}`,
-        "> ",
-      ];
-      const answer = await rl.question(lines.join("\n"));
-      if (answer !== acceptancePhrase) {
-        throw new Error(`Service Terms acceptance phrase for ${category.id} did not match. Nothing was changed.`);
-      }
-      acceptedCategories.push({
-        id: category.id,
-        title: category.title,
-        termsRefs: [...category.termsRefs],
-        acceptedAt: new Date().toISOString(),
-      });
-      process.stderr.write(`Accepted: ${category.id}.\n`);
+    const lines = [
+      "SERVICE TERMS: Tonnel Service Terms",
+      `Terms version: ${terms.termsVersion}`,
+      ...contextLines,
+      "",
+      termsText.trimEnd(),
+      "",
+      "Acceptance required",
+      "Read the Service Terms before continuing.",
+      `Type exactly: ${PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION}`,
+      "> ",
+    ];
+    const answer = await rl.question(lines.join("\n"));
+    if (answer !== PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION) {
+      throw new Error("Service Terms acceptance phrase did not match. Nothing was changed.");
     }
     process.stderr.write(`${finalAcknowledgement}\n`);
   } finally {
@@ -3146,7 +3099,7 @@ async function requireTerminalTermsAcceptance({
     termsVersion: terms.termsVersion,
     termsHash: terms.termsHash,
     termsHashAlgorithm: terms.termsHashAlgorithm,
-    acceptedAt: new Date().toISOString(),
+    acceptedAt,
     cliPackageVersion: privateStateCliPackageJson.version,
     acceptanceSource,
     acceptedByJson: false,
@@ -3155,42 +3108,9 @@ async function requireTerminalTermsAcceptance({
   };
 }
 
-function privateStateTermsAcceptanceCategoriesForOutput() {
-  return PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.map((category) => ({
-    id: category.id,
-    title: category.title,
-    terms_refs: [...category.termsRefs],
-    acceptance_mode: "browser_checkbox",
-    browser_control_label: category.title,
-    fallback_acceptance_phrase: privateStateTermsCategoryAcceptancePhrase(category),
-  }));
-}
-
-function privateStateTermsCategoryAcceptancePhrase(category) {
-  return `I accept ${category.id}`;
-}
-
-function privateStateTermsCategoryText(termsText, category) {
-  const sections = category.termsRefs.map((sectionNumber) => privateStateTermsSectionText(termsText, sectionNumber));
-  return sections.join("\n\n").trim();
-}
-
-function privateStateTermsSectionText(termsText, sectionNumber) {
-  const escapedSection = escapeRegExp(String(sectionNumber));
-  const pattern = new RegExp(`^## ${escapedSection}\\. .*$`, "mu");
-  const match = pattern.exec(termsText);
-  if (!match) {
-    throw new Error(`Packaged Service Terms are missing section ${sectionNumber}.`);
-  }
-  const start = match.index;
-  const rest = termsText.slice(start + match[0].length);
-  const nextMatch = /^## \d+\. .*$/mu.exec(rest);
-  const end = nextMatch ? start + match[0].length + nextMatch.index : termsText.length;
-  return termsText.slice(start, end).trim();
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function privateStateTermsRefsForOutput() {
+  return [...new Set(PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.flatMap((category) => category.termsRefs))]
+    .sort((left, right) => Number(left) - Number(right));
 }
 
 function commandRequiresTermsAcceptance(args) {

@@ -294,7 +294,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Opens a local browser Terms page and requires explicit human acceptance before installation proceeds",
       "Use --terminal-terms only when the local browser flow cannot be used",
-      "--json reports that browser-based interactive Terms acceptance is required, includes the acceptance categories, and does not install artifacts",
+      "--json reports that browser-based interactive Terms acceptance is required, includes Terms references, and does not install artifacts",
       "Install results include the canonical Terms version and deterministic Terms hash",
       "Default full mode installs proof runtimes and all deployment artifacts needed by transaction-sending commands",
       "--read-only installs only artifacts needed by channel-state read commands and commands unrelated to channel state",

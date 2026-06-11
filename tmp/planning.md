@@ -467,6 +467,7 @@ It should return structured output that includes:
 - `terms_source: "private-state-cli install"`,
 - `terms_acceptance_actor: "human_user_only"`,
 - `terms_refs`, containing section numbers from the installed terms document,
+- `terms_acceptance_categories`, listing the human acceptance categories that interactive install will present,
 - a directive that the User-Controlled AI Agent must instruct the user to run interactive `private-state-cli install`
   directly,
 - a directive that the User-Controlled AI Agent must summarize the Terms before the user accepts,
@@ -484,11 +485,19 @@ The JSON output should identify referenced terms as terms-document section numbe
   "terms_source": "private-state-cli install",
   "terms_acceptance_actor": "human_user_only",
   "terms_refs": ["1", "2", "4", "5", "6", "7", "10", "11", "12", "13", "14", "15", "16", "18", "20"],
+  "terms_acceptance_categories": [
+    {"id": "scope-and-eligibility", "terms_refs": ["1", "2", "3"]},
+    {"id": "public-records-and-privacy-limits", "terms_refs": ["4", "5", "10"]},
+    {"id": "self-custody-and-secrets", "terms_refs": ["6", "8"]},
+    {"id": "prohibited-use-and-third-parties", "terms_refs": ["7", "11", "12", "13"]},
+    {"id": "risks-and-liability", "terms_refs": ["14", "15", "16", "17"]},
+    {"id": "changes-and-disputes", "terms_refs": ["18", "19", "20"]}
+  ],
   "agent_directives": [
     "Explain the referenced terms sections to the user before interactive install.",
     "Direct the user to run private-state-cli install in an interactive terminal.",
     "Do not collect or display the user's secret material.",
-    "Do not accept the terms for the user."
+    "Do not accept any terms category for the user."
   ]
 }
 ```
@@ -513,15 +522,40 @@ For each guided setup task, the JSON output should include:
 
 Interactive `private-state-cli install` should:
 
-1. Print the current Terms in readable sections.
-2. Display the current terms version and deterministic terms hash.
-3. Ask the user to confirm acceptance with an explicit phrase.
-4. Record the accepted version, hash, timestamp, CLI package version, and acceptance source in the user's Service state.
-5. Proceed with installation only after acceptance is recorded.
+1. Display the current terms version and deterministic terms hash before the first acceptance category.
+2. Split the Terms into a small number of acceptance categories so the terminal does not need to display the entire Terms
+   text as one long block.
+3. For each category, print only that category's Terms sections, the category title, and the included canonical Terms
+   section numbers.
+4. Ask the user to confirm each category with an explicit phrase before moving to the next category.
+5. Immediately after each correct category acceptance phrase, print an acknowledgement line such as
+   `Accepted: <category title>.` before doing any slow work or displaying the next category.
+6. After the final category is accepted, immediately print a final acknowledgement line such as
+   `All required Terms categories accepted. Starting installation...` before any artifact download, runtime install,
+   deployment artifact materialization, or other long-running install step begins.
+7. Record the accepted version, hash, timestamp, CLI package version, acceptance source, and the accepted category IDs in
+   the user's Service state.
+8. Proceed with installation only after all required categories have been accepted and the final acknowledgement has been
+   printed.
 
 The human flow should not require the user to understand technical implementation details before accepting. Definitions
 must be available at the top of the Terms, and the CLI should use plain labels such as "Ethereum mainnet", "Channel",
 "Private Note", "wallet secret", and "Official Public Observer" consistently.
+
+Planned install acceptance categories:
+
+| Category ID | Category title | Terms sections |
+|---|---|---|
+| `scope-and-eligibility` | Service scope, product boundary, acceptance, and eligibility | 1, 2, 3 |
+| `public-records-and-privacy-limits` | Public Ethereum mainnet records and private application-state limits | 4, 5, 10 |
+| `self-custody-and-secrets` | Self-custody, secrets, no recovery method, and user responsibilities | 6, 8 |
+| `prohibited-use-and-third-parties` | Prohibited use and Third-Party Services | 7, 11, 12, 13 |
+| `risks-and-liability` | Risk disclosures, no warranties, limitation of liability, and user indemnity | 14, 15, 16, 17 |
+| `changes-and-disputes` | Changes to Terms, Service changes, governing law, venue, and notices | 18, 19, 20 |
+
+Each category should use a short, category-specific acceptance phrase that includes the category ID, for example
+`I accept scope-and-eligibility`. The phrase must be shown immediately before the prompt for that category. User-Controlled
+AI Agents must not type any category acceptance phrase for the user.
 
 ## Documentation and Terms Finalization Plan
 
@@ -1708,6 +1742,19 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
 - Completed: require explicit human acceptance before installation proceeds.
 - Completed: persist the accepted `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source in Service
   state.
+- New UX issue found during local read-only artifact update: printing the entire Terms as one long terminal block can be
+  cut off by terminal scrollback or make users lose context before acceptance.
+- Planned revision: replace the single long Terms prompt with category-by-category Terms prompts using the categories in
+  the Human Acceptance Strategy.
+- Planned revision: require a separate explicit human acceptance phrase for each category and persist the accepted
+  category IDs alongside `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source.
+- Planned revision: after each correct category phrase, print an immediate acknowledgement line before showing the next
+  category.
+- Planned revision: after the final category phrase, print an immediate final acknowledgement line before any
+  long-running install step begins so the user does not mistake a slow install for a failed acceptance input.
+- Planned verification: run interactive install in a terminal and verify that every category acknowledgement appears
+  immediately after the user's input, that the final "Starting installation" acknowledgement appears before slow work,
+  and that JSON mode still refuses to accept Terms for the user while describing the category-based human flow.
 
 ### Phase 3: Renewed acceptance mechanism
 

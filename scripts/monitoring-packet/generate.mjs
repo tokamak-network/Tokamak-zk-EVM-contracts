@@ -45,7 +45,7 @@ const CURRENT_ROOT_VECTOR_OBSERVED_ABI = [
 const CHANNEL_OBSERVER_REGISTRY_ABI = [
   "function getChannelObserver(uint256 channelId) view returns (string)",
 ];
-const DEFAULT_RPC_LOG_CHUNK_SIZE = 10;
+const DEFAULT_RPC_LOG_CHUNK_SIZE = 5000;
 
 function printHelp() {
   console.log(`Usage: node scripts/monitoring-packet/generate.mjs [options]
@@ -394,6 +394,77 @@ async function fetchEtherscanCurrentRootLogs({
   return json.result;
 }
 
+async function fetchEtherscanChannelCreatedLog({
+  address,
+  channelId,
+  fromBlock,
+  toBlock,
+  chainId,
+  apiKey,
+}) {
+  const params = new URLSearchParams({
+    chainid: String(chainId),
+    module: "logs",
+    action: "getLogs",
+    fromBlock: String(fromBlock),
+    toBlock: String(toBlock),
+    address,
+    topic0: ethers.id("ChannelCreated(uint256,uint256,address,address)"),
+    topic0_1_opr: "and",
+    topic1: ethers.zeroPadValue(ethers.toBeHex(BigInt(channelId)), 32),
+    page: "1",
+    offset: "1000",
+    apikey: apiKey,
+  });
+  const response = await fetch(`${ETHERSCAN_V2_API_URL}?${params.toString()}`);
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(`Etherscan getLogs failed: ${response.status}`);
+  }
+  if (json.status === "0") {
+    const message = String(json.result ?? json.message ?? "");
+    if (/No records found/i.test(message)) return null;
+    throw new Error(`Etherscan getLogs failed: ${json.message ?? "status 0"}: ${message}`);
+  }
+  if (!Array.isArray(json.result)) {
+    throw new Error("Etherscan getLogs returned a non-array result.");
+  }
+  const [log] = json.result
+    .map((entry) => ({
+      transactionHash: entry.transactionHash ?? null,
+      blockNumber: numberFromHex(entry.blockNumber),
+    }))
+    .sort((a, b) => (a.blockNumber ?? 0) - (b.blockNumber ?? 0));
+  return log ?? null;
+}
+
+async function resolveChannelCreatedLog({
+  args,
+  bridgeCore,
+  channelId,
+  fromBlock,
+  latestBlock,
+}) {
+  const apiKey = args.skipEtherscan ? null : resolveEtherscanApiKey();
+  if (apiKey) {
+    const log = await fetchEtherscanChannelCreatedLog({
+      address: await bridgeCore.getAddress(),
+      channelId,
+      fromBlock,
+      toBlock: latestBlock,
+      chainId: args.chainId,
+      apiKey,
+    });
+    if (log) return log;
+  }
+  return queryFirstFilterInChunks(
+    bridgeCore,
+    bridgeCore.filters.ChannelCreated(channelId),
+    fromBlock,
+    latestBlock,
+  );
+}
+
 async function resolveLatestAcceptedTransition({
   args,
   channelManager,
@@ -455,11 +526,14 @@ async function buildOnchainSnapshot({ args, artifacts, rpcUrl }) {
   const channelManagerAddress = ethers.getAddress(channelInfo.manager);
   const channelManager = new Contract(channelManagerAddress, abis.channelManager, provider);
   const dappId = Number(channelInfo.dappId);
-  const channelCreatedResult = await safeCall("ChannelCreated log scan", () => queryFirstFilterInChunks(
-    bridgeCore,
-    bridgeCore.filters.ChannelCreated(channelId),
-    Number(artifacts.dappRegistration.registration?.blockNumber ?? 0),
-    latestBlock,
+  const channelCreatedResult = await safeCall("ChannelCreated log scan", () => resolveChannelCreatedLog(
+    {
+      args,
+      bridgeCore,
+      channelId,
+      fromBlock: Number(artifacts.dappRegistration.registration?.blockNumber ?? 0),
+      latestBlock,
+    },
   ));
   const channelCreated = channelCreatedResult.ok ? channelCreatedResult.value : null;
 

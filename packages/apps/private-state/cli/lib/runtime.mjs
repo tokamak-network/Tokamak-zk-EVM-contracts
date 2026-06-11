@@ -1269,7 +1269,9 @@ async function readChannelObserver({ bridgeCore, channelId }) {
 
 function requireBridgeCoreAbiFunction(bridgeCore, functionName) {
   try {
-    bridgeCore.interface.getFunction(functionName);
+    if (!bridgeCore.interface.getFunction(functionName)) {
+      throw new Error(`missing ${functionName}`);
+    }
   } catch {
     throw cliError(
       CLI_ERROR_CODES.MISSING_DEPLOYMENT_ARTIFACTS,

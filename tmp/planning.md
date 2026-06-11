@@ -1957,12 +1957,25 @@ Implementation plan:
      `0x992E2Ae206620d811832a8F697c526c4f95974b6` now stores implementation
      `0xCd96A6205207470E293E0dd770EA74d736b7F5bf` in the EIP-1967 implementation slot, and the proxy owner remains Safe
      `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`.
-   - Pending: The Great First Channel leader `0x32e6EE3d9820F0843E3e596132368747d36425F0` must register
+   - Completed: The Great First Channel leader `0x32e6EE3d9820F0843E3e596132368747d36425F0` registered
      `https://observer.tonnel.io` through `BridgeCore.setChannelObserver(channelId, uri)` for Channel ID
-     `108336797649051254585401751173864353497144788660297920004548699607442466523065`. The local `.env` keys resolve
-     to deployer address `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7`, not the Channel leader, so the registration
-     transaction cannot be sent from the available local keys. Observer URL registration, Monitoring Packet regeneration,
-     and final verification remain pending until the Channel leader submits the registration transaction.
+     `108336797649051254585401751173864353497144788660297920004548699607442466523065` in transaction
+     `0xe0f8b3d17a2396d5462208127d6d7d9652ce5b5ec2c4bef6898d33993a2bec51`. On-chain verification confirmed
+     `BridgeCore.getChannelObserver(channelId)` returns `https://observer.tonnel.io`.
+   - Completed: generated a final local bridge deployment snapshot at
+     `deployment/chain-id-1/bridge/20260611T091000Z/` with BridgeCore implementation
+     `0xCd96A6205207470E293E0dd770EA74d736b7F5bf` and deployed source commit
+     `1f350c52d18033a4e6872e0005d0b3c8684718e2`. Regenerated Monitoring Packet data from this final snapshot and
+     on-chain state; the public policy snapshot now matches the registered Channel observer URL.
+   - Completed: changed Monitoring Packet generation so ChannelCreated anchors are read through Etherscan when an API
+     key is available, with a wider RPC chunk fallback. The previous 10-block-only RPC scan path made mainnet
+     regeneration impractically slow over mainnet ranges and failed to preserve ChannelCreated anchors on providers with
+     strict `eth_getLogs` range limits.
+   - Completed: fixed `help observer` command metadata and BridgeCore ABI feature detection. The command now declares
+     read-only deployment artifact requirements, and stale installed artifacts now produce a clear
+     `MISSING_DEPLOYMENT_ARTIFACTS` reinstall message instead of an internal TypeError.
+   - Pending: publish or install updated read-only deployment artifacts before expecting an already installed local CLI
+     cache to resolve `help observer` directly from the upgraded ABI. Local CLI agent-guidance tests pass.
 
 5. Verification:
    - Verify that no public document still states that `observer.tonnel.io` is the universal Official Public Observer for

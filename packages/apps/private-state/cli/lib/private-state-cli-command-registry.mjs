@@ -396,6 +396,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     id: "help-observer",
     display: "help observer",
     description: "Show the public observer URL registered on-chain for a selected Channel.",
+    installMode: "read-only",
     fields: ["network", "channelName", "json"],
     usage: "--network, --channel-name, and optional --json",
     help: [

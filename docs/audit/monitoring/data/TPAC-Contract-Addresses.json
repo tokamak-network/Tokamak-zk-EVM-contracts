@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-10T20:13:43.259Z",
+  "generatedAt": "2026-06-11T09:11:35.106Z",
   "chainId": 1,
   "chain": "ethereum-mainnet",
   "canonicalTonContractAddress": "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5",
@@ -51,7 +51,7 @@
     "l1TokenVault": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61"
   },
   "implementationAddresses": {
-    "bridgeCore": "0x732da968Cac30038E87D6a37D483050cc5C71305",
+    "bridgeCore": "0xCd96A6205207470E293E0dd770EA74d736b7F5bf",
     "dAppManager": "0xd1894e950EaA7bc4D1b164F3dD164965Db136860",
     "l1TokenVault": "0x66bF7E0dC10129b5108719f2744DF58B8BC54647",
     "channelManager": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
@@ -91,7 +91,7 @@
     "bridgeProxyDeploymentBlockNumber": null,
     "note": "Plain RPC does not expose contract creation block discovery without an indexer. Channel and DApp deployment anchors are included where available."
   },
-  "deployedGitCommitHash": "9882c1a5e372089ca83e358ba3310fce3af1f698",
+  "deployedGitCommitHash": "1f350c52d18033a4e6872e0005d0b3c8684718e2",
   "npmPackageVersions": {
     "privateStateCliAtDappRegistration": "0.1.9",
     "bridgePackageVersion": null,
@@ -106,19 +106,19 @@
         "contractName": "ERC1967Proxy",
         "compilerVersion": "v0.8.29+commit.ab55807c",
         "proxy": "1",
-        "implementation": "0x732da968cac30038e87d6a37d483050cc5c71305",
+        "implementation": "0xcd96a6205207470e293e0dd770ea74d736b7f5bf",
         "verified": true,
         "explorerUrl": "https://etherscan.io/address/0x992E2Ae206620d811832a8F697c526c4f95974b6#code",
         "checkedVia": "etherscan-api"
       },
       "bridgeCoreImplementation": {
-        "address": "0x732da968Cac30038E87D6a37D483050cc5C71305",
+        "address": "0xCd96A6205207470E293E0dd770EA74d736b7F5bf",
         "contractName": "",
         "compilerVersion": "",
         "proxy": "0",
         "implementation": "",
         "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x732da968Cac30038E87D6a37D483050cc5C71305#code",
+        "explorerUrl": "https://etherscan.io/address/0xCd96A6205207470E293E0dd770EA74d736b7F5bf#code",
         "checkedVia": "etherscan-api"
       },
       "dAppManager": {
@@ -225,13 +225,13 @@
     "allCheckedAddressesVerified": false,
     "uncheckedOrFailedAddresses": [
       {
-        "address": "0x732da968Cac30038E87D6a37D483050cc5C71305",
+        "address": "0xCd96A6205207470E293E0dd770EA74d736b7F5bf",
         "contractName": "",
         "compilerVersion": "",
         "proxy": "0",
         "implementation": "",
         "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x732da968Cac30038E87D6a37D483050cc5C71305#code",
+        "explorerUrl": "https://etherscan.io/address/0xCd96A6205207470E293E0dd770EA74d736b7F5bf#code",
         "checkedVia": "etherscan-api"
       },
       {
@@ -278,13 +278,13 @@
     "warnings": []
   },
   "abiLinks": {
-    "bridgeAbiManifestLocalPath": "deployment/chain-id-1/bridge/20260610T194641Z/bridge-abi-manifest.1.json",
+    "bridgeAbiManifestLocalPath": "deployment/chain-id-1/bridge/20260611T091000Z/bridge-abi-manifest.1.json",
     "privateStateControllerCallableAbiLocalPath": "deployment/chain-id-1/dapps/private-state/20260504T003212Z/PrivateStateController.callable-abi.json",
     "l2AccountingVaultCallableAbiLocalPath": "deployment/chain-id-1/dapps/private-state/20260504T003212Z/L2AccountingVault.callable-abi.json"
   },
   "bytecodeHashes": {
     "0x992E2Ae206620d811832a8F697c526c4f95974b6": "0xdd9a51cef324c756a15a95900a9cbe3bf3e9d280087f1a367c801c9d682f3e20",
-    "0x732da968Cac30038E87D6a37D483050cc5C71305": "0xc3cf121d22303ce8486bd050481d24bdb1eb13fa9da1ef2243aa4dbcf05de987",
+    "0xCd96A6205207470E293E0dd770EA74d736b7F5bf": "0x1ad6cd5907028ebbebec95ee82e4b85bfb5a9751dff309862f608bf132cbe049",
     "0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA": "0xdd9a51cef324c756a15a95900a9cbe3bf3e9d280087f1a367c801c9d682f3e20",
     "0xd1894e950EaA7bc4D1b164F3dD164965Db136860": "0x37fb969524fe663d48d56218f1f0bb1ebb6c92a4fca7a8219a6d4b4ada18d382",
     "0xf127Aef661c815ad46c5159146078f6F1E9f5F61": "0xdd9a51cef324c756a15a95900a9cbe3bf3e9d280087f1a367c801c9d682f3e20",

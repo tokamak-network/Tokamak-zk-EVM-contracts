@@ -1937,6 +1937,12 @@ Implementation plan:
    - Regenerate deployment artifacts and Monitoring Packet data so the on-chain observer URL appears in generated data.
    - After the separate `channel-workspace-mirror` observer update is deployed, verify that the registered observer URL
      serves the expected Channel.
+   - Status: blocked on mainnet deployer funding. Commit `d20efe05be9f3f2491db775193a70895f8b81525` was pushed to
+     `origin/main`, the remote-main deployment gate passed, and the bridge Solidity diff check found
+     `bridge/src/BridgeCore.sol` changed since deployment commit `9882c1a5e372089ca83e358ba3310fce3af1f698`.
+     `node bridge/scripts/deploy-bridge.mjs --network mainnet --mode upgrade` reached the forge broadcast step but
+     failed before producing a completed Safe upgrade plan because deployer `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7`
+     had insufficient ETH for gas. Fund the deployer before rerunning the same upgrade command.
 
 5. Verification:
    - Verify that no public document still states that `observer.tonnel.io` is the universal Official Public Observer for

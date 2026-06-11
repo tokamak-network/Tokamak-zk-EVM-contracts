@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -2695,14 +2696,19 @@ async function handleInstallZkEvm({ args }) {
       terms,
       installed: false,
       requiresInteractiveTermsAcceptance: true,
+      terms_acceptance_flow: "browser_localhost_interactive",
       termsAcceptanceCanBeProvidedByJson: false,
       terms_acceptance_categories: privateStateTermsAcceptanceCategoriesForOutput(),
       nextSafeAction: args.readOnly === true ? "private-state-cli install --read-only" : "private-state-cli install",
-      message: "Run the install command again without --json in an interactive terminal so the current Service Terms can be displayed and accepted by the user.",
+      message: "Run the install command again without --json in an interactive terminal. The CLI will open a local browser Terms page for the human user to review and accept before installation proceeds.",
     });
     return;
   }
-  const termsAcceptance = await requireInstallTermsAcceptance({ terms, installMode });
+  const termsAcceptance = await requireInstallTermsAcceptance({
+    terms,
+    installMode,
+    terminalTerms: args.terminalTerms === true,
+  });
   const selectedVersions = installMode === PRIVATE_STATE_INSTALL_MODES.FULL
     ? await resolvePrivateStateInstallRuntimeVersions(args)
     : null;
@@ -2793,16 +2799,288 @@ async function handleUninstall({ args }) {
   });
 }
 
-async function requireInstallTermsAcceptance({ terms, installMode }) {
-  return requireInteractiveTermsAcceptance({
+async function requireInstallTermsAcceptance({ terms, installMode, terminalTerms = false }) {
+  if (terminalTerms) {
+    return requireTerminalTermsAcceptance({
+      terms,
+      contextLines: [`Install mode: ${installMode}`],
+      acceptanceSource: "interactive-install-terminal",
+      finalAcknowledgement: "All required Terms categories accepted. Starting installation...",
+    });
+  }
+  return requireBrowserTermsAcceptance({
     terms,
     contextLines: [`Install mode: ${installMode}`],
-    acceptanceSource: "interactive-install",
-    finalAcknowledgement: "All required Terms categories accepted. Starting installation...",
+    acceptanceSource: "interactive-install-browser",
+    finalAcknowledgement: "Terms accepted in browser. Starting installation...",
   });
 }
 
-async function requireInteractiveTermsAcceptance({
+async function requireBrowserTermsAcceptance({
+  terms,
+  contextLines = [],
+  acceptanceSource,
+  finalAcknowledgement,
+}) {
+  if (!process.stderr.isTTY) {
+    throw cliError(
+      CLI_ERROR_CODES.TERMS_ACCEPTANCE_REQUIRED,
+      "Browser-based Service Terms acceptance requires an interactive terminal so the local Terms URL can be shown.",
+    );
+  }
+  const termsText = readPrivateStateTermsText();
+  const nonce = randomBytes(32).toString("hex");
+  const acceptedAt = new Date().toISOString();
+  const acceptedCategories = PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.map((category) => ({
+    id: category.id,
+    title: category.title,
+    termsRefs: [...category.termsRefs],
+    acceptedAt,
+  }));
+  const acceptance = await openBrowserTermsAcceptancePage({
+    terms,
+    termsText,
+    contextLines,
+    nonce,
+  });
+  if (acceptance.acceptedCategoryIds.length !== PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.length) {
+    throw new Error("Browser Terms acceptance did not include every required category. Nothing was changed.");
+  }
+  process.stderr.write(`${finalAcknowledgement}\n`);
+  return {
+    termsVersion: terms.termsVersion,
+    termsHash: terms.termsHash,
+    termsHashAlgorithm: terms.termsHashAlgorithm,
+    acceptedAt,
+    cliPackageVersion: privateStateCliPackageJson.version,
+    acceptanceSource,
+    acceptedByJson: false,
+    acceptanceMethod: "browser-localhost",
+    browserLocalhost: true,
+    acceptedCategoryIds: acceptedCategories.map((category) => category.id),
+    acceptedCategories,
+  };
+}
+
+async function openBrowserTermsAcceptancePage({
+  terms,
+  termsText,
+  contextLines,
+  nonce,
+}) {
+  const expectedCategoryIds = PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.map((category) => category.id);
+  let resolveAcceptance;
+  let rejectAcceptance;
+  let accepted = false;
+  const acceptancePromise = new Promise((resolve, reject) => {
+    resolveAcceptance = resolve;
+    rejectAcceptance = reject;
+  });
+  const server = http.createServer(async (request, response) => {
+    try {
+      const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+      if (request.method === "GET" && requestUrl.pathname === "/terms") {
+        if (requestUrl.searchParams.get("token") !== nonce) {
+          writeBrowserTermsResponse(response, 403, "text/plain; charset=utf-8", "Invalid Terms acceptance token.");
+          return;
+        }
+        writeBrowserTermsResponse(
+          response,
+          200,
+          "text/html; charset=utf-8",
+          browserTermsAcceptanceHtml({ terms, termsText, contextLines, nonce }),
+        );
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/accept") {
+        const body = await readRequestBodyText(request);
+        const form = new URLSearchParams(body);
+        const token = form.get("token");
+        const acceptedCategoryIds = form.getAll("category");
+        const allCategoriesAccepted = expectedCategoryIds.every((id) => acceptedCategoryIds.includes(id));
+        if (token !== nonce || !allCategoriesAccepted) {
+          writeBrowserTermsResponse(response, 400, "text/plain; charset=utf-8", "Terms acceptance was incomplete or invalid.");
+          return;
+        }
+        accepted = true;
+        writeBrowserTermsResponse(
+          response,
+          200,
+          "text/html; charset=utf-8",
+          browserTermsAcceptedHtml(),
+        );
+        resolveAcceptance({ acceptedCategoryIds });
+        return;
+      }
+      writeBrowserTermsResponse(response, 404, "text/plain; charset=utf-8", "Not found.");
+    } catch (error) {
+      writeBrowserTermsResponse(response, 500, "text/plain; charset=utf-8", `Terms acceptance error: ${error.message}`);
+      rejectAcceptance(error);
+    }
+  });
+  server.on("error", rejectAcceptance);
+  const timeout = setTimeout(() => {
+    if (!accepted) {
+      rejectAcceptance(new Error("Timed out waiting for browser Terms acceptance."));
+    }
+  }, 30 * 60 * 1000);
+  try {
+    await new Promise((resolve, reject) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+      server.once("error", reject);
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Could not determine local Terms acceptance server address.");
+    }
+    const termsUrl = `http://127.0.0.1:${address.port}/terms?token=${encodeURIComponent(nonce)}`;
+    const browser = openUrlInDefaultBrowser(termsUrl);
+    process.stderr.write([
+      "Opening Service Terms in your browser.",
+      `Terms URL: ${termsUrl}`,
+      browser.opened
+        ? "Browser opened. Review the Terms page and click Accept Terms and Continue Installation."
+        : "The browser did not open automatically. Copy the Terms URL above into your browser.",
+      "User-Controlled AI Agents must not click the browser acceptance controls for you.",
+      "",
+    ].join("\n"));
+    return await acceptancePromise;
+  } finally {
+    clearTimeout(timeout);
+    await closeLocalTermsServer(server);
+  }
+}
+
+async function closeLocalTermsServer(server) {
+  if (!server.listening) {
+    return;
+  }
+  await new Promise((resolve) => server.close(() => resolve()));
+}
+
+async function readRequestBodyText(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+function writeBrowserTermsResponse(response, statusCode, contentType, body) {
+  response.writeHead(statusCode, {
+    "content-type": contentType,
+    "cache-control": "no-store",
+  });
+  response.end(body);
+}
+
+function browserTermsAcceptanceHtml({ terms, termsText, contextLines, nonce }) {
+  const categories = PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.map((category) => `
+        <label class="category">
+          <input type="checkbox" name="category" value="${escapeHtml(category.id)}" required>
+          <span>
+            <strong>${escapeHtml(category.title)}</strong>
+            <small>Terms sections: ${escapeHtml(category.termsRefs.join(", "))}</small>
+          </span>
+        </label>`).join("\n");
+  const context = contextLines.length > 0
+    ? `<p class="context">${contextLines.map((line) => escapeHtml(line)).join("<br>")}</p>`
+    : "";
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tonnel Service Terms</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; background: #f6f7f9; color: #15171a; }
+    main { max-width: 980px; margin: 0 auto; padding: 32px 20px 64px; }
+    h1 { margin: 0 0 8px; font-size: 32px; }
+    h2 { margin-top: 32px; }
+    .panel { background: #fff; border: 1px solid #d8dde3; border-radius: 8px; padding: 20px; }
+    .meta { display: grid; gap: 6px; margin: 16px 0; color: #34383f; }
+    .context { margin: 12px 0 0; color: #34383f; }
+    .category { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid #d8dde3; border-radius: 6px; margin: 10px 0; background: #fbfcfd; }
+    .category input { margin-top: 4px; width: 18px; height: 18px; }
+    .category small { display: block; margin-top: 3px; color: #5d6673; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; background: #fff; border: 1px solid #d8dde3; border-radius: 8px; padding: 18px; max-height: 55vh; overflow: auto; }
+    .warning { border-left: 4px solid #1f6feb; padding: 12px 14px; background: #eef6ff; margin: 18px 0; }
+    button { font: inherit; font-weight: 700; padding: 12px 18px; border: 0; border-radius: 6px; background: #111; color: #fff; cursor: pointer; }
+    button:disabled { background: #9ca3af; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Tonnel Service Terms</h1>
+    <section class="panel">
+      <div class="meta">
+        <div><strong>Terms version:</strong> ${escapeHtml(terms.termsVersion)}</div>
+        <div><strong>Terms hash:</strong> ${escapeHtml(terms.termsHash)}</div>
+      </div>
+      ${context}
+      <div class="warning">
+        Read these Terms yourself before accepting. User-Controlled AI Agents must not accept these Terms for you.
+      </div>
+    </section>
+
+    <h2>Acceptance Categories</h2>
+    <form method="post" action="/accept" class="panel">
+      <input type="hidden" name="token" value="${escapeHtml(nonce)}">
+      ${categories}
+      <button id="accept-button" type="submit" disabled>Accept Terms and Continue Installation</button>
+    </form>
+
+    <h2>Full Service Terms</h2>
+    <pre>${escapeHtml(termsText.trimEnd())}</pre>
+  </main>
+  <script>
+    const categoryInputs = Array.from(document.querySelectorAll('input[name="category"]'));
+    const acceptButton = document.getElementById("accept-button");
+    function updateAcceptButton() {
+      acceptButton.disabled = !categoryInputs.every((input) => input.checked);
+    }
+    categoryInputs.forEach((input) => input.addEventListener("change", updateAcceptButton));
+    updateAcceptButton();
+  </script>
+</body>
+</html>`;
+}
+
+function browserTermsAcceptedHtml() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terms Accepted</title>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f7f9; color: #15171a; }
+    main { max-width: 720px; margin: 0 auto; padding: 64px 20px; }
+    .panel { background: #fff; border: 1px solid #d8dde3; border-radius: 8px; padding: 24px; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <h1>Terms accepted</h1>
+      <p>You can return to the terminal. Installation is starting.</p>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+async function requireTerminalTermsAcceptance({
   terms,
   contextLines = [],
   acceptanceSource,
@@ -2882,7 +3160,9 @@ function privateStateTermsAcceptanceCategoriesForOutput() {
     id: category.id,
     title: category.title,
     terms_refs: [...category.termsRefs],
-    acceptance_phrase: privateStateTermsCategoryAcceptancePhrase(category),
+    acceptance_mode: "browser_checkbox",
+    browser_control_label: category.title,
+    fallback_acceptance_phrase: privateStateTermsCategoryAcceptancePhrase(category),
   }));
 }
 
@@ -2982,14 +3262,14 @@ async function requireCurrentTermsAcceptanceForCommand(args) {
     );
   }
 
-  const termsAcceptance = await requireInteractiveTermsAcceptance({
+  const termsAcceptance = await requireBrowserTermsAcceptance({
     terms,
     contextLines: [
       `Command: ${command}`,
       `Reason: ${reason}`,
     ],
-    acceptanceSource: "interactive-renewal",
-    finalAcknowledgement: "All required Terms categories accepted. Continuing command...",
+    acceptanceSource: "interactive-renewal-browser",
+    finalAcknowledgement: "Terms accepted in browser. Continuing command...",
   });
   const record = writePrivateStateCliTermsAcceptance({ termsAcceptance });
   return {
@@ -3700,7 +3980,11 @@ function resolveInvestigatorIndexPath() {
 }
 
 function openFileInDefaultBrowser(fileUrl) {
-  const opener = defaultBrowserOpenCommand(fileUrl);
+  return openUrlInDefaultBrowser(fileUrl);
+}
+
+function openUrlInDefaultBrowser(url) {
+  const opener = defaultBrowserOpenCommand(url);
   const result = spawnSync(opener.command, opener.args, {
     stdio: "ignore",
     windowsHide: true,
@@ -3713,14 +3997,14 @@ function openFileInDefaultBrowser(fileUrl) {
   };
 }
 
-function defaultBrowserOpenCommand(fileUrl) {
+function defaultBrowserOpenCommand(url) {
   if (process.platform === "darwin") {
-    return { command: "open", args: [fileUrl] };
+    return { command: "open", args: [url] };
   }
   if (process.platform === "win32") {
-    return { command: "cmd", args: ["/c", "start", "", fileUrl] };
+    return { command: "cmd", args: ["/c", "start", "", url] };
   }
-  return { command: "xdg-open", args: [fileUrl] };
+  return { command: "xdg-open", args: [url] };
 }
 
 async function handleTransactionFees({ network, provider, rpcUrl }) {
@@ -11570,6 +11854,7 @@ function assertWalletChannelMoveArgs(args, commandName) {
 function assertInstallZkEvmArgs(args) {
   assertAllowedCommandSchema(args, "install");
   assertBooleanFlag(args, "readOnly", "install option --read-only");
+  assertBooleanFlag(args, "terminalTerms", "install option --terminal-terms");
   if (args.readOnly === true && args.docker !== undefined) {
     throw new Error("install --read-only does not accept --docker because proof runtimes are not installed.");
   }
@@ -13523,11 +13808,11 @@ function buildRecoveryHints(error, args = {}) {
 
   if (error?.code === CLI_ERROR_CODES.TERMS_ACCEPTANCE_REQUIRED) {
     if (args.json !== undefined) {
-      hints.push("run the same command again without --json in an interactive terminal, read the current Service Terms, and type the exact acceptance phrase yourself");
+      hints.push("run the same command again without --json in an interactive terminal and complete the local browser Terms page yourself");
     } else {
-      hints.push("run the same command in an interactive terminal, read the current Service Terms, and type the exact acceptance phrase yourself");
+      hints.push("run the same command in an interactive terminal so the local browser Terms URL can be shown");
     }
-    hints.push("User-Controlled AI Agents must not accept Service Terms for the user");
+    hints.push("User-Controlled AI Agents must not click Terms acceptance controls or type fallback acceptance phrases for the user");
   }
 
   if (

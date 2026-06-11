@@ -10,14 +10,14 @@
   on-chain Channel metadata, and fail clearly when no Channel observer URL is registered.
 - Marked `help observer` as requiring read-only deployment artifacts and changed stale BridgeCore ABI detection to return
   a clear reinstall-required error instead of an internal TypeError.
-- Changed human `install` to display the canonical Service Terms by acceptance category, require a category-specific
-  interactive acceptance phrase for each category, print an immediate acknowledgement after each accepted category and
-  before long-running install work begins, and persist the accepted Terms version, hash, timestamp, CLI package version,
-  acceptance source, and accepted category IDs in the install manifest before installation proceeds.
+- Changed human `install` to open a nonce-protected local browser Terms page by default, require browser-based human
+  acceptance before installation proceeds, keep `--terminal-terms` as an explicit terminal fallback, print an immediate
+  acknowledgement before long-running install work begins, and persist the accepted Terms version, hash, timestamp, CLI
+  package version, acceptance source, acceptance method, and accepted category IDs in the install manifest.
 - Added a packaged canonical Service Terms source and deterministic Terms metadata so install flows report the current
   `termsVersion` and `termsHash` from the same source in human and JSON modes.
-- Changed `install --json` to report that interactive Terms acceptance is required, include the human acceptance
-  categories, avoid installing artifacts, and provide agent guidance for Terms and safety-context explanation.
+- Changed `install --json` to report that browser-based interactive Terms acceptance is required, include the human
+  acceptance categories, avoid installing artifacts, and provide agent guidance for Terms and safety-context explanation.
 - Added renewed Terms acceptance enforcement for terms-gated commands, including JSON-mode refusal when the current
   Terms version or hash has not been accepted by the human user.
 - Aligned the CLI README RPC example with the recommended Ankr provider and removed chat-oriented wording from the

@@ -201,6 +201,13 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     option: "--read-only",
     optional: true,
   },
+  terminalTerms: {
+    label: "Terminal Terms Acceptance",
+    type: "checkbox",
+    hint: "Use terminal-only Terms acceptance instead of the default local browser Terms page.",
+    option: "--terminal-terms",
+    optional: true,
+  },
   includeWalletKeys: {
     label: "Include Wallet Keys",
     type: "checkbox",
@@ -282,11 +289,12 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
   {
     id: "install",
     description: "Install private-state CLI runtime artifacts in full or read-only mode.",
-    fields: ["readOnly", "docker", "includeLocalArtifacts", "groth16CliVersion", "tokamakZkEvmCliVersion"],
-    usage: "optional --read-only, --docker, --include-local-artifacts, --groth16-cli-version, and --tokamak-zk-evm-cli-version",
+    fields: ["readOnly", "docker", "includeLocalArtifacts", "terminalTerms", "groth16CliVersion", "tokamakZkEvmCliVersion"],
+    usage: "optional --read-only, --docker, --include-local-artifacts, --terminal-terms, --groth16-cli-version, and --tokamak-zk-evm-cli-version",
     help: [
-      "Displays the current Service Terms by category and requires explicit human acceptance for each category before installation proceeds",
-      "--json reports that interactive Terms acceptance is required, includes the acceptance categories, and does not install artifacts",
+      "Opens a local browser Terms page and requires explicit human acceptance before installation proceeds",
+      "Use --terminal-terms only when the local browser flow cannot be used",
+      "--json reports that browser-based interactive Terms acceptance is required, includes the acceptance categories, and does not install artifacts",
       "Install results include the canonical Terms version and deterministic Terms hash",
       "Default full mode installs proof runtimes and all deployment artifacts needed by transaction-sending commands",
       "--read-only installs only artifacts needed by channel-state read commands and commands unrelated to channel state",

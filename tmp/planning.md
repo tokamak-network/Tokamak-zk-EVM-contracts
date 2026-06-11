@@ -1765,19 +1765,19 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
   flow.
 - New UX issue found during attempted local artifact update: even category-by-category terminal acceptance remains too
   cumbersome for ordinary users, and Terms display is still constrained by terminal scrollback and text-entry ergonomics.
-- Planned revision: make browser-based localhost Terms acceptance the primary `install` flow. The CLI should open a
-  nonce-protected `127.0.0.1` Terms page, let the human user review and accept categories through browser controls, then
-  return to the terminal and start installation only after the validated browser callback.
-- Planned revision: keep terminal category acceptance only as an explicit fallback for environments where a browser cannot
-  be opened or where the user explicitly requests terminal-only acceptance.
-- Planned revision: update `install --json` so it still never accepts Terms, reports
-  `browser_interactive_terms_acceptance_required`, describes the localhost browser flow, and instructs User-Controlled AI
-  Agents not to click browser acceptance controls or type fallback acceptance phrases for the user.
-- Planned revision: after browser acceptance succeeds, immediately print
+- Completed in local source: made browser-based localhost Terms acceptance the primary `install` flow. The CLI opens a
+  nonce-protected `127.0.0.1` Terms page, lets the human user review and accept categories through browser controls, then
+  returns to the terminal and starts installation only after the validated browser callback.
+- Completed in local source: kept terminal category acceptance only as an explicit `--terminal-terms` fallback for
+  environments where the local browser flow cannot be used.
+- Completed in local source: updated `install --json` so it still never accepts Terms, reports
+  `browser_localhost_interactive`, describes the localhost browser flow, and instructs User-Controlled AI Agents not to
+  click browser acceptance controls or type fallback acceptance phrases for the user.
+- Completed in local source: after browser acceptance succeeds, immediately print
   `Terms accepted in browser. Starting installation...` before any slow install work begins.
-- Planned verification: run interactive install in a terminal, verify that the browser opens to a localhost Terms page,
-  category acceptance controls gate the final accept button, the callback returns control to the CLI, the terminal prints
-  the immediate acknowledgement before slow work, and JSON mode still refuses to accept Terms for the user.
+- Remaining human verification: run interactive install in a terminal, verify that the browser opens to a localhost Terms
+  page, category acceptance controls gate the final accept button, the callback returns control to the CLI, the terminal
+  prints the immediate acknowledgement before slow work, and JSON mode still refuses to accept Terms for the user.
 
 ### Phase 3: Renewed acceptance mechanism
 
@@ -2095,8 +2095,8 @@ Release blocker:
   README, packaged Terms, human help, JSON help, `agents.md`, and monitoring docs.
 - Completed: the CLI no longer hardcodes `observer.tonnel.io` as a Tonnel-level URL after the on-chain Channel observer
   registry implementation.
-- Remaining local release-readiness action: implement the browser-based localhost Terms acceptance flow, then update local
-  installed read-only deployment artifacts through that interactive human install flow. The user must read and accept
-  each Terms category personally in the browser; User-Controlled AI Agents and automation must not click browser
-  acceptance controls or type fallback Terms acceptance phrases for the user.
+- Remaining local release-readiness action: update local installed read-only deployment artifacts through the
+  browser-based interactive human install flow. The user must read and accept each Terms category personally in the
+  browser; User-Controlled AI Agents and automation must not click browser acceptance controls or type fallback Terms
+  acceptance phrases for the user.
 - After that human install flow, rerun the `help observer` registered and unregistered observer checks.

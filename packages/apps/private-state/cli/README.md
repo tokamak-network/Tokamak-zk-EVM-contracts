@@ -90,12 +90,14 @@ artifacts needed by transaction-sending channel commands:
 private-state-cli install
 ```
 
-`install` displays the current Service Terms by category and requires explicit human acceptance for each category before
-installation proceeds. After each accepted category, the CLI prints an immediate acknowledgement; after the final
-category, it prints that installation is starting before any long-running install work begins. The CLI package includes
-the canonical Terms Markdown and reports its `termsVersion` and deterministic `termsHash` in install results. JSON mode
-cannot accept Terms for the user, and `private-state-cli install --json` reports that interactive installation is
-required and includes the human acceptance categories without installing artifacts.
+`install` opens a local browser page for the current Service Terms and requires explicit human acceptance before
+installation proceeds. The page is served from `127.0.0.1`, uses a one-time local token, and lets the user review the
+Terms and acceptance categories in the browser. After browser acceptance succeeds, the CLI immediately prints that
+installation is starting before any long-running install work begins. Use `--terminal-terms` only when the local browser
+flow cannot be used. The CLI package includes the canonical Terms Markdown and reports its `termsVersion` and
+deterministic `termsHash` in install results. JSON mode cannot accept Terms for the user, and
+`private-state-cli install --json` reports that browser-based interactive installation is required and includes the human
+acceptance categories without installing artifacts.
 The acceptance record is stored in the user's local private-state CLI workspace and is not sent to the Provider by
 default.
 
@@ -610,8 +612,8 @@ When `--json` is used, the CLI follows one output contract for all commands:
 - command failures are one JSON object on stdout with `ok: false`
 - progress, warning, and informational events are JSON Lines on stderr
 - human-readable mode remains the default when `--json` is omitted
-- `install --json` reports that interactive Terms acceptance is required, includes the human acceptance categories, and
-  does not install artifacts
+- `install --json` reports that browser-based interactive Terms acceptance is required, includes the human acceptance
+  categories, and does not install artifacts
 - install results include canonical Terms metadata: `termsVersion`, `termsHash`, `termsHashAlgorithm`, and Terms source
   paths
 

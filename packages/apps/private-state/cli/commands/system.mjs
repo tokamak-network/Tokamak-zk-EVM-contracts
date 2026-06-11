@@ -2,6 +2,7 @@ import {
   assertDoctorArgs,
   assertGuideArgs,
   assertObserverArgs,
+  assertProviderChainIdMatchesNetwork,
   assertInstallZkEvmArgs,
   assertSetRpcArgs,
   assertTransactionFeesArgs,
@@ -47,7 +48,9 @@ export const systemCommands = Object.freeze({
   },
   "help-observer": async (args) => {
     assertObserverArgs(args);
-    handleObserver();
+    const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args, { staticNetwork: true, prepareArtifacts: true });
+    await assertProviderChainIdMatchesNetwork({ provider, network, rpcUrl });
+    await handleObserver({ args, network, provider });
   },
   "help-transaction-fees": async (args) => {
     assertTransactionFeesArgs(args);

@@ -436,6 +436,9 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   expect(stdout.includes("Install results include the canonical Terms version and deterministic Terms hash"), "Install help should mention canonical Terms metadata.");
   expect(stdout.includes("Use --json for machine-readable fee data when another tool needs to inspect the fee table"), "Transaction-fees help should use tool-neutral JSON wording.");
   expect(!stdout.includes("AI agents should run this command"), "Human command help should not use AI-agent-first fee wording.");
+  expect(stdout.includes("help observer --network <NAME> --channel-name <NAME>"), "Observer help should require channel-scoped selectors.");
+  expect(stdout.includes("Reads the selected Channel's observer URL from on-chain Channel metadata"), "Observer help should describe on-chain observer URL lookup.");
+  expect(stdout.includes("Fails clearly when the Channel Provider has not registered an observer URL for that Channel"), "Observer help should explain missing observer registration.");
   expect(!stdout.includes("the CLI cannot recover lost secrets"), "Command help should use no-recovery-method wording.");
   expect(stdout.includes("uninstall [--include-wallet-keys]"), "Command help should expose the uninstall wallet-key deletion option.");
   expect(stdout.includes("Default uninstall preserves wallet spending-key and viewing-key files"), "Command help should explain default uninstall wallet-key preservation.");
@@ -446,6 +449,26 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   expect(stdout.includes("The raw evidence ZIP may include plaintext note facts for all locally known notes and retained exited epochs for the selected wallet"), "Evidence export help should explain raw evidence scope.");
   expect(stdout.includes("User-Controlled AI Agents must not confirm this export or receive the raw evidence ZIP"), "Evidence export help should forbid agent confirmation and raw ZIP handling.");
   expect(stdout.includes("Do not give the raw evidence ZIP to User-Controlled AI Agents, support channels, or untrusted parties"), "Investigator help should warn against raw ZIP disclosure.");
+}
+
+function testHelpObserverUsesChannelScopedSelectors() {
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
+  const failure = runCliExpectFailure(["help", "observer", "--json"]);
+  const payload = parseJson(failure.stdout);
+
+  expect(payload.ok === false, "help observer without selectors should fail.");
+  expect(
+    String(payload.error?.message ?? "").includes("Missing --network"),
+    "help observer should require --network before it can read channel metadata.",
+  );
+  expect(
+    !runtimeSource.includes("PRIVATE_STATE_OBSERVER_URL"),
+    "Runtime must not keep a Tonnel-level observer URL constant.",
+  );
+  expect(
+    !runtimeSource.includes("https://observer.tonnel.io"),
+    "Runtime must not hardcode observer.tonnel.io as the user-visible observer URL.",
+  );
 }
 
 function testGuideHumanPrivateKeyFlowIncludesAddressVerification() {
@@ -522,8 +545,28 @@ function testReadmeJsonPurposeIsAgentSafe() {
     normalizedReadme.includes("Do not ask users to paste raw private keys, wallet secrets, seed phrases"),
     "README should forbid secret collection through prompts.",
   );
+  expect(
+    normalizedReadme.includes("Channel public observer URLs are also Channel-scoped"),
+    "README should explain Channel-scoped observer URLs.",
+  );
+  expect(
+    normalizedReadme.includes("The CLI does not use a Tonnel-wide observer URL"),
+    "README should reject Tonnel-wide observer URL defaults.",
+  );
   expect(!normalizedReadme.includes("agent's full machine-readable state"), "README should avoid implementation-centered agent-state wording.");
   expect(!normalizedReadme.includes("LLM Agent Guidance"), "README should not use stale LLM agent terminology.");
+}
+
+function testAgentsDescribeChannelScopedObserverMetadata() {
+  const agents = fs.readFileSync(agentsPath, "utf8").replace(/\s+/gu, " ");
+  expect(
+    agents.includes("whether a Channel-scoped observer URL is registered"),
+    "agents.md should tell User-Controlled AI Agents to inspect Channel-scoped observer registration.",
+  );
+  expect(
+    agents.includes("Mirror and observer URLs are Channel-scoped metadata"),
+    "agents.md should state that mirror and observer URLs are Channel-scoped metadata.",
+  );
 }
 
 function testDeprecatedAcknowledgementOptionsAreAbsentFromRunnableSurfaces() {
@@ -630,9 +673,11 @@ testGuideJsonAccountSecretMissing();
 testGuideJsonWalletMissingBeforeChannelJoin();
 testGuideHumanOutputIsUserFacing();
 testHelpCommandsOutputUsesFinalPromptPolicy();
+testHelpObserverUsesChannelScopedSelectors();
 testGuideHumanPrivateKeyFlowIncludesAddressVerification();
 testGuideHumanWalletSecretFlowExplainsMasking();
 testReadmeJsonPurposeIsAgentSafe();
+testAgentsDescribeChannelScopedObserverMetadata();
 testDeprecatedAcknowledgementOptionsAreAbsentFromRunnableSurfaces();
 testRandomWalletSecretHelper();
 testNonTtyPrivateKeyPromptFailsClearly();

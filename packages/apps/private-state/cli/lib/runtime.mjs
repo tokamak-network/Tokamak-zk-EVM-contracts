@@ -146,7 +146,6 @@ const PRIVATE_STATE_UNINSTALL_INCLUDE_KEYS_CONFIRMATION =
 const PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION =
   "I accept the Tonnel Terms of Service";
 const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
-const PRIVATE_STATE_OBSERVER_URL = "https://observer.tonnel.io";
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const WALLET_BACKUP_EXPORT_FORMAT = "tokamak-private-state-wallet-backup-export";
@@ -199,6 +198,8 @@ const CLI_ERROR_CODES = Object.freeze({
   UNKNOWN_WALLET: "UNKNOWN_WALLET",
   MISSING_DEPLOYMENT_ARTIFACTS: "MISSING_DEPLOYMENT_ARTIFACTS",
   MISSING_CHANNEL_REGISTRATION: "MISSING_CHANNEL_REGISTRATION",
+  UNKNOWN_CHANNEL: "UNKNOWN_CHANNEL",
+  MISSING_CHANNEL_OBSERVER: "MISSING_CHANNEL_OBSERVER",
   CHANNEL_OPERATION_ABANDONED: "CHANNEL_OPERATION_ABANDONED",
   STALE_WORKSPACE: "STALE_WORKSPACE",
   STALE_CHANNEL_ROOT: "STALE_CHANNEL_ROOT",
@@ -1259,6 +1260,30 @@ function requireWorkspaceMirrorUrl(value) {
 
 async function readChannelWorkspaceMirror({ bridgeCore, channelId }) {
   return String(await bridgeCore.getChannelWorkspaceMirror(channelId));
+}
+
+async function readChannelObserver({ bridgeCore, channelId }) {
+  requireBridgeCoreAbiFunction(bridgeCore, "getChannelObserver");
+  return String(await bridgeCore.getChannelObserver(channelId));
+}
+
+function requireBridgeCoreAbiFunction(bridgeCore, functionName) {
+  try {
+    bridgeCore.interface.getFunction(functionName);
+  } catch {
+    throw cliError(
+      CLI_ERROR_CODES.MISSING_DEPLOYMENT_ARTIFACTS,
+      [
+        `Installed bridge deployment artifacts do not include BridgeCore.${functionName}.`,
+        "Run private-state-cli install after the bridge observer registry upgrade is published.",
+      ].join(" "),
+      {
+        details: {
+          functionName,
+        },
+      },
+    );
+  }
 }
 
 async function readRemoteWorkspaceMirrorCheckpoint({
@@ -3474,13 +3499,64 @@ async function handleDoctor({ args }) {
   }
 }
 
-function handleObserver() {
+async function handleObserver({ args, network, provider }) {
+  const channelName = requireArg(args.channelName, "--channel-name");
+  const channelId = deriveChannelIdFromName(channelName);
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const bridgeCore = new Contract(
+    bridgeResources.bridgeDeployment.bridgeCore,
+    bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
+    provider,
+  );
+  try {
+    await bridgeCore.getChannel(channelId);
+  } catch (error) {
+    if (isContractError(error, bridgeCore.interface, "UnknownChannel")) {
+      throw cliError(
+        CLI_ERROR_CODES.UNKNOWN_CHANNEL,
+        `Channel ${channelName} is not registered on ${network.name}.`,
+        {
+          details: {
+            channelName,
+            channelId: channelId.toString(),
+            network: network.name,
+            bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
+          },
+        },
+      );
+    }
+    throw error;
+  }
+  const observerUrl = (await readChannelObserver({ bridgeCore, channelId })).trim();
+  if (!observerUrl) {
+    throw cliError(
+      CLI_ERROR_CODES.MISSING_CHANNEL_OBSERVER,
+      [
+        `No observer URL is registered on-chain for channel ${channelName} on ${network.name}.`,
+        "The Channel Provider has not registered an observer for this Channel.",
+      ].join(" "),
+      {
+        details: {
+          channelName,
+          channelId: channelId.toString(),
+          network: network.name,
+          bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
+        },
+      },
+    );
+  }
   cliOutput.result({
     action: "observer",
-    url: PRIVATE_STATE_OBSERVER_URL,
-    scope: "Public monitoring observer for Tokamak Private App Channels and the private-state DApp.",
+    url: observerUrl,
+    source: "on-chain channel metadata",
+    network: network.name,
+    chainId: network.chainId,
+    channelName,
+    channelId: channelId.toString(),
+    bridgeCore: getAddress(bridgeResources.bridgeDeployment.bridgeCore),
+    scope: "Channel-scoped public monitoring observer registered by the Channel Provider.",
     notes: [
-      "The observer helps users and reviewers inspect public monitoring surfaces.",
+      "Observer URLs are Channel-scoped and are read from on-chain Channel metadata.",
       "The observer does not receive wallet secrets, spending keys, viewing keys, or private note plaintext.",
     ],
   });
@@ -4432,6 +4508,14 @@ async function inspectGuideChannel({ channelName, network, provider, artifactsIn
       result.onchain.joinTollBaseUnits = joinToll.toString();
       result.onchain.refundSchedule = refundSchedule;
       result.onchain.workspaceMirror = workspaceMirror;
+      try {
+        const observerUrl = (await readChannelObserver({ bridgeCore, channelId })).trim();
+        result.onchain.observerUrl = observerUrl || null;
+        result.onchain.observerError = null;
+      } catch (error) {
+        result.onchain.observerUrl = null;
+        result.onchain.observerError = error.message;
+      }
       result.onchain.channelOperation = channelOperation;
     }
   } catch (error) {
@@ -11457,6 +11541,8 @@ function assertCreateWalletSecretSourceArgs(args) {
 }
 
 function assertObserverArgs(args) {
+  requireNetworkName(args);
+  requireArg(args.channelName, "--channel-name");
   assertAllowedCommandSchema(args, "help-observer");
 }
 
@@ -12868,8 +12954,13 @@ function printInvestigatorHumanResult(result) {
 function printObserverHumanResult(result) {
   const lines = [
     "Private-State Public Observer",
+    `Network: ${formatHumanValue(result.network)} (${formatHumanValue(result.chainId)})`,
+    `Channel: ${formatHumanValue(result.channelName)}`,
     `URL: ${formatHumanValue(result.url)}`,
   ];
+  if (result.source) {
+    lines.push(`Source: ${formatHumanValue(result.source)}`);
+  }
   if (result.scope) {
     lines.push(`Scope: ${formatHumanValue(result.scope)}`);
   }
@@ -13378,6 +13469,16 @@ function buildRecoveryHints(error, args = {}) {
   if (error?.code === CLI_ERROR_CODES.MISSING_CHANNEL_REGISTRATION) {
     hints.push(`private-state-cli channel join --channel-name ${channelName} --network ${networkName} --account ${accountName} --wallet-secret-path <PATH>`);
     hints.push(`private-state-cli help guide --network ${networkName} --channel-name ${channelName} --account ${accountName}`);
+  }
+
+  if (error?.code === CLI_ERROR_CODES.UNKNOWN_CHANNEL) {
+    hints.push(`private-state-cli help guide --network ${networkName} --channel-name ${channelName}`);
+    hints.push(`private-state-cli channel get-meta --channel-name ${channelName} --network ${networkName}`);
+  }
+
+  if (error?.code === CLI_ERROR_CODES.MISSING_CHANNEL_OBSERVER) {
+    hints.push(`ask the Channel Provider to register an observer URL on-chain for channel ${channelName}`);
+    hints.push(`private-state-cli channel get-meta --channel-name ${channelName} --network ${networkName}`);
   }
 
   if (error?.code === CLI_ERROR_CODES.CHANNEL_OPERATION_ABANDONED) {

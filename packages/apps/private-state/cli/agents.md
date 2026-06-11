@@ -586,12 +586,14 @@ Command template:
 private-state-cli channel get-meta --channel-name <CHANNEL> --network <NETWORK>
 ```
 
-Success check: channel metadata indicates whether the channel exists and whether a workspace mirror is registered.
+Success check: channel metadata indicates whether the channel exists, whether a workspace mirror is registered, and
+whether a Channel-scoped observer URL is registered.
 
 Failure recovery: if the channel exists but the local workspace is missing, follow D.7. If the channel does not exist
 and the user is not the creator, stop and ask for the correct channel.
 
-Optional explanation: channel creation fixes policy for that channel; joining means accepting that policy.
+Optional explanation: channel creation fixes policy for that channel; joining means accepting that policy. Mirror and
+observer URLs are Channel-scoped metadata; do not infer them from Tonnel-level documentation or another Channel.
 
 ### D.7 Recover channel workspace
 

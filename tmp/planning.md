@@ -1894,6 +1894,12 @@ Implementation plan:
    - Update `help guide` and `help guide --json` so User-Controlled AI Agents understand that mirror and observer URLs
      must be obtained from on-chain Channel metadata, not from Tonnel-wide defaults.
    - Update command registry metadata and CLI README text that currently describes a single deployed observer URL.
+   - Status: completed in local CLI source. `help observer` now requires `--network` and `--channel-name`, validates the
+     selected RPC chain, reads `BridgeCore.getChannelObserver(channelId)`, fails when no Channel observer is registered,
+     and no longer contains a Tonnel-level observer URL constant. `help guide --json` now exposes `observerUrl` and
+     `observerError` under Channel on-chain state. Command registry, README, and `agents.md` now describe observer URLs
+     as Channel-scoped on-chain metadata. The CLI agent-guidance test passes with
+     `npm run test:agent-guidance` from `packages/apps/private-state/cli`.
 
 3. Public documents:
    - Redefine Terms actors:

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Changed `help observer` to require `--network` and `--channel-name`, read the selected Channel's observer URL from
+  on-chain Channel metadata, and fail clearly when no Channel observer URL is registered.
 - Changed human `install` to display the canonical Service Terms, require the exact interactive acceptance phrase, and
   persist the accepted Terms version, hash, timestamp, CLI package version, and acceptance source in the install
   manifest before installation proceeds.

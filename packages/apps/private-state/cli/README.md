@@ -298,6 +298,16 @@ If the existing mirror manifest is unreadable or invalid, add `--force` to write
 without trusting that remote manifest as a delta base. The CLI protocol is documented at
 https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/docs/dapps/private-state/channel-workspace-mirror-protocol.md.
 
+Channel public observer URLs are also Channel-scoped. The CLI does not use a Tonnel-wide observer URL. To open a
+Channel's public observer, read the URL registered in that Channel's on-chain metadata:
+
+```bash
+private-state-cli help observer --channel-name <CHANNEL> --network mainnet
+```
+
+If no observer URL is registered, ask the Channel Provider for the correct observer location. A static observer URL in
+documentation is only an example for a specific Channel and is not a default for every Channel.
+
 Back up a local wallet with:
 
 ```bash

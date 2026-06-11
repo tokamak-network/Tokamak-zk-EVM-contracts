@@ -1937,7 +1937,8 @@ Implementation plan:
    - Regenerate deployment artifacts and Monitoring Packet data so the on-chain observer URL appears in generated data.
    - After the separate `channel-workspace-mirror` observer update is deployed, verify that the registered observer URL
      serves the expected Channel.
-   - Status: pending corrected Safe execution. Commit `1f350c52d18033a4e6872e0005d0b3c8684718e2` was pushed to
+   - Status: bridge upgrade executed; Channel observer URL registration pending. Commit
+     `1f350c52d18033a4e6872e0005d0b3c8684718e2` was pushed to
      `origin/main`, the remote-main deployment gate passed, and the bridge Solidity diff check found
      `bridge/src/BridgeCore.sol` changed since deployment commit `9882c1a5e372089ca83e358ba3310fce3af1f698`. After
      deployer funding was restored, `node bridge/scripts/deploy-bridge.mjs --network mainnet --mode upgrade` deployed
@@ -1951,9 +1952,17 @@ Implementation plan:
      `BridgeCore.upgradeTo(0xCd96A6205207470E293E0dd770EA74d736b7F5bf)` for BridgeCore proxy
      `0x992E2Ae206620d811832a8F697c526c4f95974b6`. The `BridgeCore.sol` source is the only bridge source changed since
      the previous mainnet deployment, and an `eth_call` simulation from Safe
-     `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3` to the BridgeCore proxy with this calldata succeeded. The Safe must
-     execute this corrected batch before the bridge upgrade is treated as complete. Observer URL registration,
-     Monitoring Packet regeneration, and final verification remain pending until the corrected Safe batch is executed.
+     `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3` to the BridgeCore proxy with this calldata succeeded.
+   - Completed: the Safe executed the corrected BridgeCore-only batch. On-chain verification confirmed BridgeCore proxy
+     `0x992E2Ae206620d811832a8F697c526c4f95974b6` now stores implementation
+     `0xCd96A6205207470E293E0dd770EA74d736b7F5bf` in the EIP-1967 implementation slot, and the proxy owner remains Safe
+     `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`.
+   - Pending: The Great First Channel leader `0x32e6EE3d9820F0843E3e596132368747d36425F0` must register
+     `https://observer.tonnel.io` through `BridgeCore.setChannelObserver(channelId, uri)` for Channel ID
+     `108336797649051254585401751173864353497144788660297920004548699607442466523065`. The local `.env` keys resolve
+     to deployer address `0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7`, not the Channel leader, so the registration
+     transaction cannot be sent from the available local keys. Observer URL registration, Monitoring Packet regeneration,
+     and final verification remain pending until the Channel leader submits the registration transaction.
 
 5. Verification:
    - Verify that no public document still states that `observer.tonnel.io` is the universal Official Public Observer for

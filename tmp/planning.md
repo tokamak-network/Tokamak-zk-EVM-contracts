@@ -465,15 +465,17 @@ It should return structured output that includes:
 
 - `terms_required: true`,
 - `terms_source: "private-state-cli install"`,
+- `terms_acceptance_flow: "browser_localhost_interactive"`,
 - `terms_acceptance_actor: "human_user_only"`,
 - `terms_refs`, containing section numbers from the installed terms document,
-- `terms_acceptance_categories`, listing the human acceptance categories that interactive install will present,
+- `terms_acceptance_categories`, listing the human acceptance categories that the browser flow will present,
 - a directive that the User-Controlled AI Agent must instruct the user to run interactive `private-state-cli install`
-  directly,
+  directly and let the browser-based local Terms page open,
 - a directive that the User-Controlled AI Agent must summarize the Terms before the user accepts,
 - a directive that the User-Controlled AI Agent must not ask the user to disclose private keys, seed phrases, wallet
   secrets, spending keys, viewing keys, or equivalent secrets,
-- a directive that the User-Controlled AI Agent must not type or submit the acceptance phrase for the user.
+- a directive that the User-Controlled AI Agent must not click browser acceptance controls, submit the browser acceptance
+  page, or type fallback acceptance phrases for the user.
 
 The JSON output should identify referenced terms as terms-document section numbers, for example:
 
@@ -483,6 +485,7 @@ The JSON output should identify referenced terms as terms-document section numbe
   "next_action": "human_interactive_install_required",
   "terms_required": true,
   "terms_source": "private-state-cli install",
+  "terms_acceptance_flow": "browser_localhost_interactive",
   "terms_acceptance_actor": "human_user_only",
   "terms_refs": ["1", "2", "4", "5", "6", "7", "10", "11", "12", "13", "14", "15", "16", "18", "20"],
   "terms_acceptance_categories": [
@@ -495,9 +498,9 @@ The JSON output should identify referenced terms as terms-document section numbe
   ],
   "agent_directives": [
     "Explain the referenced terms sections to the user before interactive install.",
-    "Direct the user to run private-state-cli install in an interactive terminal.",
+    "Direct the user to run private-state-cli install in an interactive terminal and complete the browser-based local Terms page personally.",
     "Do not collect or display the user's secret material.",
-    "Do not accept any terms category for the user."
+    "Do not click browser acceptance controls or type fallback acceptance phrases for the user."
   ]
 }
 ```
@@ -520,23 +523,28 @@ For each guided setup task, the JSON output should include:
 
 ## Human Acceptance Strategy
 
-Interactive `private-state-cli install` should:
+Interactive `private-state-cli install` should use browser-based Terms acceptance as the primary human flow:
 
-1. Display the current terms version and deterministic terms hash before the first acceptance category.
-2. Split the Terms into a small number of acceptance categories so the terminal does not need to display the entire Terms
-   text as one long block.
-3. For each category, print only that category's Terms sections, the category title, and the included canonical Terms
-   section numbers.
-4. Ask the user to confirm each category with an explicit phrase before moving to the next category.
-5. Immediately after each correct category acceptance phrase, print an acknowledgement line such as
-   `Accepted: <category title>.` before doing any slow work or displaying the next category.
-6. After the final category is accepted, immediately print a final acknowledgement line such as
-   `All required Terms categories accepted. Starting installation...` before any artifact download, runtime install,
+1. Start a localhost-only Terms acceptance server bound to `127.0.0.1` on an ephemeral port.
+2. Generate a high-entropy one-time nonce and include it in the local acceptance URL.
+3. Open the user's default browser to the local Terms page and also print the local URL in the terminal if automatic
+   browser opening fails or the user needs to copy it manually.
+4. Display the current terms version, deterministic terms hash, category list, and full canonical Terms text in the
+   browser page.
+5. Require the human user to review and accept each Terms category in the browser UI before the final acceptance button
+   becomes available.
+6. Make the final browser action an explicit button such as `Accept Terms and Continue Installation`.
+7. After the browser sends the nonce-protected local acceptance callback, immediately print
+   `Terms accepted in browser. Starting installation...` in the terminal before any artifact download, runtime install,
    deployment artifact materialization, or other long-running install step begins.
-7. Record the accepted version, hash, timestamp, CLI package version, acceptance source, and the accepted category IDs in
-   the user's Service state.
-8. Proceed with installation only after all required categories have been accepted and the final acknowledgement has been
-   printed.
+8. Record the accepted version, hash, timestamp, CLI package version, acceptance source, accepted category IDs, and
+   browser-local acceptance method in the user's Service state.
+9. Proceed with installation only after the browser acceptance callback has been received, validated, persisted, and
+   acknowledged in the terminal.
+
+The existing category-by-category terminal prompt should become the non-browser fallback for environments where a local
+browser cannot be opened or where the user explicitly requests terminal-only acceptance. This fallback must keep the
+same category IDs, Terms section coverage, accepted-category persistence, and immediate acknowledgement behavior.
 
 The human flow should not require the user to understand technical implementation details before accepting. Definitions
 must be available at the top of the Terms, and the CLI should use plain labels such as "Ethereum mainnet", "Channel",
@@ -553,9 +561,10 @@ Planned install acceptance categories:
 | `risks-and-liability` | Risk disclosures, no warranties, limitation of liability, and user indemnity | 14, 15, 16, 17 |
 | `changes-and-disputes` | Changes to Terms, Service changes, governing law, venue, and notices | 18, 19, 20 |
 
-Each category should use a short, category-specific acceptance phrase that includes the category ID, for example
-`I accept scope-and-eligibility`. The phrase must be shown immediately before the prompt for that category. User-Controlled
-AI Agents must not type any category acceptance phrase for the user.
+Each category should be represented in the browser UI with a clear category label and the related canonical Terms
+sections. In terminal fallback mode, each category should use a short, category-specific acceptance phrase that includes
+the category ID, for example `I accept scope-and-eligibility`. User-Controlled AI Agents must not click browser
+acceptance controls or type any terminal category acceptance phrase for the user.
 
 ## Documentation and Terms Finalization Plan
 
@@ -1754,9 +1763,21 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
   long-running install step begins so the user does not mistake a slow install for a failed acceptance input.
 - Completed verification that JSON mode refuses to accept Terms for the user while describing the category-based human
   flow.
-- Remaining human verification: run interactive install in a terminal and verify that every category acknowledgement
-  appears immediately after the user's input and that the final "Starting installation" acknowledgement appears before
-  slow work. User-Controlled AI Agents and automation must not type the Terms acceptance phrase for the user.
+- New UX issue found during attempted local artifact update: even category-by-category terminal acceptance remains too
+  cumbersome for ordinary users, and Terms display is still constrained by terminal scrollback and text-entry ergonomics.
+- Planned revision: make browser-based localhost Terms acceptance the primary `install` flow. The CLI should open a
+  nonce-protected `127.0.0.1` Terms page, let the human user review and accept categories through browser controls, then
+  return to the terminal and start installation only after the validated browser callback.
+- Planned revision: keep terminal category acceptance only as an explicit fallback for environments where a browser cannot
+  be opened or where the user explicitly requests terminal-only acceptance.
+- Planned revision: update `install --json` so it still never accepts Terms, reports
+  `browser_interactive_terms_acceptance_required`, describes the localhost browser flow, and instructs User-Controlled AI
+  Agents not to click browser acceptance controls or type fallback acceptance phrases for the user.
+- Planned revision: after browser acceptance succeeds, immediately print
+  `Terms accepted in browser. Starting installation...` before any slow install work begins.
+- Planned verification: run interactive install in a terminal, verify that the browser opens to a localhost Terms page,
+  category acceptance controls gate the final accept button, the callback returns control to the CLI, the terminal prints
+  the immediate acknowledgement before slow work, and JSON mode still refuses to accept Terms for the user.
 
 ### Phase 3: Renewed acceptance mechanism
 
@@ -2074,7 +2095,8 @@ Release blocker:
   README, packaged Terms, human help, JSON help, `agents.md`, and monitoring docs.
 - Completed: the CLI no longer hardcodes `observer.tonnel.io` as a Tonnel-level URL after the on-chain Channel observer
   registry implementation.
-- Remaining local release-readiness action: update local installed read-only deployment artifacts through the interactive
-  human install flow. The user must read and accept each Terms category personally; User-Controlled AI Agents and
-  automation must not type any Terms acceptance phrase for the user.
+- Remaining local release-readiness action: implement the browser-based localhost Terms acceptance flow, then update local
+  installed read-only deployment artifacts through that interactive human install flow. The user must read and accept
+  each Terms category personally in the browser; User-Controlled AI Agents and automation must not click browser
+  acceptance controls or type fallback Terms acceptance phrases for the user.
 - After that human install flow, rerun the `help observer` registered and unregistered observer checks.

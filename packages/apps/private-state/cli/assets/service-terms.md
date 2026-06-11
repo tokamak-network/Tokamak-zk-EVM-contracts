@@ -82,9 +82,13 @@ refundable portion is returned to the exiting user and the non-refundable portio
 `0x000000000000000000000000000000000000dEaD`. These Terms describe that non-refundable portion as a burn-address
 transfer, not as a TON total-supply reduction.
 
-The Join Toll refund percentage increases with longer Channel participation time: 0% within 24 hours after joining, 25%
-after 24 hours and within 3 days, 50% after 3 days and within 7 days, and 75% after 7 days. The remaining
-non-refundable portion is transferred to `0x000000000000000000000000000000000000dEaD`.
+The Bridge default Join Toll refund policy may be updated through the applicable on-chain governance or administration
+path. Each Channel fixes its own Join Toll refund policy when that Channel is created, and later Bridge default policy
+updates do not automatically rewrite an existing Channel's fixed policy. Users should verify the current Bridge default
+policy through the `BridgeCore.defaultJoinTollRefundCutoff*` and `BridgeCore.defaultJoinTollRefundBps*` on-chain getters
+and should verify a specific Channel's fixed policy through that Channel's `ChannelManager.joinTollRefundCutoff*` and
+`ChannelManager.joinTollRefundBps*` on-chain getters. Official observer pages, CLI output, and Monitoring Packet files
+may provide convenience views of those on-chain values, but the on-chain values control.
 
 A Channel leader may initiate Channel Operation Abandonment. Once initiated on-chain, the affected Channel immediately
 rejects new joins and new `deposit-channel` actions. Other note activity, `redeem-notes`, `withdraw-channel`, and

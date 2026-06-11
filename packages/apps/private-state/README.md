@@ -453,8 +453,8 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - deletes the wallet's channel registration after the channel accounting balance is zero
 - marks the local wallet epoch as exited and keeps it read-only for historical note inspection and evidence export
 - frees the reserved token-vault leaf binding, channel-local address binding, storage-key binding, and note-receive key binding
-- applies the channel's time-increasing Join Toll refund schedule and transfers the non-refundable portion to the
-  burn address
+- applies the selected channel's fixed Join Toll refund schedule and transfers the non-refundable portion to the burn
+  address
 - accepts `--wallet` and `--network`
 - does not accept `--force`; both the CLI and the bridge contract require a zero channel balance
 - prints an additional warning when the selected channel has been abandoned, but abandonment does not block this command

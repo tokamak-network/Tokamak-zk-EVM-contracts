@@ -1740,21 +1740,23 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
 - Completed: change `private-state-cli install` from non-interactive to interactive.
 - Completed: render the canonical Terms before installation.
 - Completed: require explicit human acceptance before installation proceeds.
-- Completed: persist the accepted `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source in Service
-  state.
-- New UX issue found during local read-only artifact update: printing the entire Terms as one long terminal block can be
+- Completed: persist the accepted `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source in
+  Service state.
+- Completed UX issue review from local read-only artifact update: printing the entire Terms as one long terminal block can be
   cut off by terminal scrollback or make users lose context before acceptance.
-- Planned revision: replace the single long Terms prompt with category-by-category Terms prompts using the categories in
-  the Human Acceptance Strategy.
-- Planned revision: require a separate explicit human acceptance phrase for each category and persist the accepted
-  category IDs alongside `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source.
-- Planned revision: after each correct category phrase, print an immediate acknowledgement line before showing the next
-  category.
-- Planned revision: after the final category phrase, print an immediate final acknowledgement line before any
+- Completed in local source: replaced the single long Terms prompt with category-by-category Terms prompts using the
+  categories in the Human Acceptance Strategy.
+- Completed in local source: require a separate explicit human acceptance phrase for each category and persist the
+  accepted category IDs alongside `termsVersion`, `termsHash`, timestamp, CLI package version, and acceptance source.
+- Completed in local source: after each correct category phrase, print an immediate acknowledgement line before showing
+  the next category.
+- Completed in local source: after the final category phrase, print an immediate final acknowledgement line before any
   long-running install step begins so the user does not mistake a slow install for a failed acceptance input.
-- Planned verification: run interactive install in a terminal and verify that every category acknowledgement appears
-  immediately after the user's input, that the final "Starting installation" acknowledgement appears before slow work,
-  and that JSON mode still refuses to accept Terms for the user while describing the category-based human flow.
+- Completed verification that JSON mode refuses to accept Terms for the user while describing the category-based human
+  flow.
+- Remaining human verification: run interactive install in a terminal and verify that every category acknowledgement
+  appears immediately after the user's input and that the final "Starting installation" acknowledgement appears before
+  slow work. User-Controlled AI Agents and automation must not type the Terms acceptance phrase for the user.
 
 ### Phase 3: Renewed acceptance mechanism
 
@@ -2072,7 +2074,7 @@ Release blocker:
   README, packaged Terms, human help, JSON help, `agents.md`, and monitoring docs.
 - Completed: the CLI no longer hardcodes `observer.tonnel.io` as a Tonnel-level URL after the on-chain Channel observer
   registry implementation.
-- Remaining local release-readiness action: update local installed read-only deployment artifacts through an interactive
-  human install flow. The user must run and accept the Terms personally; User-Controlled AI Agents and automation must
-  not type the Terms acceptance phrase for the user.
+- Remaining local release-readiness action: update local installed read-only deployment artifacts through the interactive
+  human install flow. The user must read and accept each Terms category personally; User-Controlled AI Agents and
+  automation must not type any Terms acceptance phrase for the user.
 - After that human install flow, rerun the `help observer` registered and unregistered observer checks.

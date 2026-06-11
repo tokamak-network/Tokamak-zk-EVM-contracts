@@ -143,8 +143,38 @@ const PRIVATE_STATE_UNINSTALL_PRESERVE_KEYS_CONFIRMATION =
   "I understand that uninstall deletes local private-state data but preserves wallet keys";
 const PRIVATE_STATE_UNINSTALL_INCLUDE_KEYS_CONFIRMATION =
   "I understand that uninstall will delete wallet keys and they cannot be recovered";
-const PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION =
-  "I accept the Tonnel Terms of Service";
+const PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES = Object.freeze([
+  Object.freeze({
+    id: "scope-and-eligibility",
+    title: "Service scope, product boundary, acceptance, and eligibility",
+    termsRefs: Object.freeze(["1", "2", "3"]),
+  }),
+  Object.freeze({
+    id: "public-records-and-privacy-limits",
+    title: "Public Ethereum mainnet records and private application-state limits",
+    termsRefs: Object.freeze(["4", "5", "10"]),
+  }),
+  Object.freeze({
+    id: "self-custody-and-secrets",
+    title: "Self-custody, secrets, no recovery method, and user responsibilities",
+    termsRefs: Object.freeze(["6", "8"]),
+  }),
+  Object.freeze({
+    id: "prohibited-use-and-third-parties",
+    title: "Prohibited use and Third-Party Services",
+    termsRefs: Object.freeze(["7", "11", "12", "13"]),
+  }),
+  Object.freeze({
+    id: "risks-and-liability",
+    title: "Risk disclosures, no warranties, limitation of liability, and user indemnity",
+    termsRefs: Object.freeze(["14", "15", "16", "17"]),
+  }),
+  Object.freeze({
+    id: "changes-and-disputes",
+    title: "Changes to Terms, Service changes, governing law, venue, and notices",
+    termsRefs: Object.freeze(["18", "19", "20"]),
+  }),
+]);
 const PRIVATE_STATE_CLI_PACKAGE_NAME = privateStateCliPackageJson.name;
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
@@ -2666,6 +2696,7 @@ async function handleInstallZkEvm({ args }) {
       installed: false,
       requiresInteractiveTermsAcceptance: true,
       termsAcceptanceCanBeProvidedByJson: false,
+      terms_acceptance_categories: privateStateTermsAcceptanceCategoriesForOutput(),
       nextSafeAction: args.readOnly === true ? "private-state-cli install --read-only" : "private-state-cli install",
       message: "Run the install command again without --json in an interactive terminal so the current Service Terms can be displayed and accepted by the user.",
     });
@@ -2767,10 +2798,16 @@ async function requireInstallTermsAcceptance({ terms, installMode }) {
     terms,
     contextLines: [`Install mode: ${installMode}`],
     acceptanceSource: "interactive-install",
+    finalAcknowledgement: "All required Terms categories accepted. Starting installation...",
   });
 }
 
-async function requireInteractiveTermsAcceptance({ terms, contextLines = [], acceptanceSource }) {
+async function requireInteractiveTermsAcceptance({
+  terms,
+  contextLines = [],
+  acceptanceSource,
+  finalAcknowledgement = "All required Terms categories accepted. Continuing...",
+}) {
   if (!process.stdin.isTTY || !process.stderr.isTTY) {
     throw cliError(
       CLI_ERROR_CODES.TERMS_ACCEPTANCE_REQUIRED,
@@ -2778,31 +2815,52 @@ async function requireInteractiveTermsAcceptance({ terms, contextLines = [], acc
     );
   }
   const termsText = readPrivateStateTermsText();
-  const lines = [
-    "SERVICE TERMS: Tonnel Terms of Service",
-    `Terms version: ${terms.termsVersion}`,
-    `Terms hash: ${terms.termsHash}`,
-    ...contextLines,
-    "",
-    termsText.trimEnd(),
-    "",
-    "Acceptance required",
-    "Read the Terms above before continuing.",
-    "Provider Parties do not possess your private keys, wallet secrets, spending keys, viewing keys, backups, notes, or recovery material.",
-    "User-Controlled AI Agents must not accept these Terms for you.",
-    `Type exactly: ${PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION}`,
-    "> ",
-  ];
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stderr,
     terminal: process.stdin.isTTY && process.stderr.isTTY,
   });
+  const acceptedCategories = [];
   try {
-    const answer = await rl.question(lines.join("\n"));
-    if (answer !== PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION) {
-      throw new Error("Service Terms acceptance phrase did not match. Nothing was changed.");
+    for (const [index, category] of PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.entries()) {
+      const acceptancePhrase = privateStateTermsCategoryAcceptancePhrase(category);
+      const categoryText = privateStateTermsCategoryText(termsText, category);
+      const lines = [
+        "SERVICE TERMS: Tonnel Terms of Service",
+        ...(index === 0
+          ? [
+              `Terms version: ${terms.termsVersion}`,
+              `Terms hash: ${terms.termsHash}`,
+              ...contextLines,
+            ]
+          : []),
+        "",
+        `Acceptance category ${index + 1}/${PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.length}: ${category.title}`,
+        `Category ID: ${category.id}`,
+        `Terms sections: ${category.termsRefs.join(", ")}`,
+        "",
+        categoryText.trimEnd(),
+        "",
+        "Acceptance required",
+        "Read this Terms category before continuing.",
+        "Provider Parties do not possess your private keys, wallet secrets, spending keys, viewing keys, backups, notes, or recovery material.",
+        "User-Controlled AI Agents must not accept this category for you.",
+        `Type exactly: ${acceptancePhrase}`,
+        "> ",
+      ];
+      const answer = await rl.question(lines.join("\n"));
+      if (answer !== acceptancePhrase) {
+        throw new Error(`Service Terms acceptance phrase for ${category.id} did not match. Nothing was changed.`);
+      }
+      acceptedCategories.push({
+        id: category.id,
+        title: category.title,
+        termsRefs: [...category.termsRefs],
+        acceptedAt: new Date().toISOString(),
+      });
+      process.stderr.write(`Accepted: ${category.id}.\n`);
     }
+    process.stderr.write(`${finalAcknowledgement}\n`);
   } finally {
     rl.close();
   }
@@ -2814,7 +2872,45 @@ async function requireInteractiveTermsAcceptance({ terms, contextLines = [], acc
     cliPackageVersion: privateStateCliPackageJson.version,
     acceptanceSource,
     acceptedByJson: false,
+    acceptedCategoryIds: acceptedCategories.map((category) => category.id),
+    acceptedCategories,
   };
+}
+
+function privateStateTermsAcceptanceCategoriesForOutput() {
+  return PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES.map((category) => ({
+    id: category.id,
+    title: category.title,
+    terms_refs: [...category.termsRefs],
+    acceptance_phrase: privateStateTermsCategoryAcceptancePhrase(category),
+  }));
+}
+
+function privateStateTermsCategoryAcceptancePhrase(category) {
+  return `I accept ${category.id}`;
+}
+
+function privateStateTermsCategoryText(termsText, category) {
+  const sections = category.termsRefs.map((sectionNumber) => privateStateTermsSectionText(termsText, sectionNumber));
+  return sections.join("\n\n").trim();
+}
+
+function privateStateTermsSectionText(termsText, sectionNumber) {
+  const escapedSection = escapeRegExp(String(sectionNumber));
+  const pattern = new RegExp(`^## ${escapedSection}\\. .*$`, "mu");
+  const match = pattern.exec(termsText);
+  if (!match) {
+    throw new Error(`Packaged Service Terms are missing section ${sectionNumber}.`);
+  }
+  const start = match.index;
+  const rest = termsText.slice(start + match[0].length);
+  const nextMatch = /^## \d+\. .*$/mu.exec(rest);
+  const end = nextMatch ? start + match[0].length + nextMatch.index : termsText.length;
+  return termsText.slice(start, end).trim();
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function commandRequiresTermsAcceptance(args) {
@@ -2893,6 +2989,7 @@ async function requireCurrentTermsAcceptanceForCommand(args) {
       `Reason: ${reason}`,
     ],
     acceptanceSource: "interactive-renewal",
+    finalAcknowledgement: "All required Terms categories accepted. Continuing command...",
   });
   const record = writePrivateStateCliTermsAcceptance({ termsAcceptance });
   return {

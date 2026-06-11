@@ -224,6 +224,18 @@ function testInstallJsonDoesNotInstallOrAcceptTerms() {
   expect(payload.installed === false, "install --json must not install artifacts.");
   expect(payload.requiresInteractiveTermsAcceptance === true, "install --json should require interactive Terms acceptance.");
   expect(payload.termsAcceptanceCanBeProvidedByJson === false, "install --json must not accept Terms.");
+  expect(
+    Array.isArray(payload.terms_acceptance_categories) && payload.terms_acceptance_categories.length === 6,
+    "install --json should describe the human Terms acceptance categories.",
+  );
+  expect(
+    payload.terms_acceptance_categories.every((category) =>
+      typeof category.id === "string"
+      && Array.isArray(category.terms_refs)
+      && String(category.acceptance_phrase ?? "").includes(category.id)
+    ),
+    "Each install --json Terms acceptance category should include an id, refs, and category-specific phrase.",
+  );
   expect(payload.nextSafeAction === "private-state-cli install --read-only", "install --json should preserve the requested install mode in the interactive command.");
   expect(
     !fs.existsSync(path.join(home, "tokamak-private-channels")),
@@ -256,6 +268,14 @@ function testInstallManifestPersistsTermsAcceptance() {
     cliPackageVersion: "0.0.0-test",
     acceptanceSource: "interactive-install",
     acceptedByJson: false,
+    acceptedCategoryIds: [
+      "scope-and-eligibility",
+      "public-records-and-privacy-limits",
+      "self-custody-and-secrets",
+      "prohibited-use-and-third-parties",
+      "risks-and-liability",
+      "changes-and-disputes",
+    ],
   };
   const { manifestPath, manifest } = writePrivateStateCliInstallManifest({
     installMode: "read-only",
@@ -431,8 +451,8 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   );
   expect(!runtimeSource.includes("requireActionImpactAcknowledgement"), "Runtime should not use action-impact acknowledgement internals.");
   expect(!runtimeSource.includes("assertActionImpactArg"), "Runtime should not retain action-impact argument checks.");
-  expect(stdout.includes("Displays the current Service Terms and requires explicit human acceptance before installation proceeds"), "Install help should explain human Terms acceptance.");
-  expect(stdout.includes("--json reports that interactive Terms acceptance is required and does not install artifacts"), "Install help should explain JSON mode does not install.");
+  expect(stdout.includes("Displays the current Service Terms by category and requires explicit human acceptance for each category before installation proceeds"), "Install help should explain category-based human Terms acceptance.");
+  expect(stdout.includes("--json reports that interactive Terms acceptance is required, includes the acceptance categories, and does not install artifacts"), "Install help should explain JSON mode does not install and reports acceptance categories.");
   expect(stdout.includes("Install results include the canonical Terms version and deterministic Terms hash"), "Install help should mention canonical Terms metadata.");
   expect(stdout.includes("Use --json for machine-readable fee data when another tool needs to inspect the fee table"), "Transaction-fees help should use tool-neutral JSON wording.");
   expect(!stdout.includes("AI agents should run this command"), "Human command help should not use AI-agent-first fee wording.");

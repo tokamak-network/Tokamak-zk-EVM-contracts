@@ -50,6 +50,8 @@
     "0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA"
   ],
   "workspaceMirrorUrl": "https://project-scw1r.vercel.app",
+  "channelObserverUrl": "https://observer.tonnel.io",
+  "channelObserverUrlReadError": null,
   "aPubBlockHash": "0x10e3a83d65f08c7effcdbb79a78d185a4059069919469e7d1ccd7058c09ca64e",
   "dappMetadataDigestSchema": "0xc2d8278e5129f8263782de4f76198a90fe23bf8f776c3f3bbe2835174c5cad92",
   "dappMetadataDigest": "0x24ce1b24d4b0c085b713574c3f1eb8861ac18200263a3d20da1b87ce56c2fe04",

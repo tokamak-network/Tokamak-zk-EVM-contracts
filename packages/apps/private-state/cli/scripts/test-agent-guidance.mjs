@@ -84,7 +84,7 @@ function testCanonicalTermsAssetMatchesPublicTerms() {
   const metadata = readPrivateStateTermsMetadata();
 
   expect(packagedTerms === publicTerms, "Packaged canonical Terms must match docs/dapps/private-state/terms.md.");
-  expect(metadata.termsVersion === "2026-06-10", "Unexpected canonical Terms version.");
+  expect(metadata.termsVersion === "2026-06-11", "Unexpected canonical Terms version.");
   expect(
     /^sha256:[0-9a-f]{64}$/u.test(metadata.termsHash),
     `Unexpected canonical Terms hash format: ${metadata.termsHash}`,

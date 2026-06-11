@@ -1,13 +1,13 @@
 # Tonnel Privacy Notice
 
-Last updated: June 10, 2026
+Last updated: June 11, 2026
 
 ## 1. Overview
 
 This Privacy Notice explains how personal data and related technical data may be processed when a user accesses or uses
-the private-state DApp, Tonnel, The Great First Channel, the private-state CLI, the Official Public Observer, official
-workspace mirror services, official documentation, official support channels, and related official artifact distribution
-surfaces.
+the private-state DApp, Tonnel, The Great First Channel, the private-state CLI, Channel-scoped observer services,
+Channel-scoped workspace mirror services, official documentation, official support channels, and related official
+artifact distribution surfaces.
 
 This Privacy Notice should be read together with the [Tonnel Terms of Service](terms.md).
 
@@ -31,14 +31,21 @@ The Provider's residential address is not published.
 
 For this Privacy Notice:
 
-- **Service** means the private-state DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, official public
-  observer services, official workspace mirror services, official documentation, official support channels, official
-  deployment artifacts, official proof-runtime artifacts, and related software or interfaces officially made available
-  for the private-state DApp.
+- **Service** means the private-state DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, official
+  Tonnel-level documentation, official support channels, official deployment artifacts, official proof-runtime artifacts,
+  and related software or interfaces officially made available for the private-state DApp. Channel-scoped observer
+  services and workspace mirror services are part of the Service only for the Channel to which they are registered or
+  otherwise made available by the applicable Channel Provider.
 - **Provider** means Jehyuk Jang, the individual who officially makes the Service available.
+- **Channel Provider** means the person or entity that provides or operates Channel-specific services for a Channel,
+  including Channel-scoped observer services or workspace mirror services when those services are registered on-chain or
+  otherwise made available for that Channel.
 - **Tonnel** means the branded user-facing name for Tokamak Private App Channels.
 - **The Great First Channel** means the dedicated initial Tonnel Channel identified as `the-great-first-channel`.
-- **Official Public Observer** means the public observer service at `https://observer.tonnel.io`.
+- **Official Public Observer** means a public observer service registered in a Channel's on-chain metadata or otherwise
+  made available by that Channel's Channel Provider for that Channel.
+- **Official Workspace Mirror** means a workspace mirror URL registered in a Channel's on-chain metadata or otherwise
+  made available by that Channel's Channel Provider for that Channel.
 - **CLI** means the command-line software used to access or operate parts of the Service.
 - **Ethereum mainnet** means the public Ethereum network where relevant Bridge, Channel-management, registration, and
   transaction records can be observed.
@@ -58,13 +65,17 @@ note-delivery events, accepted transitions, and root updates.
 These records are public blockchain records. The Provider cannot delete, alter, hide, reverse, or make private public
 Ethereum mainnet records or public Channel records.
 
-## 5. Official Public Observer
+## 5. Channel-Scoped Observer Services
 
-The Official Public Observer at `observer.tonnel.io` is a Vercel-hosted Next.js deployment for The Great First Channel.
-It serves public observer pages and APIs, monitors public Channel state, and provides public monitoring for The Great
-First Channel.
+Observer services are Channel-scoped. A Channel's observer URL is read from that Channel's on-chain metadata when
+registered. A URL shown in documentation for a specific Channel is a Channel-specific example and is not a Tonnel-wide
+default for every Channel.
 
-Use of the Official Public Observer may involve the following data:
+The current registered observer URL for The Great First Channel is `https://observer.tonnel.io`. It is a Vercel-hosted
+Next.js deployment operated by Jehyuk Jang as The Great First Channel Provider. It serves public observer pages and APIs,
+monitors public Channel state, and provides public monitoring for The Great First Channel.
+
+Use of a Channel-scoped Official Public Observer may involve the following data:
 
 - Vercel request metadata, including request paths, timestamps, status information, host information, user agent,
   search parameters, region, cache status, and function metadata.
@@ -74,17 +85,21 @@ Use of the Official Public Observer may involve the following data:
   hashes, block data, decoded event data, raw topics, raw event data, observer sync state, runtime RPC configuration,
   and indexer run state.
 
-The confirmed Vercel team settings for this surface are: Hobby plan, 1 hour runtime-log retention, 1 month Web Analytics
-reporting window, Observability Plus disabled, and no configured Vercel Log Drains.
+The confirmed Vercel team settings for The Great First Channel observer surface are: Hobby plan, 1 hour runtime-log
+retention, 1 month Web Analytics reporting window, Observability Plus disabled, and no configured Vercel Log Drains.
 
-Neon observer tables currently have no repository-managed automatic deletion policy.
+The Great First Channel Neon observer tables currently have no repository-managed automatic deletion policy.
 
-## 6. Official Workspace Mirror For The Great First Channel
+## 6. Channel-Scoped Workspace Mirror Services
 
-The Great First Channel has an official workspace mirror operated by the Provider. The workspace mirror publishes
-verified mirror checkpoints and related recovery data used by CLI recovery flows.
+Workspace mirror services are Channel-scoped. A Channel's workspace mirror URL is read from that Channel's on-chain
+metadata when registered. A URL shown in documentation for a specific Channel is a Channel-specific example and is not a
+Tonnel-wide default for every Channel.
 
-Use of the official workspace mirror may involve the following data:
+The Great First Channel has an official workspace mirror operated by Jehyuk Jang as The Great First Channel Provider.
+The workspace mirror publishes verified mirror checkpoints and related recovery data used by CLI recovery flows.
+
+Use of a Channel-scoped Official Workspace Mirror may involve the following data:
 
 - Mirror manifest, checkpoint, and delta request metadata.
 - Public mirror paths and Vercel Blob URLs.
@@ -92,12 +107,12 @@ Use of the official workspace mirror may involve the following data:
   metadata, and publish timestamps.
 - EC2 worker operational logs, raw RPC history paths, and Telegram mirror publish status messages when configured.
 
-The mirror uses Vercel, Vercel Blob, Neon, AWS EC2, and Telegram where configured. Neon mirror data and Vercel Blob
-objects are stored in region `iad1` according to the confirmed deployment settings. The EC2 worker runs in AWS region
-`ap-southeast-1`.
+The Great First Channel mirror uses Vercel, Vercel Blob, Neon, AWS EC2, and Telegram where configured. Neon mirror data
+and Vercel Blob objects are stored in region `iad1` according to the confirmed deployment settings. The EC2 worker runs
+in AWS region `ap-southeast-1`.
 
-The current repository-managed mirror cleanup command is dry-run only. Neon mirror rows, Vercel Blob mirror artifacts,
-and raw RPC history currently have no repository-managed automatic deletion policy.
+The current repository-managed mirror cleanup command for The Great First Channel is dry-run only. Neon mirror rows,
+Vercel Blob mirror artifacts, and raw RPC history currently have no repository-managed automatic deletion policy.
 
 The inspected EC2 worker uses a 30 GB gp3 root EBS volume with `DeleteOnTermination=true`. No self-owned EBS snapshots,
 AWS DLM lifecycle policies, or AWS Backup plans were found for the worker volume during inspection. The inspected root
@@ -208,7 +223,8 @@ device.
 Data described in this Privacy Notice may be processed for the following purposes:
 
 - Operating, maintaining, and securing the Service.
-- Serving official documentation, official web pages, observer pages, observer APIs, and mirror recovery artifacts.
+- Serving official documentation, official web pages, Channel-scoped observer pages, Channel-scoped observer APIs, and
+  mirror recovery artifacts.
 - Publishing and verifying public deployment artifacts and proof-runtime artifacts.
 - Distributing the CLI through npm and allowing package update checks.
 - Reading public blockchain state and submitting user-authorized transactions through user-selected RPC providers.
@@ -258,7 +274,7 @@ security practices, and any transfer safeguards described by those services.
 
 Confirmed current deployment information includes:
 
-- The Official Public Observer and included Tonnel web surfaces are hosted on Vercel.
+- The Great First Channel observer and included Tonnel web surfaces are hosted on Vercel.
 - The Great First Channel mirror Neon database and Vercel Blob store are in region `iad1`.
 - The EC2 worker runs in AWS region `ap-southeast-1`.
 - End-user RPC traffic is sent to the RPC provider selected by the user.

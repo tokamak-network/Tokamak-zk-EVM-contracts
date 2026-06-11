@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Updated the packaged Service Terms, public Terms, Privacy Notice, and Monitoring Packet wording for the corrected
+  Provider and Channel Provider responsibility model, including Channel-scoped observer and workspace mirror services.
+- Added Channel observer URL output to the Monitoring Packet policy snapshot generator and current
+  `the-great-first-channel` policy snapshot.
 - Changed `help observer` to require `--network` and `--channel-name`, read the selected Channel's observer URL from
   on-chain Channel metadata, and fail clearly when no Channel observer URL is registered.
 - Changed human `install` to display the canonical Service Terms, require the exact interactive acceptance phrase, and

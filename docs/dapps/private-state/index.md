@@ -29,9 +29,9 @@ state, not exchange-supported deposit assets.
 ### Who controls disclosure in the private-state DApp?
 
 The `private-state` DApp uses a user-controlled disclosure model. The Provider, Tokamak Network PTE. LTD., bridge
-operators, and channel leaders are not designed to hold the user's spending key, viewing key, or a master viewing key. A
-user may selectively disclose evidence from local wallet state through Service tooling, but public logs alone are not
-meant to reconstruct every private note provenance chain.
+operators, Channel Providers, and channel leaders are not designed to hold the user's spending key, viewing key, or a
+master viewing key. A user may selectively disclose evidence from local wallet state through Service tooling, but public
+logs alone are not meant to reconstruct every private note provenance chain.
 
 ### How are wallet backups different from wallet keys?
 
@@ -93,7 +93,7 @@ accepting that policy for the channel lifetime.
    Defines the Service scope, user responsibilities, Self-Custody duties, public Ethereum mainnet
    records, risk disclosures, liability limits, Third-Party Services, and dispute provisions.
 8. [Tonnel Privacy Notice](privacy-notice.md)
-   Explains Service data processing, public blockchain records, official observer and mirror processing,
+   Explains Service data processing, public blockchain records, Channel-scoped observer and mirror processing,
    third-party services, retention, user choices, and the Provider privacy contact.
 
 The intended reading path moves from concepts, to contracts, to per-function constraints, to

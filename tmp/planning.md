@@ -1923,6 +1923,13 @@ Implementation plan:
      examples may be shown only as examples for a specific Channel and must not be described as Tonnel-wide defaults.
    - Update monitoring docs and Monitoring Packet generation so Channel observer URL, if available, is read from
      on-chain state alongside the workspace mirror URL.
+   - Status: completed in local public documentation and monitoring sources. Terms and packaged CLI Terms now define
+     Tonnel Provider, Channel Provider, Channel-scoped Official Public Observer, and Channel-scoped Official Workspace
+     Mirror separately. Privacy Notice now treats `observer.tonnel.io` and the workspace mirror as The Great First
+     Channel-specific services operated by Jehyuk Jang as The Great First Channel Provider, not as Tonnel-wide defaults.
+     Monitoring Packet documentation and the policy snapshot generator now include the selected Channel's observer URL
+     from on-chain Channel metadata, and the current The Great First Channel policy snapshot includes
+     `channelObserverUrl`.
 
 4. Deployment and migration:
    - Deploy the bridge upgrade that adds Channel observer URL registry support.

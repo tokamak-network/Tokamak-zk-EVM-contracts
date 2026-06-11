@@ -1,15 +1,17 @@
 # Tonnel Terms of Service
 
-Last updated: June 10, 2026
+Last updated: June 11, 2026
 
 ## 1. Definitions
 
 For purposes of these Terms:
 
 - **Terms** means these terms governing access to and use of the Service.
-- **Service** means the private-state DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, official public
-  observer services, official documentation, official examples, official deployment artifacts, official proof-runtime
-  artifacts, and related software or interfaces officially made available by the Provider for the private-state DApp.
+- **Service** means the private-state DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, official
+  Tonnel-level documentation, official examples, official deployment artifacts, official proof-runtime artifacts, and
+  related software or interfaces officially made available by the Provider for the private-state DApp. Channel-scoped
+  observer services and workspace mirror services are part of the Service only for the Channel to which they are
+  registered or otherwise made available by the applicable Channel Provider.
 - **CLI** means the command-line software that a user may install and execute to access or operate parts of the Service.
 - **Private-State DApp** means the application that allows users to use Tonnel private application state through
   supported Channels.
@@ -25,20 +27,27 @@ For purposes of these Terms:
   becomes private, anonymous, or untraceable.
 - **Ethereum Account** means the user's externally controlled Ethereum wallet account used to sign transactions and pay
   Ethereum mainnet gas.
-- **Self-Custody** means that the user, not the Provider, any Provider Party, or any Channel Operator, controls wallet
-  access, keys, secret material, and transaction decisions.
+- **Self-Custody** means that the user, not the Provider, any Provider Party, any Channel Provider, or any Channel
+  Operator, controls wallet access, keys, secret material, and transaction decisions.
 - **Private Note** means a Channel-local private application record that may be transferred, redeemed, or used inside
   Tonnel. A Private Note is not a separate asset that an exchange can receive as a deposit.
 - **Bridge** means the Ethereum mainnet smart-contract path through which public deposits, withdrawals, and related
   accounting updates are recorded.
-- **Official Public Observer** means the public Tonnel observer service provided at `https://observer.tonnel.io`, or a
-  successor URL published through an official project channel.
+- **Channel Provider** means the person or entity that provides or operates Channel-specific services for a Channel,
+  including Channel-scoped observer services or workspace mirror services when those services are registered on-chain or
+  otherwise made available for that Channel.
+- **Official Public Observer** means a public observer service registered in a Channel's on-chain metadata or otherwise
+  made available by that Channel's Channel Provider for that Channel. An Official Public Observer is Channel-scoped and
+  is not a Tonnel-wide default observer for every Channel.
+- **Official Workspace Mirror** means a workspace mirror URL registered in a Channel's on-chain metadata or otherwise
+  made available by that Channel's Channel Provider for that Channel. An Official Workspace Mirror is Channel-scoped and
+  is not a Tonnel-wide default mirror for every Channel.
 - **Provider** means Jehyuk Jang, the individual who officially makes the Service available. The Provider's public
   privacy and notice contact is `cjhyuck213@gmail.com`. The Provider's stated jurisdiction is Singapore. The Provider's
   residential address is not published in the Privacy Notice or these Terms.
 - **Provider Parties** means the Provider and the Provider's affiliates, contractors, agents, service providers, and
   authorized representatives, to the extent each acts within an authorized Service-related role. Provider Parties do not
-  include Tokamak Network PTE. LTD. unless a separate binding Service document expressly includes it.
+  include Tokamak Network PTE. LTD. under these Terms.
 - **Tokamak Network PTE. LTD.** means a separate software contributor and licensor associated with Tokamak private app
   channel source code, Tokamak private DApp packages, upstream Tokamak zk-EVM tooling, and related repository materials.
   For Tokamak-controlled repositories, package registries, published artifacts, token infrastructure, bridge
@@ -47,7 +56,8 @@ For purposes of these Terms:
   obligations, and does not provide custody, recovery, legal, tax, compliance, wallet, RPC, or user-support services
   through these Terms.
 - **Channel Operators** means persons or entities that create, configure, administer, publish policies for, publish
-  recovery metadata for, or otherwise operate a Channel.
+  recovery metadata for, or otherwise operate a Channel. A Channel Operator may also be a Channel Provider when that
+  person or entity provides Channel-scoped services for the Channel.
 - **Channel Operation Abandonment** means an on-chain Channel state initiated by the Channel leader that immediately
   disables new Channel joins and new `deposit-channel` actions for that Channel while leaving note activity,
   `redeem-notes`, `withdraw-channel`, and `exit-channel` unrestricted by that abandonment state.
@@ -63,9 +73,16 @@ For purposes of these Terms:
 
 These Terms govern access to and use of the Service.
 
-The Service includes the Private-State DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, official public
-observer services, official documentation, official examples, official deployment artifacts, official proof-runtime
-artifacts, and related software or interfaces officially made available by the Provider.
+The Service includes the Private-State DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, official
+Tonnel-level documentation, official examples, official deployment artifacts, official proof-runtime artifacts, and
+related software or interfaces officially made available by the Provider.
+
+Observer services and workspace mirror services are Channel-scoped. The URL for a Channel's observer or workspace mirror
+is read from that Channel's on-chain metadata when registered. A URL shown in documentation for a specific Channel is a
+Channel-specific example and is not a Tonnel-wide default for every Channel.
+
+For The Great First Channel, Jehyuk Jang is both the Provider and the Channel Provider. That does not make The Great
+First Channel's observer or workspace mirror a default observer or mirror for other Channels.
 
 Tonnel is the branded name for Tokamak Private App Channels. Tonnel is an opt-in private application-channel system used
 from a Self-Custody Ethereum Account. The Great First Channel is a Channel within Tonnel.
@@ -152,8 +169,9 @@ regulatory outcome, or third-party acceptance of the user's explanation of asset
 
 The Service is designed for Self-Custody use.
 
-Provider Parties and Channel Operators do not possess, control, store, or recover the user's Ethereum private keys, seed
-phrases, wallet secrets, spending keys, viewing keys, source files, backup files, or Private Note plaintext.
+Provider Parties, Channel Providers, and Channel Operators do not possess, control, store, or recover the user's Ethereum
+private keys, seed phrases, wallet secrets, spending keys, viewing keys, source files, backup files, or Private Note
+plaintext.
 
 The user is solely responsible for securing the user's devices, wallet software, operating system, files, backups,
 passwords, private keys, seed phrases, wallet secrets, spending keys, viewing keys, and equivalent secret material.
@@ -162,9 +180,9 @@ If all required copies of a private key, seed phrase, wallet secret, spending ke
 or other required recovery material are lost, no recovery method exists for the affected access, Private Notes, funds,
 evidence, or disclosure capability.
 
-Provider Parties, Channel Operators, support channels, websites, and User-Controlled AI Agents do not need the user's
-private keys, seed phrases, wallet secrets, spending keys, viewing keys, or equivalent secrets to provide ordinary
-Service access, support, explanations, or guidance.
+Provider Parties, Channel Providers, Channel Operators, support channels, websites, and User-Controlled AI Agents do not
+need the user's private keys, seed phrases, wallet secrets, spending keys, viewing keys, or equivalent secrets to provide
+ordinary Service access, support, explanations, or guidance.
 
 The user must not share private keys, seed phrases, wallet secrets, spending keys, viewing keys, or equivalent secrets
 with any User-Controlled AI Agent, Provider Party, Channel Operator, support channel, website, or third party.
@@ -206,26 +224,33 @@ Joining a Channel means accepting that Channel's policy snapshot.
 Channel policy may include Join Tolls, refund rules, administrative roles, operator roles, backup or recovery information
 expectations, monitoring practices, fee rules, or other operating rules.
 
-Channel Operators may publish public metadata, policy information, event records, or recovery information.
+Channel Providers and Channel Operators may publish public metadata, policy information, event records, or recovery
+information.
 
-Channel Operators do not control the user's Ethereum Account or user secrets.
+Channel Providers and Channel Operators do not control the user's Ethereum Account or user secrets.
 
-Channel Operators do not guarantee recovery of lost user secrets, lost Private Notes, lost evidence, failed
-transactions, Third-Party Service failures, or rejected exchange deposits.
+Channel Providers and Channel Operators do not guarantee recovery of lost user secrets, lost Private Notes, lost
+evidence, failed transactions, Third-Party Service failures, or rejected exchange deposits.
 
-## 10. Official Public Observer, Monitoring, And Evidence
+## 10. Channel-Scoped Observers, Monitoring, And Evidence
 
-Tonnel provides an Official Public Observer at `https://observer.tonnel.io`.
+Channel Providers may provide Channel-scoped Official Public Observers. When a Channel's observer URL is registered
+on-chain, users can verify that URL through the Channel's on-chain metadata and through official CLI or Monitoring
+Packet views that read that metadata.
 
-The Official Public Observer may display public Ethereum mainnet records, public Channel records, accepted transitions,
-commitments, nullifiers, encrypted note-delivery events, accounting updates, and related monitoring data.
+For The Great First Channel, the current registered observer URL is `https://observer.tonnel.io`. That URL is the
+observer for The Great First Channel and is not a Tonnel-wide observer URL for all Channels.
 
-The Official Public Observer is not intended to receive or display user secrets. It displays only records available to it
+An Official Public Observer may display public Ethereum mainnet records, public Channel records, accepted transitions,
+commitments, nullifiers, encrypted note-delivery events, accounting updates, and related monitoring data for the Channel
+it observes.
+
+An Official Public Observer is not intended to receive or display user secrets. It displays only records available to it
 and does not guarantee that every fact needed for legal, accounting, tax, exchange, asset-history, or compliance review
 is available.
 
-Exchanges, analytics providers, regulators, Channel Operators, users, and other observers may independently monitor
-Ethereum mainnet and public Channel records.
+Exchanges, analytics providers, regulators, Channel Providers, Channel Operators, users, and other observers may
+independently monitor Ethereum mainnet and public Channel records.
 
 The user may need to preserve local evidence to explain asset history, transaction history, Private Note ownership, or
 facts the user chooses to prove.
@@ -246,11 +271,12 @@ The user is responsible for reviewing and complying with Third-Party Service ter
 
 Public blockchain records are public and may be copied, indexed, analyzed, or retained by any person.
 
-The Official Public Observer may display public blockchain records and public Channel records.
+Channel-scoped observer services may display public blockchain records and public Channel records.
 
-Provider Parties may operate websites, public observer services, software repositories, package distribution channels,
-support channels, or other official interfaces that process logs, device information, network information, usage data,
-contact information, or other data.
+Provider Parties may operate websites, software repositories, package distribution channels, support channels, or other
+official interfaces that process logs, device information, network information, usage data, contact information, or other
+data. Provider Parties may also operate Channel-scoped observer or workspace mirror services for a Channel when they act
+as that Channel's Channel Provider.
 
 Provider Parties process certain data through official interfaces as described in the Privacy Notice. The current Privacy
 Notice is published at [Tonnel Privacy Notice](privacy-notice.md).
@@ -362,8 +388,8 @@ user's behalf.
 
 ## 19. Suspension, Discontinuation, And Software Changes
 
-Provider Parties may modify, suspend, discontinue, or stop supporting software, documentation, public observer services,
-deployment artifacts, examples, or related services.
+Provider Parties may modify, suspend, discontinue, or stop supporting software, documentation, Channel-scoped observer
+services or workspace mirror services they operate, deployment artifacts, examples, or related services.
 
 Open-source smart contracts and public blockchain records may continue to exist independently of any supported
 interface.

@@ -42,6 +42,9 @@ const PRIVATE_STATE_EVENT_ABIS = {
 const CURRENT_ROOT_VECTOR_OBSERVED_ABI = [
   "event CurrentRootVectorObserved(bytes32 indexed rootVectorHash, bytes32[] rootVector)",
 ];
+const CHANNEL_OBSERVER_REGISTRY_ABI = [
+  "function getChannelObserver(uint256 channelId) view returns (string)",
+];
 const DEFAULT_RPC_LOG_CHUNK_SIZE = 10;
 
 function printHelp() {
@@ -435,6 +438,11 @@ async function buildOnchainSnapshot({ args, artifacts, rpcUrl }) {
   }
   const abis = getBridgeAbis(artifacts);
   const bridgeCore = new Contract(artifacts.bridge.bridgeCore, abis.bridgeCore, provider);
+  const bridgeCoreChannelMetadata = new Contract(
+    artifacts.bridge.bridgeCore,
+    [...abis.bridgeCore, ...CHANNEL_OBSERVER_REGISTRY_ABI],
+    provider,
+  );
   const dAppManager = new Contract(artifacts.bridge.dAppManager, abis.dAppManager, provider);
   const bridgeTokenVault = new Contract(artifacts.bridge.bridgeTokenVault, abis.bridgeTokenVault, provider);
   const channelId = deriveChannelIdFromName(args.channel);
@@ -473,6 +481,7 @@ async function buildOnchainSnapshot({ args, artifacts, rpcUrl }) {
     vaultOwner,
     dappInfo,
     verifierSnapshot,
+    channelObserverUrl,
     bridgeCoreProxy,
     dAppManagerProxy,
     bridgeTokenVaultProxy,
@@ -494,6 +503,7 @@ async function buildOnchainSnapshot({ args, artifacts, rpcUrl }) {
     safeCall("L1TokenVault.owner", () => bridgeTokenVault.owner()),
     safeCall("DAppManager.getDAppInfo", () => dAppManager.getDAppInfo(dappId)),
     safeCall("DAppManager.getDAppVerifierSnapshot", () => dAppManager.getDAppVerifierSnapshot(dappId)),
+    safeCall("BridgeCore.getChannelObserver", () => bridgeCoreChannelMetadata.getChannelObserver(channelId)),
     proxyState(provider, artifacts.bridge.bridgeCore),
     proxyState(provider, artifacts.bridge.dAppManager),
     proxyState(provider, artifacts.bridge.bridgeTokenVault),
@@ -546,6 +556,8 @@ async function buildOnchainSnapshot({ args, artifacts, rpcUrl }) {
       dappMetadataDigestSchema: channelInfo.dappMetadataDigestSchema,
       dappMetadataDigest: channelInfo.dappMetadataDigest,
       workspaceMirrorUrl: String(mirrorUrl ?? ""),
+      observerUrl: channelObserverUrl.ok ? String(channelObserverUrl.value ?? "") : "",
+      observerUrlReadError: channelObserverUrl.ok ? null : channelObserverUrl.error,
       currentRootVectorHash: currentRootVectorHash.ok ? currentRootVectorHash.value : null,
       latestAcceptedTransition: latestAcceptedTransition.ok ? latestAcceptedTransition.value : null,
       managedStorageAddresses: managedStorageAddresses.ok
@@ -1244,6 +1256,8 @@ function buildChannelPolicySnapshot({ args, artifacts, onchain }) {
     latestAcceptedTransition: onchain.channel.latestAcceptedTransition,
     managedStorageAddresses: onchain.channel.managedStorageAddresses,
     workspaceMirrorUrl: onchain.channel.workspaceMirrorUrl,
+    channelObserverUrl: onchain.channel.observerUrl,
+    channelObserverUrlReadError: onchain.channel.observerUrlReadError,
     aPubBlockHash: onchain.channel.aPubBlockHash,
     dappMetadataDigestSchema: onchain.channel.dappMetadataDigestSchema,
     dappMetadataDigest: onchain.channel.dappMetadataDigest,

@@ -6,13 +6,18 @@ The packet generator is [scripts/monitoring-packet/generate.mjs](../../../script
 
 The external policy model for monitoring, public disclosure boundaries, user-controlled selective disclosure, and channel policy is described in [docs/whitepaper.md](../../../docs/whitepaper.md). The generator creates data files that support the white paper's policy statements. The packet may also include manually maintained companion files for narrow audit or exchange-dispute scopes.
 
-## Public Observer
+## Channel-Scoped Public Observer
 
-The public observer for this monitoring packet is deployed at
-<https://observer.tonnel.io>. CLI users can print the same clickable URL with
-`private-state-cli help observer`. The observer gives users, reviewers, and external monitors a
-browser entrypoint for the public monitoring surface described by this packet. It does not receive
-wallet secrets, spending keys, viewing keys, or private note plaintext.
+Public observer URLs are Channel-scoped. The packet generator reads the selected Channel's
+observer URL from on-chain Channel metadata when the bridge deployment supports that registry. CLI
+users can print the same Channel-scoped URL with
+`private-state-cli help observer --channel-name <CHANNEL> --network mainnet`.
+
+For `the-great-first-channel`, the currently registered observer URL is
+<https://observer.tonnel.io>. That URL is specific to The Great First Channel and is not a
+Tonnel-wide default observer for every Channel. The observer gives users, reviewers, and external
+monitors a browser entrypoint for the public monitoring surface described by this packet. It does
+not receive wallet secrets, spending keys, viewing keys, or private note plaintext.
 
 ## How To Generate
 
@@ -57,7 +62,7 @@ These files are intended to be included in the public Monitoring Packet.
 | File | Path | Description |
 | --- | --- | --- |
 | `TPAC-Contract-Addresses.json` | [data/TPAC-Contract-Addresses.json](data/TPAC-Contract-Addresses.json) | Chain ID, canonical TON address, bridge and DApp contract addresses, proxy and implementation addresses, owner/admin information, verifier addresses, deployment anchors, source verification status, ABI references, bytecode hashes, and monitored event checklist coverage. |
-| `the-great-first-channel-Policy-Snapshot.json` | [data/the-great-first-channel-Policy-Snapshot.json](data/the-great-first-channel-Policy-Snapshot.json) | Current channel policy snapshot for `the-great-first-channel`, including channel manager, vault, leader/operator, join toll, operation status, managed storage addresses, root-vector hash, workspace mirror URL, DApp metadata digest, function root, verifier snapshot, and storage-layout source. |
+| `the-great-first-channel-Policy-Snapshot.json` | [data/the-great-first-channel-Policy-Snapshot.json](data/the-great-first-channel-Policy-Snapshot.json) | Current channel policy snapshot for `the-great-first-channel`, including channel manager, vault, leader/operator, join toll, operation status, managed storage addresses, root-vector hash, workspace mirror URL, Channel observer URL when readable from on-chain metadata, DApp metadata digest, function root, verifier snapshot, and storage-layout source. |
 | `Private-State-Observability-Matrix.md` | [data/Private-State-Observability-Matrix.md](data/Private-State-Observability-Matrix.md) | Human-readable matrix mapping each Monitoring Packet event checklist item to the current public event surface, including event names, contract addresses, indexed fields, non-indexed fields, explorer query examples, what the event reveals, what it does not reveal, and exchange monitoring meaning. The matrix includes channel exit refund, burn-address transfer, and Channel Operation Abandonment surfaces when present in the monitored ABI. |
 | `Admin-Wallets-and-Upgrade-Policy.md` | [data/Admin-Wallets-and-Upgrade-Policy.md](data/Admin-Wallets-and-Upgrade-Policy.md) | Current owner and proxy-slot state for the monitored mainnet bridge deployment, plus notes that connect the generated data to the white paper's upgrade and channel-immutability policy. |
 | `User-Controlled-Evidence-Scope.md` | [data/User-Controlled-Evidence-Scope.md](data/User-Controlled-Evidence-Scope.md) | Manually maintained scope note for exceptional exchange disputes or compliance questions. It defines public data, user-held local wallet facts, the raw evidence bundle, the static investigator filtering step, and which keys or wallet materials should not be submitted. |
@@ -74,8 +79,8 @@ transaction context, and export either a narrower user-consent disclosure ZIP or
 ASCII-art linkage report.
 
 This tool supports exceptional exchange-dispute or compliance-response workflows without giving
-Tokamak, a channel operator, or an exchange a viewing key, spending key, wallet secret, or full raw
-wallet history by default. Its scope and limitations are documented in
+Provider Parties, Tokamak Network PTE. LTD., a Channel Provider, a channel operator, or an exchange a viewing key,
+spending key, wallet secret, or full raw wallet history by default. Its scope and limitations are documented in
 [data/User-Controlled-Evidence-Scope.md](data/User-Controlled-Evidence-Scope.md).
 
 ## Notes

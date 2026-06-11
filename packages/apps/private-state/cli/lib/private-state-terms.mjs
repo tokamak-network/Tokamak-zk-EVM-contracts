@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-export const PRIVATE_STATE_TERMS_VERSION = "2026-06-10";
+export const PRIVATE_STATE_TERMS_VERSION = "2026-06-11";
 export const PRIVATE_STATE_TERMS_HASH_ALGORITHM = "sha256";
 export const PRIVATE_STATE_TERMS_PACKAGE_PATH = "assets/service-terms.md";
 export const PRIVATE_STATE_TERMS_PUBLIC_PATH = "docs/dapps/private-state/terms.md";

@@ -1837,34 +1837,38 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
 
 Purpose: realign Service responsibility and URL discovery so the CLI belongs to Tonnel, while mirror servers and
 observer services belong to each Channel. Tonnel-level software must not hardcode a Channel-specific mirror or observer
-URL. Users, User-Controlled AI Agents, public documents, and generated monitoring data must be able to distinguish the
-Tonnel Provider from a Channel Provider.
+URL. Users, User-Controlled AI Agents, public documents, and generated monitoring data must be able to distinguish
+Tonnel-level software responsibility from Channel-scoped mirror and observer responsibility, even when the same person
+is responsible for both scopes.
 
 Selected responsibility model:
 
-- Tonnel Provider: Tokamak Network PTE. LTD.
+- Tonnel Provider: Jehyuk Jang.
 - The Great First Channel Provider: Jehyuk Jang.
+- Tokamak Network PTE. LTD. remains a separate software contributor/licensor and Third-Party Service or
+  infrastructure/tooling provider where applicable. It is not the Tonnel Provider under this plan unless it expressly
+  assumes that role in a separate binding Service document.
 - Mirror servers and observer services are Channel-scoped services, not Tonnel-wide services.
 - Each Channel Provider is responsible for that Channel's mirror server and observer service if the Channel Provider
   registers those URLs on-chain.
 - For The Great First Channel, the mirror server and observer service are provided by Jehyuk Jang as The Great First
-  Channel Provider, not by Tokamak Network PTE. LTD. as the Tonnel Provider.
+  Channel Provider. This is the same person as the Tonnel Provider, but the responsibility is still Channel-scoped.
 - Public documents must generalize this model for all Channels. They must not imply that every Channel's mirror server
-  or observer is operated by Tokamak Network PTE. LTD. or by the same operator as The Great First Channel.
+  or observer is operated by Jehyuk Jang, Tokamak Network PTE. LTD., or by the same operator as The Great First Channel.
 
-Current implementation findings:
+Phase baseline findings:
 
 - Mirror URL discovery is already Channel-scoped. `BridgeCore.setChannelWorkspaceMirror(channelId, uri)` and
   `BridgeCore.getChannelWorkspaceMirror(channelId)` store and read one workspace mirror URL per Channel. Only the
   on-chain Channel leader can update the registered mirror URL.
 - The Great First Channel's current registered mirror URL is `https://project-scw1r.vercel.app`, as reflected by the
   generated Monitoring Packet.
-- Observer URL discovery is currently wrong for the selected responsibility model. The CLI hardcodes
-  `https://observer.tonnel.io` in `PRIVATE_STATE_OBSERVER_URL`, and `help observer` prints that deployed public observer
-  URL without resolving it from the selected Channel.
-- Current Terms, packaged Service Terms, Privacy Notice, CLI README, public observer docs, monitoring docs, and
-  `planning.md` still use the older model in places: "Provider" means Jehyuk Jang for the whole Service, and
-  `observer.tonnel.io` is described as the Official Public Observer. Those statements must be rewritten.
+- Original observer URL discovery was wrong for the selected responsibility model. The CLI hardcoded
+  `https://observer.tonnel.io` in `PRIVATE_STATE_OBSERVER_URL`, and `help observer` printed that deployed public observer
+  URL without resolving it from the selected Channel. The local CLI source has since been updated under item 2.
+- Current Terms, packaged Service Terms, Privacy Notice, public observer docs, and monitoring docs still use older or
+  conflicting model text in places: `observer.tonnel.io` is described as the Official Public Observer, and Tokamak
+  Network PTE. LTD. must not be identified as Provider under the corrected plan. Those statements must be rewritten.
 
 Implementation plan:
 
@@ -1903,11 +1907,13 @@ Implementation plan:
 
 3. Public documents:
    - Redefine Terms actors:
-     - Tonnel Provider means Tokamak Network PTE. LTD. for Tonnel-level software and Tonnel-level official interfaces.
+     - Tonnel Provider means Jehyuk Jang for Tonnel-level software and Tonnel-level official interfaces.
      - Channel Provider means the person or entity that operates or provides Channel-specific services for a Channel.
      - The Great First Channel Provider means Jehyuk Jang.
-     - Provider Parties must be split or qualified so obligations do not accidentally transfer between Tokamak Network
-       PTE. LTD. and a Channel Provider.
+     - Tokamak Network PTE. LTD. must remain separately defined as software contributor/licensor and Third-Party Service
+       or infrastructure/tooling provider where applicable, not as Provider.
+     - Provider Parties must be scoped or qualified so Tonnel-level responsibilities and Channel-scoped mirror/observer
+       responsibilities are not confused.
    - Update Terms and packaged CLI Terms so "Service", "Provider", "Provider Parties", "Official Public Observer",
      "Official workspace mirror", and "Third-Party Services" match the new split responsibility model.
    - Update Privacy Notice so it no longer presents `observer.tonnel.io` as a universal Tonnel observer. It should say
@@ -1932,8 +1938,9 @@ Implementation plan:
    - Verify that `help observer --json` and human `help observer` handle both registered and unregistered observer URLs.
    - Verify that `help guide --json` directs User-Controlled AI Agents to use on-chain Channel metadata for mirror and
      observer URLs.
-   - Verify that Terms and Privacy Notice consistently separate Tokamak Network PTE. LTD. as Tonnel Provider from Jehyuk
-     Jang as The Great First Channel Provider.
+   - Verify that Terms and Privacy Notice consistently identify Jehyuk Jang as both Tonnel Provider and The Great First
+     Channel Provider while still treating mirror and observer responsibility as Channel-scoped.
+   - Verify that Terms and Privacy Notice do not identify Tokamak Network PTE. LTD. as Provider under the current plan.
    - Verify that generated Monitoring Packet JSON distinguishes Channel-scoped mirror and observer URLs from Tonnel-wide
      software or documentation URLs.
 

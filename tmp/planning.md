@@ -852,8 +852,10 @@ Phase 6 repository-wide public-document review findings to resolve before public
   default policy may be updated, each Channel's policy is fixed at Channel creation, and official documents direct users
   to verify the applicable policy through on-chain getters or official convenience views.
 - Resolved in local source: Terms describe Channel Operation Abandonment as an available on-chain state, and the bridge
-  plus CLI now implement abandonment state, events, join/deposit rejection, and warnings. Public observer data support
-  and generated Monitoring Packet JSON remain deployment-dependent and must be regenerated after the bridge upgrade.
+  plus CLI now implement abandonment state, events, join/deposit rejection, and warnings. Generated Monitoring Packet
+  JSON has been regenerated after the Safe-executed mainnet bridge upgrade. Public observer support still needs a
+  separate `channel-workspace-mirror` update for the new `ChannelExitTollBurned` and `ChannelOperationAbandoned` event
+  ABI entries, decoded fields, and operation-status display.
 - Resolved: `packages/apps/private-state/README.md` stale CLI behavior was updated to match the current CLI policy:
   install-time Terms acceptance, interactive destructive/sensitive exports, default wallet-key-preserving `uninstall`,
   `uninstall --include-wallet-keys`, warning summaries without per-command legal acknowledgement flags, and interactive
@@ -1330,7 +1332,7 @@ as long-term review topics.
 | R-18 | 20 | Add `cjhyuck213@gmail.com` as the public privacy and notice contact for Jehyuk Jang, and state that the Provider's residential address is not published. If a physical notice address becomes required, use a non-residential notice route. | Notices are incomplete without an official contact route, but residential address publication is not the default policy. | Applied to draft Terms; far-future counsel review remains recorded. |
 | R-19 | 1, 2, 9, 16 | Apply generalized Join Toll policy wording to Terms and user-facing documents. The local source now stores Join Tolls in `L1TokenVault._tollTreasuryBalance`, records `joinTollPaid`, refunds the refundable portion from the toll treasury, and transfers the non-refundable portion to `0x000000000000000000000000000000000000dEaD` on Channel exits. Existing already-exited users' historical non-refundable Toll portions are not in scope for retroactive burn-address transfer. | The user-facing economic representation must match the protocol. Because mainnet TON does not expose an external `burn` function and rejects transfer to `address(0)`, the Service must describe this as a burn-address transfer, not as TON total-supply reduction. Bridge default Join Toll refund policy may be updated, but each Channel fixes its own refund policy at Channel creation. Public documents must not present a single refund schedule as universal for all Channels. Users must verify Bridge defaults through `BridgeCore.defaultJoinTollRefundCutoff*` and `BridgeCore.defaultJoinTollRefundBps*`, and a specific Channel's fixed policy through that Channel's `ChannelManager.joinTollRefundCutoff*` and `ChannelManager.joinTollRefundBps*`; observer pages, CLI output, and Monitoring Packet files are convenience views of those on-chain values. | Source implementation completed, Safe upgrade executed, Monitoring Packet support added, and final public-document blocker resolved by generalized policy wording. |
 | R-20 | Prompt policy | Remove `--acknowledge-action-impact` from every command, enforce install-time Terms acceptance, make `uninstall` interactive like `install`; default uninstall preserves wallet workspace spending-key and viewing-key files while deleting the rest, and `--include-wallet-keys` deletes everything without exception. Make secret-bearing material export commands and plaintext note/evidence export commands interactive. For each such interactive flow, print the command impact, leakage or destructive risk, precautions, and Provider Party disclaimers, then require human confirmation before continuing. For every command that handles real funds, print command-specific information and warning summaries in human mode and `--json` mode on every run without requiring a command-level acknowledgement option. | This implements the selected product policy: one-time install Terms acceptance replaces repeated action-impact acknowledgement flags, while moment-specific human confirmations remain for destructive deletion and sensitive exports, and ordinary transaction commands still show relevant warnings. | Guide/command-reference/warning-output, uninstall prompt, wallet viewing-key/spending-key export confirmation, plaintext note/evidence export confirmation review, install Terms gate, and renewed acceptance mechanism completed in local source. |
-| R-21 | 2, 9, 10, 14 | Add Channel Operation Abandonment to Terms, docs, monitoring, and implementation planning. The Channel leader may initiate abandonment on-chain with no grace period. After abandonment, new joins and `deposit-channel` are rejected for that Channel; note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel` remain unrestricted by abandonment. | This gives the Channel leader a clear public way to stop onboarding and new deposits without trapping existing users or claiming control over user notes. The feature is compatible with existing Channels if enforcement is placed in the shared upgradeable vault path for join/deposit. Existing `the-great-first-channel` note activity cannot and should not be restricted under the revised request. | Implemented in local bridge source, bridge tests, CLI command/status handling, `help guide`/`help guide --json`, `agents.md`, private-state README, bridge changelog, and private-state workflow/security docs. Mainnet deployment, public observer data support, and monitoring packet updates remain deployment-dependent. |
+| R-21 | 2, 9, 10, 14 | Add Channel Operation Abandonment to Terms, docs, monitoring, and implementation planning. The Channel leader may initiate abandonment on-chain with no grace period. After abandonment, new joins and `deposit-channel` are rejected for that Channel; note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel` remain unrestricted by abandonment. | This gives the Channel leader a clear public way to stop onboarding and new deposits without trapping existing users or claiming control over user notes. The feature is compatible with existing Channels if enforcement is placed in the shared upgradeable vault path for join/deposit. Existing `the-great-first-channel` note activity cannot and should not be restricted under the revised request. | Implemented in local bridge source, bridge tests, CLI command/status handling, `help guide`/`help guide --json`, `agents.md`, private-state README, bridge changelog, private-state workflow/security docs, mainnet bridge upgrade, and Monitoring Packet data. Public observer support remains pending in the separate `channel-workspace-mirror` repository. |
 
 ### Risk register
 
@@ -1472,14 +1474,15 @@ Repository-action blockers that can be advanced without counsel:
 
 Deployment-dependent blockers:
 
-- Deploy the bridge upgrade that contains the Join Toll burn-address transfer and Channel Operation Abandonment source
-  behavior before public release represents those policies as deployed mainnet behavior.
-- After the bridge upgrade is deployed, regenerate deployment artifacts and Monitoring Packet JSON so
+- Completed: deploy the bridge upgrade that contains the Join Toll burn-address transfer and Channel Operation
+  Abandonment source behavior.
+- Completed: after the bridge upgrade, regenerate final deployment artifacts and Monitoring Packet JSON so
   `TPAC-Contract-Addresses.json`, `the-great-first-channel-Policy-Snapshot.json`, and ABI-derived monitoring data match
   the deployed mainnet ABI and state.
-- After observer indexing is updated, verify that the Official Public Observer exposes Channel Operation Abandonment and
-  Join Toll burn-address transfer surfaces without implying custody, private-history monitoring, exchange-network
-  control, or user-level blocking.
+- Pending in the separate `channel-workspace-mirror` repository: update observer ABI, event decoding, event-list
+  grouping, API payloads, and UI display so the Official Public Observer exposes Channel Operation Abandonment and Join
+  Toll burn-address transfer surfaces without implying custody, private-history monitoring, exchange-network control, or
+  user-level blocking.
 
 Current repository status:
 
@@ -1671,8 +1674,10 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
   note activity, `redeem-notes`, `withdraw-channel`, and `exit-channel`.
 - Completed for repository source/docs: update `help guide`, `help guide --json`, `agents.md`, README, Terms, and private-state
   workflow/security docs so users and User-Controlled AI Agents can distinguish active and abandoned Channels.
-- Deployment-dependent: update public observer data support and monitoring packet docs after the bridge upgrade is
-  deployed and the observer indexes `ChannelOperationAbandoned` from the upgraded mainnet ABI.
+- Completed in this repository: Monitoring Packet docs/data now include Channel Operation Abandonment and Join Toll
+  burn-address transfer event surfaces after the bridge upgrade.
+- Pending in the separate `channel-workspace-mirror` repository: update public observer data support so the observer
+  indexes `ChannelOperationAbandoned` and `ChannelExitTollBurned` from the upgraded mainnet ABI.
 - Checklist review result: no explicit `checklist.md` violation was found because this plan preserves transparent L1
   boundaries, does not make private notes exchange-depositable, does not add a custody or viewing-key backdoor, and keeps
   redeem/withdraw/exit paths available. The final wording must still avoid presenting abandonment as exchange-network
@@ -1791,10 +1796,11 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
   app README, CLI README, human `help guide`, `help guide --json`, `agents.md`, public observer documentation,
   monitoring packet companion docs, and audit-facing docs. The review found and fixed the monitoring companion-document
   gap for Channel Operation Abandonment and Join Toll burn-address transfer event surfaces.
-- Deployment-dependent follow-up: after the bridge upgrade is deployed and deployment artifacts are regenerated,
-  regenerate the generated Monitoring Packet JSON and ABI-derived data so `TPAC-Contract-Addresses.json` and
-  `the-great-first-channel-Policy-Snapshot.json` reflect the deployed Join Toll burn-address and Channel Operation
-  Abandonment surface. Do not manually edit generated on-chain data to describe an undeployed state.
+- Completed: after the bridge upgrade and final deployment artifact regeneration, regenerated the Monitoring Packet JSON
+  and ABI-derived data so `TPAC-Contract-Addresses.json` and `the-great-first-channel-Policy-Snapshot.json` reflect the
+  deployed Join Toll burn-address and Channel Operation Abandonment surface.
+- Pending in the separate `channel-workspace-mirror` repository: update and redeploy observer indexing for
+  `ChannelExitTollBurned`, `ChannelOperationAbandoned`, and Channel Operation status.
 - Completed: verify that no public document still describes `--acknowledge-action-impact` or
   `--acknowledge-full-note-plaintext-export` as required user options after the final prompt policy is implemented.
 - Completed: verify that no public document uses stale `LLM Agent Guidance` anchors or older agent terminology where the intended
@@ -1811,13 +1817,18 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
   `deployment/chain-id-<chain-id>/bridge-upgrade-plans/<timestamp>/`.
 - Completed in repository tooling: verify that the planned Safe owner owns `DAppManager`, `BridgeCore`, and
   `L1TokenVault` before writing the Safe batch.
-- Completed in repository documentation: document that `upgrade` does not update the canonical deployed bridge artifact
-  because the Safe batch has not executed yet.
+- Completed in repository documentation: document that `upgrade` plan generation does not update the canonical deployed
+  bridge artifact before the generated Safe batch is executed.
 - Completed operator step: ran `node bridge/scripts/deploy-bridge.mjs --network mainnet --mode upgrade` from commit
   `9882c1a5e372089ca83e358ba3310fce3af1f698`, deployed the new implementation and support contracts, and generated the
   local Safe plan under `deployment/chain-id-1/bridge-upgrade-plans/20260610T194641Z/`.
-- Next operator step: import
-  `deployment/chain-id-1/bridge-upgrade-plans/20260610T194641Z/safe-transaction-builder.1.json` into the Safe, review
-  the batch, collect 2-of-3 approvals, and execute it.
-- Deployment-dependent follow-up: after Safe execution, regenerate final bridge deployment artifacts, regenerate the
-  Monitoring Packet, and verify observer indexing for `ChannelExitTollBurned` and `ChannelOperationAbandoned`.
+- Completed operator step: imported
+  `deployment/chain-id-1/bridge-upgrade-plans/20260610T194641Z/safe-transaction-builder.1.json` into the Safe, reviewed
+  the batch, collected 2-of-3 approvals, and executed it.
+- Completed verification: confirmed on Ethereum mainnet that `DAppManager`, `BridgeCore`, and `L1TokenVault` use the
+  expected new implementation addresses, still have the Safe as owner, and point at the expected support contracts.
+- Completed follow-up: regenerated final bridge deployment artifacts and regenerated the Monitoring Packet.
+- Observer verification result: the public observer API now reports the upgraded bridge implementation addresses and the
+  existing `the-great-first-channel` fixed Join Toll refund schedule, but the separate `channel-workspace-mirror` source
+  still lacks `ChannelExitTollBurned` and `ChannelOperationAbandoned` ABI entries and status fields. Observer event
+  indexing and UI/API exposure for those two surfaces remain pending outside this repository.

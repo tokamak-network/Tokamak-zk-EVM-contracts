@@ -99,6 +99,9 @@ contract BridgeFlowTest is Test {
     event ChannelWorkspaceMirrorUpdated(
         uint256 indexed channelId, address indexed leader, string previousUri, string newUri
     );
+    event ChannelObserverUpdated(
+        uint256 indexed channelId, address indexed leader, string previousUri, string newUri
+    );
 
     DAppManager internal dAppManager;
     ChannelDeployer internal channelDeployer;
@@ -499,6 +502,75 @@ contract BridgeFlowTest is Test {
         );
         vm.prank(leader);
         bridgeCore.setChannelWorkspaceMirror(channelId, string(oversizedUri));
+    }
+
+    function testLeaderCanUpdateAndClearChannelObserver() public {
+        string memory firstUri = "https://observer.example";
+        string memory secondUri = "https://observer.example/v2";
+
+        vm.expectEmit(true, true, false, true, address(bridgeCore));
+        emit ChannelObserverUpdated(channelId, leader, "", firstUri);
+        vm.prank(leader);
+        bridgeCore.setChannelObserver(channelId, firstUri);
+        assertEq(bridgeCore.getChannelObserver(channelId), firstUri);
+
+        vm.expectEmit(true, true, false, true, address(bridgeCore));
+        emit ChannelObserverUpdated(channelId, leader, firstUri, secondUri);
+        vm.prank(leader);
+        bridgeCore.setChannelObserver(channelId, secondUri);
+        assertEq(bridgeCore.getChannelObserver(channelId), secondUri);
+
+        vm.expectEmit(true, true, false, true, address(bridgeCore));
+        emit ChannelObserverUpdated(channelId, leader, secondUri, "");
+        vm.prank(leader);
+        bridgeCore.setChannelObserver(channelId, "");
+        assertEq(bridgeCore.getChannelObserver(channelId), "");
+    }
+
+    function testOnlyLeaderCanUpdateChannelObserver() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(BridgeCore.OnlyChannelLeader.selector, channelId, leader, alice)
+        );
+        vm.prank(alice);
+        bridgeCore.setChannelObserver(channelId, "https://observer.example");
+    }
+
+    function testRejectsUnknownChannelObserverUpdate() public {
+        vm.expectRevert(abi.encodeWithSelector(BridgeCore.UnknownChannel.selector, secondChannelId));
+        vm.prank(leader);
+        bridgeCore.setChannelObserver(secondChannelId, "https://observer.example");
+
+        vm.expectRevert(abi.encodeWithSelector(BridgeCore.UnknownChannel.selector, secondChannelId));
+        bridgeCore.getChannelObserver(secondChannelId);
+    }
+
+    function testRejectsOversizedChannelObserverUri() public {
+        bytes memory oversizedUri = new bytes(2049);
+        for (uint256 i = 0; i < oversizedUri.length; i++) {
+            oversizedUri[i] = "a";
+        }
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BridgeCore.ChannelObserverUriTooLong.selector, uint256(2049), uint256(2048)
+            )
+        );
+        vm.prank(leader);
+        bridgeCore.setChannelObserver(channelId, string(oversizedUri));
+    }
+
+    function testChannelWorkspaceMirrorAndObserverAreIndependent() public {
+        string memory mirrorUri = "https://mirror.example";
+        string memory observerUri = "https://observer.example";
+
+        vm.startPrank(leader);
+        bridgeCore.setChannelWorkspaceMirror(channelId, mirrorUri);
+        bridgeCore.setChannelObserver(channelId, observerUri);
+        bridgeCore.setChannelWorkspaceMirror(channelId, "");
+        vm.stopPrank();
+
+        assertEq(bridgeCore.getChannelWorkspaceMirror(channelId), "");
+        assertEq(bridgeCore.getChannelObserver(channelId), observerUri);
     }
 
     function testChannelSnapshotsRefundScheduleAtCreation() public {

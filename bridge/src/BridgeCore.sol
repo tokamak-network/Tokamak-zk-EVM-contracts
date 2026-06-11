@@ -16,6 +16,7 @@ import { IChannelRegistry } from "./interfaces/IChannelRegistry.sol";
 contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChannelRegistry {
     uint256 internal constant MAX_MANAGED_STORAGES = 11;
     uint256 internal constant MAX_WORKSPACE_MIRROR_URI_BYTES = 2048;
+    uint256 internal constant MAX_CHANNEL_OBSERVER_URI_BYTES = 2048;
     uint16 internal constant BPS_DENOMINATOR = 10_000;
     address internal constant TOKAMAK_NETWORK_TOKEN_MAINNET =
         0x2be5e8c109e2197D077D13A82dAead6a9b3433C5;
@@ -37,6 +38,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     error DAppMetadataDigestMismatch(uint256 dappId, bytes32 expectedDigest, bytes32 actualDigest);
     error OnlyChannelLeader(uint256 channelId, address expectedLeader, address actualCaller);
     error WorkspaceMirrorUriTooLong(uint256 actualLength, uint256 maxLength);
+    error ChannelObserverUriTooLong(uint256 actualLength, uint256 maxLength);
 
     struct ChannelDeployment {
         bool exists;
@@ -65,6 +67,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
 
     mapping(uint256 => ChannelDeployment) private _channels;
     mapping(uint256 => string) private _channelWorkspaceMirrors;
+    mapping(uint256 => string) private _channelObservers;
 
     event ChannelCreated(
         uint256 indexed channelId, uint256 indexed dappId, address manager, address bridgeTokenVault
@@ -83,6 +86,9 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         uint16 bps4
     );
     event ChannelWorkspaceMirrorUpdated(
+        uint256 indexed channelId, address indexed leader, string previousUri, string newUri
+    );
+    event ChannelObserverUpdated(
         uint256 indexed channelId, address indexed leader, string previousUri, string newUri
     );
 
@@ -274,6 +280,27 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     function getChannelWorkspaceMirror(uint256 channelId) external view returns (string memory) {
         if (!_channels[channelId].exists) revert UnknownChannel(channelId);
         return _channelWorkspaceMirrors[channelId];
+    }
+
+    function setChannelObserver(uint256 channelId, string calldata uri) external {
+        ChannelDeployment memory channel = _channels[channelId];
+        if (!channel.exists) revert UnknownChannel(channelId);
+        if (msg.sender != channel.leader) {
+            revert OnlyChannelLeader(channelId, channel.leader, msg.sender);
+        }
+        uint256 uriLength = bytes(uri).length;
+        if (uriLength > MAX_CHANNEL_OBSERVER_URI_BYTES) {
+            revert ChannelObserverUriTooLong(uriLength, MAX_CHANNEL_OBSERVER_URI_BYTES);
+        }
+
+        string memory previousUri = _channelObservers[channelId];
+        _channelObservers[channelId] = uri;
+        emit ChannelObserverUpdated(channelId, msg.sender, previousUri, uri);
+    }
+
+    function getChannelObserver(uint256 channelId) external view returns (string memory) {
+        if (!_channels[channelId].exists) revert UnknownChannel(channelId);
+        return _channelObservers[channelId];
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner { }

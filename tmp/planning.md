@@ -1879,6 +1879,10 @@ Implementation plan:
      required, URI length bounded, empty URI clears the observer URL.
    - Add tests for leader-only update, clearing, oversized URI rejection, unknown Channel rejection, and independent
      mirror/observer values.
+   - Status: completed in local bridge source with `setChannelObserver`, `getChannelObserver`,
+     `ChannelObserverUpdated`, leader-only updates, 2048-byte URI limit, empty-URI clearing, and focused
+     `BridgeFlow.t.sol` coverage. The bridge-specific test suite passes with
+     `cd bridge && forge test --match-path test/BridgeFlow.t.sol`.
 
 2. CLI model:
    - Remove the Tonnel-level hardcoded observer URL constant from user-visible behavior.

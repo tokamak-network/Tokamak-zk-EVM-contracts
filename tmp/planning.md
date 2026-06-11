@@ -131,8 +131,15 @@ For purposes of these Terms:
   Tonnel. A Private Note is not a separate asset that an exchange can receive as a deposit.
 - **Bridge** means the Ethereum mainnet smart-contract path through which public deposits, withdrawals, and related
   accounting updates are recorded.
-- **Official Public Observer** means the public Tonnel observer service provided at `https://observer.tonnel.io`, or a
-  successor URL published through an official project channel.
+- **Channel Provider** means the person or entity that provides or operates Channel-specific services for a Channel,
+  including Channel-scoped observer services or workspace mirror services when those services are registered on-chain or
+  otherwise made available for that Channel.
+- **Official Public Observer** means a public observer service registered in a Channel's on-chain metadata or otherwise
+  made available by that Channel's Channel Provider for that Channel. An Official Public Observer is Channel-scoped and
+  is not a Tonnel-wide default observer for every Channel.
+- **Official Workspace Mirror** means a workspace mirror URL registered in a Channel's on-chain metadata or otherwise
+  made available by that Channel's Channel Provider for that Channel. An Official Workspace Mirror is Channel-scoped and
+  is not a Tonnel-wide default mirror for every Channel.
 - **Provider** means Jehyuk Jang, the individual who officially makes the Service available. The Provider's public
   privacy and notice contact is `cjhyuck213@gmail.com`. The Provider's stated jurisdiction is Singapore. The Provider's
   residential address is not published in the Privacy Notice or these Terms.
@@ -163,8 +170,15 @@ For purposes of these Terms:
 
 - These Terms govern access to and use of the Service.
 - The Service includes the Private-State DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, official
-  public observer services, official documentation, official examples, official deployment artifacts, and related
-  software or interfaces officially made available by the Provider Parties.
+  Tonnel-level documentation, official examples, official deployment artifacts, official proof-runtime artifacts, and
+  related software or interfaces officially made available by the Provider. Channel-scoped observer services and
+  workspace mirror services are part of the Service only for the Channel to which they are registered or otherwise made
+  available by the applicable Channel Provider.
+- Observer services and workspace mirror services are Channel-scoped. The URL for a Channel's observer or workspace
+  mirror is read from that Channel's on-chain metadata when registered. A URL shown in documentation for a specific
+  Channel is a Channel-specific example and is not a Tonnel-wide default for every Channel.
+- For The Great First Channel, Jehyuk Jang is both the Provider and the Channel Provider. That does not make The Great
+  First Channel's observer or workspace mirror a default observer or mirror for other Channels.
 - Tonnel is the branded name for Tokamak Private App Channels.
 - Tonnel is an opt-in private application-channel system used from a Self-Custody Ethereum Account.
 - The Great First Channel is a Channel within Tonnel.
@@ -296,16 +310,21 @@ ownership, control, or destination of assets.
 - Channel Operators do not guarantee recovery of lost user secrets, lost Private Notes, lost evidence, failed
   transactions, Third-Party Service failures, or rejected exchange deposits.
 
-### 10. Official public observer, monitoring, and evidence
+### 10. Channel-scoped observers, monitoring, and evidence
 
-- Tonnel provides an Official Public Observer at `https://observer.tonnel.io`.
-- The Official Public Observer may display public Ethereum mainnet records, public Channel records, accepted
-  transitions, commitments, nullifiers, encrypted note-delivery events, accounting updates, and related monitoring data.
-- The Official Public Observer is not intended to receive or display user secrets. It displays only records available to
+- Channel Providers may provide Channel-scoped Official Public Observers. When a Channel's observer URL is registered
+  on-chain, users can verify that URL through the Channel's on-chain metadata and through official CLI or Monitoring
+  Packet views that read that metadata.
+- For The Great First Channel, the current registered observer URL is `https://observer.tonnel.io`. That URL is the
+  observer for The Great First Channel and is not a Tonnel-wide observer URL for all Channels.
+- An Official Public Observer may display public Ethereum mainnet records, public Channel records, accepted transitions,
+  commitments, nullifiers, encrypted note-delivery events, accounting updates, and related monitoring data for the
+  Channel it observes.
+- An Official Public Observer is not intended to receive or display user secrets. It displays only records available to
   it and does not guarantee that every fact needed for legal, accounting, tax, exchange, asset-history, or compliance
   review is available.
-- Exchanges, analytics providers, regulators, Channel Operators, users, and other observers may independently monitor
-  Ethereum mainnet and public Channel records.
+- Exchanges, analytics providers, regulators, Channel Providers, Channel Operators, users, and other observers may
+  independently monitor Ethereum mainnet and public Channel records.
 - The user may need to preserve local evidence to explain asset history, transaction history, Private Note ownership, or
   facts the user chooses to prove.
 - Selective disclosure depends on implemented software features and on records preserved by the user.
@@ -1479,10 +1498,9 @@ Deployment-dependent blockers:
 - Completed: after the bridge upgrade, regenerate final deployment artifacts and Monitoring Packet JSON so
   `TPAC-Contract-Addresses.json`, `the-great-first-channel-Policy-Snapshot.json`, and ABI-derived monitoring data match
   the deployed mainnet ABI and state.
-- Pending in the separate `channel-workspace-mirror` repository: update observer ABI, event decoding, event-list
-  grouping, API payloads, and UI display so the Official Public Observer exposes Channel Operation Abandonment and Join
-  Toll burn-address transfer surfaces without implying custody, private-history monitoring, exchange-network control, or
-  user-level blocking.
+- Completed in the separate `channel-workspace-mirror` repository: observer ABI support, event decoding, event-list
+  grouping, API payloads, and UI display now expose Channel Operation Abandonment and Join Toll burn-address transfer
+  surfaces without implying custody, private-history monitoring, exchange-network control, or user-level blocking.
 
 Current repository status:
 
@@ -1676,8 +1694,8 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
   workflow/security docs so users and User-Controlled AI Agents can distinguish active and abandoned Channels.
 - Completed in this repository: Monitoring Packet docs/data now include Channel Operation Abandonment and Join Toll
   burn-address transfer event surfaces after the bridge upgrade.
-- Pending in the separate `channel-workspace-mirror` repository: update public observer data support so the observer
-  indexes `ChannelOperationAbandoned` and `ChannelExitTollBurned` from the upgraded mainnet ABI.
+- Completed in the separate `channel-workspace-mirror` repository: public observer data support now indexes
+  `ChannelOperationAbandoned` and `ChannelExitTollBurned` from the upgraded mainnet ABI.
 - Checklist review result: no explicit `checklist.md` violation was found because this plan preserves transparent L1
   boundaries, does not make private notes exchange-depositable, does not add a custody or viewing-key backdoor, and keeps
   redeem/withdraw/exit paths available. The final wording must still avoid presenting abandonment as exchange-network
@@ -1799,8 +1817,8 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
 - Completed: after the bridge upgrade and final deployment artifact regeneration, regenerated the Monitoring Packet JSON
   and ABI-derived data so `TPAC-Contract-Addresses.json` and `the-great-first-channel-Policy-Snapshot.json` reflect the
   deployed Join Toll burn-address and Channel Operation Abandonment surface.
-- Pending in the separate `channel-workspace-mirror` repository: update and redeploy observer indexing for
-  `ChannelExitTollBurned`, `ChannelOperationAbandoned`, and Channel Operation status.
+- Completed in the separate `channel-workspace-mirror` repository: observer indexing and UI/API exposure for
+  `ChannelExitTollBurned`, `ChannelOperationAbandoned`, and Channel Operation status have been updated and redeployed.
 - Completed: verify that no public document still describes `--acknowledge-action-impact` or
   `--acknowledge-full-note-plaintext-export` as required user options after the final prompt policy is implemented.
 - Completed: verify that no public document uses stale `LLM Agent Guidance` anchors or older agent terminology where the intended
@@ -1828,10 +1846,10 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
 - Completed verification: confirmed on Ethereum mainnet that `DAppManager`, `BridgeCore`, and `L1TokenVault` use the
   expected new implementation addresses, still have the Safe as owner, and point at the expected support contracts.
 - Completed follow-up: regenerated final bridge deployment artifacts and regenerated the Monitoring Packet.
-- Observer verification result: the public observer API now reports the upgraded bridge implementation addresses and the
-  existing `the-great-first-channel` fixed Join Toll refund schedule, but the separate `channel-workspace-mirror` source
-  still lacks `ChannelExitTollBurned` and `ChannelOperationAbandoned` ABI entries and status fields. Observer event
-  indexing and UI/API exposure for those two surfaces remain pending outside this repository.
+- Observer verification result: the public observer API now reports the upgraded bridge implementation addresses, the
+  existing `the-great-first-channel` fixed Join Toll refund schedule, `join_toll_burn_address:
+  0x000000000000000000000000000000000000dEaD`, `channel_operation_abandoned_at: null`, and UI/API support for
+  `ChannelExitTollBurned` and `ChannelOperationAbandoned`.
 
 ### Phase 9: Channel-Scoped Mirror And Observer Responsibility Realignment
 
@@ -1937,7 +1955,7 @@ Implementation plan:
    - Regenerate deployment artifacts and Monitoring Packet data so the on-chain observer URL appears in generated data.
    - After the separate `channel-workspace-mirror` observer update is deployed, verify that the registered observer URL
      serves the expected Channel.
-   - Status: bridge upgrade executed; Channel observer URL registration pending. Commit
+   - Status: bridge upgrade executed; Channel observer URL registration completed. Commit
      `1f350c52d18033a4e6872e0005d0b3c8684718e2` was pushed to
      `origin/main`, the remote-main deployment gate passed, and the bridge Solidity diff check found
      `bridge/src/BridgeCore.sol` changed since deployment commit `9882c1a5e372089ca83e358ba3310fce3af1f698`. After
@@ -1974,26 +1992,40 @@ Implementation plan:
    - Completed: fixed `help observer` command metadata and BridgeCore ABI feature detection. The command now declares
      read-only deployment artifact requirements, and stale installed artifacts now produce a clear
      `MISSING_DEPLOYMENT_ARTIFACTS` reinstall message instead of an internal TypeError.
-   - Pending: publish or install updated read-only deployment artifacts before expecting an already installed local CLI
-     cache to resolve `help observer` directly from the upgraded ABI. Local CLI agent-guidance tests pass.
+   - Remaining local-operator step: run interactive `private-state-cli install --read-only --include-local-artifacts`,
+     or publish updated read-only deployment artifacts and then run interactive `private-state-cli install --read-only`,
+     before expecting an already installed local CLI cache to resolve `help observer` directly from the upgraded ABI.
+     The CLI correctly reports a `MISSING_DEPLOYMENT_ARTIFACTS` reinstall-required error while the local installed ABI
+     is stale. Local CLI agent-guidance tests pass.
 
 5. Verification:
-   - Verify that no public document still states that `observer.tonnel.io` is the universal Official Public Observer for
-     all Tonnel Channels.
-   - Verify that no CLI command prints an observer URL unless it came from the selected Channel's on-chain metadata.
-   - Verify that `help observer --json` and human `help observer` handle both registered and unregistered observer URLs.
-   - Verify that `help guide --json` directs User-Controlled AI Agents to use on-chain Channel metadata for mirror and
-     observer URLs.
-   - Verify that Terms and Privacy Notice consistently identify Jehyuk Jang as both Tonnel Provider and The Great First
-     Channel Provider while still treating mirror and observer responsibility as Channel-scoped.
-   - Verify that Terms and Privacy Notice do not identify Tokamak Network PTE. LTD. as Provider under the current plan.
-   - Verify that generated Monitoring Packet JSON distinguishes Channel-scoped mirror and observer URLs from Tonnel-wide
-     software or documentation URLs.
+   - Completed: verified that public Terms, packaged CLI Terms, Privacy Notice, CLI README, `agents.md`, and Monitoring
+     Packet docs do not state that `observer.tonnel.io` is the universal Official Public Observer for all Tonnel
+     Channels. The only remaining references describe it as The Great First Channel's registered observer URL.
+   - Completed: verified that the CLI source no longer contains a user-visible `PRIVATE_STATE_OBSERVER_URL` constant and
+     that `help observer` reads `BridgeCore.getChannelObserver(channelId)` for the selected Channel.
+   - Completed: verified that current `help observer --json` and human `help observer` fail clearly with
+     `MISSING_DEPLOYMENT_ARTIFACTS` when the already installed local read-only ABI is stale and lacks
+     `BridgeCore.getChannelObserver`. The command does not fall back to a hardcoded URL.
+   - Remaining after local artifact update: verify that `help observer --json` and human `help observer` print the
+     registered Channel observer URL for `the-great-first-channel`, and verify that both modes fail clearly when the
+     selected Channel exists but has no registered observer URL.
+   - Completed: verified that `help guide --json` includes `agentGuidance.termsRefs`, `agentGuidance.refs`, and
+     Channel on-chain observer metadata fields for User-Controlled AI Agents.
+   - Completed: verified that Terms and Privacy Notice consistently identify Jehyuk Jang as both Provider and The Great
+     First Channel Provider while still treating mirror and observer responsibility as Channel-scoped.
+   - Completed: verified that Terms and Privacy Notice do not identify Tokamak Network PTE. LTD. as Provider under the
+     current plan.
+   - Completed: verified that generated Monitoring Packet JSON distinguishes Channel-scoped `workspaceMirrorUrl` and
+     `channelObserverUrl` from Tonnel-wide software or documentation URLs.
 
 Release blocker:
 
-- Public release documents must not be finalized under the old provider model. Terms, Privacy Notice, CLI README,
-  packaged Terms, human help, JSON help, `agents.md`, and monitoring docs must be updated before the next public release
-  that includes the responsibility realignment.
-- The CLI must not continue to hardcode `observer.tonnel.io` as a Tonnel-level URL once the on-chain Channel observer
-  registry is implemented.
+- Completed: public release documents have been updated away from the old provider model for Terms, Privacy Notice, CLI
+  README, packaged Terms, human help, JSON help, `agents.md`, and monitoring docs.
+- Completed: the CLI no longer hardcodes `observer.tonnel.io` as a Tonnel-level URL after the on-chain Channel observer
+  registry implementation.
+- Remaining local release-readiness action: update local installed read-only deployment artifacts through an interactive
+  human install flow. The user must run and accept the Terms personally; User-Controlled AI Agents and automation must
+  not type the Terms acceptance phrase for the user.
+- After that human install flow, rerun the `help observer` registered and unregistered observer checks.

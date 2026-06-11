@@ -66,7 +66,6 @@ Options:
   --drive-folder-id <id>       Google Drive root folder ID. Defaults to TOKAMAK_MPC_DRIVE_FOLDER_ID.
   --output <dir>               Internal validation output directory. Default: scripts/monitoring-packet/output.
   --skip-drive                 Skip Google Drive artifact metadata reads.
-  --allow-missing-drive        Continue with a warning if Drive metadata cannot be read.
   --skip-etherscan             Skip source verification status reads.
   --allow-missing-etherscan    Continue with a warning if Etherscan status cannot be classified.
   --help                       Show this help.
@@ -80,7 +79,6 @@ function parseArgs(argv) {
     channel: DEFAULT_CHANNEL,
     output: DEFAULT_INTERNAL_OUTPUT_DIR,
     skipDrive: false,
-    allowMissingDrive: false,
     skipEtherscan: false,
     allowMissingEtherscan: false,
   };
@@ -100,7 +98,6 @@ function parseArgs(argv) {
     else if (arg === "--drive-folder-id") args.driveFolderId = value();
     else if (arg === "--output") args.output = path.resolve(value());
     else if (arg === "--skip-drive") args.skipDrive = true;
-    else if (arg === "--allow-missing-drive") args.allowMissingDrive = true;
     else if (arg === "--skip-etherscan") args.skipEtherscan = true;
     else if (arg === "--allow-missing-etherscan") args.allowMissingEtherscan = true;
     else throw new Error(`Unknown option: ${arg}`);
@@ -1500,13 +1497,7 @@ async function main() {
   const artifacts = loadLocalArtifacts(args);
   const onchain = await buildOnchainSnapshot({ args, artifacts, rpcUrl: resolveRpcUrl(args) });
 
-  let driveArtifacts;
-  try {
-    driveArtifacts = await buildDriveArtifacts({ args, artifacts });
-  } catch (error) {
-    if (!args.allowMissingDrive) throw error;
-    driveArtifacts = { status: "unavailable", warning: error.message };
-  }
+  const driveArtifacts = await buildDriveArtifacts({ args, artifacts });
 
   let sourceVerification;
   try {

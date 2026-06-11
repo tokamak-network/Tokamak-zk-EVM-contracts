@@ -1832,3 +1832,105 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
   existing `the-great-first-channel` fixed Join Toll refund schedule, but the separate `channel-workspace-mirror` source
   still lacks `ChannelExitTollBurned` and `ChannelOperationAbandoned` ABI entries and status fields. Observer event
   indexing and UI/API exposure for those two surfaces remain pending outside this repository.
+
+### Phase 9: Channel-Scoped Mirror And Observer Responsibility Realignment
+
+Purpose: realign Service responsibility and URL discovery so the CLI belongs to Tonnel, while mirror servers and
+observer services belong to each Channel. Tonnel-level software must not hardcode a Channel-specific mirror or observer
+URL. Users, User-Controlled AI Agents, public documents, and generated monitoring data must be able to distinguish the
+Tonnel Provider from a Channel Provider.
+
+Selected responsibility model:
+
+- Tonnel Provider: Tokamak Network PTE. LTD.
+- The Great First Channel Provider: Jehyuk Jang.
+- Mirror servers and observer services are Channel-scoped services, not Tonnel-wide services.
+- Each Channel Provider is responsible for that Channel's mirror server and observer service if the Channel Provider
+  registers those URLs on-chain.
+- For The Great First Channel, the mirror server and observer service are provided by Jehyuk Jang as The Great First
+  Channel Provider, not by Tokamak Network PTE. LTD. as the Tonnel Provider.
+- Public documents must generalize this model for all Channels. They must not imply that every Channel's mirror server
+  or observer is operated by Tokamak Network PTE. LTD. or by the same operator as The Great First Channel.
+
+Current implementation findings:
+
+- Mirror URL discovery is already Channel-scoped. `BridgeCore.setChannelWorkspaceMirror(channelId, uri)` and
+  `BridgeCore.getChannelWorkspaceMirror(channelId)` store and read one workspace mirror URL per Channel. Only the
+  on-chain Channel leader can update the registered mirror URL.
+- The Great First Channel's current registered mirror URL is `https://project-scw1r.vercel.app`, as reflected by the
+  generated Monitoring Packet.
+- Observer URL discovery is currently wrong for the selected responsibility model. The CLI hardcodes
+  `https://observer.tonnel.io` in `PRIVATE_STATE_OBSERVER_URL`, and `help observer` prints that deployed public observer
+  URL without resolving it from the selected Channel.
+- Current Terms, packaged Service Terms, Privacy Notice, CLI README, public observer docs, monitoring docs, and
+  `planning.md` still use the older model in places: "Provider" means Jehyuk Jang for the whole Service, and
+  `observer.tonnel.io` is described as the Official Public Observer. Those statements must be rewritten.
+
+Implementation plan:
+
+1. Contract model:
+   - Keep the existing Channel workspace mirror registry for backward-compatible mirror URL discovery.
+   - Add a Channel-scoped observer URL registry to the bridge. Use explicit methods rather than a Tonnel-wide constant,
+     for example `setChannelObserver(uint256 channelId, string uri)` and
+     `getChannelObserver(uint256 channelId)`, or an equivalent clearly named API.
+   - Restrict observer URL updates to the Channel leader, matching the mirror URL authority model.
+   - Emit an event such as `ChannelObserverUpdated(channelId, leader, previousUri, newUri)`.
+   - Apply the same basic constraints as mirror URLs where appropriate: existing Channel required, Channel leader
+     required, URI length bounded, empty URI clears the observer URL.
+   - Add tests for leader-only update, clearing, oversized URI rejection, unknown Channel rejection, and independent
+     mirror/observer values.
+
+2. CLI model:
+   - Remove the Tonnel-level hardcoded observer URL constant from user-visible behavior.
+   - Change `help observer` so it requires or resolves a Channel selector and network selector, reads that Channel's
+     observer URL from the bridge, and prints the Channel-scoped observer URL.
+   - If no observer URL is registered for the selected Channel, show a clear human error and a JSON error explaining
+     that no Channel Provider has registered an observer for that Channel.
+   - Keep mirror recovery behavior Channel-scoped through the existing on-chain mirror URL.
+   - Update `help guide` and `help guide --json` so User-Controlled AI Agents understand that mirror and observer URLs
+     must be obtained from on-chain Channel metadata, not from Tonnel-wide defaults.
+   - Update command registry metadata and CLI README text that currently describes a single deployed observer URL.
+
+3. Public documents:
+   - Redefine Terms actors:
+     - Tonnel Provider means Tokamak Network PTE. LTD. for Tonnel-level software and Tonnel-level official interfaces.
+     - Channel Provider means the person or entity that operates or provides Channel-specific services for a Channel.
+     - The Great First Channel Provider means Jehyuk Jang.
+     - Provider Parties must be split or qualified so obligations do not accidentally transfer between Tokamak Network
+       PTE. LTD. and a Channel Provider.
+   - Update Terms and packaged CLI Terms so "Service", "Provider", "Provider Parties", "Official Public Observer",
+     "Official workspace mirror", and "Third-Party Services" match the new split responsibility model.
+   - Update Privacy Notice so it no longer presents `observer.tonnel.io` as a universal Tonnel observer. It should say
+     that observer and mirror services are Channel-scoped and that The Great First Channel's current registered URLs are
+     operated by Jehyuk Jang as The Great First Channel Provider.
+   - Update all public docs to state that mirror and observer URLs are read from on-chain Channel metadata. Static URL
+     examples may be shown only as examples for a specific Channel and must not be described as Tonnel-wide defaults.
+   - Update monitoring docs and Monitoring Packet generation so Channel observer URL, if available, is read from
+     on-chain state alongside the workspace mirror URL.
+
+4. Deployment and migration:
+   - Deploy the bridge upgrade that adds Channel observer URL registry support.
+   - Have The Great First Channel leader register the current observer URL on-chain after deployment.
+   - Regenerate deployment artifacts and Monitoring Packet data so the on-chain observer URL appears in generated data.
+   - After the separate `channel-workspace-mirror` observer update is deployed, verify that the registered observer URL
+     serves the expected Channel.
+
+5. Verification:
+   - Verify that no public document still states that `observer.tonnel.io` is the universal Official Public Observer for
+     all Tonnel Channels.
+   - Verify that no CLI command prints an observer URL unless it came from the selected Channel's on-chain metadata.
+   - Verify that `help observer --json` and human `help observer` handle both registered and unregistered observer URLs.
+   - Verify that `help guide --json` directs User-Controlled AI Agents to use on-chain Channel metadata for mirror and
+     observer URLs.
+   - Verify that Terms and Privacy Notice consistently separate Tokamak Network PTE. LTD. as Tonnel Provider from Jehyuk
+     Jang as The Great First Channel Provider.
+   - Verify that generated Monitoring Packet JSON distinguishes Channel-scoped mirror and observer URLs from Tonnel-wide
+     software or documentation URLs.
+
+Release blocker:
+
+- Public release documents must not be finalized under the old provider model. Terms, Privacy Notice, CLI README,
+  packaged Terms, human help, JSON help, `agents.md`, and monitoring docs must be updated before the next public release
+  that includes the responsibility realignment.
+- The CLI must not continue to hardcode `observer.tonnel.io` as a Tonnel-level URL once the on-chain Channel observer
+  registry is implemented.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Changed the browser-based install Terms page to render the packaged Markdown Terms as styled HTML instead of showing
+  raw preformatted Markdown text.
 - Changed human-mode CLI result formatting so `install` prints a concise installation summary and generic command
   results render nested objects and arrays as readable indented text instead of raw JSON blobs.
 - Changed managed runtime installation subprocesses to stay quiet on successful installs while preserving captured

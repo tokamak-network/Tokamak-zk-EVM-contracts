@@ -2969,6 +2969,7 @@ function writeBrowserTermsResponse(response, statusCode, contentType, body) {
 }
 
 function browserTermsAcceptanceHtml({ terms, termsText, nonce }) {
+  const renderedTerms = renderMarkdownDocument(termsText);
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -2977,37 +2978,144 @@ function browserTermsAcceptanceHtml({ terms, termsText, nonce }) {
   <title>Tonnel Service Terms</title>
   <style>
     :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    body { margin: 0; background: #f6f7f9; color: #15171a; }
-    main { max-width: 980px; margin: 0 auto; padding: 32px 20px 64px; }
-    h1 { margin: 0 0 8px; font-size: 32px; }
-    h2 { margin-top: 32px; }
-    .panel { background: #fff; border: 1px solid #d8dde3; border-radius: 8px; padding: 20px; }
-    .meta { display: grid; gap: 6px; margin: 16px 0; color: #34383f; }
-    pre { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; background: #fff; border: 1px solid #d8dde3; border-radius: 8px; padding: 18px; max-height: 55vh; overflow: auto; }
-    .notice { margin: 16px 0 0; color: #34383f; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f6f8; color: #15171a; }
+    main { max-width: 960px; margin: 0 auto; padding: 36px 20px 48px; }
+    header { margin-bottom: 18px; }
+    h1 { margin: 0 0 8px; font-size: 34px; line-height: 1.12; letter-spacing: 0; }
+    .lead { margin: 0; color: #4c525a; line-height: 1.55; }
+    .panel { background: #fff; border: 1px solid #d9dee5; border-radius: 8px; padding: 20px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 14px; color: #34383f; font-size: 14px; }
+    .terms-markdown { margin-top: 18px; padding: 28px; line-height: 1.62; }
+    .terms-markdown h1 { margin: 0 0 8px; font-size: 30px; }
+    .terms-markdown h2 { margin: 32px 0 10px; padding-top: 20px; border-top: 1px solid #e6e9ee; font-size: 21px; }
+    .terms-markdown h3 { margin: 24px 0 8px; font-size: 17px; }
+    .terms-markdown p { margin: 10px 0; }
+    .terms-markdown ul, .terms-markdown ol { margin: 10px 0 16px; padding-left: 26px; }
+    .terms-markdown li { margin: 7px 0; }
+    .terms-markdown code { padding: 2px 5px; border-radius: 4px; background: #eef1f5; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.94em; }
+    .accept-panel { position: sticky; bottom: 0; margin-top: 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; box-shadow: 0 -8px 24px rgba(21, 23, 26, 0.06); }
+    .accept-copy { margin: 0; color: #4c525a; line-height: 1.45; }
     button { font: inherit; font-weight: 700; padding: 12px 18px; border: 0; border-radius: 6px; background: #111; color: #fff; cursor: pointer; }
+    button:focus { outline: 3px solid #7aa7ff; outline-offset: 2px; }
+    @media (max-width: 640px) {
+      main { padding: 24px 14px 32px; }
+      h1 { font-size: 28px; }
+      .terms-markdown { padding: 20px 16px; }
+      .accept-panel { position: static; }
+      button { width: 100%; }
+    }
   </style>
 </head>
 <body>
   <main>
-    <h1>Tonnel Service Terms</h1>
-    <section class="panel">
+    <header>
+      <h1>Tonnel Service Terms</h1>
+      <p class="lead">Please review these Terms. Installation continues only after you accept them yourself.</p>
       <div class="meta">
         <div><strong>Terms version:</strong> ${escapeHtml(terms.termsVersion)}</div>
       </div>
-      <p class="notice">Please review the Service Terms below. Installation will continue after you accept them.</p>
-    </section>
+    </header>
 
-    <h2>Service Terms</h2>
-    <pre>${escapeHtml(termsText.trimEnd())}</pre>
+    <article class="panel terms-markdown">
+${renderedTerms}
+    </article>
 
-    <form method="post" action="/accept" class="panel">
+    <form method="post" action="/accept" class="panel accept-panel">
       <input type="hidden" name="token" value="${escapeHtml(nonce)}">
+      <p class="accept-copy">By accepting, you confirm that you reviewed the Terms and want installation to continue.</p>
       <button id="accept-button" type="submit">Accept Terms and Continue Installation</button>
     </form>
   </main>
 </body>
 </html>`;
+}
+
+function renderMarkdownDocument(markdown) {
+  const lines = String(markdown).trimEnd().split(/\r?\n/u);
+  const html = [];
+  let paragraphLines = [];
+  let listType = null;
+  let listItems = [];
+
+  const flushParagraph = () => {
+    if (paragraphLines.length === 0) {
+      return;
+    }
+    html.push(`<p>${renderInlineMarkdown(paragraphLines.join(" "))}</p>`);
+    paragraphLines = [];
+  };
+  const flushList = () => {
+    if (!listType) {
+      return;
+    }
+    html.push(`<${listType}>`);
+    for (const item of listItems) {
+      html.push(`  <li>${item}</li>`);
+    }
+    html.push(`</${listType}>`);
+    listType = null;
+    listItems = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (line.trim() === "") {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    const heading = /^(#{1,6})\s+(.+)$/u.exec(line);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      const level = Math.min(heading[1].length, 3);
+      html.push(`<h${level}>${renderInlineMarkdown(heading[2].trim())}</h${level}>`);
+      continue;
+    }
+
+    const unorderedItem = /^-\s+(.+)$/u.exec(line);
+    if (unorderedItem) {
+      flushParagraph();
+      if (listType !== "ul") {
+        flushList();
+        listType = "ul";
+      }
+      listItems.push(renderInlineMarkdown(unorderedItem[1].trim()));
+      continue;
+    }
+
+    const orderedItem = /^\d+\.\s+(.+)$/u.exec(line);
+    if (orderedItem) {
+      flushParagraph();
+      if (listType !== "ol") {
+        flushList();
+        listType = "ol";
+      }
+      listItems.push(renderInlineMarkdown(orderedItem[1].trim()));
+      continue;
+    }
+
+    const listContinuation = /^\s{2,}(\S.*)$/u.exec(line);
+    if (listContinuation && listType && listItems.length > 0) {
+      listItems[listItems.length - 1] = `${listItems[listItems.length - 1]} ${renderInlineMarkdown(listContinuation[1].trim())}`;
+      continue;
+    }
+
+    flushList();
+    paragraphLines.push(line.trim());
+  }
+
+  flushParagraph();
+  flushList();
+  return html.map((line) => `      ${line}`).join("\n");
+}
+
+function renderInlineMarkdown(value) {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/gu, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/gu, "<strong>$1</strong>");
 }
 
 function browserTermsAcceptedHtml() {

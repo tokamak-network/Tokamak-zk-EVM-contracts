@@ -256,6 +256,22 @@ function testHumanModeHasNoJsonObjectFallback() {
   );
 }
 
+function testBrowserTermsUsesMarkdownRendering() {
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
+  expect(
+    runtimeSource.includes("function renderMarkdownDocument"),
+    "browser Terms page should render packaged Terms Markdown into HTML.",
+  );
+  expect(
+    runtimeSource.includes("<article class=\"panel terms-markdown\">"),
+    "browser Terms page should display rendered Terms content in a Markdown article.",
+  );
+  expect(
+    !runtimeSource.includes("<pre>${escapeHtml(termsText.trimEnd())}</pre>"),
+    "browser Terms page must not display the Terms as raw preformatted Markdown text.",
+  );
+}
+
 function testTerminalTermsFallbackRequiresInteractiveTermsAcceptance() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-install-human-home-"));
   const failure = runCliExpectFailure(["install", "--read-only", "--terminal-terms"], { home });
@@ -700,6 +716,7 @@ testGuideJsonRefs();
 testGuideJsonDeploymentArtifactsMissing();
 testInstallJsonDoesNotInstallOrAcceptTerms();
 testHumanModeHasNoJsonObjectFallback();
+testBrowserTermsUsesMarkdownRendering();
 testTerminalTermsFallbackRequiresInteractiveTermsAcceptance();
 testInstallManifestPersistsTermsAcceptance();
 testTermsGatedJsonRequiresCurrentTermsAcceptance();

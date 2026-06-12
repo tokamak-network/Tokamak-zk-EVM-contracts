@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   PRIVATE_STATE_CLI_COMMANDS,
@@ -65,6 +66,88 @@ function runCliExpectFailure(args, options = {}) {
     };
   }
   throw new Error(`Expected CLI failure: ${args.join(" ")}`);
+}
+
+function postJson(url, payload) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const request = http.request(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": Buffer.byteLength(body),
+      },
+    }, (response) => {
+      response.resume();
+      response.on("end", () => resolve(response.statusCode));
+    });
+    request.on("error", reject);
+    request.end(body);
+  });
+}
+
+function runCliWithBrowserCallbacks(args, responses, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [cliPath, ...args], {
+      cwd: options.cwd ?? cliRoot,
+      env: {
+        ...process.env,
+        HOME: options.home ?? fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-home-")),
+        PATH: options.path ?? "/private-state-cli-test-no-browser-opener",
+        ...(options.env ?? {}),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    const handledTokens = new Set();
+    const pendingPosts = [];
+    const handleSigningUrls = () => {
+      const matches = stderr.matchAll(/Signing URL: (http:\/\/127\.0\.0\.1:\d+\/sign\?token=([^\s]+))/gu);
+      for (const match of matches) {
+        const url = match[1];
+        const token = decodeURIComponent(match[2]);
+        if (handledTokens.has(token)) {
+          continue;
+        }
+        handledTokens.add(token);
+        const response = responses.shift();
+        if (!response) {
+          reject(new Error(`No browser-wallet test response was provided for ${url}.`));
+          continue;
+        }
+        pendingPosts.push(postJson(new URL("/result", url), { token, ...response }));
+      }
+    };
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+      handleSigningUrls();
+    });
+    child.on("error", reject);
+    child.on("close", async (status) => {
+      try {
+        await Promise.all(pendingPosts);
+        if (status !== 0) {
+          if (options.expectFailure) {
+            resolve({ stdout, stderr, status });
+            return;
+          }
+          reject(new Error(`CLI failed with status ${status}.\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+          return;
+        }
+        if (options.expectFailure) {
+          reject(new Error(`Expected CLI failure.\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+          return;
+        }
+        resolve({ stdout, stderr, status });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
 }
 
 function parseJson(stdout) {
@@ -746,6 +829,55 @@ function testMissingAccountSelectsBrowserWalletMode() {
   );
 }
 
+async function testBrowserWalletHumanConnectsFromLocalCallback() {
+  const selectedAddress = "0x1111111111111111111111111111111111111111";
+  const result = await runCliWithBrowserCallbacks([
+    "account",
+    "get-l1-address",
+    "--network",
+    "mainnet",
+  ], [
+    { ok: true, result: [selectedAddress] },
+  ]);
+  expect(
+    result.stderr.includes("Browser wallet approval required: connect."),
+    "Human browser-wallet mode should print an approval prompt for the connect request.",
+  );
+  expect(
+    result.stderr.includes("MetaMask-capable browser"),
+    "Human browser-wallet mode should explain that the signing URL can be opened in a MetaMask-capable browser.",
+  );
+  expect(
+    result.stdout.includes(selectedAddress),
+    "Browser-wallet account get-l1-address should use the address returned by the localhost wallet callback.",
+  );
+  expect(
+    !result.stdout.includes("privateKey"),
+    "Browser-wallet account get-l1-address output must not include any private-key field.",
+  );
+}
+
+async function testBrowserWalletHumanRejectsLocalCallback() {
+  const result = await runCliWithBrowserCallbacks([
+    "account",
+    "get-l1-address",
+    "--network",
+    "mainnet",
+  ], [
+    { ok: false, error: "User rejected the browser wallet request." },
+  ], {
+    expectFailure: true,
+  });
+  expect(
+    result.status !== 0,
+    "Rejected browser-wallet approval must fail the CLI command.",
+  );
+  expect(
+    result.stderr.includes("Browser wallet connect failed: User rejected the browser wallet request."),
+    "Rejected browser-wallet approval should explain the wallet rejection.",
+  );
+}
+
 function testValueLessTxSubmitterPassesArgumentValidation() {
   const failure = runCliExpectFailure([
     "wallet",
@@ -841,32 +973,38 @@ function testNonTtyPrivateKeyPromptFailsClearly() {
   expect(!fs.existsSync(outputPath), "Failed private-key helper run must not create an output file.");
 }
 
-testSecretCommandsRegistered();
-testBrowserWalletAccountGrammar();
-testMissingAccountSelectsBrowserWalletMode();
-testValueLessTxSubmitterPassesArgumentValidation();
-testCanonicalTermsAssetMatchesPublicTerms();
-testGuideJsonRefs();
-testGuideJsonDeploymentArtifactsMissing();
-testInstallJsonDoesNotInstallOrAcceptTerms();
-testHumanModeHasNoJsonObjectFallback();
-testBrowserTermsUsesMarkdownRendering();
-testInstallHumanProgressMessages();
-testTerminalTermsFallbackRequiresInteractiveTermsAcceptance();
-testInstallManifestPersistsTermsAcceptance();
-testTermsGatedJsonRequiresCurrentTermsAcceptance();
-testTermsGatedJsonRejectsStaleTermsAcceptance();
-testGuideJsonAccountSecretMissing();
-testGuideJsonWalletMissingBeforeChannelJoin();
-testGuideHumanOutputIsUserFacing();
-testHelpCommandsOutputUsesFinalPromptPolicy();
-testHelpObserverUsesChannelScopedSelectors();
-testGuideHumanPrivateKeyFlowIncludesAddressVerification();
-testGuideHumanWalletSecretFlowExplainsMasking();
-testReadmeJsonPurposeIsAgentSafe();
-testAgentsDescribeChannelScopedObserverMetadata();
-testDeprecatedAcknowledgementOptionsAreAbsentFromRunnableSurfaces();
-testRandomWalletSecretHelper();
-testNonTtyPrivateKeyPromptFailsClearly();
+async function main() {
+  testSecretCommandsRegistered();
+  testBrowserWalletAccountGrammar();
+  testMissingAccountSelectsBrowserWalletMode();
+  await testBrowserWalletHumanConnectsFromLocalCallback();
+  await testBrowserWalletHumanRejectsLocalCallback();
+  testValueLessTxSubmitterPassesArgumentValidation();
+  testCanonicalTermsAssetMatchesPublicTerms();
+  testGuideJsonRefs();
+  testGuideJsonDeploymentArtifactsMissing();
+  testInstallJsonDoesNotInstallOrAcceptTerms();
+  testHumanModeHasNoJsonObjectFallback();
+  testBrowserTermsUsesMarkdownRendering();
+  testInstallHumanProgressMessages();
+  testTerminalTermsFallbackRequiresInteractiveTermsAcceptance();
+  testInstallManifestPersistsTermsAcceptance();
+  testTermsGatedJsonRequiresCurrentTermsAcceptance();
+  testTermsGatedJsonRejectsStaleTermsAcceptance();
+  testGuideJsonAccountSecretMissing();
+  testGuideJsonWalletMissingBeforeChannelJoin();
+  testGuideHumanOutputIsUserFacing();
+  testHelpCommandsOutputUsesFinalPromptPolicy();
+  testHelpObserverUsesChannelScopedSelectors();
+  testGuideHumanPrivateKeyFlowIncludesAddressVerification();
+  testGuideHumanWalletSecretFlowExplainsMasking();
+  testReadmeJsonPurposeIsAgentSafe();
+  testAgentsDescribeChannelScopedObserverMetadata();
+  testDeprecatedAcknowledgementOptionsAreAbsentFromRunnableSurfaces();
+  testRandomWalletSecretHelper();
+  testNonTtyPrivateKeyPromptFailsClearly();
 
-console.log("private-state CLI agent guidance tests passed.");
+  console.log("private-state CLI agent guidance tests passed.");
+}
+
+await main();

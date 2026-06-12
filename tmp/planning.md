@@ -2097,8 +2097,8 @@ Release blocker:
 
 ## Terms Audience Simplification Review
 
-Status: planned. Do not rewrite the Terms in this step. First simplify the drafting plan so the next Terms edit is aimed
-at ordinary non-developer users and judicial or regulatory readers, not protocol developers.
+Status: completed in public Terms and packaged CLI Terms. The Terms have been rewritten for ordinary non-developer users
+and judicial or regulatory readers, while preserving the legal and operational disclosures listed below.
 
 ### Review Findings
 
@@ -2164,6 +2164,9 @@ When rewriting the Terms, apply the following rules:
    - Keep technical terms only when they are later used repeatedly or affect user rights.
    - Remove deployment/proof artifact wording from the primary Service definition unless rewritten as "official software
      and related materials".
+   - Status: completed. The public Terms and packaged CLI Terms now use "official software, official interfaces, and
+     related materials" and no longer define User-Controlled AI Agent or Official Machine-Readable Output as standalone
+     Terms concepts.
 
 2. Rewrite Product Boundary and Channel Policy clauses:
    - Replace getter names with a plain statement that Bridge default policy and Channel-specific policy are recorded in
@@ -2172,6 +2175,8 @@ When rewriting the Terms, apply the following rules:
      `0x000000000000000000000000000000000000dEaD` because it is legally material to the non-refundable Join Toll
      handling.
    - Replace CLI command names with plain action descriptions.
+   - Status: completed. Solidity getter names and CLI command names were removed from the public Terms, while the
+     burn-address transfer and on-chain-records-control rule remain.
 
 3. Rewrite Public Records and Observer clauses:
    - Replace protocol-record lists with ordinary-user language such as "public Channel activity records and technical
@@ -2179,15 +2184,21 @@ When rewriting the Terms, apply the following rules:
    - Keep the disclosure that observer services may be incomplete, delayed, or insufficient for legal, accounting, tax,
      exchange, audit, or compliance review.
    - Keep Channel-scoped observer and mirror responsibility clear.
+   - Status: completed. The Terms now describe public Channel records and accepted Channel activity without listing
+     protocol record internals such as commitments, nullifiers, or root updates.
 
 4. Rewrite Risk Disclosures:
    - Compress proof-system and runtime implementation details into a broader cryptographic-software risk disclosure.
    - Keep irreversible transaction, wallet, third-party RPC, bridge, smart-contract, regulatory, and market risks.
+   - Status: completed. The Terms now refer to privacy-preserving cryptographic software, proof systems, and related
+     tools without CRS, runtime, or proof-input implementation details.
 
 5. Rewrite Renewed Acceptance clauses:
    - State that changed Terms require renewed user acceptance before terms-gated operations continue.
    - State that the Service may store acceptance metadata needed to verify accepted Terms.
    - Move field-level acceptance metadata details to CLI documentation or Privacy Notice if needed.
+   - Status: completed. The Terms now state the renewed acceptance rule and acceptance metadata purpose without listing
+     stored implementation fields such as package version or acceptance source.
 
 6. Cross-document follow-up after Terms edits:
    - Update the packaged CLI Terms asset to match the public Terms exactly.
@@ -2196,3 +2207,6 @@ When rewriting the Terms, apply the following rules:
    - Confirm README, `agents.md`, CLI help, observer docs, and Monitoring Packet docs retain the technical lookup
      details removed from the Terms.
    - Re-run the canonical Terms asset consistency test and public-document conflict review.
+   - Status: completed. The packaged CLI Terms asset now matches the public Terms, and the Terms version is
+     `2026-06-12`. README, `agents.md`, CLI help, observer docs, and Monitoring Packet docs still retain the technical
+     lookup and operational details removed from the Terms. The canonical Terms asset consistency test passes.

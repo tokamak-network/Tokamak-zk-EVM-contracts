@@ -1,24 +1,23 @@
 # Tonnel Terms of Service
 
-Last updated: June 11, 2026
+Last updated: June 12, 2026
 
 ## 1. Definitions
 
 For purposes of these Terms:
 
 - **Terms** means these terms governing access to and use of the Service.
-- **Service** means the private-state DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, official
-  Tonnel-level documentation, official examples, official deployment artifacts, official proof-runtime artifacts, and
-  related software or interfaces officially made available by the Provider for the private-state DApp. Channel-scoped
-  observer services and workspace mirror services are part of the Service only for the Channel to which they are
-  registered or otherwise made available by the applicable Channel Provider.
-- **CLI** means the command-line software that a user may install and execute to access or operate parts of the Service.
+- **Service** means the Private-State DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, official
+  documentation, official examples, official software, official interfaces, and related materials made available by the
+  Provider. Channel-scoped observer services and workspace mirror services are part of the Service only for the Channel
+  to which they are registered or otherwise made available by the applicable Channel Provider.
+- **CLI** means command-line software that a user may install and execute to access or operate parts of the Service.
 - **Private-State DApp** means the application that allows users to use Tonnel private application state through
   supported Channels.
 - **Tonnel** means the branded user-facing name for Tokamak Private App Channels.
 - **Tokamak Private App Channels** means the application-channel system exposed to users through Tonnel.
 - **Channel** means a specific opt-in Tonnel application environment with its own policy, membership rules, accounting
-  records, and private note records. A Channel is not an exchange deposit or withdrawal network.
+  records, and Private Note records. A Channel is not an exchange deposit or withdrawal network.
 - **The Great First Channel** means the dedicated initial Channel identified as `the-great-first-channel`.
 - **Join Toll** means the one-time Channel entry fee paid when a user joins a Channel.
 - **Ethereum mainnet** means the public Ethereum network where relevant Bridge, Channel-management, registration, and
@@ -34,58 +33,42 @@ For purposes of these Terms:
 - **Bridge** means the Ethereum mainnet smart-contract path through which public deposits, withdrawals, and related
   accounting updates are recorded.
 - **Channel Provider** means the person or entity that provides or operates Channel-specific services for a Channel,
-  including Channel-scoped observer services or workspace mirror services when those services are registered on-chain or
-  otherwise made available for that Channel.
-- **Official Public Observer** means a public observer service registered in a Channel's on-chain metadata or otherwise
-  made available by that Channel's Channel Provider for that Channel. An Official Public Observer is Channel-scoped and
-  is not a Tonnel-wide default observer for every Channel.
-- **Official Workspace Mirror** means a workspace mirror URL registered in a Channel's on-chain metadata or otherwise
-  made available by that Channel's Channel Provider for that Channel. An Official Workspace Mirror is Channel-scoped and
-  is not a Tonnel-wide default mirror for every Channel.
+  including Channel-scoped observer services or workspace mirror services for that Channel.
+- **Official Public Observer** means a Channel-scoped public observer service made available by a Channel Provider for a
+  specific Channel. An Official Public Observer is not a Tonnel-wide default observer for every Channel.
+- **Official Workspace Mirror** means a Channel-scoped workspace mirror made available by a Channel Provider for a
+  specific Channel. An Official Workspace Mirror is not a Tonnel-wide default mirror for every Channel.
 - **Provider** means Jehyuk Jang, the individual who officially makes the Service available. The Provider's public
   privacy and notice contact is `cjhyuck213@gmail.com`. The Provider's stated jurisdiction is Singapore. The Provider's
   residential address is not published in the Privacy Notice or these Terms.
 - **Provider Parties** means the Provider and the Provider's affiliates, contractors, agents, service providers, and
   authorized representatives, to the extent each acts within an authorized Service-related role. Provider Parties do not
   include Tokamak Network PTE. LTD. under these Terms.
-- **Tokamak Network PTE. LTD.** means a separate software contributor and licensor associated with Tokamak private app
-  channel source code, Tokamak private DApp packages, upstream Tokamak zk-EVM tooling, and related repository materials.
-  For Tokamak-controlled repositories, package registries, published artifacts, token infrastructure, bridge
-  infrastructure, or upstream tooling that is not operated by the Provider, Tokamak Network PTE. LTD. is a Third-Party
-  Service or infrastructure/tooling provider. Tokamak Network PTE. LTD. is not the Provider, does not accept Provider
-  obligations, and does not provide custody, recovery, legal, tax, compliance, wallet, RPC, or user-support services
-  through these Terms.
+- **Tokamak Network PTE. LTD.** means a separate software contributor and licensor. Tokamak Network PTE. LTD. is not the
+  Provider, does not accept Provider obligations, and does not provide custody, recovery, legal, tax, compliance, wallet,
+  RPC, or user-support services through these Terms.
 - **Channel Operators** means persons or entities that create, configure, administer, publish policies for, publish
-  recovery metadata for, or otherwise operate a Channel. A Channel Operator may also be a Channel Provider when that
+  recovery information for, or otherwise operate a Channel. A Channel Operator may also be a Channel Provider when that
   person or entity provides Channel-scoped services for the Channel.
-- **Channel Operation Abandonment** means an on-chain Channel state initiated by the Channel leader that immediately
-  disables new Channel joins and new `deposit-channel` actions for that Channel while leaving note activity,
-  `redeem-notes`, `withdraw-channel`, and `exit-channel` unrestricted by that abandonment state.
+- **Channel Operation Abandonment** means a Channel state initiated by the Channel leader that stops new Channel joins
+  and new Channel deposits while leaving existing Private Note activity, Private Note redemption, Channel withdrawal, and
+  Channel exit available subject to ordinary requirements.
 - **Third-Party Services** means wallets, RPC providers, exchanges, explorers, analytics providers, browsers, package
   registries, operating systems, cloud services, and other services not controlled by the Provider Parties.
-- **User-Controlled AI Agent** means an AI tool, assistant, or automated system selected, configured, or used by the user
-  to interpret Service output or assist with Service use.
-- **Official Machine-Readable Output** means JSON or similar structured output generated by the CLI or another official
-  Service interface for software tools or User-Controlled AI Agents.
 - **Privacy Notice** means the Provider's published privacy notice for the Service.
 
 ## 2. Service Scope And Product Boundary
 
 These Terms govern access to and use of the Service.
 
-The Service includes the Private-State DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, official
-Tonnel-level documentation, official examples, official deployment artifacts, official proof-runtime artifacts, and
-related software or interfaces officially made available by the Provider.
+Tonnel is the branded name for Tokamak Private App Channels. Tonnel is an opt-in private application-channel system used
+from a Self-Custody Ethereum Account. The Great First Channel is a Channel within Tonnel.
 
-Observer services and workspace mirror services are Channel-scoped. The URL for a Channel's observer or workspace mirror
-is read from that Channel's on-chain metadata when registered. A URL shown in documentation for a specific Channel is a
-Channel-specific example and is not a Tonnel-wide default for every Channel.
+Observer services and workspace mirror services are Channel-scoped. A URL shown for one Channel is specific to that
+Channel and is not a Tonnel-wide default for every Channel.
 
 For The Great First Channel, Jehyuk Jang is both the Provider and the Channel Provider. That does not make The Great
 First Channel's observer or workspace mirror a default observer or mirror for other Channels.
-
-Tonnel is the branded name for Tokamak Private App Channels. Tonnel is an opt-in private application-channel system used
-from a Self-Custody Ethereum Account. The Great First Channel is a Channel within Tonnel.
 
 Tonnel does not alter TON transfer rules on Ethereum mainnet. Through the Service, Provider Parties do not provide
 exchange deposit services, exchange withdrawal services, brokerage, custodial wallet services, hosted transfer services,
@@ -101,15 +84,13 @@ transfer, not as a TON total-supply reduction.
 
 The Bridge default Join Toll refund policy may be updated through the applicable on-chain governance or administration
 path. Each Channel fixes its own Join Toll refund policy when that Channel is created, and later Bridge default policy
-updates do not automatically rewrite an existing Channel's fixed policy. Users should verify the current Bridge default
-policy through the `BridgeCore.defaultJoinTollRefundCutoff*` and `BridgeCore.defaultJoinTollRefundBps*` on-chain getters
-and should verify a specific Channel's fixed policy through that Channel's `ChannelManager.joinTollRefundCutoff*` and
-`ChannelManager.joinTollRefundBps*` on-chain getters. Official observer pages, CLI output, and Monitoring Packet files
+updates do not automatically rewrite an existing Channel's fixed policy. Users should verify Bridge and Channel policy
+values through official on-chain contract records. Official observer pages, CLI output, and other official interfaces
 may provide convenience views of those on-chain values, but the on-chain values control.
 
-A Channel leader may initiate Channel Operation Abandonment. Once initiated on-chain, the affected Channel immediately
-rejects new joins and new `deposit-channel` actions. Other note activity, `redeem-notes`, `withdraw-channel`, and
-`exit-channel` remain available subject to ordinary proof, balance, registration, and transaction requirements.
+A Channel leader may initiate Channel Operation Abandonment. Once initiated, the affected Channel immediately rejects new
+joins and new Channel deposits. Existing Private Note activity, Private Note redemption, Channel withdrawal, and Channel
+exit remain available subject to ordinary proof, balance, registration, and transaction requirements.
 
 Nothing in these Terms is a determination of the regulatory status of any person, entity, software, transaction, network,
 token, or service under applicable law.
@@ -145,8 +126,7 @@ Bridge deposits and withdrawals recorded on Ethereum mainnet include or reveal E
 token amounts, transaction hashes, block numbers, timing, and related event data.
 
 Public Channel records can include Channel creation, Channel joining, identity registration, note-receive public key
-registration, Channel accounting updates, and technical records such as note commitments, nullifiers, encrypted
-note-delivery events, accepted transitions, and root updates.
+registration, Channel accounting updates, and other technical records needed to verify Channel state.
 
 Gas-paying accounts and transaction submitters are visible on Ethereum mainnet when they submit public transactions.
 
@@ -180,12 +160,12 @@ If all required copies of a private key, seed phrase, wallet secret, spending ke
 or other required recovery material are lost, no recovery method exists for the affected access, Private Notes, funds,
 evidence, or disclosure capability.
 
-Provider Parties, Channel Providers, Channel Operators, support channels, websites, and User-Controlled AI Agents do not
-need the user's private keys, seed phrases, wallet secrets, spending keys, viewing keys, or equivalent secrets to provide
-ordinary Service access, support, explanations, or guidance.
+Provider Parties, Channel Providers, Channel Operators, support channels, websites, automated tools, and third parties do
+not need the user's private keys, seed phrases, wallet secrets, spending keys, viewing keys, or equivalent secrets to
+provide ordinary Service access, support, explanations, or guidance.
 
 The user must not share private keys, seed phrases, wallet secrets, spending keys, viewing keys, or equivalent secrets
-with any User-Controlled AI Agent, Provider Party, Channel Operator, support channel, website, or third party.
+with any automated tool, Provider Party, Channel Operator, support channel, website, or third party.
 
 ## 7. Prohibited Use
 
@@ -221,8 +201,8 @@ The user must use only trustworthy software, package sources, websites, wallets,
 
 Joining a Channel means accepting that Channel's policy snapshot.
 
-Channel policy may include Join Tolls, refund rules, administrative roles, operator roles, backup or recovery information
-expectations, monitoring practices, fee rules, or other operating rules.
+Channel policy may include Join Tolls, refund rules, administrative roles, operator roles, backup or recovery
+information expectations, monitoring practices, fee rules, or other operating rules.
 
 Channel Providers and Channel Operators may publish public metadata, policy information, event records, or recovery
 information.
@@ -234,16 +214,15 @@ evidence, failed transactions, Third-Party Service failures, or rejected exchang
 
 ## 10. Channel-Scoped Observers, Monitoring, And Evidence
 
-Channel Providers may provide Channel-scoped Official Public Observers. When a Channel's observer URL is registered
-on-chain, users can verify that URL through the Channel's on-chain metadata and through official CLI or Monitoring
-Packet views that read that metadata.
+Channel Providers may provide Channel-scoped Official Public Observers. When a Channel's observer URL is registered or
+otherwise made available for a Channel, users can verify that URL through official Channel records or official interfaces
+that read those records.
 
 For The Great First Channel, the current registered observer URL is `https://observer.tonnel.io`. That URL is the
 observer for The Great First Channel and is not a Tonnel-wide observer URL for all Channels.
 
-An Official Public Observer may display public Ethereum mainnet records, public Channel records, accepted transitions,
-commitments, nullifiers, encrypted note-delivery events, accounting updates, and related monitoring data for the Channel
-it observes.
+An Official Public Observer may display public Ethereum mainnet records, public Channel records, accepted Channel
+activity, accounting updates, and related monitoring data for the Channel it observes.
 
 An Official Public Observer is not intended to receive or display user secrets. It displays only records available to it
 and does not guarantee that every fact needed for legal, accounting, tax, exchange, asset-history, or compliance review
@@ -286,24 +265,23 @@ Third-Party Services may collect or process user data under their own terms and 
 ## 13. No Professional Advice
 
 Provider Parties do not provide legal, tax, accounting, financial, investment, trading, compliance, sanctions, or
-regulatory advice through the Service or Official Machine-Readable Output.
+regulatory advice through the Service.
 
-Information provided through the Service or Official Machine-Readable Output is for operational and informational
-purposes only.
+Information provided through the Service is for operational and informational purposes only.
 
-User-Controlled AI Agents are selected, configured, or used by the user. They are not agents, representatives, service
-providers, or support providers of Provider Parties unless an official Service document expressly says otherwise.
+Automated tools selected, configured, or used by the user are not agents, representatives, service providers, or support
+providers of Provider Parties unless an official Service document expressly says otherwise.
 
-Provider Parties do not control and are not responsible for User-Controlled AI Agents.
+Provider Parties do not control and are not responsible for automated tools selected, configured, or used by the user.
 
-The user is responsible for reviewing any recommendation, explanation, or action proposed by a User-Controlled AI Agent.
+The user is responsible for reviewing any recommendation, explanation, or action proposed by an automated tool.
 
 The user should consult qualified professionals before making legal, tax, accounting, financial, compliance, sanctions,
 or regulatory decisions.
 
 ## 14. Risk Disclosures
 
-Public blockchain systems, smart contracts, bridges, zero-knowledge systems, cryptographic software, wallets, and RPC
+Public blockchain systems, smart contracts, bridges, privacy-preserving cryptographic software, wallets, and RPC
 providers involve significant operational, technical, security, market, regulatory, and legal risks.
 
 Transactions recorded on Ethereum mainnet may be irreversible.
@@ -312,9 +290,7 @@ Software bugs, user mistakes, compromised devices, malicious third parties, gove
 network congestion, RPC failure, Bridge failure, smart-contract failure, cryptographic implementation defects, or
 changes in law may cause loss, delay, rejected transactions, unavailable services, or loss of access.
 
-Zero-knowledge proof systems, proving circuits, verifier contracts, CRS or proving artifacts, proving runtimes, local
-proof generation, proof input construction, and proof verification can contain defects, incompatibilities, or operational
-failures.
+Cryptographic proof systems and related tools can contain defects, incompatibilities, or operational failures.
 
 Public observer services and indexing systems can be delayed, incomplete, unavailable, misconfigured, inconsistent with a
 user's local state, or insufficient for legal, accounting, tax, exchange, audit, or compliance review.
@@ -374,22 +350,17 @@ continuing to use terms-gated Service operations.
 
 Renewed acceptance may be collected only after the current Terms are displayed to the user.
 
-Terms-gated Service operations must compare the current terms version and deterministic terms hash against the user's
-stored acceptance record.
+The Service may store acceptance metadata needed to verify whether the user accepted the current Terms.
 
-A valid acceptance record must include the accepted terms version, deterministic terms hash, acceptance timestamp, CLI
-package version, and acceptance source.
+If no current acceptance record exists, or if the stored acceptance record is stale, the Service may reject terms-gated
+operations until the current Terms are displayed and the user submits the required acceptance.
 
-If no acceptance record exists, or if the stored version or hash is stale, the Service must reject terms-gated operations
-until the current Terms are displayed and the user submits the required explicit acceptance phrase or acceptance control.
-
-The user must not rely on Official Machine-Readable Output or a User-Controlled AI Agent to accept changed Terms on the
-user's behalf.
+The user must not rely on automated output or an automated tool to accept changed Terms on the user's behalf.
 
 ## 19. Suspension, Discontinuation, And Software Changes
 
 Provider Parties may modify, suspend, discontinue, or stop supporting software, documentation, Channel-scoped observer
-services or workspace mirror services they operate, deployment artifacts, examples, or related services.
+services or workspace mirror services they operate, examples, or related services.
 
 Open-source smart contracts and public blockchain records may continue to exist independently of any supported
 interface.

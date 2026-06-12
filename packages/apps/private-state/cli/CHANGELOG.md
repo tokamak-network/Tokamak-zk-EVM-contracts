@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Simplified the packaged Service Terms for ordinary users and judicial or regulatory readers by removing excessive
-  implementation details while preserving self-custody, public-record, risk, liability, and Channel responsibility
+  implementation and operation details while preserving self-custody, public-record, risk, liability, and Channel policy
   disclosures.
 - Added human-mode install progress messages with step counts and elapsed time so users can see that installation is
   still running after browser Terms acceptance.

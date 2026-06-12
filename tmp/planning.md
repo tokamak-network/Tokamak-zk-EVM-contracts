@@ -2098,7 +2098,9 @@ Release blocker:
 ## Terms Audience Simplification Review
 
 Status: completed in public Terms and packaged CLI Terms. The Terms have been rewritten for ordinary non-developer users
-and judicial or regulatory readers, while preserving the legal and operational disclosures listed below.
+and judicial or regulatory readers, while preserving only the legal disclosures needed in the Terms themselves. Detailed
+implementation and operation information remains in README, CLI help, observer documentation, and Monitoring Packet
+documentation instead of the Terms.
 
 ### Review Findings
 
@@ -2142,8 +2144,8 @@ When rewriting the Terms, apply the following rules:
 
 - Keep legally material facts in the Terms: Provider identity and contact, Service scope, self-custody, no recovery
   method, public Ethereum mainnet records, privacy limits, prohibited use, third-party services, no professional advice,
-  risk disclosures, no warranties, liability limitation, indemnity, changes to Terms, governing law, venue, notices,
-  Channel-scoped observer and mirror responsibility, Join Toll non-monetization, and burn-address transfer semantics.
+  risk disclosures, no warranties, liability limitation, indemnity, changes to Terms, governing law, venue, notices, and
+  Join Toll non-monetization.
 - Remove or generalize implementation details that do not change user rights or responsibilities.
 - Use plain action names for ordinary users: join a Channel, deposit into a Channel, create or use Private Notes, redeem
   Private Notes, withdraw from a Channel, and exit a Channel.
@@ -2171,21 +2173,21 @@ When rewriting the Terms, apply the following rules:
 2. Rewrite Product Boundary and Channel Policy clauses:
    - Replace getter names with a plain statement that Bridge default policy and Channel-specific policy are recorded in
      official on-chain contract records and may be displayed by official interfaces.
-   - Keep the burn address
-     `0x000000000000000000000000000000000000dEaD` because it is legally material to the non-refundable Join Toll
-     handling.
+   - Move exact burn-address information to technical or operational documentation rather than the Terms.
    - Replace CLI command names with plain action descriptions.
-   - Status: completed. Solidity getter names and CLI command names were removed from the public Terms, while the
-     burn-address transfer and on-chain-records-control rule remain.
+   - Status: completed. Solidity getter names, CLI command names, exact burn-address information, and observer-specific
+     operational references were removed from the public Terms, while Join Toll non-monetization and
+     on-chain-records-control remain.
 
 3. Rewrite Public Records and Observer clauses:
    - Replace protocol-record lists with ordinary-user language such as "public Channel activity records and technical
      records needed to verify Channel state".
    - Keep the disclosure that observer services may be incomplete, delayed, or insufficient for legal, accounting, tax,
      exchange, audit, or compliance review.
-   - Keep Channel-scoped observer and mirror responsibility clear.
-   - Status: completed. The Terms now describe public Channel records and accepted Channel activity without listing
-     protocol record internals such as commitments, nullifiers, or root updates.
+   - Keep the legal disclosure that public records and public monitoring may exist, without defining Channel-scoped
+     observer or mirror operations in the Terms.
+   - Status: completed. The Terms now describe public records and public monitoring without listing protocol record
+     internals, specific observer URLs, Channel-scoped mirror operations, commitments, nullifiers, or root updates.
 
 4. Rewrite Risk Disclosures:
    - Compress proof-system and runtime implementation details into a broader cryptographic-software risk disclosure.

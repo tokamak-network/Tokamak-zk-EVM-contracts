@@ -5800,7 +5800,9 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     context.bridgeAbiManifest.contracts.erc20.abi,
     signer,
   );
-  let nextNonce = await provider.getTransactionCount(signer.address, "pending");
+  const usesLocalL1PrivateKey = typeof signer.privateKey === "string";
+  let nextNonce = usesLocalL1PrivateKey ? await provider.getTransactionCount(signer.address, "pending") : null;
+  const nextL1TransactionOverrides = () => usesLocalL1PrivateKey ? { nonce: nextNonce++ } : undefined;
   printImmutableChannelPolicyWarning({
     action: "channel join",
     channelName: context.workspace.channelName,
@@ -5822,7 +5824,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       call: contractTxCall(
         asset.approve,
         [context.workspace.bridgeTokenVault, joinToll],
-        { nonce: nextNonce++ },
+        nextL1TransactionOverrides(),
         asset.interface,
       ),
     });
@@ -5838,7 +5840,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
         leafIndex,
         noteReceiveKeyMaterial.noteReceivePubKey,
       ],
-      { nonce: nextNonce++ },
+      nextL1TransactionOverrides(),
       context.bridgeTokenVault.interface,
     ),
     submittedBefore: approveReceipt ? [submittedReceiptSummary("channel join approve", approveReceipt)] : [],

@@ -758,6 +758,20 @@ function commandById(commandId) {
   return command;
 }
 
+function sourceBetween(source, start, end) {
+  const startIndex = source.indexOf(start);
+  expect(startIndex >= 0, `Missing source start marker: ${start}`);
+  const endIndex = source.indexOf(end, startIndex + start.length);
+  expect(endIndex > startIndex, `Missing source end marker: ${end}`);
+  return source.slice(startIndex, endIndex);
+}
+
+function indexInSource(source, marker) {
+  const index = source.indexOf(marker);
+  expect(index >= 0, `Missing source marker: ${marker}`);
+  return index;
+}
+
 function testBrowserWalletAccountGrammar() {
   const accountOptionalCommands = [
     "account-get-l1-address",
@@ -806,6 +820,53 @@ function testBrowserWalletAccountGrammar() {
   expect(
     runtimeSource.includes("method: \"eth_signTypedData_v4\""),
     "Browser-wallet signer should support MetaMask typed-data signatures.",
+  );
+}
+
+function testChannelJoinBrowserWalletFlowCoverage() {
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
+  const joinSource = sourceBetween(
+    runtimeSource,
+    "async function handleJoinChannel",
+    "async function handleExitChannel",
+  );
+  const browserSignerSource = sourceBetween(
+    runtimeSource,
+    "class BrowserWalletSigner",
+    "function personalSignPayload",
+  );
+  expect(
+    joinSource.includes("const signer = await requireL1Signer(args, provider);"),
+    "channel join should resolve local-account or browser-wallet L1 authority through requireL1Signer.",
+  );
+  expect(
+    indexInSource(joinSource, "deriveParticipantIdentityFromSigner")
+      < indexInSource(joinSource, "deriveNoteReceiveKeyMaterial"),
+    "channel join should derive the L2 spending identity before deriving note-receive viewing material.",
+  );
+  expect(
+    indexInSource(joinSource, "deriveNoteReceiveKeyMaterial") < indexInSource(joinSource, "asset.approve"),
+    "channel join should finish browser wallet key-derivation signatures before token approval.",
+  );
+  expect(
+    indexInSource(joinSource, "asset.approve") < indexInSource(joinSource, "joinChannel"),
+    "channel join should approve the join toll before submitting joinChannel.",
+  );
+  expect(
+    browserSignerSource.includes("method: \"eth_requestAccounts\"")
+      && browserSignerSource.includes("method: \"eth_chainId\"")
+      && browserSignerSource.includes("method: \"personal_sign\"")
+      && browserSignerSource.includes("method: \"eth_signTypedData_v4\"")
+      && browserSignerSource.includes("method: \"eth_sendTransaction\""),
+    "BrowserWalletSigner should cover the channel join connect, chain check, key derivation, and transaction methods.",
+  );
+  expect(
+    joinSource.includes("typeof signer.privateKey === \"string\""),
+    "channel join should detect whether the signer is backed by a local L1 private key.",
+  );
+  expect(
+    joinSource.includes("const nextL1TransactionOverrides = () => usesLocalL1PrivateKey ? { nonce: nextNonce++ } : undefined;"),
+    "channel join should omit explicit nonce overrides when browser wallet submission is used.",
   );
 }
 
@@ -976,6 +1037,7 @@ function testNonTtyPrivateKeyPromptFailsClearly() {
 async function main() {
   testSecretCommandsRegistered();
   testBrowserWalletAccountGrammar();
+  testChannelJoinBrowserWalletFlowCoverage();
   testMissingAccountSelectsBrowserWalletMode();
   await testBrowserWalletHumanConnectsFromLocalCallback();
   await testBrowserWalletHumanRejectsLocalCallback();

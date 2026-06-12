@@ -772,6 +772,10 @@ function indexInSource(source, marker) {
   return index;
 }
 
+function countOccurrences(source, marker) {
+  return source.split(marker).length - 1;
+}
+
 function testBrowserWalletAccountGrammar() {
   const accountOptionalCommands = [
     "account-get-l1-address",
@@ -867,6 +871,49 @@ function testChannelJoinBrowserWalletFlowCoverage() {
   expect(
     joinSource.includes("const nextL1TransactionOverrides = () => usesLocalL1PrivateKey ? { nonce: nextNonce++ } : undefined;"),
     "channel join should omit explicit nonce overrides when browser wallet submission is used.",
+  );
+}
+
+function testWalletOwnerBrowserFallbackFlowCoverage() {
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
+  const exitSource = sourceBetween(
+    runtimeSource,
+    "async function handleExitChannel",
+    "async function handleGrothVaultMove",
+  );
+  const grothMoveSource = sourceBetween(
+    runtimeSource,
+    "async function handleGrothVaultMove",
+    "async function handleWithdrawBridge",
+  );
+  const ownerSignerSource = sourceBetween(
+    runtimeSource,
+    "async function requireWalletOwnerSigner",
+    "function requireWalletSpendingCapability",
+  );
+  expect(
+    ownerSignerSource.includes("expectedAddress: walletContext.wallet.l1Address"),
+    "Wallet-owner browser fallback must require the selected browser address to match the wallet owner address.",
+  );
+  expect(
+    grothMoveSource.includes("const signer = await requireWalletOwnerSigner(walletContext, provider);"),
+    "wallet deposit-channel and wallet withdraw-channel should use browser-wallet fallback when the local owner L1 key is absent.",
+  );
+  expect(
+    grothMoveSource.includes("const l2Identity = restoreParticipantIdentityFromWallet(walletContext.wallet);"),
+    "wallet deposit-channel and wallet withdraw-channel should keep L2 identity restoration local to the wallet workspace.",
+  );
+  expect(
+    !grothMoveSource.includes("const { signer, l2Identity } = restoreWalletParticipant(walletContext, provider);"),
+    "wallet deposit-channel and wallet withdraw-channel must not submit through an address-only restored signer.",
+  );
+  expect(
+    countOccurrences(exitSource, "requireWalletOwnerSigner(") === 0,
+    "channel exit should reuse the wallet owner signer loaded during channel-fund validation instead of requesting browser approval twice.",
+  );
+  expect(
+    exitSource.includes("const ownerSigner = signer;"),
+    "channel exit should name the already-validated wallet owner signer before transaction submission.",
   );
 }
 
@@ -1038,6 +1085,7 @@ async function main() {
   testSecretCommandsRegistered();
   testBrowserWalletAccountGrammar();
   testChannelJoinBrowserWalletFlowCoverage();
+  testWalletOwnerBrowserFallbackFlowCoverage();
   testMissingAccountSelectsBrowserWalletMode();
   await testBrowserWalletHumanConnectsFromLocalCallback();
   await testBrowserWalletHumanRejectsLocalCallback();

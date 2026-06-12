@@ -5912,7 +5912,7 @@ async function handleExitChannel({ args, provider }) {
     provider,
     progressAction: "channel exit",
   });
-  const ownerSigner = await requireWalletOwnerSigner(walletContext, provider);
+  const ownerSigner = signer;
   const network = contextResult.network;
   await warnIfChannelOperationAbandoned(context, "channel exit");
   expect(
@@ -6000,7 +6000,8 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   );
   await assertChannelProofBackendVersionCompatibility({ context, operationName });
 
-  const { signer, l2Identity } = restoreWalletParticipant(walletContext, provider);
+  const signer = await requireWalletOwnerSigner(walletContext, provider);
+  const l2Identity = restoreParticipantIdentityFromWallet(walletContext.wallet);
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
   await printCommandWarningSummary(args.command, args, {

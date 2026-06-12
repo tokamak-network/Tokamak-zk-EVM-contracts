@@ -814,7 +814,7 @@ async function installTokamakCliRuntimeForPrivateState({ version, docker }) {
   if (docker) {
     installArgs.push("--docker");
   }
-  run(invocation.command, installArgs, { cwd: packageInstall.packageRoot });
+  run(invocation.command, installArgs, { cwd: packageInstall.packageRoot, quiet: true });
   const doctor = runCaptured(invocation.command, [...invocation.args, "--doctor"], {
     cwd: packageInstall.packageRoot,
   });
@@ -848,7 +848,7 @@ async function installGroth16RuntimeForPrivateState({ version, docker }) {
   if (docker) {
     args.push("--docker");
   }
-  run(process.execPath, args, { cwd: packageRoot });
+  run(process.execPath, args, { cwd: packageRoot, quiet: true });
   const compatibleBackendVersion = readGroth16PackageCompatibleBackendVersion(packageRoot);
   const crsInstall = await installGroth16CrsForPrivateStateVersion(compatibleBackendVersion);
   const runtime = inspectGroth16Runtime({ packageRoot });
@@ -981,7 +981,7 @@ function installManagedNpmPackage({ packageName, version, cacheBaseRoot = resolv
     "--no-audit",
     "--fund=false",
     `${normalizedPackageName}@${normalizedVersion}`,
-  ]);
+  ], { quiet: true });
   const packageRoot = path.join(installPrefix, "node_modules", ...normalizedPackageName.split("/"));
   const packageJsonPath = path.join(packageRoot, "package.json");
   const packageJson = readJson(packageJsonPath);

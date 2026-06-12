@@ -240,6 +240,22 @@ function testInstallJsonDoesNotInstallOrAcceptTerms() {
   );
 }
 
+function testHumanModeHasNoJsonObjectFallback() {
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
+  const humanFormatterSource = runtimeSource.slice(
+    runtimeSource.indexOf("function printHumanResult"),
+    runtimeSource.indexOf("function humanizeLabel"),
+  );
+  expect(
+    runtimeSource.includes("install: printInstallHumanResult"),
+    "install must have a dedicated human-readable result renderer.",
+  );
+  expect(
+    !humanFormatterSource.includes("JSON.stringify"),
+    "human-readable fallback must not stringify object values as raw JSON.",
+  );
+}
+
 function testTerminalTermsFallbackRequiresInteractiveTermsAcceptance() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-install-human-home-"));
   const failure = runCliExpectFailure(["install", "--read-only", "--terminal-terms"], { home });
@@ -683,6 +699,7 @@ testCanonicalTermsAssetMatchesPublicTerms();
 testGuideJsonRefs();
 testGuideJsonDeploymentArtifactsMissing();
 testInstallJsonDoesNotInstallOrAcceptTerms();
+testHumanModeHasNoJsonObjectFallback();
 testTerminalTermsFallbackRequiresInteractiveTermsAcceptance();
 testInstallManifestPersistsTermsAcceptance();
 testTermsGatedJsonRequiresCurrentTermsAcceptance();

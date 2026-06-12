@@ -12795,6 +12795,7 @@ const HUMAN_RESULT_RENDERERS = Object.freeze({
   doctor: printDoctorHumanReport,
   guide: printGuideHumanResult,
   "help commands": printHelpCommandsHumanResult,
+  install: printInstallHumanResult,
   investigator: printInvestigatorHumanResult,
   observer: printObserverHumanResult,
   "transaction-fees": printTransactionFeesHumanResult,
@@ -12876,6 +12877,44 @@ function emitOutputEvent(event) {
 
 function printVersionHumanResult(result) {
   console.log(result.version);
+}
+
+function printInstallHumanResult(result) {
+  const artifactLines = Array.isArray(result.installedDeploymentArtifacts)
+    ? result.installedDeploymentArtifacts.map((artifact) => {
+      const parts = [
+        `chain ${formatHumanValue(artifact.chainId)}`,
+        artifact.source ? `source ${artifact.source}` : null,
+        artifact.bridgeTimestamp ? `bridge ${artifact.bridgeTimestamp}` : null,
+        artifact.dappTimestamp ? `dapp ${artifact.dappTimestamp}` : null,
+      ].filter(Boolean);
+      return `- ${parts.join("; ")}`;
+    })
+    : [];
+  const lines = [
+    "Install complete",
+    `Mode: ${formatHumanValue(result.installMode)}`,
+    `Terms version: ${formatHumanValue(result.terms?.termsVersion)}`,
+    `Terms accepted at: ${formatHumanValue(result.termsAcceptance?.acceptedAt)}`,
+    `Tokamak zk-EVM CLI runtime: ${formatPackageVersion(result.tokamakCliRuntime)}`,
+    `Groth16 runtime: ${formatPackageVersion(result.groth16Runtime)}`,
+    `Docker requested: ${formatHumanValue(Boolean(result.docker))}`,
+    `Deployment artifact root: ${formatHumanValue(result.deploymentArtifactRoot)}`,
+    `Install manifest: ${formatHumanValue(result.installManifestPath)}`,
+  ];
+  if (artifactLines.length > 0) {
+    lines.push("", "Deployment artifacts", ...artifactLines);
+  }
+  console.log(lines.join("\n"));
+}
+
+function formatPackageVersion(runtime) {
+  if (!runtime) {
+    return "not installed in this mode";
+  }
+  const name = runtime.packageName ?? "runtime";
+  const version = runtime.packageVersion ?? runtime.version ?? "unknown version";
+  return `${name}@${version}`;
 }
 
 function printHelpCommandsHumanResult(help) {
@@ -13388,11 +13427,69 @@ function formatGuideCheckDetail(check) {
 function printHumanResult(value) {
   const action = typeof value?.action === "string" && value.action.length > 0 ? value.action : "result";
   const entries = Object.entries(value ?? {}).filter(([key]) => key !== "action");
-  const lines = [
-    `${humanizeLabel(action)} result`,
-    ...entries.map(([key, entry]) => `${humanizeLabel(key)}: ${formatHumanValue(entry)}`),
-  ];
+  const lines = [`${humanizeLabel(action)} result`];
+  for (const [key, entry] of entries) {
+    appendHumanEntry(lines, humanizeLabel(key), entry);
+  }
   console.log(lines.join("\n"));
+}
+
+function appendHumanEntry(lines, label, value, depth = 0) {
+  const indent = "  ".repeat(depth);
+  if (isHumanScalar(value)) {
+    lines.push(`${indent}${label}: ${formatHumanValue(value)}`);
+    return;
+  }
+  if (Array.isArray(value)) {
+    appendHumanArray(lines, label, value, depth);
+    return;
+  }
+  const entries = Object.entries(value ?? {});
+  if (entries.length === 0) {
+    lines.push(`${indent}${label}: none`);
+    return;
+  }
+  lines.push(`${indent}${label}:`);
+  for (const [key, entry] of entries) {
+    appendHumanEntry(lines, humanizeLabel(key), entry, depth + 1);
+  }
+}
+
+function appendHumanArray(lines, label, values, depth) {
+  const indent = "  ".repeat(depth);
+  if (values.length === 0) {
+    lines.push(`${indent}${label}: none`);
+    return;
+  }
+  if (values.every(isHumanScalar)) {
+    lines.push(`${indent}${label}: ${values.map(formatHumanValue).join(", ")}`);
+    return;
+  }
+  lines.push(`${indent}${label}:`);
+  for (const [index, value] of values.entries()) {
+    const itemLabel = `Item ${index + 1}`;
+    if (isHumanScalar(value)) {
+      lines.push(`${indent}  - ${formatHumanValue(value)}`);
+      continue;
+    }
+    if (Array.isArray(value)) {
+      appendHumanArray(lines, itemLabel, value, depth + 1);
+      continue;
+    }
+    lines.push(`${indent}  -`);
+    for (const [key, entry] of Object.entries(value ?? {})) {
+      appendHumanEntry(lines, humanizeLabel(key), entry, depth + 2);
+    }
+  }
+}
+
+function isHumanScalar(value) {
+  return value === null
+    || value === undefined
+    || typeof value === "string"
+    || typeof value === "number"
+    || typeof value === "boolean"
+    || typeof value === "bigint";
 }
 
 function formatHumanValue(value) {
@@ -13405,7 +13502,10 @@ function formatHumanValue(value) {
   if (typeof value === "bigint") {
     return value.toString();
   }
-  return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return value.length === 0 ? "none" : `${value.length} item${value.length === 1 ? "" : "s"}`;
+  }
+  return "see details";
 }
 
 function humanizeLabel(value) {

@@ -50,29 +50,28 @@ surface inside the wallet.
 
 ## Command Surface
 
-Add browser-wallet options without changing existing local-account options:
+Add one browser-wallet option without changing existing local-account options:
 
 - `--browser-wallet`: select the browser-wallet L1 signer path for commands that need L1 account authority.
-- `--browser-account <ADDRESS>`: optional expected address guard. If present, the connected wallet address must match.
-- `--browser <COMMAND_OR_PATH>`: optional browser launcher override for users who do not want the OS default browser.
-- `--browser-timeout <SECONDS>`: optional approval timeout with a conservative default.
 
 Existing `--account <ACCOUNT>` should keep selecting the local-account path. Commands must reject ambiguous signer
-selection when both `--account` and `--browser-wallet` are supplied unless the command has a specific reason to accept
-both. For note commands, `--tx-submitter` should keep selecting a local submitter account, and a new browser-wallet
-submitter option should be added instead of overloading `--tx-submitter`.
+selection when both `--account` and `--browser-wallet` are supplied. For note commands, `--tx-submitter` should keep
+selecting a local submitter account, and `--browser-wallet` should select the browser wallet as the
+`executeChannelTransaction` submitter. Commands must reject `--tx-submitter` and `--browser-wallet` together because
+they are two ways to choose the same L1 submitter role.
 
-Recommended note-command additions:
-
-- `--browser-tx-submitter`: submit `executeChannelTransaction` through the connected browser wallet.
-- `--browser-tx-submitter-address <ADDRESS>`: optional expected submitter address guard.
+The user selects the concrete browser account through the wallet UI. The CLI validates the selected address against the
+command context when a specific address is required, such as a deterministic wallet owner address or an on-chain channel
+leader. The CLI should print the localhost signing URL so the user can open it in any MetaMask-capable browser if the
+default browser is not the one they want. Browser launch behavior and approval timeout should be implementation
+defaults, not public command options.
 
 ## Command Feasibility
 
 ### Read-Only Commands
 
 Read-only commands do not need L1 private-key access. Where they currently require `--account` only to identify an
-address, add address-only browser selection so the command can use the connected browser account without importing a
+address, `--browser-wallet` should connect the browser wallet and use the selected account address without importing a
 local secret.
 
 Affected commands include:
@@ -113,8 +112,8 @@ These commands still use the local L2 spending key for Tokamak L2 transaction si
 - `wallet redeem-notes`
 
 The browser-wallet signer is only responsible for the final L1 submission of `executeChannelTransaction` when the user
-selects the browser submitter path. The CLI must keep the existing requirement that the wallet has spending capability,
-because the L2 transaction snapshot is signed with `l2PrivateKey` before proof generation.
+passes `--browser-wallet`. The CLI must keep the existing requirement that the wallet has spending capability, because
+the L2 transaction snapshot is signed with `l2PrivateKey` before proof generation.
 
 ### Key Derivation Commands
 
@@ -140,9 +139,10 @@ For `wallet recover-workspace`, the browser-wallet path must:
 ## Implementation Steps
 
 1. Add signer-mode parsing.
-   - Extend command schemas with `browserWallet`, `browserAccount`, `browser`, and `browserTimeout`.
-   - Add submitter-specific browser options for note commands.
-   - Reject ambiguous local-account and browser-wallet selections.
+   - Extend command schemas only with `browserWallet`.
+   - Reject `--account` and `--browser-wallet` together.
+   - Reject `--tx-submitter` and `--browser-wallet` together on note commands.
+   - Treat `--browser-wallet` as the single public selector for browser-backed L1 account authority.
 
 2. Build the browser signing bridge.
    - Add a small localhost HTTP server that serves a static signing page.
@@ -150,6 +150,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
    - Add a structured request/response protocol for address, chain, message signing, typed-data signing, and transaction
      submission.
    - Ensure the page supports any injected EIP-1193 provider compatible with MetaMask methods.
+   - Print the signing page URL whenever the CLI opens a browser so the user can manually open the same URL in a
+     different MetaMask-capable browser if needed.
 
 3. Add a `BrowserWalletSigner` adapter.
    - Expose `address`, `provider`, `signMessage`, `signTypedData`, and `sendTransaction`-compatible behavior needed by
@@ -173,7 +175,7 @@ For `wallet recover-workspace`, the browser-wallet path must:
 6. Update wallet and note commands.
    - Allow wallet owner identity to be represented by address-only L1 account data when local L1 secret is absent.
    - Preserve local L2 spending/viewing key requirements.
-   - Add browser-wallet submitter support for `executeChannelTransaction`.
+   - Use `--browser-wallet` as browser-wallet submitter support for `executeChannelTransaction`.
    - Update operation artifact sealing so browser-wallet commands use the existing L2 spending or viewing key where
      available, not a local L1 private key.
 
@@ -201,6 +203,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
 
 - Bind the local signing server to `127.0.0.1` only.
 - Use a fresh random session token for each browser approval session.
+- Use an internal approval timeout with a clear error message. Do not expose timeout tuning as a public CLI option unless
+  a production incident proves the default is wrong.
 - Never expose wallet secrets, L2 spending keys, viewing keys, note plaintext, or proof artifacts to the browser page
   unless a later explicit design requires it.
 - Show the exact signing purpose before requesting browser approval.
@@ -221,13 +225,14 @@ For `wallet recover-workspace`, the browser-wallet path must:
 
 ## Open Design Checks
 
-- Decide whether `--browser-wallet` should be accepted by commands that currently require `--account`, or whether each
-  command should expose a more explicit `--l1-signer browser` option.
 - Decide whether browser-wallet connection metadata should be cached, or whether every command should reconnect.
 - Decide whether the CLI should support WalletConnect later. This plan does not require it because the current request
   is scoped to browser wallets with MetaMask-compatible providers.
 - Decide whether browser transaction submission should populate EIP-1559 fee fields itself or delegate fee selection to
   the wallet. The first implementation should prefer wallet fee selection unless a target network requires otherwise.
+- Recheck after implementation whether `--browser-wallet` remains the only necessary public option. Do not add address,
+  browser path, timeout, or submitter variants unless a concrete production requirement cannot be met by the single
+  option plus wallet UI.
 
 ## Definition of Done
 
@@ -237,6 +242,7 @@ For `wallet recover-workspace`, the browser-wallet path must:
   `wallet redeem-notes`, `wallet withdraw-channel`, and `channel exit` without importing an L1 private key.
 - L2 spending and viewing keys continue to work under the existing local key rules.
 - Browser-wallet mode works with MetaMask-capable browsers and contains no Chrome-specific assumptions.
+- Browser-wallet mode exposes only one new public CLI option: `--browser-wallet`.
 - Browser-wallet failures are explicit and do not fall back to hidden local-key behavior.
 - Tests cover signer selection, browser request handling, transaction submission payloads, and L2 key derivation from
   mocked browser signatures.

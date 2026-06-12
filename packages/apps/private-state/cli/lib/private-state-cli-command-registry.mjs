@@ -53,6 +53,7 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     type: "text",
     placeholder: "my-account",
     valueLabel: "<NAME>",
+    hint: "Local account alias. Omit it on supported commands to use the browser wallet instead.",
     option: "--account",
   },
   leaderAccount: {
@@ -69,7 +70,7 @@ export const PRIVATE_STATE_CLI_FIELD_CATALOG = Object.freeze({
     type: "text",
     placeholder: "relayer-account",
     valueLabel: "<ACCOUNT>",
-    hint: "Optional for proof-backed note commands. Uses a separate local Ethereum account to submit executeChannelTransaction.",
+    hint: "Optional for proof-backed note commands. Use --tx-submitter <ACCOUNT> for a local submitter, or --tx-submitter without a value for browser-wallet submission.",
     option: "--tx-submitter",
     optional: true,
   },
@@ -283,6 +284,8 @@ const ACTION_IMPACT_HELP = Object.freeze({
   exchangeControlledAddress: "Do not use an exchange-controlled address as a self-custody bridge source or direct bridge withdrawal target.",
   policy: "The user must review the channel policy snapshot before accepting channel-bound actions.",
   provenance: "Public observers cannot reconstruct private note counterparty relationships or note provenance from public contract state alone.",
+  browserWalletAccount: "Omit --account to use a browser wallet instead of a local account alias.",
+  browserWalletTxSubmitter: "Use --tx-submitter without a value when a browser wallet should submit the transaction and pay gas.",
 });
 
 export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
@@ -447,9 +450,13 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
   {
     id: "account-get-l1-address",
     display: "account get-l1-address",
-    description: "Derive the Ethereum address for a local account.",
+    description: "Read the Ethereum address from a local account alias or the browser wallet.",
     fields: ["account", "network"],
-    usage: "--network and --account",
+    optionalFields: ["account"],
+    usage: "--network and optional --account",
+    help: [
+      ACTION_IMPACT_HELP.browserWalletAccount,
+    ],
   },
   {
     id: "account-get-bridge-fund",
@@ -457,7 +464,11 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Read the local account's current shared bridge vault balance.",
     installMode: "read-only",
     fields: ["network", "account"],
-    usage: "--network, --account",
+    optionalFields: ["account"],
+    usage: "--network and optional --account",
+    help: [
+      ACTION_IMPACT_HELP.browserWalletAccount,
+    ],
   },
   {
     id: "channel-create",
@@ -465,8 +476,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Create a bridge channel and initialize its workspace.",
     installMode: "full",
     fields: ["channelName", "joinToll", "network", "account"],
-    usage: "--channel-name, --join-toll, --network, --account",
+    optionalFields: ["account"],
+    usage: "--channel-name, --join-toll, --network, and optional --account",
     help: [
+      ACTION_IMPACT_HELP.browserWalletAccount,
       "Prints the immutable policy snapshot before sending the transaction",
       "Initializes the local channel workspace by replaying channel logs from channel genesis",
     ],
@@ -502,8 +515,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Register or update the channel leader's workspace mirror base URL.",
     installMode: "full",
     fields: ["channelName", "network", "account", "url"],
-    usage: "--channel-name, --network, --account, --url",
+    optionalFields: ["account"],
+    usage: "--channel-name, --network, --url, and optional --account",
     help: [
+      ACTION_IMPACT_HELP.browserWalletAccount,
       "Only the on-chain channel leader can update the registered mirror URL",
       "The URL points to a server implementing the private-state channel workspace mirror protocol",
     ],
@@ -514,8 +529,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Let the channel leader permanently stop new joins and channel deposits for a channel.",
     installMode: "full",
     fields: ["channelName", "network", "account"],
-    usage: "--channel-name, --network, --account",
+    optionalFields: ["account"],
+    usage: "--channel-name, --network, and optional --account",
     help: [
+      ACTION_IMPACT_HELP.browserWalletAccount,
       "Only the on-chain channel leader can abandon channel operation",
       "Abandonment is immediate after the Ethereum mainnet transaction is accepted",
       "After abandonment, channel join and wallet deposit-channel are rejected for that channel",
@@ -536,8 +553,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Deposit canonical tokens into the shared bridge vault.",
     installMode: "read-only",
     fields: ["amount", "network", "account"],
-    usage: "--amount, --network, --account",
+    optionalFields: ["account"],
+    usage: "--amount, --network, and optional --account",
     help: [
+      ACTION_IMPACT_HELP.browserWalletAccount,
       "Warning summary: emits public Ethereum mainnet approval and bridge funding events that expose the local Ethereum account, bridge vault, amount, and transaction hashes.",
       "Private note state is not changed by this command; it does not pay a channel Join Toll.",
       ACTION_IMPACT_HELP.exchangeControlledAddress,
@@ -551,8 +570,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Withdraw tokens from the shared bridge vault back to the wallet.",
     installMode: "read-only",
     fields: ["amount", "network", "account"],
-    usage: "--amount, --network, --account",
+    optionalFields: ["account"],
+    usage: "--amount, --network, and optional --account",
     help: [
+      ACTION_IMPACT_HELP.browserWalletAccount,
       "Warning summary: emits a public Ethereum mainnet bridge withdrawal event that exposes the local Ethereum recipient, bridge vault, amount, and transaction hash.",
       "Private note state is not changed by this command; prior note provenance is not public by default.",
       ACTION_IMPACT_HELP.exchangeControlledAddress,
@@ -566,9 +587,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Rebuild a recoverable local wallet from on-chain channel state.",
     installMode: "read-only",
     fields: ["channelName", "network", "account", "walletSecretPath", "fromGenesis"],
-    optionalFields: ["walletSecretPath"],
-    usage: "--channel-name, --network, --account, optional --wallet-secret-path, optional --from-genesis",
+    optionalFields: ["account", "walletSecretPath"],
+    usage: "--channel-name, --network, optional --account, optional --wallet-secret-path, optional --from-genesis",
     help: [
+      ACTION_IMPACT_HELP.browserWalletAccount,
       "Rebuilds backup metadata from channel state without recreating the spending key by default",
       "Derives and stores the viewing key when the local account signer can reproduce the registered viewing public key",
       "Use --wallet-secret-path only for an active channel registration when you need to rederive and store the spending key",
@@ -587,8 +609,10 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     description: "Pay the channel Join Toll, the one-time Channel entry fee, and bind a wallet to a channel-specific private application identity.",
     installMode: "full",
     fields: ["channelName", "network", "account", "walletSecretPath"],
-    usage: "--channel-name, --network, --account, --wallet-secret-path",
+    optionalFields: ["account"],
+    usage: "--channel-name, --network, --wallet-secret-path, and optional --account",
     help: [
+      ACTION_IMPACT_HELP.browserWalletAccount,
       "Refreshes the local channel workspace through the saved recovery index before joining when the scan fits the 7,200-block pre-command budget",
       "Fails instead of replaying from genesis; recover from a registered workspace mirror first, and use channel recover-workspace --source rpc --from-genesis only when no compatible mirror is available",
       "--wallet-secret-path is read once for channel-bound spending-key derivation and is not stored in the wallet workspace",
@@ -758,6 +782,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "Refreshes the local channel workspace through the saved recovery index before proving the mint when the scan fits the 7,200-block pre-command budget",
       "Requires both viewing and spending key capability so the accepted mint can be recovered through the normal note event path",
       "Use --tx-submitter <ACCOUNT> when a separate local Ethereum account should submit the transaction and pay gas",
+      ACTION_IMPACT_HELP.browserWalletTxSubmitter,
       "Warning summary: emits public accepted-transition, commitment, encrypted note-delivery, root update, and transaction events.",
       "Private note state changes by creating local note plaintext and public commitments; note owner/value/salt are not public by default.",
       ACTION_IMPACT_HELP.provenance,
@@ -782,6 +807,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
       "The sum of output amounts must equal the sum of the selected input note values",
       "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the transfer when scans fit the 7,200-block pre-command budget",
       "Use --tx-submitter <ACCOUNT> when a separate local Ethereum account should submit the transaction and pay gas",
+      ACTION_IMPACT_HELP.browserWalletTxSubmitter,
       "Warning summary: emits public accepted-transition, input nullifier, output commitment, encrypted note-delivery, root update, and transaction events.",
       "Private note state changes by consuming selected input notes and creating output notes; sender-recipient relationship, note plaintext, and note provenance are not public by default.",
       ACTION_IMPACT_HELP.provenance,
@@ -801,6 +827,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       "Refreshes the local channel workspace and received-note logs through saved recovery indexes before proving the redeem when scans fit the 7,200-block pre-command budget",
       "Use --tx-submitter <ACCOUNT> when a separate local Ethereum account should submit the transaction and pay gas",
+      ACTION_IMPACT_HELP.browserWalletTxSubmitter,
       "Warning summary: emits public accepted-transition, note nullifier, accounting update, root update, and transaction events.",
       "Private note state changes by consuming selected notes; prior note provenance is not public by default.",
       ACTION_IMPACT_HELP.provenance,

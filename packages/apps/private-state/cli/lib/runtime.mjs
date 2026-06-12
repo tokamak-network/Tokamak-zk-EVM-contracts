@@ -146,6 +146,16 @@ const PRIVATE_STATE_UNINSTALL_INCLUDE_KEYS_CONFIRMATION =
   "I understand that uninstall will delete wallet keys and they cannot be recovered";
 const PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION =
   "I accept the Tonnel Service Terms";
+const L1_SIGNER_MODES = Object.freeze({
+  LOCAL_ACCOUNT: "local-account",
+  BROWSER_WALLET: "browser-wallet",
+});
+const TX_SUBMITTER_SOURCES = Object.freeze({
+  WALLET_OWNER: "wallet-owner",
+  TX_SUBMITTER_ACCOUNT: "tx-submitter-account",
+  BROWSER_WALLET: "browser-wallet",
+  BROWSER_WALLET_OWNER: "browser-wallet-owner",
+});
 const PRIVATE_STATE_TERMS_ACCEPTANCE_CATEGORIES = Object.freeze([
   Object.freeze({
     id: "scope-and-eligibility",
@@ -9331,13 +9341,13 @@ function restoreWalletParticipant(walletContext, provider) {
 
 function requireWalletOwnerSigner(walletContext, provider) {
   const signer = restoreWalletSigner(walletContext, provider);
-  expect(
-    typeof signer.privateKey === "string",
-    [
-      `Missing local account secret for wallet owner ${walletContext.wallet.l1Address}.`,
-      "Import the matching account secret or use a command-specific transaction submitter where supported.",
-    ].join(" "),
-  );
+  if (typeof signer.privateKey !== "string") {
+    return requireBrowserWalletSigner({
+      role: "wallet owner L1 signer",
+      expectedAddress: walletContext.wallet.l1Address,
+      provider,
+    });
+  }
   return signer;
 }
 
@@ -11356,10 +11366,17 @@ function requireNetworkName(args) {
 }
 
 function requireAccountName(args) {
-  return String(requireArg(args.account, "--account"));
+  return requireAccountOptionValue(args.account, "--account");
 }
 
 function requireL1Signer(args, provider) {
+  const accountMode = resolveL1AccountMode(args);
+  if (accountMode.mode === L1_SIGNER_MODES.BROWSER_WALLET) {
+    return requireBrowserWalletSigner({
+      role: "L1 account",
+      provider,
+    });
+  }
   return new Wallet(resolvePrivateKeySource(args), provider);
 }
 
@@ -11378,30 +11395,41 @@ function requireLeaderSigner(args, provider) {
 
 function resolveTxSubmitterSigner({ args, ownerSigner, provider }) {
   if (args.txSubmitter === undefined) {
-    expect(
-      typeof ownerSigner.privateKey === "string",
-      [
-        `Missing local account secret for wallet owner ${ownerSigner.address}.`,
-        "Pass --tx-submitter <ACCOUNT> or import the matching local account secret.",
-      ].join(" "),
-    );
+    if (typeof ownerSigner.privateKey !== "string") {
+      return {
+        txSubmitter: requireBrowserWalletSigner({
+          role: "wallet owner L1 submitter",
+          expectedAddress: ownerSigner.address,
+          provider,
+        }),
+        source: TX_SUBMITTER_SOURCES.BROWSER_WALLET_OWNER,
+        account: null,
+      };
+    }
     return {
       txSubmitter: ownerSigner,
-      source: "wallet-owner",
+      source: TX_SUBMITTER_SOURCES.WALLET_OWNER,
       account: null,
     };
   }
-  if (args.txSubmitter === true || String(args.txSubmitter).trim() === "") {
-    throw new Error("--tx-submitter requires a local account name.");
+  if (isValueLessOption(args.txSubmitter)) {
+    return {
+      txSubmitter: requireBrowserWalletSigner({
+        role: "L1 transaction submitter",
+        provider,
+      }),
+      source: TX_SUBMITTER_SOURCES.BROWSER_WALLET,
+      account: null,
+    };
   }
   const networkName = requireNetworkName(args);
-  const account = String(args.txSubmitter).trim();
+  const account = requireAccountOptionValue(args.txSubmitter, "--tx-submitter");
   return {
     txSubmitter: new Wallet(
       normalizePrivateKey(readSecretFile(accountPrivateKeyPath(networkName, account), "--tx-submitter")),
       provider,
     ),
-    source: "tx-submitter-account",
+    source: TX_SUBMITTER_SOURCES.TX_SUBMITTER_ACCOUNT,
     account,
   };
 }
@@ -11410,6 +11438,46 @@ function resolvePrivateKeySource(args) {
   const networkName = requireNetworkName(args);
   const account = requireAccountName(args);
   return normalizePrivateKey(readSecretFile(accountPrivateKeyPath(networkName, account), "--account"));
+}
+
+function resolveL1AccountMode(args) {
+  if (args.account === undefined) {
+    return {
+      mode: L1_SIGNER_MODES.BROWSER_WALLET,
+      account: null,
+    };
+  }
+  return {
+    mode: L1_SIGNER_MODES.LOCAL_ACCOUNT,
+    account: requireAccountName(args),
+  };
+}
+
+function isValueLessOption(value) {
+  return value === true || (typeof value === "string" && value.trim() === "");
+}
+
+function requireAccountOptionValue(value, label) {
+  if (value === undefined || value === null || value === "" || value === true) {
+    throw new Error(`${label} requires a local account name.`);
+  }
+  const normalized = String(value).trim();
+  if (normalized.length === 0) {
+    throw new Error(`${label} requires a local account name.`);
+  }
+  return normalized;
+}
+
+function requireBrowserWalletSigner({ role, expectedAddress = null, provider = null } = {}) {
+  const expected = expectedAddress ? ` Expected address: ${getAddress(expectedAddress)}.` : "";
+  throw new Error(
+    [
+      `Browser wallet signing is not implemented yet for ${role}.`,
+      "This command selected browser-wallet mode because no local account alias was provided, no local wallet owner L1 key was found, or --tx-submitter was passed without an account name.",
+      "Implement the localhost browser signing bridge before using this path.",
+      expected,
+    ].filter((part) => part.length > 0).join(" "),
+  );
 }
 
 function resolveStandalonePrivateKeySource(args) {
@@ -12036,9 +12104,10 @@ function assertTxSubmitterArg(args) {
   if (args.txSubmitter === undefined) {
     return;
   }
-  if (args.txSubmitter === true || String(args.txSubmitter).trim() === "") {
-    throw new Error("--tx-submitter requires a local account name.");
+  if (isValueLessOption(args.txSubmitter)) {
+    return;
   }
+  requireAccountOptionValue(args.txSubmitter, "--tx-submitter");
 }
 
 function assertWalletGetNotesArgs(args) {
@@ -12379,7 +12448,8 @@ function buildHelpCommandsResult() {
     commands: PRIVATE_STATE_CLI_COMMANDS.map(buildHelpCommandEntry),
     secretSourceOptions: [
       "Use account import --private-key-file once to create a protected local account secret.",
-      "Ethereum signing commands use --account only.",
+      "Ethereum signing commands use --account <ACCOUNT> for a local account, or omit --account to use a browser wallet when supported.",
+      "Proof-backed note commands use --tx-submitter <ACCOUNT> for a local submitter, or --tx-submitter without a value for browser-wallet submission.",
       "A wallet secret source file is arbitrary high-entropy secret text read once by channel join.",
       "Configure each network RPC endpoint once with set rpc.",
       "Wallet commands use separate protected viewing-key and spending-key files when those capabilities are needed.",
@@ -14001,6 +14071,7 @@ function buildRecoveryHints(error, args = {}) {
     || message.includes("Missing --account.")
   ) {
     hints.push(`private-state-cli account import --account ${accountName} --network ${networkName} --private-key-file <PATH>`);
+    hints.push("omit --account on supported commands to use a browser wallet instead of a local account alias");
     hints.push(`private-state-cli help guide --network ${networkName} --account ${accountName}`);
   }
 

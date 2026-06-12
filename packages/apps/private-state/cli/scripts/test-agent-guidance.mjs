@@ -8,6 +8,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   PRIVATE_STATE_CLI_COMMANDS,
+  privateStateCliCommandRequiredOptionKeys,
 } from "../lib/private-state-cli-command-registry.mjs";
 import {
   readPrivateStateTermsMetadata,
@@ -523,6 +524,14 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   expect(stdout.includes("The raw evidence ZIP may include plaintext note facts for all locally known notes and retained exited epochs for the selected wallet"), "Evidence export help should explain raw evidence scope.");
   expect(stdout.includes("User-Controlled AI Agents must not confirm this export or receive the raw evidence ZIP"), "Evidence export help should forbid agent confirmation and raw ZIP handling.");
   expect(stdout.includes("Do not give the raw evidence ZIP to User-Controlled AI Agents, support channels, or untrusted parties"), "Investigator help should warn against raw ZIP disclosure.");
+  expect(
+    stdout.includes("Omit --account to use a browser wallet instead of a local account alias."),
+    "Command help should explain browser-wallet mode through omitted --account.",
+  );
+  expect(
+    stdout.includes("Use --tx-submitter without a value when a browser wallet should submit the transaction and pay gas."),
+    "Command help should explain value-less --tx-submitter browser-wallet submission.",
+  );
 }
 
 function testHelpObserverUsesChannelScopedSelectors() {
@@ -660,6 +669,92 @@ function testSecretCommandsRegistered() {
   expect(commandIds.has("secret-create-wallet-secret-source"), "Missing wallet-secret source helper registry entry.");
 }
 
+function commandById(commandId) {
+  const command = PRIVATE_STATE_CLI_COMMANDS.find((entry) => entry.id === commandId);
+  expect(command, `Missing command registry entry for ${commandId}.`);
+  return command;
+}
+
+function testBrowserWalletAccountGrammar() {
+  const accountOptionalCommands = [
+    "account-get-l1-address",
+    "account-get-bridge-fund",
+    "account-deposit-bridge",
+    "account-withdraw-bridge",
+    "channel-create",
+    "channel-set-workspace-mirror",
+    "channel-abandon-operation",
+    "channel-join",
+    "wallet-recover-workspace",
+  ];
+  for (const commandId of accountOptionalCommands) {
+    const requiredKeys = privateStateCliCommandRequiredOptionKeys(commandById(commandId));
+    expect(
+      !requiredKeys.includes("account"),
+      `${commandId} must not require --account because omitted --account selects browser-wallet mode.`,
+    );
+  }
+
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
+  expect(
+    runtimeSource.includes("function resolveL1AccountMode"),
+    "Runtime should centralize local-account versus browser-wallet L1 account selection.",
+  );
+  expect(
+    runtimeSource.includes("function isValueLessOption"),
+    "Runtime should explicitly recognize value-less options.",
+  );
+  expect(
+    !runtimeSource.includes("--tx-submitter requires a local account name."),
+    "Value-less --tx-submitter must no longer be rejected as a missing local account name.",
+  );
+  expect(
+    runtimeSource.includes("TX_SUBMITTER_SOURCES.BROWSER_WALLET"),
+    "Runtime should handle value-less --tx-submitter without treating it as a schema error.",
+  );
+}
+
+function testMissingAccountSelectsBrowserWalletMode() {
+  const failure = runCliExpectFailure([
+    "account",
+    "get-l1-address",
+    "--network",
+    "mainnet",
+    "--json",
+  ]);
+  const payload = parseJson(failure.stdout);
+  expect(payload.ok === false, "Browser-wallet placeholder path should fail until the signing bridge exists.");
+  expect(
+    String(payload.error?.message ?? "").includes("Browser wallet signing is not implemented yet"),
+    "Missing --account should select browser-wallet mode instead of failing schema validation.",
+  );
+  expect(
+    !String(payload.error?.message ?? "").includes("Missing --account"),
+    "Missing --account should no longer be reported as a required-option error.",
+  );
+}
+
+function testValueLessTxSubmitterPassesArgumentValidation() {
+  const failure = runCliExpectFailure([
+    "wallet",
+    "mint-notes",
+    "--wallet",
+    "demo-0x0000000000000000000000000000000000000001",
+    "--network",
+    "mainnet",
+    "--amounts",
+    "[\"1\"]",
+    "--tx-submitter",
+    "--json",
+  ]);
+  const payload = parseJson(failure.stdout);
+  expect(payload.ok === false, "Command should fail later because the isolated test home is not set up.");
+  expect(
+    !String(payload.error?.message ?? "").includes("--tx-submitter requires"),
+    "Value-less --tx-submitter should select browser-wallet submitter mode instead of failing argument validation.",
+  );
+}
+
 function testRandomWalletSecretHelper() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-secret-"));
   const home = path.join(tempRoot, "home");
@@ -735,6 +830,9 @@ function testNonTtyPrivateKeyPromptFailsClearly() {
 }
 
 testSecretCommandsRegistered();
+testBrowserWalletAccountGrammar();
+testMissingAccountSelectsBrowserWalletMode();
+testValueLessTxSubmitterPassesArgumentValidation();
 testCanonicalTermsAssetMatchesPublicTerms();
 testGuideJsonRefs();
 testGuideJsonDeploymentArtifactsMissing();

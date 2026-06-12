@@ -2703,7 +2703,7 @@ async function handleInstallZkEvm({ args }) {
       terms_refs: privateStateTermsRefsForOutput(),
       terms_acceptance_action: "accept_terms_and_continue_installation_button",
       nextSafeAction: args.readOnly === true ? "private-state-cli install --read-only" : "private-state-cli install",
-      message: "Run the install command again without --json in an interactive terminal. The CLI will open a local browser Terms page for the human user to review and accept before installation proceeds.",
+      message: "Run the install command again without --json. The CLI will open a local browser Terms page for the human user to review and accept before installation proceeds.",
     });
     return;
   }
@@ -2825,12 +2825,6 @@ async function requireBrowserTermsAcceptance({
   acceptanceSource,
   finalAcknowledgement,
 }) {
-  if (!process.stderr.isTTY) {
-    throw cliError(
-      CLI_ERROR_CODES.TERMS_ACCEPTANCE_REQUIRED,
-      "Browser-based Service Terms acceptance requires an interactive terminal so the local Terms URL can be shown.",
-    );
-  }
   const termsText = readPrivateStateTermsText();
   const nonce = randomBytes(32).toString("hex");
   const acceptedAt = new Date().toISOString();
@@ -3170,7 +3164,7 @@ async function requireCurrentTermsAcceptanceForCommand(args) {
       [
         `${command} requires current Service Terms acceptance before it can run.`,
         reason,
-        "Run the command again without --json in an interactive terminal so the current Service Terms can be displayed and accepted by the user.",
+        "Run the command again without --json so the local browser Terms page can be displayed and accepted by the user.",
       ].join(" "),
       {
         details: {
@@ -13728,9 +13722,9 @@ function buildRecoveryHints(error, args = {}) {
 
   if (error?.code === CLI_ERROR_CODES.TERMS_ACCEPTANCE_REQUIRED) {
     if (args.json !== undefined) {
-      hints.push("run the same command again without --json in an interactive terminal and complete the local browser Terms page yourself");
+      hints.push("run the same command again without --json and complete the local browser Terms page yourself");
     } else {
-      hints.push("run the same command in an interactive terminal so the local browser Terms URL can be shown");
+      hints.push("complete the local browser Terms page yourself");
     }
     hints.push("User-Controlled AI Agents must not click Terms acceptance controls or type fallback acceptance phrases for the user");
   }

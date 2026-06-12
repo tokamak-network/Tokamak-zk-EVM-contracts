@@ -491,7 +491,7 @@ The JSON output should identify referenced terms as terms-document section numbe
   "terms_acceptance_action": "accept_terms_and_continue_installation_button",
   "agent_directives": [
     "Explain the referenced terms sections to the user before interactive install.",
-    "Direct the user to run private-state-cli install in an interactive terminal and complete the browser-based local Terms page personally.",
+    "Direct the user to run private-state-cli install and complete the browser-based local Terms page personally.",
     "Do not collect or display the user's secret material.",
     "Do not click browser acceptance controls or type fallback acceptance phrases for the user."
   ]
@@ -1760,6 +1760,8 @@ continue to deployment-dependent blockers as long as no new public Terms or Priv
 - Completed in local source: made browser-based localhost Terms acceptance the primary `install` flow. The CLI opens a
   nonce-protected `127.0.0.1` Terms page, lets the human user review the full Terms and accept them once, then
   returns to the terminal and starts installation only after the validated browser callback.
+- Completed in local source: removed the TTY requirement from the browser-based Terms flow so a User-Controlled AI Agent
+  can run `private-state-cli install` through a non-TTY process while the human user accepts Terms in the browser.
 - Completed in local source: kept terminal acceptance only as an explicit `--terminal-terms` fallback for environments
   where the local browser flow cannot be used.
 - Completed in local source: updated `install --json` so it still never accepts Terms, reports

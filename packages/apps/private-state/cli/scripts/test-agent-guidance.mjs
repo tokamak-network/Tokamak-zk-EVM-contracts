@@ -240,17 +240,17 @@ function testInstallJsonDoesNotInstallOrAcceptTerms() {
   );
 }
 
-function testInstallRequiresInteractiveTermsAcceptance() {
+function testTerminalTermsFallbackRequiresInteractiveTermsAcceptance() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-install-human-home-"));
-  const failure = runCliExpectFailure(["install", "--read-only"], { home });
-  expect(failure.status !== 0, "install without an interactive terminal should fail.");
+  const failure = runCliExpectFailure(["install", "--read-only", "--terminal-terms"], { home });
+  expect(failure.status !== 0, "terminal Terms fallback without an interactive terminal should fail.");
   expect(
-    failure.stderr.includes("Browser-based Service Terms acceptance requires an interactive terminal so the local Terms URL can be shown."),
-    "install should reject before installing when Terms cannot be accepted interactively.",
+    failure.stderr.includes("Service Terms acceptance requires an interactive terminal."),
+    "terminal Terms fallback should reject before installing when Terms cannot be accepted interactively.",
   );
   expect(
     !fs.existsSync(path.join(home, "tokamak-private-channels")),
-    "install without Terms acceptance must not create the private-state workspace.",
+    "terminal Terms fallback without Terms acceptance must not create the private-state workspace.",
   );
 }
 
@@ -683,7 +683,7 @@ testCanonicalTermsAssetMatchesPublicTerms();
 testGuideJsonRefs();
 testGuideJsonDeploymentArtifactsMissing();
 testInstallJsonDoesNotInstallOrAcceptTerms();
-testInstallRequiresInteractiveTermsAcceptance();
+testTerminalTermsFallbackRequiresInteractiveTermsAcceptance();
 testInstallManifestPersistsTermsAcceptance();
 testTermsGatedJsonRequiresCurrentTermsAcceptance();
 testTermsGatedJsonRejectsStaleTermsAcceptance();

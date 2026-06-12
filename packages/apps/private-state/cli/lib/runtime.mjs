@@ -674,7 +674,7 @@ function missingInstalledDeploymentArtifactFiles(artifactPaths, mode) {
 
 async function handleChannelCreate({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
-  const signer = requireL1Signer(args, provider);
+  const signer = await requireL1Signer(args, provider);
   const leader = getAddress(signer.address);
   const workspaceName = channelName;
 
@@ -986,7 +986,7 @@ async function handleGetChannel({ args, network, provider }) {
 async function handleSetChannelWorkspaceMirror({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
   const url = requireWorkspaceMirrorUrl(args.url);
-  const signer = requireL1Signer(args, provider);
+  const signer = await requireL1Signer(args, provider);
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
   const bridgeCore = new Contract(
     bridgeResources.bridgeDeployment.bridgeCore,
@@ -1022,7 +1022,7 @@ async function handleSetChannelWorkspaceMirror({ args, network, provider }) {
 
 async function handleAbandonChannelOperation({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
-  const signer = requireL1Signer(args, provider);
+  const signer = await requireL1Signer(args, provider);
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
   const bridgeCore = new Contract(
     bridgeResources.bridgeDeployment.bridgeCore,
@@ -2415,7 +2415,7 @@ async function handleDepositBridge({ args, network, provider }) {
       "--wallet is not supported by account deposit-bridge. Channel wallet keys are set up only by channel join.",
     );
   }
-  const signer = requireL1Signer(args, provider);
+  const signer = await requireL1Signer(args, provider);
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
@@ -2474,7 +2474,7 @@ async function handleDepositBridge({ args, network, provider }) {
 }
 
 async function handleAccountGetBridgeFund({ args, provider }) {
-  const signer = requireL1Signer(args, provider);
+  const signer = await requireL1Signer(args, provider);
   const chainId = Number((await provider.getNetwork()).chainId);
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
   const bridgeTokenVault = new Contract(
@@ -2500,7 +2500,7 @@ async function handleAccountGetBridgeFund({ args, provider }) {
 
 async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
   const channelName = requireArg(args.channelName, "--channel-name");
-  const signer = requireL1Signer(args, provider);
+  const signer = await requireL1Signer(args, provider);
   const walletName = walletNameForChannelAndAddress(channelName, signer.address);
   const channelContextResult = await loadFreshChannelWorkspaceContextResult({
     channelName,
@@ -4217,8 +4217,8 @@ function trimFixedNumber(value, maxDecimals) {
   return trimmed ? `${integer}.${trimmed}` : integer;
 }
 
-function handleAccountGetL1Address({ args }) {
-  const signer = requireL1Signer(args);
+async function handleAccountGetL1Address({ args }) {
+  const signer = await requireL1Signer(args);
   cliOutput.result({
     action: "account get-l1-address",
     l1Address: signer.address,
@@ -5466,7 +5466,7 @@ async function loadWalletChannelRegistrationState({
   provider,
   requireRegistration = false,
 }) {
-  const signer = requireWalletOwnerSigner(walletContext, provider);
+  const signer = await requireWalletOwnerSigner(walletContext, provider);
   const l2Identity = restoreParticipantIdentityFromWallet(walletContext.wallet);
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
@@ -5762,7 +5762,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     provider,
   });
   await requireChannelOperationActive(context, "channel join");
-  const signer = requireL1Signer(args, provider);
+  const signer = await requireL1Signer(args, provider);
   const walletName = walletNameForChannelAndAddress(context.workspace.channelName, signer.address);
   const existingRegistration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   expect(
@@ -5910,7 +5910,7 @@ async function handleExitChannel({ args, provider }) {
     provider,
     progressAction: "channel exit",
   });
-  const ownerSigner = requireWalletOwnerSigner(walletContext, provider);
+  const ownerSigner = await requireWalletOwnerSigner(walletContext, provider);
   const network = contextResult.network;
   await warnIfChannelOperationAbandoned(context, "channel exit");
   expect(
@@ -6134,7 +6134,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
 }
 
 async function handleWithdrawBridge({ args, network, provider }) {
-  const signer = requireL1Signer(args, provider);
+  const signer = await requireL1Signer(args, provider);
   const chainId = Number((await provider.getNetwork()).chainId);
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
   const amountInput = requireArg(args.amount, "--amount");
@@ -6265,7 +6265,7 @@ async function handleMintNotes({ args, provider }) {
     ].join(" "),
   );
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
-  const { txSubmitter } = resolveTxSubmitterSigner({
+  const { txSubmitter } = await resolveTxSubmitterSigner({
     args,
     ownerSigner: signer,
     provider,
@@ -6340,7 +6340,7 @@ async function handleRedeemNotes({ args, provider }) {
   });
   const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
-  const { txSubmitter } = resolveTxSubmitterSigner({
+  const { txSubmitter } = await resolveTxSubmitterSigner({
     args,
     ownerSigner: signer,
     provider,
@@ -7255,7 +7255,7 @@ async function handleTransferNotes({ args, provider }) {
     "The sum of --amounts must equal the sum of the selected input note values.",
   );
 
-  const { txSubmitter } = resolveTxSubmitterSigner({
+  const { txSubmitter } = await resolveTxSubmitterSigner({
     args,
     ownerSigner: signer,
     provider,
@@ -8904,7 +8904,7 @@ async function executeWalletDirectTemplateCommand({
     txSubmitter,
     source: txSubmitterSource,
     account: txSubmitterAccount,
-  } = resolveTxSubmitterSigner({
+  } = await resolveTxSubmitterSigner({
     args,
     ownerSigner: signer,
     provider,
@@ -9339,10 +9339,10 @@ function restoreWalletParticipant(walletContext, provider) {
   };
 }
 
-function requireWalletOwnerSigner(walletContext, provider) {
+async function requireWalletOwnerSigner(walletContext, provider) {
   const signer = restoreWalletSigner(walletContext, provider);
   if (typeof signer.privateKey !== "string") {
-    return requireBrowserWalletSigner({
+    return await requireBrowserWalletSigner({
       role: "wallet owner L1 signer",
       expectedAddress: walletContext.wallet.l1Address,
       provider,
@@ -11369,10 +11369,10 @@ function requireAccountName(args) {
   return requireAccountOptionValue(args.account, "--account");
 }
 
-function requireL1Signer(args, provider) {
+async function requireL1Signer(args, provider) {
   const accountMode = resolveL1AccountMode(args);
   if (accountMode.mode === L1_SIGNER_MODES.BROWSER_WALLET) {
-    return requireBrowserWalletSigner({
+    return await requireBrowserWalletSigner({
       role: "L1 account",
       provider,
     });
@@ -11393,11 +11393,11 @@ function requireLeaderSigner(args, provider) {
   };
 }
 
-function resolveTxSubmitterSigner({ args, ownerSigner, provider }) {
+async function resolveTxSubmitterSigner({ args, ownerSigner, provider }) {
   if (args.txSubmitter === undefined) {
     if (typeof ownerSigner.privateKey !== "string") {
       return {
-        txSubmitter: requireBrowserWalletSigner({
+        txSubmitter: await requireBrowserWalletSigner({
           role: "wallet owner L1 submitter",
           expectedAddress: ownerSigner.address,
           provider,
@@ -11414,7 +11414,7 @@ function resolveTxSubmitterSigner({ args, ownerSigner, provider }) {
   }
   if (isValueLessOption(args.txSubmitter)) {
     return {
-      txSubmitter: requireBrowserWalletSigner({
+      txSubmitter: await requireBrowserWalletSigner({
         role: "L1 transaction submitter",
         provider,
       }),
@@ -11468,16 +11468,400 @@ function requireAccountOptionValue(value, label) {
   return normalized;
 }
 
-function requireBrowserWalletSigner({ role, expectedAddress = null, provider = null } = {}) {
-  const expected = expectedAddress ? ` Expected address: ${getAddress(expectedAddress)}.` : "";
-  throw new Error(
-    [
-      `Browser wallet signing is not implemented yet for ${role}.`,
-      "This command selected browser-wallet mode because no local account alias was provided, no local wallet owner L1 key was found, or --tx-submitter was passed without an account name.",
-      "Implement the localhost browser signing bridge before using this path.",
-      expected,
-    ].filter((part) => part.length > 0).join(" "),
-  );
+async function requireBrowserWalletSigner({ role, expectedAddress = null, provider = null } = {}) {
+  if (isJsonOutputRequested()) {
+    throw new Error(
+      [
+        `Browser wallet signing for ${role} requires interactive human approval and cannot run in --json mode.`,
+        "Run the same command without --json so the CLI can open the local browser signing page.",
+      ].join(" "),
+    );
+  }
+  return await BrowserWalletSigner.connect({
+    role,
+    expectedAddress,
+    provider,
+  });
+}
+
+class BrowserWalletSigner {
+  static async connect({ role, expectedAddress = null, provider = null } = {}) {
+    const accounts = await requestBrowserWallet({
+      role,
+      action: "connect",
+      method: "eth_requestAccounts",
+      params: [],
+      description: "Connect the browser wallet account that should approve this CLI command.",
+    });
+    expect(Array.isArray(accounts) && accounts.length > 0, "Browser wallet did not return any account.");
+    const address = getAddress(accounts[0]);
+    if (expectedAddress) {
+      expect(
+        ethers.toBigInt(address) === ethers.toBigInt(getAddress(expectedAddress)),
+        `Browser wallet selected ${address}, but this command requires ${getAddress(expectedAddress)}.`,
+      );
+    }
+    if (provider) {
+      const [walletChainIdHex, providerNetwork] = await Promise.all([
+        requestBrowserWallet({
+          role,
+          action: "check network",
+          method: "eth_chainId",
+          params: [],
+          description: "Verify that the browser wallet is connected to the selected network.",
+        }),
+        provider.getNetwork(),
+      ]);
+      const walletChainId = Number(ethers.toBigInt(walletChainIdHex));
+      const expectedChainId = Number(providerNetwork.chainId);
+      expect(
+        walletChainId === expectedChainId,
+        `Browser wallet chain ${walletChainId} does not match selected network chain ${expectedChainId}.`,
+      );
+    }
+    return new BrowserWalletSigner({ address, provider });
+  }
+
+  constructor({ address, provider = null }) {
+    this.address = getAddress(address);
+    this.provider = provider;
+  }
+
+  async getAddress() {
+    return this.address;
+  }
+
+  connect(provider) {
+    return new BrowserWalletSigner({ address: this.address, provider });
+  }
+
+  async signMessage(message) {
+    return await requestBrowserWallet({
+      role: "message signer",
+      action: "sign message",
+      method: "personal_sign",
+      params: [personalSignPayload(message), this.address],
+      description: "Approve the message signature required by this private-state CLI command.",
+    });
+  }
+
+  async signTypedData(domain, types, value) {
+    return await requestBrowserWallet({
+      role: "typed-data signer",
+      action: "sign typed data",
+      method: "eth_signTypedData_v4",
+      params: [this.address, JSON.stringify(buildEip712Payload({ domain, types, value }))],
+      description: "Approve the typed-data signature required by this private-state CLI command.",
+    });
+  }
+
+  async call(transaction) {
+    expect(this.provider, "Browser wallet signer cannot dry-run without a provider.");
+    return await this.provider.call({
+      ...(await ethers.resolveProperties(transaction)),
+      from: this.address,
+    });
+  }
+
+  async estimateGas(transaction) {
+    expect(this.provider, "Browser wallet signer cannot estimate gas without a provider.");
+    return await this.provider.estimateGas({
+      ...(await ethers.resolveProperties(transaction)),
+      from: this.address,
+    });
+  }
+
+  async resolveName(name) {
+    if (this.provider?.resolveName) {
+      return await this.provider.resolveName(name);
+    }
+    return name;
+  }
+
+  async sendTransaction(transaction) {
+    expect(this.provider, "Browser wallet signer cannot submit transactions without a provider.");
+    const tx = normalizeBrowserTransaction({
+      ...(await ethers.resolveProperties(transaction)),
+      from: this.address,
+    });
+    const hash = await requestBrowserWallet({
+      role: "transaction submitter",
+      action: "send transaction",
+      method: "eth_sendTransaction",
+      params: [tx],
+      description: "Approve the Ethereum transaction for this private-state CLI command.",
+    });
+    return {
+      hash,
+      wait: async () => {
+        const receipt = await this.provider.waitForTransaction(hash);
+        expect(receipt, `Transaction ${hash} was not mined before the provider wait returned.`);
+        return receipt;
+      },
+    };
+  }
+}
+
+function personalSignPayload(message) {
+  if (typeof message === "string") {
+    return ethers.hexlify(ethers.toUtf8Bytes(message));
+  }
+  return ethers.hexlify(message);
+}
+
+function buildEip712Payload({ domain, types, value }) {
+  return {
+    types: {
+      EIP712Domain: eip712DomainType(domain),
+      ...types,
+    },
+    primaryType: Object.keys(types)[0],
+    domain: normalizeTypedDataValue(domain),
+    message: normalizeTypedDataValue(value),
+  };
+}
+
+function eip712DomainType(domain) {
+  return [
+    ["name", "string"],
+    ["version", "string"],
+    ["chainId", "uint256"],
+    ["verifyingContract", "address"],
+    ["salt", "bytes32"],
+  ]
+    .filter(([name]) => domain?.[name] !== undefined && domain?.[name] !== null)
+    .map(([name, type]) => ({ name, type }));
+}
+
+function normalizeTypedDataValue(value) {
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeTypedDataValue(entry));
+  }
+  if (value instanceof Uint8Array) {
+    return ethers.hexlify(value);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, entry]) => entry !== undefined)
+        .map(([key, entry]) => [key, normalizeTypedDataValue(entry)]),
+    );
+  }
+  return value;
+}
+
+function normalizeBrowserTransaction(transaction) {
+  const tx = {};
+  for (const [sourceKey, targetKey] of [
+    ["from", "from"],
+    ["to", "to"],
+    ["data", "data"],
+  ]) {
+    if (transaction[sourceKey] !== undefined && transaction[sourceKey] !== null) {
+      tx[targetKey] = sourceKey === "data" ? ethers.hexlify(transaction[sourceKey]) : getAddress(transaction[sourceKey]);
+    }
+  }
+  for (const [sourceKey, targetKey] of [
+    ["value", "value"],
+    ["gasLimit", "gas"],
+    ["gasPrice", "gasPrice"],
+    ["maxFeePerGas", "maxFeePerGas"],
+    ["maxPriorityFeePerGas", "maxPriorityFeePerGas"],
+    ["nonce", "nonce"],
+    ["chainId", "chainId"],
+  ]) {
+    if (transaction[sourceKey] !== undefined && transaction[sourceKey] !== null) {
+      tx[targetKey] = ethers.toQuantity(transaction[sourceKey]);
+    }
+  }
+  return tx;
+}
+
+async function requestBrowserWallet({
+  role,
+  action,
+  method,
+  params,
+  description,
+}) {
+  const token = ethers.hexlify(randomBytes(24));
+  let settled = false;
+  let resolveResult;
+  let rejectResult;
+  const resultPromise = new Promise((resolve, reject) => {
+    resolveResult = resolve;
+    rejectResult = reject;
+  });
+  const server = http.createServer(async (request, response) => {
+    try {
+      const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+      if (request.method === "GET" && requestUrl.pathname === "/sign") {
+        if (requestUrl.searchParams.get("token") !== token) {
+          writeBrowserTermsResponse(response, 403, "text/plain; charset=utf-8", "Invalid browser wallet token.");
+          return;
+        }
+        writeBrowserTermsResponse(
+          response,
+          200,
+          "text/html; charset=utf-8",
+          browserWalletSigningHtml({
+            token,
+            role,
+            action,
+            method,
+            params,
+            description,
+          }),
+        );
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/result") {
+        const payload = JSON.parse(await readRequestBodyText(request));
+        if (payload.token !== token) {
+          writeBrowserTermsResponse(response, 400, "text/plain; charset=utf-8", "Browser wallet response was invalid.");
+          return;
+        }
+        settled = true;
+        writeBrowserTermsResponse(
+          response,
+          200,
+          "text/html; charset=utf-8",
+          browserWalletResultHtml(Boolean(payload.ok)),
+        );
+        if (payload.ok) {
+          resolveResult(payload.result);
+        } else {
+          rejectResult(new Error(`Browser wallet ${action} failed: ${payload.error ?? "unknown error"}`));
+        }
+        return;
+      }
+      writeBrowserTermsResponse(response, 404, "text/plain; charset=utf-8", "Not found.");
+    } catch (error) {
+      writeBrowserTermsResponse(response, 500, "text/plain; charset=utf-8", `Browser wallet signing error: ${error.message}`);
+      rejectResult(error);
+    }
+  });
+  server.on("error", rejectResult);
+  const timeout = setTimeout(() => {
+    if (!settled) {
+      rejectResult(new Error(`Timed out waiting for browser wallet ${action}.`));
+    }
+  }, 10 * 60 * 1000);
+  try {
+    await new Promise((resolve, reject) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+      server.once("error", reject);
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Could not determine local browser wallet signing server address.");
+    }
+    const signingUrl = `http://127.0.0.1:${address.port}/sign?token=${encodeURIComponent(token)}`;
+    const browser = openUrlInDefaultBrowser(signingUrl);
+    process.stderr.write([
+      `Browser wallet approval required: ${action}.`,
+      `Signing URL: ${signingUrl}`,
+      browser.opened
+        ? "Browser opened. Review the wallet request and approve it yourself."
+        : "If the signing page is not already open, copy the Signing URL into a MetaMask-capable browser.",
+      "User-Controlled AI Agents must not approve wallet requests for the user.",
+      "",
+    ].join("\n"));
+    return await resultPromise;
+  } finally {
+    clearTimeout(timeout);
+    await closeLocalTermsServer(server);
+  }
+}
+
+function browserWalletSigningHtml({ token, role, action, method, params, description }) {
+  const requestJson = safeJsonForScript({ token, method, params });
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Private-State Browser Wallet Approval</title>
+  <style>
+    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; background: Canvas; color: CanvasText; }
+    main { max-width: 760px; margin: 0 auto; padding: 32px 20px; }
+    .panel { border: 1px solid color-mix(in srgb, CanvasText 20%, transparent); border-radius: 8px; padding: 20px; }
+    button { font: inherit; padding: 10px 14px; border-radius: 6px; border: 1px solid CanvasText; cursor: pointer; }
+    pre { overflow: auto; padding: 12px; border-radius: 6px; background: color-mix(in srgb, CanvasText 8%, transparent); }
+    .muted { color: color-mix(in srgb, CanvasText 70%, transparent); }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <h1>Browser Wallet Approval</h1>
+      <p>${escapeHtml(description)}</p>
+      <p class="muted">Role: ${escapeHtml(role)}. Action: ${escapeHtml(action)}.</p>
+      <button id="approve" type="button">Continue In Browser Wallet</button>
+      <p id="status" class="muted">Waiting for approval.</p>
+      <details>
+        <summary>Request details</summary>
+        <pre>${escapeHtml(JSON.stringify({ method }, null, 2))}</pre>
+      </details>
+    </section>
+  </main>
+  <script>
+    const request = ${requestJson};
+    const status = document.getElementById("status");
+    async function post(payload) {
+      await fetch("/result", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: request.token, ...payload }),
+      });
+    }
+    document.getElementById("approve").addEventListener("click", async () => {
+      try {
+        if (!window.ethereum || typeof window.ethereum.request !== "function") {
+          throw new Error("No MetaMask-compatible browser wallet provider was found.");
+        }
+        status.textContent = "Waiting for wallet response...";
+        const result = await window.ethereum.request({ method: request.method, params: request.params });
+        status.textContent = "Approved. You can return to the terminal.";
+        await post({ ok: true, result });
+      } catch (error) {
+        status.textContent = "Request failed. You can return to the terminal.";
+        await post({ ok: false, error: error && error.message ? error.message : String(error) });
+      }
+    });
+  </script>
+</body>
+</html>`;
+}
+
+function safeJsonForScript(value) {
+  return JSON.stringify(value)
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("&", "\\u0026")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
+}
+
+function browserWalletResultHtml(ok) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Private-State Browser Wallet Approval</title>
+</head>
+<body>
+  <main>
+    <h1>${ok ? "Wallet Response Received" : "Wallet Request Failed"}</h1>
+    <p>You can return to the terminal.</p>
+  </main>
+</body>
+</html>`;
 }
 
 function resolveStandalonePrivateKeySource(args) {

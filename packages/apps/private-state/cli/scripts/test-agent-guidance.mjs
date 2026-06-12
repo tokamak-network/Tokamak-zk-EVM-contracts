@@ -712,6 +712,18 @@ function testBrowserWalletAccountGrammar() {
     runtimeSource.includes("TX_SUBMITTER_SOURCES.BROWSER_WALLET"),
     "Runtime should handle value-less --tx-submitter without treating it as a schema error.",
   );
+  expect(
+    runtimeSource.includes("class BrowserWalletSigner"),
+    "Runtime should provide a browser-wallet signer adapter.",
+  );
+  expect(
+    runtimeSource.includes("method: \"eth_sendTransaction\""),
+    "Browser-wallet signer should submit L1 transactions through the browser wallet.",
+  );
+  expect(
+    runtimeSource.includes("method: \"eth_signTypedData_v4\""),
+    "Browser-wallet signer should support MetaMask typed-data signatures.",
+  );
 }
 
 function testMissingAccountSelectsBrowserWalletMode() {
@@ -723,10 +735,10 @@ function testMissingAccountSelectsBrowserWalletMode() {
     "--json",
   ]);
   const payload = parseJson(failure.stdout);
-  expect(payload.ok === false, "Browser-wallet placeholder path should fail until the signing bridge exists.");
+  expect(payload.ok === false, "Browser-wallet mode should reject non-interactive JSON runs.");
   expect(
-    String(payload.error?.message ?? "").includes("Browser wallet signing is not implemented yet"),
-    "Missing --account should select browser-wallet mode instead of failing schema validation.",
+    String(payload.error?.message ?? "").includes("requires interactive human approval and cannot run in --json mode"),
+    "Missing --account should select browser-wallet mode and reject --json without opening a browser.",
   );
   expect(
     !String(payload.error?.message ?? "").includes("Missing --account"),

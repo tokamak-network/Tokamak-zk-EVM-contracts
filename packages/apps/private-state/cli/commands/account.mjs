@@ -16,7 +16,7 @@ import {
 export const accountCommands = Object.freeze({
   "account-get-l1-address": async (args) => {
     assertAccountGetL1AddressArgs(args);
-    handleAccountGetL1Address({ args });
+    await handleAccountGetL1Address({ args });
   },
   "account-import": async (args) => {
     assertAccountImportArgs(args);

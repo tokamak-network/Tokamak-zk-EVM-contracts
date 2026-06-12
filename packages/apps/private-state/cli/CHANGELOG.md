@@ -13,6 +13,8 @@
   results render nested objects and arrays as readable indented text instead of raw JSON blobs.
 - Changed managed runtime installation subprocesses to stay quiet on successful installs while preserving captured
   stdout and stderr in failure diagnostics.
+- Fixed `install --include-local-artifacts` to scan local `deployment/chain-id-*` artifacts for the selected DApp,
+  install local artifacts per chain, and let local artifacts override downloaded artifacts for the same chain.
 - Updated the packaged Service Terms, public Terms, Privacy Notice, and Monitoring Packet wording for the corrected
   Provider and Channel Provider responsibility model, including Channel-scoped observer and workspace mirror services.
 - Added Channel observer URL output to the Monitoring Packet policy snapshot generator and current

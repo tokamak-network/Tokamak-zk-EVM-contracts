@@ -1367,7 +1367,7 @@ async function installPrivateStateCliArtifacts({
     ?? DEFAULT_PUBLIC_ARTIFACT_INDEX_FILE_ID,
   cacheBaseRoot,
   localDeploymentBaseRoot,
-  localChainIds = [31337],
+  localChainIds = null,
   groth16CrsVersion,
 } = {}) {
   const normalizedDappName = requireNonEmptyString(dappName, "dappName");
@@ -1377,14 +1377,14 @@ async function installPrivateStateCliArtifacts({
     ? path.resolve(localDeploymentBaseRoot)
     : null;
   const index = await fetchPublicArtifactIndex(indexFileId);
-  const installed = [];
+  const installedByChainId = new Map();
 
   for (const chainId of Object.keys(index.chains).sort(compareChainIds)) {
     const chain = index.chains[chainId];
     if (!chain?.bridge?.timestamp || !chain?.bridge?.files || !chain.dapps?.[normalizedDappName]) {
       continue;
     }
-    installed.push(await materializePrivateStateCliDeployment({
+    const installed = await materializePrivateStateCliDeployment({
       index,
       chainId,
       dappName: normalizedDappName,
@@ -1392,22 +1392,34 @@ async function installPrivateStateCliArtifacts({
       cacheBaseRoot: normalizedCacheBaseRoot,
       source: "drive",
       groth16CrsVersion,
-    }));
+    });
+    installedByChainId.set(String(installed.chainId), installed);
   }
 
   if (normalizedLocalDeploymentBaseRoot) {
-    for (const chainId of localChainIds) {
-      installed.push(await materializeLocalPrivateStateCliDeployment({
+    const discoveredLocalChainIds = localChainIds ?? discoverLocalPrivateStateDeploymentChainIds({
+      localDeploymentBaseRoot: normalizedLocalDeploymentBaseRoot,
+      dappName: normalizedDappName,
+    });
+    if (discoveredLocalChainIds.length === 0) {
+      throw new Error(
+        `No local ${normalizedDappName} deployment artifacts found under ${normalizedLocalDeploymentBaseRoot}.`,
+      );
+    }
+    for (const chainId of discoveredLocalChainIds) {
+      const installed = await materializeLocalPrivateStateCliDeployment({
         chainId,
         dappName: normalizedDappName,
         installMode: normalizedInstallMode,
         cacheBaseRoot: normalizedCacheBaseRoot,
         localDeploymentBaseRoot: normalizedLocalDeploymentBaseRoot,
         groth16CrsVersion,
-      }));
+      });
+      installedByChainId.set(String(installed.chainId), installed);
     }
   }
 
+  const installed = [...installedByChainId.values()].sort((left, right) => compareChainIds(left.chainId, right.chainId));
   if (installed.length === 0) {
     throw new Error(`No installable artifacts found for ${normalizedDappName}.`);
   }
@@ -1417,6 +1429,23 @@ async function installPrivateStateCliArtifacts({
     artifactRoot: privateStateCliArtifactRoot(normalizedCacheBaseRoot),
     installed,
   };
+}
+
+function discoverLocalPrivateStateDeploymentChainIds({ localDeploymentBaseRoot, dappName }) {
+  const deploymentRoot = path.join(localDeploymentBaseRoot, "deployment");
+  if (!fs.existsSync(deploymentRoot)) {
+    return [];
+  }
+  return fs.readdirSync(deploymentRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => /^chain-id-(\d+)$/u.exec(entry.name)?.[1] ?? null)
+    .filter((chainId) => chainId !== null)
+    .filter((chainId) => {
+      const bridgeRoot = path.join(deploymentRoot, `chain-id-${chainId}`, "bridge");
+      const dappRoot = path.join(deploymentRoot, `chain-id-${chainId}`, "dapps", dappName);
+      return fs.existsSync(bridgeRoot) && fs.existsSync(dappRoot);
+    })
+    .sort(compareChainIds);
 }
 
 async function materializePrivateStateCliDeployment({

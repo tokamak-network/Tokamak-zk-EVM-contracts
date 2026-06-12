@@ -61,6 +61,9 @@ The current release-readiness work covers:
 - Browser Terms page renders the packaged Markdown Terms as styled HTML.
 - Browser Terms acceptance does not require TTY, allowing a User-Controlled AI Agent to run install while the user clicks
   acceptance in the browser.
+- `install --read-only --include-local-artifacts` discovers all local `deployment/chain-id-*` artifacts for the selected
+  DApp and records the final installed artifact source once per chain. Local artifacts override Drive artifacts for the
+  same chain during local release-readiness checks.
 - `install --json` does not install, does not accept Terms, and reports that browser-based human acceptance is required.
 - Human install output has a concise final summary instead of JSON blobs.
 - Human install output reports step counts and elapsed time after Terms acceptance.
@@ -85,6 +88,13 @@ The current release-readiness work covers:
   Channel metadata.
 - Stale installed read-only ABI now produces a clear reinstall-required error instead of an internal TypeError.
 - Monitoring Packet generation includes Channel observer URL data read from on-chain state.
+- Local read-only deployment artifacts were refreshed from the repository-local deployment artifacts. Mainnet now uses
+  local bridge artifacts from `deployment/chain-id-1/bridge/20260611T091000Z`.
+- Human `help observer --network mainnet --channel-name the-great-first-channel` prints
+  `https://observer.tonnel.io` from on-chain Channel metadata.
+- JSON `help observer --network mainnet --channel-name the-great-first-channel --json` returns the same URL with source
+  `on-chain channel metadata`.
+- JSON `help observer` for an unknown mainnet Channel returns a structured `UNKNOWN_CHANNEL` error.
 - The external observer implementation was reported complete by its developer:
   - new bridge event ABI support,
   - Channel operation status display,
@@ -94,45 +104,7 @@ The current release-readiness work covers:
 
 ## Remaining Work
 
-### 1. Refresh Local Installed Read-Only Deployment Artifacts
-
-The local installed private-state CLI cache may still contain stale read-only deployment artifacts or ABI files. Refresh
-it before relying on local `help observer` behavior.
-
-Required action:
-
-```sh
-private-state-cli install --read-only --include-local-artifacts
-```
-
-Alternative if updated artifacts are published first:
-
-```sh
-private-state-cli install --read-only
-```
-
-Acceptance requirement:
-
-- The user must personally review and accept the browser Terms page.
-- User-Controlled AI Agents and automation must not click the browser acceptance control or type any fallback Terms
-  acceptance phrase for the user.
-
-### 2. Verify `help observer` After Local Artifact Refresh
-
-After the local artifact refresh, verify both registered and unregistered observer behavior.
-
-Registered Channel checks:
-
-- Human `help observer` should print the observer URL registered for `the-great-first-channel`.
-- `help observer --json` should return the same registered observer URL in structured output.
-- Neither mode should use a hardcoded Tonnel-wide observer URL.
-
-Unregistered Channel checks:
-
-- Human `help observer` should fail clearly when the selected Channel has no registered observer URL.
-- `help observer --json` should fail clearly with structured error information for the same case.
-
-### 3. Final Public-Document Consistency Review
+### 1. Final Public-Document Consistency Review
 
 Run a final review after the Terms minimization and local artifact refresh.
 
@@ -148,7 +120,7 @@ Check:
 - JSON-mode and agent-facing guidance remains useful for User-Controlled AI Agents without handling secrets or accepting
   Terms for users.
 
-### 4. Final Release Readiness Verification
+### 2. Final Release Readiness Verification
 
 After the document consistency review:
 
@@ -168,7 +140,5 @@ After the document consistency review:
 
 ## Next Recommended Order
 
-1. Run the interactive read-only install refresh with local artifacts.
-2. Verify `help observer` registered and unregistered behavior.
-3. Run final public-document consistency review.
-4. Run final release-readiness verification.
+1. Run final public-document consistency review.
+2. Run final release-readiness verification.

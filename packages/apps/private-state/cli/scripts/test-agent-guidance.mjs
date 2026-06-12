@@ -272,6 +272,30 @@ function testBrowserTermsUsesMarkdownRendering() {
   );
 }
 
+function testInstallHumanProgressMessages() {
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
+  expect(
+    runtimeSource.includes("function createInstallProgressReporter"),
+    "install should have a dedicated human progress reporter.",
+  );
+  expect(
+    runtimeSource.includes("Install ${currentStep}/${totalSteps}"),
+    "install progress should show step counts in human mode.",
+  );
+  expect(
+    runtimeSource.includes("Elapsed ${elapsed()}"),
+    "install progress should show elapsed time after completed steps.",
+  );
+  expect(
+    runtimeSource.includes("Installing Groth16 runtime"),
+    "full install progress should describe the Groth16 runtime step before it starts.",
+  );
+  expect(
+    runtimeSource.includes("Read-only mode selected. Proof runtimes are skipped."),
+    "read-only install progress should explain skipped proof runtimes.",
+  );
+}
+
 function testTerminalTermsFallbackRequiresInteractiveTermsAcceptance() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-install-human-home-"));
   const failure = runCliExpectFailure(["install", "--read-only", "--terminal-terms"], { home });
@@ -717,6 +741,7 @@ testGuideJsonDeploymentArtifactsMissing();
 testInstallJsonDoesNotInstallOrAcceptTerms();
 testHumanModeHasNoJsonObjectFallback();
 testBrowserTermsUsesMarkdownRendering();
+testInstallHumanProgressMessages();
 testTerminalTermsFallbackRequiresInteractiveTermsAcceptance();
 testInstallManifestPersistsTermsAcceptance();
 testTermsGatedJsonRequiresCurrentTermsAcceptance();

@@ -2712,28 +2712,42 @@ async function handleInstallZkEvm({ args }) {
     installMode,
     terminalTerms: args.terminalTerms === true,
   });
-  const selectedVersions = installMode === PRIVATE_STATE_INSTALL_MODES.FULL
-    ? await resolvePrivateStateInstallRuntimeVersions(args)
-    : null;
-  const tokamakCliRuntime = installMode === PRIVATE_STATE_INSTALL_MODES.FULL
-    ? await installTokamakCliRuntimeForPrivateState({
+  const progress = createInstallProgressReporter(installMode);
+  progress.info(`Install mode: ${installMode}.`);
+  let selectedVersions = null;
+  let tokamakCliRuntime = null;
+  let groth16Runtime = null;
+  if (installMode === PRIVATE_STATE_INSTALL_MODES.FULL) {
+    progress.start("Resolving runtime package versions.");
+    selectedVersions = await resolvePrivateStateInstallRuntimeVersions(args);
+    progress.done(`Resolved runtime versions: Tokamak zk-EVM CLI ${selectedVersions.tokamak}, Groth16 ${selectedVersions.groth16}.`);
+
+    progress.start(`Installing Tokamak zk-EVM CLI runtime ${selectedVersions.tokamak}.`);
+    tokamakCliRuntime = await installTokamakCliRuntimeForPrivateState({
       version: selectedVersions.tokamak,
       docker: Boolean(args.docker),
-    })
-    : null;
-  const groth16Runtime = installMode === PRIVATE_STATE_INSTALL_MODES.FULL
-    ? await installGroth16RuntimeForPrivateState({
+    });
+    progress.done("Tokamak zk-EVM CLI runtime is installed.");
+
+    progress.start(`Installing Groth16 runtime ${selectedVersions.groth16} and CRS files when needed.`);
+    groth16Runtime = await installGroth16RuntimeForPrivateState({
       version: selectedVersions.groth16,
       docker: Boolean(args.docker),
-    })
-    : null;
+    });
+    progress.done("Groth16 runtime is installed.");
+  } else {
+    progress.info("Read-only mode selected. Proof runtimes are skipped.");
+  }
   const localDeploymentBaseRoot = args.includeLocalArtifacts ? process.cwd() : null;
+  progress.start("Installing deployment artifacts.");
   const deploymentArtifacts = await installPrivateStateCliArtifacts({
     dappName: PRIVATE_STATE_DAPP_LABEL,
     installMode,
     localDeploymentBaseRoot,
     groth16CrsVersion: groth16Runtime?.compatibleBackendVersion ?? null,
   });
+  progress.done(`Deployment artifacts installed for ${deploymentArtifacts.installed.length} chain${deploymentArtifacts.installed.length === 1 ? "" : "s"}.`);
+  progress.start("Writing the local install manifest.");
   const installManifest = writePrivateStateCliInstallManifest({
     installMode,
     dockerRequested: Boolean(args.docker),
@@ -2745,6 +2759,7 @@ async function handleInstallZkEvm({ args }) {
     tokamakCliRuntime,
     groth16Runtime,
   });
+  progress.done("Local install manifest is written.");
   cliOutput.result({
     action: "install",
     installMode,
@@ -2769,6 +2784,31 @@ async function handleInstallZkEvm({ args }) {
     })),
     installManifestPath: installManifest.manifestPath,
   });
+}
+
+function createInstallProgressReporter(installMode) {
+  const totalSteps = installMode === PRIVATE_STATE_INSTALL_MODES.FULL ? 5 : 2;
+  const startedAtMs = Date.now();
+  let currentStep = 0;
+  const elapsed = () => formatDurationSeconds((Date.now() - startedAtMs) / 1000);
+  return {
+    info(message) {
+      cliOutput.progress("install", "info", {
+        message: `Install: ${message}`,
+      });
+    },
+    start(message) {
+      currentStep += 1;
+      cliOutput.progress("install", `step-${currentStep}-start`, {
+        message: `Install ${currentStep}/${totalSteps}: ${message}`,
+      });
+    },
+    done(message) {
+      cliOutput.progress("install", `step-${currentStep}-done`, {
+        message: `Install ${currentStep}/${totalSteps}: ${message} Elapsed ${elapsed()}.`,
+      });
+    },
+  };
 }
 
 async function handleUninstall({ args }) {

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added human-mode install progress messages with step counts and elapsed time so users can see that installation is
+  still running after browser Terms acceptance.
 - Changed the browser-based install Terms page to render the packaged Markdown Terms as styled HTML instead of showing
   raw preformatted Markdown text.
 - Changed human-mode CLI result formatting so `install` prints a concise installation summary and generic command

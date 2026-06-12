@@ -911,7 +911,7 @@ Command template: no command is required by this item alone.
 
 Success check: before suggesting the next command, explain the relevant public/private boundary, prohibited-use limits,
 Self-Custody, no recovery method, Third-Party Service risk, no professional advice, no warranties, liability limits,
-Official Public Observer limits, and the rule that User-Controlled AI Agents cannot accept Terms or confirmations.
+public observer limits, and the rule that User-Controlled AI Agents cannot accept Terms or confirmations.
 
 Failure recovery: if the user has not reviewed or accepted required Terms, stop and direct the user to the interactive
 CLI flow. Do not continue through JSON mode.

@@ -127,11 +127,16 @@ zk-EVM runtime, Groth16 runtime, Groth16 zkey, callable DApp ABI, or DApp regist
 create or mutate channel state require a later full `private-state-cli install`.
 
 `install` downloads public deployment artifacts from the configured artifact index. It does not read repository-local
-`deployment/` outputs by default. Repository development workflows that need local anvil artifacts can opt in explicitly:
+`deployment/` outputs by default. Repository development and release-readiness workflows that intentionally need local
+deployment artifacts can opt in explicitly:
 
 ```bash
 private-state-cli install --include-local-artifacts
 ```
+
+When `--include-local-artifacts` is used, the CLI scans local `deployment/chain-id-*` directories for the selected DApp
+and records the final installed artifact source once per chain. Local artifacts override downloaded artifacts for the
+same chain.
 
 Run the CLI with:
 

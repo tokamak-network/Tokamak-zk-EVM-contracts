@@ -71,6 +71,10 @@ The current release-readiness work covers:
 - Successful managed runtime installation subprocesses are quiet; failure diagnostics retain captured stdout/stderr.
 - `help guide --json` points User-Controlled AI Agents to `agents.md` and Terms references instead of embedding full
   legal text.
+- CLI README now documents that `--include-local-artifacts` scans local `deployment/chain-id-*` directories and that
+  local artifacts override downloaded artifacts for the same chain.
+- `agents.md` now uses `public observer limits` instead of Terms-specific observer terminology that is not defined in
+  the minimized Terms.
 
 ### Bridge Governance
 
@@ -95,6 +99,10 @@ The current release-readiness work covers:
 - JSON `help observer --network mainnet --channel-name the-great-first-channel --json` returns the same URL with source
   `on-chain channel metadata`.
 - JSON `help observer` for an unknown mainnet Channel returns a structured `UNKNOWN_CHANNEL` error.
+- Final public-document consistency review found no remaining release-blocking conflicts across Terms, Privacy Notice,
+  CLI README, human `help guide`, `help guide --json`, `agents.md`, and the Monitoring Packet. Terms remain minimized
+  for ordinary users and legal or compliance reviewers, while technical details remain in technical documentation and
+  CLI help surfaces.
 - The external observer implementation was reported complete by its developer:
   - new bridge event ABI support,
   - Channel operation status display,
@@ -104,25 +112,9 @@ The current release-readiness work covers:
 
 ## Remaining Work
 
-### 1. Final Public-Document Consistency Review
+### 1. Final Release Readiness Verification
 
-Run a final review after the Terms minimization and local artifact refresh.
-
-Check:
-
-- Terms still cover every relevant `checklist.md` item.
-- Terms, Privacy Notice, CLI README, human `help guide`, `help guide --json`, `agents.md`, observer docs, and Monitoring
-  Packet docs do not conflict.
-- Public documents do not expose unnecessary implementation or operation detail in ordinary-user Terms.
-- Technical details removed from Terms remain available where needed in README, CLI help, observer docs, and Monitoring
-  Packet docs.
-- Human-facing wording is appropriate for ordinary users and legal or compliance reviewers.
-- JSON-mode and agent-facing guidance remains useful for User-Controlled AI Agents without handling secrets or accepting
-  Terms for users.
-
-### 2. Final Release Readiness Verification
-
-After the document consistency review:
+Run the final release-readiness checks:
 
 - Run CLI agent-guidance tests.
 - Run relevant command smoke checks for `install --json`, human help, JSON help, and `help observer`.
@@ -140,5 +132,4 @@ After the document consistency review:
 
 ## Next Recommended Order
 
-1. Run final public-document consistency review.
-2. Run final release-readiness verification.
+1. Run final release-readiness verification.

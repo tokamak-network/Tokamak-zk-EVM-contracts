@@ -1,134 +1,242 @@
-# Private-State / Tonnel Release Readiness Plan
+# Private-State CLI Browser Wallet Signing Plan
 
-This file tracks only the current release-readiness state. Historical execution logs, obsolete draft Terms text, and
-completed runbooks have been removed from this working plan.
+## Audience
 
-## Current Scope
+This plan is for repository developers and reviewers who will implement and verify a private-state CLI execution path
+that does not require direct CLI access to the user's L1 Ethereum private key.
 
-The current release-readiness work covers:
+## Goal
 
-- Tonnel and the Private-State DApp user-facing Terms and Privacy Notice.
-- Private-State CLI install-time Terms acceptance.
-- Human-readable and JSON-mode CLI guidance.
-- Mainnet bridge governance and Channel-scoped observer metadata.
-- Public documentation consistency for ordinary users, legal or compliance reviewers, and User-Controlled AI Agents.
+Add a separate browser-wallet execution path to the private-state CLI while preserving the current local private-key
+execution path. In the browser-wallet path, the CLI must never read, import, persist, or derive from the user's raw L1
+private key. Every L1 account signature, typed-data signature, and Ethereum transaction submission must be approved by
+the user through a browser wallet.
 
-## Current Decisions
+The browser scope is any browser that can run the MetaMask extension or an equivalent EIP-1193 provider compatible with
+MetaMask request methods. The implementation must not assume Chrome specifically.
 
-- Provider: Jehyuk Jang.
-- Provider public privacy and notice contact: `cjhyuck213@gmail.com`.
-- Provider stated jurisdiction: Singapore.
-- Provider residential address: not published.
-- Tokamak Network PTE. LTD.: separate software contributor/licensor where applicable, not the Provider under the current
-  Terms.
-- Governing law and forum: Singapore, subject to non-waivable user rights under applicable law.
-- Arbitration and class-action waiver: not included.
-- Liability cap: no nominal monetary cap; use liability exclusions to the maximum extent permitted by applicable law
-  with non-waivable liability carveouts.
-- Terms acceptance: explicit browser-based human acceptance for install and renewed acceptance. User-Controlled AI Agents
-  and automation must not accept Terms for the user.
-- `--acknowledge-action-impact`: removed from command policy. Install-time Terms acceptance replaces per-command legal
-  acknowledgement flags.
-- Sensitive/destructive flows: `uninstall`, secret-bearing exports, and plaintext note or evidence exports require
-  interactive human confirmation.
-- Real-funds commands: print concise warning summaries in human and JSON modes.
-- Bridge root owner: Safe multisig `0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3`, 2-of-3 threshold, no timelock.
-- Channel observer URL policy: observer URLs are Channel-scoped and must be read from on-chain Channel metadata by CLI
-  and monitoring tools, not hardcoded as Tonnel-wide defaults.
-- Terms audience: ordinary non-developer users and judicial or regulatory readers. Terms must provide only legally
-  necessary information; implementation and operation details belong in README, CLI help, observer docs, and Monitoring
-  Packet docs.
+L2 spending keys and viewing keys remain in scope for local CLI use. The browser-wallet path may derive, store, import,
+export, and use those keys under the existing wallet key rules because they are not the user's L1 private key.
 
-## Completed
+## Non-Goals
 
-### Terms and Privacy Documents
+- Do not remove the existing local private-key execution path.
+- Do not redesign private-state contracts, bridge contracts, proof formats, or channel policy.
+- Do not add browser automation that clicks wallet-extension UI for the user.
+- Do not treat browser-wallet failure as permission to silently fall back to a local L1 private key.
+- Do not make MetaMask sign Tokamak L2 transactions directly. Tokamak L2 transaction signing continues to use the L2
+  spending key.
 
-- Public Terms were minimized for ordinary users and judicial or regulatory readers.
-- Packaged CLI Terms asset matches the public Terms.
-- Terms version is `2026-06-12`.
-- Terms no longer include specific Channel observer URLs, specific Channel names, burn addresses, Solidity getter names,
-  CLI command names, Monitoring Packet details, runtime/artifact details, repository details, or other excessive
-  implementation and operation details.
-- Terms still preserve the legal disclosures needed for Service scope, Self-Custody, no recovery method, public Ethereum
-  mainnet records, privacy limits, prohibited use, third-party services, no professional advice, risk disclosures, no
-  warranties, liability limitation, indemnity, renewed acceptance, governing law, venue, and notices.
-- Privacy Notice exists at `docs/dapps/private-state/privacy-notice.md`.
-- CLI README references the Privacy Notice. `tonnel.io` publication is deferred.
+## Core Design
 
-### CLI Install and Guidance
+Introduce an L1 signer abstraction with two concrete implementations:
 
-- Install opens a local browser Terms page by default.
-- Browser Terms page renders the packaged Markdown Terms as styled HTML.
-- Browser Terms acceptance does not require TTY, allowing a User-Controlled AI Agent to run install while the user clicks
-  acceptance in the browser.
-- `install --read-only --include-local-artifacts` discovers all local `deployment/chain-id-*` artifacts for the selected
-  DApp and records the final installed artifact source once per chain. Local artifacts override Drive artifacts for the
-  same chain during local release-readiness checks.
-- `install --json` does not install, does not accept Terms, and reports that browser-based human acceptance is required.
-- Human install output has a concise final summary instead of JSON blobs.
-- Human install output reports step counts and elapsed time after Terms acceptance.
-- Generic human-mode result fallback renders nested objects and arrays as readable text instead of raw JSON.
-- Successful managed runtime installation subprocesses are quiet; failure diagnostics retain captured stdout/stderr.
-- `help guide --json` points User-Controlled AI Agents to `agents.md` and Terms references instead of embedding full
-  legal text.
-- CLI README now documents that `--include-local-artifacts` scans local `deployment/chain-id-*` directories and that
-  local artifacts override downloaded artifacts for the same chain.
-- `agents.md` now uses `public observer limits` instead of Terms-specific observer terminology that is not defined in
-  the minimized Terms.
+- `local-account` signer: the current `ethers.Wallet` path backed by a protected local account private key.
+- `browser-wallet` signer: a signer backed by a local browser session that exposes an EIP-1193 provider.
 
-### Bridge Governance
+The browser-wallet signer must support:
 
-- Root bridge proxy ownership was migrated from a single EOA to the Safe multisig.
-- `BridgeCore`, `DAppManager`, and `L1TokenVault` owners are the Safe multisig.
-- Current public monitoring artifacts disclose the Safe owner, 2-of-3 threshold, and no-timelock status.
-- Old single-EOA owner posture is no longer the current governance state.
+- address discovery through `eth_requestAccounts` or an equivalent wallet connection method
+- chain validation through `eth_chainId`
+- chain switching or clear user-facing failure when the wallet is on the wrong chain
+- EIP-191 message signing through `personal_sign`
+- EIP-712 signing through `eth_signTypedData_v4`
+- Ethereum transaction submission through `eth_sendTransaction`
 
-### Bridge and Observer Model
+The CLI should launch a local signing page served from `127.0.0.1` on an ephemeral port. The page connects to the browser
+wallet, displays the request being approved, sends provider requests from the browser context, and returns the result to
+the CLI over a localhost callback channel. This is more stable than controlling extension UI and keeps the user approval
+surface inside the wallet.
 
-- Bridge upgrade adding Channel-scoped observer URL registry was executed.
-- The Great First Channel observer URL registration was completed on-chain.
-- CLI no longer uses a Tonnel-level hardcoded observer URL for `help observer`.
-- `help observer` requires network and Channel selectors and reads the selected Channel observer URL from on-chain
-  Channel metadata.
-- Stale installed read-only ABI now produces a clear reinstall-required error instead of an internal TypeError.
-- Monitoring Packet generation includes Channel observer URL data read from on-chain state.
-- Local read-only deployment artifacts were refreshed from the repository-local deployment artifacts. Mainnet now uses
-  local bridge artifacts from `deployment/chain-id-1/bridge/20260611T091000Z`.
-- Human `help observer --network mainnet --channel-name the-great-first-channel` prints
-  `https://observer.tonnel.io` from on-chain Channel metadata.
-- JSON `help observer --network mainnet --channel-name the-great-first-channel --json` returns the same URL with source
-  `on-chain channel metadata`.
-- JSON `help observer` for an unknown mainnet Channel returns a structured `UNKNOWN_CHANNEL` error.
-- Final public-document consistency review found no remaining release-blocking conflicts across Terms, Privacy Notice,
-  CLI README, human `help guide`, `help guide --json`, `agents.md`, and the Monitoring Packet. Terms remain minimized
-  for ordinary users and legal or compliance reviewers, while technical details remain in technical documentation and
-  CLI help surfaces.
-- The external observer implementation was reported complete by its developer:
-  - new bridge event ABI support,
-  - Channel operation status display,
-  - Join Toll burn-address transfer semantics display,
-  - production smoke verification,
-  - lint/test/build pass.
-- Final release-readiness verification passed:
-  - CLI agent-guidance tests passed.
-  - `install --json` reports browser-based human Terms acceptance is required and does not install.
-  - Human help and JSON help command smoke checks passed.
-  - Human and JSON `help observer` read The Great First Channel observer URL from on-chain Channel metadata.
-  - Public Terms and packaged CLI Terms asset match byte-for-byte.
-  - Whitespace checks passed.
+## Command Surface
 
-## Remaining Work
+Add browser-wallet options without changing existing local-account options:
 
-No current release-readiness work remains in this plan.
+- `--browser-wallet`: select the browser-wallet L1 signer path for commands that need L1 account authority.
+- `--browser-account <ADDRESS>`: optional expected address guard. If present, the connected wallet address must match.
+- `--browser <COMMAND_OR_PATH>`: optional browser launcher override for users who do not want the OS default browser.
+- `--browser-timeout <SECONDS>`: optional approval timeout with a conservative default.
 
-## Deferred, Not Current Blockers
+Existing `--account <ACCOUNT>` should keep selecting the local-account path. Commands must reject ambiguous signer
+selection when both `--account` and `--browser-wallet` are supplied unless the command has a specific reason to accept
+both. For note commands, `--tx-submitter` should keep selecting a local submitter account, and a new browser-wallet
+submitter option should be added instead of overloading `--tx-submitter`.
 
-- Far-future counsel review of governing law, forum, consumer-law carveouts, sanctions wording, limitation of liability,
-  arbitration/class-action strategy, and privacy notice sufficiency.
-- Future publication of Privacy Notice on `tonnel.io`.
-- Any future timelock, guardian, emergency council, pause mechanism, or governance redesign.
-- Any future named restricted-jurisdiction or named sanctions-list policy.
+Recommended note-command additions:
 
-## Next Recommended Order
+- `--browser-tx-submitter`: submit `executeChannelTransaction` through the connected browser wallet.
+- `--browser-tx-submitter-address <ADDRESS>`: optional expected submitter address guard.
 
-1. Commit the final planning update.
+## Command Feasibility
+
+### Read-Only Commands
+
+Read-only commands do not need L1 private-key access. Where they currently require `--account` only to identify an
+address, add address-only browser selection so the command can use the connected browser account without importing a
+local secret.
+
+Affected commands include:
+
+- `account get-l1-address`
+- `account get-bridge-fund`
+- `channel get-meta`
+- `channel recover-workspace`
+- `wallet get-meta`
+- `wallet get-channel-fund`
+- `wallet get-notes`
+- help and diagnostic commands that inspect local account state
+
+### L1 Transaction Commands
+
+These commands can use the browser-wallet signer for transaction submission:
+
+- `account deposit-bridge`
+- `account withdraw-bridge`
+- `channel create`
+- `channel set-workspace-mirror`
+- `channel abandon-operation`
+- `channel join`
+- `channel exit`
+- `wallet deposit-channel`
+- `wallet withdraw-channel`
+
+For `account deposit-bridge`, the browser-wallet path must preserve the two-transaction sequence when approval is
+needed: token `approve`, then bridge `fund`. Nonce management should rely on wallet/provider transaction submission
+instead of manually assigning nonces unless a concrete sequencing issue requires explicit nonces.
+
+### L2 Note Commands
+
+These commands still use the local L2 spending key for Tokamak L2 transaction signing and proof generation:
+
+- `wallet mint-notes`
+- `wallet transfer-notes`
+- `wallet redeem-notes`
+
+The browser-wallet signer is only responsible for the final L1 submission of `executeChannelTransaction` when the user
+selects the browser submitter path. The CLI must keep the existing requirement that the wallet has spending capability,
+because the L2 transaction snapshot is signed with `l2PrivateKey` before proof generation.
+
+### Key Derivation Commands
+
+`channel join` and `wallet recover-workspace` need browser signatures when local L1 private-key access is not available.
+
+For `channel join`, the browser-wallet path must:
+
+1. connect the browser wallet and verify the selected chain and address
+2. request the deterministic EIP-191 message signature used to derive the channel-bound L2 spending key
+3. request the EIP-712 typed-data signature used to derive the note-receive viewing key
+4. submit any Join Toll approval through the browser wallet
+5. submit `joinChannel` through the browser wallet
+6. persist wallet metadata plus L2 spending/viewing key files under the existing wallet-key model
+
+For `wallet recover-workspace`, the browser-wallet path must:
+
+1. connect and verify the selected browser wallet account
+2. derive the viewing key from the fixed EIP-712 typed-data signature
+3. derive the spending key only when `--wallet-secret-path` is supplied and the on-chain registration is active
+4. reject recovery when the derived keys do not match the registered channel-local address, storage key, or note-receive
+   public key
+
+## Implementation Steps
+
+1. Add signer-mode parsing.
+   - Extend command schemas with `browserWallet`, `browserAccount`, `browser`, and `browserTimeout`.
+   - Add submitter-specific browser options for note commands.
+   - Reject ambiguous local-account and browser-wallet selections.
+
+2. Build the browser signing bridge.
+   - Add a small localhost HTTP server that serves a static signing page.
+   - Add request IDs, one-shot approval sessions, CSRF-resistant random session tokens, and strict localhost-only binding.
+   - Add a structured request/response protocol for address, chain, message signing, typed-data signing, and transaction
+     submission.
+   - Ensure the page supports any injected EIP-1193 provider compatible with MetaMask methods.
+
+3. Add a `BrowserWalletSigner` adapter.
+   - Expose `address`, `provider`, `signMessage`, `signTypedData`, and `sendTransaction`-compatible behavior needed by
+     current handlers.
+   - Provide a transaction preflight path that can still use `staticCall` with the read provider before submitting via
+     the browser wallet.
+   - Convert populated contract transactions into `eth_sendTransaction` payloads with `from`, `to`, `data`, `value`,
+     and chain-compatible fee fields.
+
+4. Split contract transaction construction from submission.
+   - Refactor `contractTxCall` and `dryRunThenSubmitTransaction` so dry-run uses a provider or contract runner that does
+     not need a local private key.
+   - Keep current local-account behavior intact.
+   - Add browser-wallet submission without requiring `ethers.Wallet`.
+
+5. Update account and channel commands.
+   - Replace direct `requireL1Signer` calls with signer-mode resolution.
+   - Update `channel join` to use browser message and typed-data signatures for L2 key derivation.
+   - Keep user-facing warnings before each browser approval request.
+
+6. Update wallet and note commands.
+   - Allow wallet owner identity to be represented by address-only L1 account data when local L1 secret is absent.
+   - Preserve local L2 spending/viewing key requirements.
+   - Add browser-wallet submitter support for `executeChannelTransaction`.
+   - Update operation artifact sealing so browser-wallet commands use the existing L2 spending or viewing key where
+     available, not a local L1 private key.
+
+7. Update documentation and command help.
+   - Document that browser-wallet mode avoids CLI access to the raw L1 private key.
+   - Document that L2 spending and viewing keys are still used locally.
+   - Document supported browser scope as MetaMask-capable browsers, not Chrome-only.
+   - Explain every browser approval request shown during `channel join`.
+
+8. Add tests.
+   - Unit-test signer-mode validation and ambiguous-option rejection.
+   - Unit-test transaction payload conversion for browser submission.
+   - Unit-test key derivation using mocked browser signatures.
+   - Add command-level tests with a mocked browser signing bridge for each L1 transaction command.
+   - Add note-command tests proving that L2 spending key use remains local while L1 submission can use a browser
+     submitter.
+
+9. Add manual verification.
+   - Verify with MetaMask on at least two supported browsers when available.
+   - Verify wrong-chain, wrong-account, rejection, timeout, and closed-browser failure paths.
+   - Verify that no browser-wallet command writes an L1 private key file.
+   - Verify that the existing local-account path still works.
+
+## Security Requirements
+
+- Bind the local signing server to `127.0.0.1` only.
+- Use a fresh random session token for each browser approval session.
+- Never expose wallet secrets, L2 spending keys, viewing keys, note plaintext, or proof artifacts to the browser page
+  unless a later explicit design requires it.
+- Show the exact signing purpose before requesting browser approval.
+- Fail closed on user rejection, timeout, wrong address, wrong chain, provider absence, or malformed wallet response.
+- Do not silently retry with a different account or with a local private key.
+- Do not store browser wallet signatures except where existing wallet recovery or audit data already requires storing
+  derived public metadata.
+
+## Compatibility Requirements
+
+- Existing local-account commands must keep their current behavior.
+- Existing wallet key import/export and backup semantics must remain unchanged.
+- Existing channel workspace and wallet workspace layouts should change only when browser-wallet metadata needs to be
+  recorded.
+- Existing proof generation must remain compatible with Tokamak L2 transaction semantics.
+- Contract entrypoints and successful symbolic paths are not changed by this plan.
+- Bridge-managed custody remains unchanged because browser-wallet mode changes only the L1 signing surface.
+
+## Open Design Checks
+
+- Decide whether `--browser-wallet` should be accepted by commands that currently require `--account`, or whether each
+  command should expose a more explicit `--l1-signer browser` option.
+- Decide whether browser-wallet connection metadata should be cached, or whether every command should reconnect.
+- Decide whether the CLI should support WalletConnect later. This plan does not require it because the current request
+  is scoped to browser wallets with MetaMask-compatible providers.
+- Decide whether browser transaction submission should populate EIP-1559 fee fields itself or delegate fee selection to
+  the wallet. The first implementation should prefer wallet fee selection unless a target network requires otherwise.
+
+## Definition of Done
+
+- Every command that currently needs a local L1 private key has a browser-wallet path or a documented reason why it does
+  not need one.
+- The CLI can complete `channel join`, `wallet deposit-channel`, `wallet mint-notes`, `wallet transfer-notes`,
+  `wallet redeem-notes`, `wallet withdraw-channel`, and `channel exit` without importing an L1 private key.
+- L2 spending and viewing keys continue to work under the existing local key rules.
+- Browser-wallet mode works with MetaMask-capable browsers and contains no Chrome-specific assumptions.
+- Browser-wallet failures are explicit and do not fall back to hidden local-key behavior.
+- Tests cover signer selection, browser request handling, transaction submission payloads, and L2 key derivation from
+  mocked browser signatures.

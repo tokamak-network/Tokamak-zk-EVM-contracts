@@ -109,18 +109,17 @@ The current release-readiness work covers:
   - Join Toll burn-address transfer semantics display,
   - production smoke verification,
   - lint/test/build pass.
+- Final release-readiness verification passed:
+  - CLI agent-guidance tests passed.
+  - `install --json` reports browser-based human Terms acceptance is required and does not install.
+  - Human help and JSON help command smoke checks passed.
+  - Human and JSON `help observer` read The Great First Channel observer URL from on-chain Channel metadata.
+  - Public Terms and packaged CLI Terms asset match byte-for-byte.
+  - Whitespace checks passed.
 
 ## Remaining Work
 
-### 1. Final Release Readiness Verification
-
-Run the final release-readiness checks:
-
-- Run CLI agent-guidance tests.
-- Run relevant command smoke checks for `install --json`, human help, JSON help, and `help observer`.
-- Run public Terms / packaged Terms consistency check.
-- Run whitespace checks.
-- Commit all resulting changes.
+No current release-readiness work remains in this plan.
 
 ## Deferred, Not Current Blockers
 
@@ -132,4 +131,4 @@ Run the final release-readiness checks:
 
 ## Next Recommended Order
 
-1. Run final release-readiness verification.
+1. Commit the final planning update.

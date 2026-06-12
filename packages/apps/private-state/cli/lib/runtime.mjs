@@ -5466,7 +5466,7 @@ async function loadWalletChannelRegistrationState({
   provider,
   requireRegistration = false,
 }) {
-  const signer = await requireWalletOwnerSigner(walletContext, provider);
+  const signer = restoreWalletSigner(walletContext, provider);
   const l2Identity = restoreParticipantIdentityFromWallet(walletContext.wallet);
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
@@ -5907,12 +5907,12 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
 async function handleExitChannel({ args, provider }) {
   const { wallet: walletContext, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   requireActiveWalletLifecycle(walletContext, "channel exit");
-  const { signer, context, channelFund, contextResult } = await loadWalletChannelFundState({
+  const { context, channelFund, contextResult } = await loadWalletChannelFundState({
     walletContext,
     provider,
     progressAction: "channel exit",
   });
-  const ownerSigner = signer;
+  const ownerSigner = await requireWalletOwnerSigner(walletContext, provider);
   const network = contextResult.network;
   await warnIfChannelOperationAbandoned(context, "channel exit");
   expect(
@@ -6255,7 +6255,12 @@ async function handleMintNotes({ args, provider }) {
     "Invalid --amounts. The array must contain at least one amount greater than zero.",
   );
   const totalMintAmount = baseUnitAmounts.reduce((sum, { amountBaseUnits }) => sum + amountBaseUnits, 0n);
-  const { channelFund, contextResult: preparedContextResult } = await loadWalletChannelFundState({
+  const {
+    signer,
+    l2Identity,
+    channelFund,
+    contextResult: preparedContextResult,
+  } = await loadWalletChannelFundState({
     walletContext: wallet,
     provider,
     progressAction: "wallet mint-notes",
@@ -6267,12 +6272,12 @@ async function handleMintNotes({ args, provider }) {
       `${channelFund.toString()}. Run wallet get-channel-fund to inspect the available balance.`,
     ].join(" "),
   );
-  const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
-  const { txSubmitter } = await resolveTxSubmitterSigner({
+  const txSubmitterResolution = await resolveTxSubmitterSigner({
     args,
     ownerSigner: signer,
     provider,
   });
+  const { txSubmitter } = txSubmitterResolution;
   await printCommandWarningSummary("wallet-mint-notes", args, {
     l1Address: txSubmitter.address,
     l2Address: l2Identity.l2Address,
@@ -6291,6 +6296,7 @@ async function handleMintNotes({ args, provider }) {
     operationName: "wallet mint-notes",
     templatePayload,
     preparedContextResult,
+    txSubmitterResolution,
   });
 
   cliOutput.result({
@@ -6343,11 +6349,12 @@ async function handleRedeemNotes({ args, provider }) {
   });
   const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
-  const { txSubmitter } = await resolveTxSubmitterSigner({
+  const txSubmitterResolution = await resolveTxSubmitterSigner({
     args,
     ownerSigner: signer,
     provider,
   });
+  const { txSubmitter } = txSubmitterResolution;
   await printCommandWarningSummary("wallet-redeem-notes", args, {
     l1Address: txSubmitter.address,
     l2Address: l2Identity.l2Address,
@@ -6366,6 +6373,7 @@ async function handleRedeemNotes({ args, provider }) {
     operationName: "wallet redeem-notes",
     templatePayload,
     preparedContextResult,
+    txSubmitterResolution,
   });
 
   cliOutput.result({
@@ -7258,11 +7266,12 @@ async function handleTransferNotes({ args, provider }) {
     "The sum of --amounts must equal the sum of the selected input note values.",
   );
 
-  const { txSubmitter } = await resolveTxSubmitterSigner({
+  const txSubmitterResolution = await resolveTxSubmitterSigner({
     args,
     ownerSigner: signer,
     provider,
   });
+  const { txSubmitter } = txSubmitterResolution;
   await printCommandWarningSummary("wallet-transfer-notes", args, {
     l1Address: txSubmitter.address,
     l2Address: wallet.wallet.l2Address,
@@ -7285,6 +7294,7 @@ async function handleTransferNotes({ args, provider }) {
     operationName: "wallet transfer-notes",
     templatePayload,
     preparedContextResult,
+    txSubmitterResolution,
   });
   const outputNotes = buildLifecycleTrackedOutputs({
     outputNotes: templatePayload.lifecycleOutputs,
@@ -8899,6 +8909,7 @@ async function executeWalletDirectTemplateCommand({
   operationName,
   templatePayload,
   preparedContextResult,
+  txSubmitterResolution = null,
 }) {
   emitProgress(operationName, "loading");
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
@@ -8907,11 +8918,11 @@ async function executeWalletDirectTemplateCommand({
     txSubmitter,
     source: txSubmitterSource,
     account: txSubmitterAccount,
-  } = await resolveTxSubmitterSigner({
+  } = txSubmitterResolution ?? (await resolveTxSubmitterSigner({
     args,
     ownerSigner: signer,
     provider,
-  });
+  }));
   expect(preparedContextResult?.context, "Internal error: prepared channel context is required before proof generation.");
   const contextResult = preparedContextResult;
   await warnIfChannelOperationAbandoned(contextResult.context, operationName);
@@ -11398,6 +11409,13 @@ function requireLeaderSigner(args, provider) {
 
 async function resolveTxSubmitterSigner({ args, ownerSigner, provider }) {
   if (args.txSubmitter === undefined) {
+    if (ownerSigner instanceof BrowserWalletSigner) {
+      return {
+        txSubmitter: ownerSigner,
+        source: TX_SUBMITTER_SOURCES.BROWSER_WALLET_OWNER,
+        account: null,
+      };
+    }
     if (typeof ownerSigner.privateKey !== "string") {
       return {
         txSubmitter: await requireBrowserWalletSigner({

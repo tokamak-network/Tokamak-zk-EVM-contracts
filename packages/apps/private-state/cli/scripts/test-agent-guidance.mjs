@@ -891,9 +891,22 @@ function testWalletOwnerBrowserFallbackFlowCoverage() {
     "async function requireWalletOwnerSigner",
     "function requireWalletSpendingCapability",
   );
+  const registrationSource = sourceBetween(
+    runtimeSource,
+    "async function loadWalletChannelRegistrationState",
+    "function walletRegistrationMatchesIdentity",
+  );
   expect(
     ownerSignerSource.includes("expectedAddress: walletContext.wallet.l1Address"),
     "Wallet-owner browser fallback must require the selected browser address to match the wallet owner address.",
+  );
+  expect(
+    registrationSource.includes("const signer = restoreWalletSigner(walletContext, provider);"),
+    "Read-only wallet registration and fund loading should use the stored wallet owner address without opening a browser wallet.",
+  );
+  expect(
+    !registrationSource.includes("requireWalletOwnerSigner("),
+    "Read-only wallet registration and fund loading must not require browser-wallet owner approval.",
   );
   expect(
     grothMoveSource.includes("const signer = await requireWalletOwnerSigner(walletContext, provider);"),
@@ -908,12 +921,71 @@ function testWalletOwnerBrowserFallbackFlowCoverage() {
     "wallet deposit-channel and wallet withdraw-channel must not submit through an address-only restored signer.",
   );
   expect(
-    countOccurrences(exitSource, "requireWalletOwnerSigner(") === 0,
-    "channel exit should reuse the wallet owner signer loaded during channel-fund validation instead of requesting browser approval twice.",
+    countOccurrences(exitSource, "requireWalletOwnerSigner(") === 1,
+    "channel exit should request wallet owner approval once, after read-only channel-fund validation.",
   );
   expect(
-    exitSource.includes("const ownerSigner = signer;"),
-    "channel exit should name the already-validated wallet owner signer before transaction submission.",
+    exitSource.includes("const ownerSigner = await requireWalletOwnerSigner(walletContext, provider);"),
+    "channel exit should use browser-wallet fallback for the owner transaction submitter.",
+  );
+}
+
+function testNoteCommandBrowserSubmitterFlowCoverage() {
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
+  const mintSource = sourceBetween(
+    runtimeSource,
+    "async function handleMintNotes",
+    "async function handleRedeemNotes",
+  );
+  const redeemSource = sourceBetween(
+    runtimeSource,
+    "async function handleRedeemNotes",
+    "async function handleWalletGetNotes",
+  );
+  const transferSource = sourceBetween(
+    runtimeSource,
+    "async function handleTransferNotes",
+    "function assertWalletMatchesChannelContext",
+  );
+  const directExecutionSource = sourceBetween(
+    runtimeSource,
+    "async function executeWalletDirectTemplateCommand",
+    "async function executeWalletTemplateSend",
+  );
+  const resolverSource = sourceBetween(
+    runtimeSource,
+    "async function resolveTxSubmitterSigner",
+    "function resolvePrivateKeySource",
+  );
+  for (const [name, source] of [
+    ["wallet mint-notes", mintSource],
+    ["wallet redeem-notes", redeemSource],
+    ["wallet transfer-notes", transferSource],
+  ]) {
+    expect(
+      source.includes("const txSubmitterResolution = await resolveTxSubmitterSigner({"),
+      `${name} should resolve the L1 submitter once before warning output and execution.`,
+    );
+    expect(
+      source.includes("txSubmitterResolution,"),
+      `${name} should pass the resolved L1 submitter into the execution path.`,
+    );
+  }
+  expect(
+    directExecutionSource.includes("txSubmitterResolution = null"),
+    "Wallet direct note execution should accept a pre-resolved L1 submitter.",
+  );
+  expect(
+    directExecutionSource.includes("} = txSubmitterResolution ?? (await resolveTxSubmitterSigner({"),
+    "Wallet direct note execution should resolve the L1 submitter only when one was not pre-resolved.",
+  );
+  expect(
+    resolverSource.includes("ownerSigner instanceof BrowserWalletSigner"),
+    "No --tx-submitter owner fallback should reuse an already connected browser wallet owner signer.",
+  );
+  expect(
+    resolverSource.includes("source: TX_SUBMITTER_SOURCES.BROWSER_WALLET_OWNER"),
+    "Browser wallet owner fallback should remain visible in operation output.",
   );
 }
 
@@ -1086,6 +1158,7 @@ async function main() {
   testBrowserWalletAccountGrammar();
   testChannelJoinBrowserWalletFlowCoverage();
   testWalletOwnerBrowserFallbackFlowCoverage();
+  testNoteCommandBrowserSubmitterFlowCoverage();
   testMissingAccountSelectsBrowserWalletMode();
   await testBrowserWalletHumanConnectsFromLocalCallback();
   await testBrowserWalletHumanRejectsLocalCallback();

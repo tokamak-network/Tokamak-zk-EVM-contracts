@@ -2094,3 +2094,105 @@ Release blocker:
   User-Controlled AI Agents and automation must not click browser acceptance controls or type fallback Terms acceptance
   phrases for the user.
 - After that human install flow, rerun the `help observer` registered and unregistered observer checks.
+
+## Terms Audience Simplification Review
+
+Status: planned. Do not rewrite the Terms in this step. First simplify the drafting plan so the next Terms edit is aimed
+at ordinary non-developer users and judicial or regulatory readers, not protocol developers.
+
+### Review Findings
+
+The current Terms cover the required risk and responsibility topics, but several clauses expose implementation details
+that are not appropriate for the primary Terms audience:
+
+- The Service definition includes "deployment artifacts" and "proof-runtime artifacts". These are implementation and
+  packaging details. The Terms should instead refer to official software, documentation, interfaces, and support
+  materials, while operational docs can explain artifacts.
+- The Tokamak Network PTE. LTD. definition includes repository, package registry, upstream tooling, token
+  infrastructure, bridge infrastructure, and similar implementation labels. The Terms only need to state its separated
+  role as a software contributor/licensor or third-party infrastructure/tooling provider where applicable.
+- The Join Toll policy clause names Solidity getter patterns such as `BridgeCore.defaultJoinTollRefundCutoff*`,
+  `BridgeCore.defaultJoinTollRefundBps*`, `ChannelManager.joinTollRefundCutoff*`, and
+  `ChannelManager.joinTollRefundBps*`. These names are too developer-specific for Terms. The Terms should state that
+  policy values are verifiable from official on-chain contract records and official interfaces that read those records.
+  Exact getter names belong in README, Monitoring Packet docs, observer docs, or developer reference material.
+- The Channel Operation Abandonment clause uses CLI command names such as `deposit-channel`, `redeem-notes`,
+  `withdraw-channel`, and `exit-channel`. The Terms should describe the user-facing actions in plain language, with CLI
+  command names left to CLI help and README.
+- Public record and observer clauses list technical record types such as commitments, nullifiers, encrypted
+  note-delivery events, accepted transitions, and root updates. The Terms should keep the legal point that public
+  technical Channel records can reveal or support monitoring, but should avoid protocol vocabulary unless the term is
+  necessary to define a legal risk.
+- Risk disclosures mention zero-knowledge circuits, verifier contracts, CRS, proving artifacts, proving runtimes, proof
+  input construction, and proof verification. The Terms should compress this to "privacy-preserving cryptographic
+  software, proof systems, and related tools" unless a specific risk needs separate disclosure.
+- Acceptance and renewed-acceptance clauses specify stored acceptance record fields such as terms hash, CLI package
+  version, and acceptance source. The Terms should state the user-facing rule: renewed acceptance is required when the
+  Terms change and the Service may record acceptance metadata to verify that consent. Field-level storage details belong
+  in the CLI implementation and Privacy Notice where relevant.
+- Definitions for User-Controlled AI Agent and Official Machine-Readable Output are useful for the CLI/AI workflow, but
+  they are overrepresented in the Terms. The Terms should keep a shorter automated-tool clause: automated tools may help
+  the user, but must not accept Terms, confirmations, or disclose secrets on the user's behalf.
+- Monitoring Packet references are operational artifacts. The Terms can say official observer pages, CLI output, or
+  official records may provide convenience views, while Monitoring Packet-specific details belong in monitoring docs.
+
+### Revision Principles
+
+When rewriting the Terms, apply the following rules:
+
+- Keep legally material facts in the Terms: Provider identity and contact, Service scope, self-custody, no recovery
+  method, public Ethereum mainnet records, privacy limits, prohibited use, third-party services, no professional advice,
+  risk disclosures, no warranties, liability limitation, indemnity, changes to Terms, governing law, venue, notices,
+  Channel-scoped observer and mirror responsibility, Join Toll non-monetization, and burn-address transfer semantics.
+- Remove or generalize implementation details that do not change user rights or responsibilities.
+- Use plain action names for ordinary users: join a Channel, deposit into a Channel, create or use Private Notes, redeem
+  Private Notes, withdraw from a Channel, and exit a Channel.
+- Use exact contract names, getter names, event names, JSON field names, package names, repository names, and CLI command
+  names only in technical documentation, CLI help, observer documentation, and Monitoring Packet documentation.
+- Preserve the rule that on-chain records control over convenience displays, but express it as "official on-chain
+  contract records" rather than Solidity getter names.
+- Preserve the checklist coverage. Simplification must not weaken disclosures that TON remains public at the
+  exchange-facing boundary, Tonnel is not an exchange deposit network, Private Notes are not exchange-depositable assets,
+  users self-custody secrets, public bridge and Channel records are observable, and illegal use is prohibited.
+- Keep the style formal and precise, but write for non-developer readers and judicial or regulatory readers.
+
+### Planned Terms Edits
+
+1. Rewrite the Definitions section:
+   - Shorten Service, Provider Parties, Tokamak Network PTE. LTD., Channel Operation Abandonment, Third-Party Services,
+     User-Controlled AI Agent, and Official Machine-Readable Output definitions.
+   - Keep technical terms only when they are later used repeatedly or affect user rights.
+   - Remove deployment/proof artifact wording from the primary Service definition unless rewritten as "official software
+     and related materials".
+
+2. Rewrite Product Boundary and Channel Policy clauses:
+   - Replace getter names with a plain statement that Bridge default policy and Channel-specific policy are recorded in
+     official on-chain contract records and may be displayed by official interfaces.
+   - Keep the burn address
+     `0x000000000000000000000000000000000000dEaD` because it is legally material to the non-refundable Join Toll
+     handling.
+   - Replace CLI command names with plain action descriptions.
+
+3. Rewrite Public Records and Observer clauses:
+   - Replace protocol-record lists with ordinary-user language such as "public Channel activity records and technical
+     records needed to verify Channel state".
+   - Keep the disclosure that observer services may be incomplete, delayed, or insufficient for legal, accounting, tax,
+     exchange, audit, or compliance review.
+   - Keep Channel-scoped observer and mirror responsibility clear.
+
+4. Rewrite Risk Disclosures:
+   - Compress proof-system and runtime implementation details into a broader cryptographic-software risk disclosure.
+   - Keep irreversible transaction, wallet, third-party RPC, bridge, smart-contract, regulatory, and market risks.
+
+5. Rewrite Renewed Acceptance clauses:
+   - State that changed Terms require renewed user acceptance before terms-gated operations continue.
+   - State that the Service may store acceptance metadata needed to verify accepted Terms.
+   - Move field-level acceptance metadata details to CLI documentation or Privacy Notice if needed.
+
+6. Cross-document follow-up after Terms edits:
+   - Update the packaged CLI Terms asset to match the public Terms exactly.
+   - Confirm the Privacy Notice only explains actual data processing and does not inherit unnecessary protocol details
+     from the Terms.
+   - Confirm README, `agents.md`, CLI help, observer docs, and Monitoring Packet docs retain the technical lookup
+     details removed from the Terms.
+   - Re-run the canonical Terms asset consistency test and public-document conflict review.

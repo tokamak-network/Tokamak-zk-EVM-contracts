@@ -171,6 +171,11 @@ code `-32006` and data `{"httpStatus":401,"cause":null}`. This weakens the wrong
 wrong-chain hypotheses. Before changing CLI behavior again, inspect the MetaMask Sepolia network RPC/backend
 configuration because the browser wallet appears to be receiving an HTTP 401 while submitting the transaction.
 
+A follow-up 0 ETH MetaMask Sepolia self-transaction diagnostic failed with the same `-32006` / HTTP 401 error before any
+private-state calldata or contract target was involved. This makes the private-state transaction payload unlikely to be
+the root cause. The next blocker is external to the CLI: the MetaMask Sepolia RPC/backend configuration must be fixed or
+replaced, and a normal Sepolia transaction should succeed from MetaMask before retrying private-state `channel create`.
+
 Before another manual Sepolia transaction attempt, the CLI should preserve structured diagnostic data from browser-wallet
 failures without exposing secrets or raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:
 
@@ -268,6 +273,8 @@ failures.
      available and recorded.
    - After diagnostics are recorded, verify the browser wallet's Sepolia RPC/backend configuration before retrying
      private-state transaction submission.
+   - Do not retry private-state `channel create` until a normal MetaMask Sepolia transaction succeeds through the same
+     browser wallet network configuration.
    - Verify with MetaMask on at least two supported browsers when available.
    - On Sepolia, create a fresh named test channel with browser-wallet `channel create` before `channel join` when no
      existing named test channel is available.

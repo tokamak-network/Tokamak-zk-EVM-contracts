@@ -234,6 +234,24 @@ Manual diagnostic retry result on 2026-06-14:
 - Next manual check should inspect the MetaMask Sepolia network RPC configuration and verify that the browser wallet can
   submit a normal Sepolia transaction through that network before retrying private-state `channel create`.
 
+Manual MetaMask Sepolia self-transaction diagnostic on 2026-06-14:
+
+- Result: failed before transaction submission with the same browser-wallet error.
+- Diagnostic action: opened a local one-off page that requested the connected MetaMask account and attempted a 0 ETH
+  Sepolia self transaction from the selected account to the same account.
+- Wallet error message: `Unauthorized.`
+- Wallet error code: `-32006`.
+- Wallet error data: `{"httpStatus":401,"cause":null}`.
+- Interpretation: a plain MetaMask Sepolia transaction fails before any private-state calldata or contract target is
+  involved. This makes the private-state `createChannel` payload and contract target unlikely to be the root cause.
+  The strongest current hypothesis is that the MetaMask Sepolia RPC/backend configuration is unauthorized or otherwise
+  not usable for transaction submission.
+- No private-state `createChannel` transaction was submitted.
+- The Sepolia workspace still contained only `rpc-config.env`; no new channel workspace was created.
+- No Sepolia local account secret directory was created.
+- Next manual step: fix or replace the Sepolia RPC configured inside MetaMask, then verify a normal Sepolia transaction
+  succeeds before retrying private-state `channel create`.
+
 ### Channel Join Without `--account`
 
 Command:

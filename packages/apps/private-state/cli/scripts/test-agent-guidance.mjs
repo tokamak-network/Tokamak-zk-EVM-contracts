@@ -12,6 +12,12 @@ import {
   privateStateCliCommandRequiredOptionKeys,
 } from "../lib/private-state-cli-command-registry.mjs";
 import {
+  buildEip712Payload,
+  normalizeBrowserTransaction,
+  personalSignPayload,
+  safeJsonForScript,
+} from "../lib/private-state-browser-wallet-helpers.mjs";
+import {
   readPrivateStateTermsMetadata,
   readPrivateStateTermsText,
 } from "../lib/private-state-terms.mjs";
@@ -863,6 +869,76 @@ function testBrowserWalletAccountGrammar() {
   );
 }
 
+function testBrowserWalletPayloadHelpers() {
+  const tx = normalizeBrowserTransaction({
+    from: "0x1111111111111111111111111111111111111111",
+    to: "0x2222222222222222222222222222222222222222",
+    data: Uint8Array.from([0x12, 0x34]),
+    value: 15n,
+    gasLimit: 21000n,
+    maxFeePerGas: 30_000_000_000n,
+    maxPriorityFeePerGas: 2_000_000_000n,
+    nonce: 7,
+    chainId: 1n,
+    gasPrice: null,
+  });
+  expect(tx.from === "0x1111111111111111111111111111111111111111", "Browser tx from address should be checksummed.");
+  expect(tx.to === "0x2222222222222222222222222222222222222222", "Browser tx to address should be checksummed.");
+  expect(tx.data === "0x1234", "Browser tx data should be hex encoded.");
+  expect(tx.value === "0xf", "Browser tx value should use JSON-RPC quantity format.");
+  expect(tx.gas === "0x5208", "Browser tx gasLimit should map to gas quantity.");
+  expect(tx.maxFeePerGas === "0x6fc23ac00", "Browser tx maxFeePerGas should use quantity format.");
+  expect(tx.maxPriorityFeePerGas === "0x77359400", "Browser tx maxPriorityFeePerGas should use quantity format.");
+  expect(tx.nonce === "0x7", "Browser tx nonce should use quantity format when present.");
+  expect(tx.chainId === "0x1", "Browser tx chainId should use quantity format when present.");
+  expect(!Object.hasOwn(tx, "gasPrice"), "Browser tx should omit null fee fields.");
+
+  const payload = buildEip712Payload({
+    domain: {
+      name: "PrivateState",
+      version: "1",
+      chainId: 1n,
+      verifyingContract: "0x3333333333333333333333333333333333333333",
+      salt: Uint8Array.from([0xaa, 0xbb]),
+      ignored: undefined,
+    },
+    types: {
+      NoteReceiveKey: [
+        { name: "channelId", type: "uint256" },
+        { name: "account", type: "address" },
+        { name: "seed", type: "bytes" },
+      ],
+    },
+    value: {
+      channelId: 5n,
+      account: "0x4444444444444444444444444444444444444444",
+      seed: Uint8Array.from([0x01, 0x02]),
+      ignored: undefined,
+    },
+  });
+  expect(payload.primaryType === "NoteReceiveKey", "EIP-712 payload should preserve the primary typed-data type.");
+  expect(payload.domain.chainId === "1", "EIP-712 domain BigInt values should serialize as decimal strings.");
+  expect(payload.domain.salt === "0xaabb", "EIP-712 domain bytes should serialize as hex strings.");
+  expect(!Object.hasOwn(payload.domain, "ignored"), "EIP-712 domain should omit undefined fields.");
+  expect(payload.message.channelId === "5", "EIP-712 message BigInt values should serialize as decimal strings.");
+  expect(payload.message.seed === "0x0102", "EIP-712 message bytes should serialize as hex strings.");
+  expect(!Object.hasOwn(payload.message, "ignored"), "EIP-712 message should omit undefined fields.");
+  expect(
+    JSON.stringify(payload).includes("\"channelId\":\"5\""),
+    "EIP-712 payload should be JSON-serializable for eth_signTypedData_v4.",
+  );
+
+  expect(personalSignPayload("hello") === "0x68656c6c6f", "personal_sign string payload should be UTF-8 hex.");
+  expect(personalSignPayload(Uint8Array.from([0xde, 0xad])) === "0xdead", "personal_sign bytes payload should be hex.");
+  const scriptJson = safeJsonForScript({
+    text: "</script><script>alert(1)</script>",
+    amp: "&",
+  });
+  expect(!scriptJson.includes("</script>"), "Browser signing page JSON should not contain raw script-closing text.");
+  expect(scriptJson.includes("\\u003c/script\\u003e"), "Browser signing page JSON should escape '<' characters.");
+  expect(scriptJson.includes("\\u0026"), "Browser signing page JSON should escape '&' characters.");
+}
+
 function testChannelJoinBrowserWalletFlowCoverage() {
   const runtimeSource = fs.readFileSync(runtimePath, "utf8");
   const joinSource = sourceBetween(
@@ -873,7 +949,7 @@ function testChannelJoinBrowserWalletFlowCoverage() {
   const browserSignerSource = sourceBetween(
     runtimeSource,
     "class BrowserWalletSigner",
-    "function personalSignPayload",
+    "async function requestBrowserWallet",
   );
   expect(
     joinSource.includes("const signer = await requireL1Signer(args, provider);"),
@@ -1014,6 +1090,27 @@ function testNoteCommandBrowserSubmitterFlowCoverage() {
   expect(
     directExecutionSource.includes("} = txSubmitterResolution ?? (await resolveTxSubmitterSigner({"),
     "Wallet direct note execution should resolve the L1 submitter only when one was not pre-resolved.",
+  );
+  expect(
+    directExecutionSource.includes("const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);"),
+    "Wallet direct note execution should restore local L2 identity from the wallet workspace.",
+  );
+  expect(
+    directExecutionSource.includes("requireWalletSpendingCapability(wallet);"),
+    "Wallet direct note execution should require local L2 spending capability.",
+  );
+  const templateSendSource = sourceBetween(
+    runtimeSource,
+    "async function executeWalletTemplateSend",
+    "function loadTokamakPayloadFromStep",
+  );
+  expect(
+    templateSendSource.includes("signerPrivateKey: l2Identity.l2PrivateKey"),
+    "Proof-backed note execution should sign the Tokamak L2 transaction with the local L2 spending key.",
+  );
+  expect(
+    templateSendSource.includes("context.channelManager.connect(txSubmitter).executeChannelTransaction"),
+    "Proof-backed note execution should submit executeChannelTransaction through the resolved L1 submitter.",
   );
   expect(
     resolverSource.includes("ownerSigner instanceof BrowserWalletSigner"),
@@ -1192,6 +1289,7 @@ function testNonTtyPrivateKeyPromptFailsClearly() {
 async function main() {
   testSecretCommandsRegistered();
   testBrowserWalletAccountGrammar();
+  testBrowserWalletPayloadHelpers();
   testChannelJoinBrowserWalletFlowCoverage();
   testWalletOwnerBrowserFallbackFlowCoverage();
   testNoteCommandBrowserSubmitterFlowCoverage();

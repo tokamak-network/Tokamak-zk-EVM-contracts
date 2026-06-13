@@ -142,6 +142,18 @@ Manual result on 2026-06-13:
 - The Sepolia workspace contained only `rpc-config.env`; no new channel workspace was created.
 - No Sepolia local account secret directory was created.
 
+Manual retry result on 2026-06-13 after automatic network switching was added:
+
+- Result: failed closed at the transaction submission approval step.
+- Test channel name: `browser-wallet-test-20260613-c2fc`.
+- The CLI requested account connection, `eth_chainId`, `wallet_switchEthereumChain`, and a rechecked `eth_chainId`.
+- The browser wallet switched from chain `1` to Sepolia chain `11155111`, and the command continued to the policy
+  warning and `createChannel` transaction request.
+- The `createChannel` transaction was not submitted because the browser wallet returned
+  `The requested account and/or method has not been authorized by the user.`
+- The Sepolia workspace still contained only `rpc-config.env`; no new channel workspace was created.
+- No Sepolia local account secret directory was created.
+
 ### Channel Join Without `--account`
 
 Command:
@@ -283,6 +295,16 @@ Manual result on 2026-06-13:
 - Triggering command: `channel create --channel-name browser-wallet-test-20260613-c2fc --join-toll 0 --network sepolia`.
 - The browser wallet was connected to chain `1`, while the CLI selected Sepolia chain `11155111`.
 - The CLI failed before transaction submission and did not fall back to a local private key.
+
+Manual retry result on 2026-06-13:
+
+- Result: passed for the automatic switch path.
+- Triggering command: `channel create --channel-name browser-wallet-test-20260613-c2fc --join-toll 0 --network sepolia`.
+- The CLI requested `wallet_switchEthereumChain`, rechecked `eth_chainId`, and continued after the wallet reported
+  Sepolia chain `11155111`.
+- The later transaction request failed closed because the browser wallet did not authorize the requested account or
+  method.
+- The CLI did not fall back to a local private key.
 
 ### Wrong Account
 

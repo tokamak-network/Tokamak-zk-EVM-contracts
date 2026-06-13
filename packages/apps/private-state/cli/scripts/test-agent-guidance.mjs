@@ -7,6 +7,11 @@ import path from "node:path";
 import process from "node:process";
 import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { Wallet } from "ethers";
+import {
+  buildL2WalletSecretSigningMessage,
+  deriveParticipantIdentityFromSigner,
+} from "../lib/private-state-cli-shared.mjs";
 import {
   PRIVATE_STATE_CLI_COMMANDS,
   privateStateCliCommandRequiredOptionKeys,
@@ -21,6 +26,9 @@ import {
   readPrivateStateTermsMetadata,
   readPrivateStateTermsText,
 } from "../lib/private-state-terms.mjs";
+import {
+  deriveNoteReceiveKeyMaterial,
+} from "../lib/private-state-note-delivery.mjs";
 import {
   writePrivateStateCliInstallManifest,
 } from "../lib/private-state-runtime-management.mjs";
@@ -939,6 +947,65 @@ function testBrowserWalletPayloadHelpers() {
   expect(scriptJson.includes("\\u0026"), "Browser signing page JSON should escape '&' characters.");
 }
 
+async function testMockedBrowserSignaturesDeriveWalletKeys() {
+  const l1Wallet = new Wallet("0x59c6995e998f97a5a0044966f094538e7a7b2ee70b2d7e4e6f8f8f8f8f8f8f8f");
+  const calls = [];
+  const signer = {
+    address: l1Wallet.address,
+    async signMessage(message) {
+      calls.push({ method: "personal_sign", message });
+      return await l1Wallet.signMessage(message);
+    },
+    async signTypedData(domain, types, value) {
+      calls.push({ method: "eth_signTypedData_v4", domain, types, value });
+      return await l1Wallet.signTypedData(domain, types, value);
+    },
+  };
+  const channelName = "browser-wallet-test-channel";
+  const walletSecret = "test wallet secret";
+  const expectedMessage = buildL2WalletSecretSigningMessage({ channelName, walletSecret });
+  const l2Identity = await deriveParticipantIdentityFromSigner({
+    channelName,
+    walletSecret,
+    signer,
+  });
+  expect(calls[0]?.method === "personal_sign", "L2 spending-key derivation should request an EIP-191 message signature.");
+  expect(calls[0]?.message === expectedMessage, "L2 spending-key derivation should sign the channel-bound wallet-secret message.");
+  expect(l2Identity.seedSignature === await l1Wallet.signMessage(expectedMessage), "L2 spending-key derivation should use the mocked browser signature.");
+  expect(l2Identity.l2PrivateKey instanceof Uint8Array && l2Identity.l2PrivateKey.length > 0, "L2 spending-key derivation should produce a local spending private key.");
+  expect(l2Identity.l2PublicKey instanceof Uint8Array && l2Identity.l2PublicKey.length > 0, "L2 spending-key derivation should produce a local spending public key.");
+  expect(/^0x[0-9a-fA-F]{40}$/u.test(l2Identity.l2Address), "L2 spending-key derivation should produce a channel-local address.");
+
+  const noteReceive = await deriveNoteReceiveKeyMaterial({
+    signer,
+    chainId: 1,
+    channelId: 123n,
+    channelName,
+    account: l1Wallet.address,
+  });
+  const typedDataCall = calls.find((entry) => entry.method === "eth_signTypedData_v4");
+  expect(typedDataCall, "Note-receive key derivation should request an EIP-712 typed-data signature.");
+  expect(typedDataCall.domain.name === "TokamakPrivateState", "Note-receive typed-data domain should identify private-state.");
+  expect(typedDataCall.domain.version === "1", "Note-receive typed-data domain should include the version.");
+  expect(typedDataCall.domain.chainId === 1, "Note-receive typed-data domain should include the selected chain id.");
+  expect(Array.isArray(typedDataCall.types.NoteReceiveKey), "Note-receive typed-data should include the NoteReceiveKey type.");
+  expect(typedDataCall.value.protocol === "PRIVATE_STATE_NOTE_RECEIVE_KEY_V2", "Note-receive typed-data should include the protocol domain.");
+  expect(typedDataCall.value.dapp === "private-state", "Note-receive typed-data should include the DApp label.");
+  expect(typedDataCall.value.channelId === "123", "Note-receive typed-data should include the channel id as a decimal string.");
+  expect(typedDataCall.value.channelName === channelName, "Note-receive typed-data should include the channel name.");
+  expect(typedDataCall.value.account === l1Wallet.address, "Note-receive typed-data should include the selected browser wallet account.");
+  expect(
+    noteReceive.signature === await l1Wallet.signTypedData(typedDataCall.domain, typedDataCall.types, typedDataCall.value),
+    "Note-receive key derivation should use the mocked browser typed-data signature.",
+  );
+  expect(/^0x[0-9a-fA-F]{64}$/u.test(noteReceive.privateKey), "Note-receive key derivation should produce a local viewing private key.");
+  expect(/^0x[0-9a-fA-F]{64}$/u.test(noteReceive.noteReceivePubKey.x), "Note-receive key derivation should produce a viewing public key x-coordinate.");
+  expect(
+    noteReceive.noteReceivePubKey.yParity === 0 || noteReceive.noteReceivePubKey.yParity === 1,
+    "Note-receive key derivation should produce a viewing public key y parity.",
+  );
+}
+
 function testChannelJoinBrowserWalletFlowCoverage() {
   const runtimeSource = fs.readFileSync(runtimePath, "utf8");
   const joinSource = sourceBetween(
@@ -1191,6 +1258,27 @@ async function testBrowserWalletHumanRejectsLocalCallback() {
   );
 }
 
+async function testBrowserWalletHumanRejectsMalformedAccounts() {
+  const result = await runCliWithBrowserCallbacks([
+    "account",
+    "get-l1-address",
+    "--network",
+    "mainnet",
+  ], [
+    { ok: true, result: [] },
+  ], {
+    expectFailure: true,
+  });
+  expect(
+    result.status !== 0,
+    "Malformed browser-wallet account response must fail the CLI command.",
+  );
+  expect(
+    result.stderr.includes("Browser wallet did not return any account."),
+    "Malformed browser-wallet account response should explain that no account was returned.",
+  );
+}
+
 function testValueLessTxSubmitterPassesArgumentValidation() {
   const failure = runCliExpectFailure([
     "wallet",
@@ -1290,12 +1378,14 @@ async function main() {
   testSecretCommandsRegistered();
   testBrowserWalletAccountGrammar();
   testBrowserWalletPayloadHelpers();
+  await testMockedBrowserSignaturesDeriveWalletKeys();
   testChannelJoinBrowserWalletFlowCoverage();
   testWalletOwnerBrowserFallbackFlowCoverage();
   testNoteCommandBrowserSubmitterFlowCoverage();
   testMissingAccountSelectsBrowserWalletMode();
   await testBrowserWalletHumanConnectsFromLocalCallback();
   await testBrowserWalletHumanRejectsLocalCallback();
+  await testBrowserWalletHumanRejectsMalformedAccounts();
   testValueLessTxSubmitterPassesArgumentValidation();
   testCanonicalTermsAssetMatchesPublicTerms();
   testGuideJsonRefs();

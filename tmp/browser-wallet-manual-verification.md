@@ -23,9 +23,21 @@ signing page, but the verifier must inspect and approve or reject each wallet re
 - Result: passed
 - Browser application scan: `/Applications/Google Chrome.app` detected
 - Second MetaMask-capable browser: not detected in `/Applications`
+- Follow-up command: `npm run test:agent-guidance`
+- Follow-up result: passed on 2026-06-13
+- Non-interactive browser-wallet check:
+  `HOME=$(mktemp -d) node packages/apps/private-state/cli/private-state-bridge-cli.mjs account get-l1-address --network mainnet --json`
+- Non-interactive result: exited with status `1` and reported that browser-wallet signing requires interactive human
+  approval and cannot run in `--json` mode.
+- Temporary HOME file check: file count remained `0`, so the non-interactive browser-wallet failure did not write a
+  local account key or any other file.
 
 The browser scan only confirms an installed browser application. It does not prove that MetaMask or another compatible
 EIP-1193 provider is installed, unlocked, funded, or connected to the intended network.
+
+The automated checks above do not replace manual wallet approval. They only prove that the test suite covers the
+browser-wallet callback protocol and that the CLI refuses browser-wallet signing in non-interactive JSON mode without
+writing files.
 
 ## Preconditions
 
@@ -46,7 +58,7 @@ Run the success and failure checks in at least two MetaMask-capable browsers whe
 
 | Browser | Provider | Result | Notes |
 | --- | --- | --- | --- |
-| Google Chrome | MetaMask-compatible provider | Not run | Browser application detected; wallet extension state not verified. |
+| Google Chrome | MetaMask-compatible provider | Not run | Browser application detected; wallet extension state and user-controlled approval were not verified. |
 | Second browser | MetaMask-compatible provider | Not run | No second browser application was detected during automated preflight. |
 
 ## Success Path Checks

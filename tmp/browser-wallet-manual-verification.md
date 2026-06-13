@@ -252,6 +252,21 @@ Manual MetaMask Sepolia self-transaction diagnostic on 2026-06-14:
 - Next manual step: fix or replace the Sepolia RPC configured inside MetaMask, then verify a normal Sepolia transaction
   succeeds before retrying private-state `channel create`.
 
+Manual MetaMask Sepolia RPC repair attempt on 2026-06-14:
+
+- Result: failed with the same browser-wallet error after proposing a public Sepolia RPC through MetaMask.
+- Public RPC candidate checked from the CLI host: `https://ethereum-sepolia-rpc.publicnode.com`.
+- CLI-side RPC check result for the public candidate: `eth_chainId` returned `11155111` and `eth_blockNumber` succeeded.
+- Browser action: opened a local one-off page that called `wallet_addEthereumChain` with the public Sepolia RPC,
+  `wallet_switchEthereumChain` for Sepolia, and then attempted a 0 ETH Sepolia self transaction.
+- Wallet error message: `Unauthorized.`
+- Wallet error code: `-32006`.
+- Wallet error data: `{"httpStatus":401,"cause":null}`.
+- Interpretation: proposing a public Sepolia RPC through `wallet_addEthereumChain` did not fix transaction submission.
+  The most likely explanations are that MetaMask did not replace the existing Sepolia RPC configuration, or that the
+  active Sepolia network endpoint used by MetaMask is still unauthorized. The next step requires manual MetaMask network
+  settings inspection/editing rather than another CLI retry.
+
 ### Channel Join Without `--account`
 
 Command:

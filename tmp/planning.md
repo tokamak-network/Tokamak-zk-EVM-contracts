@@ -176,6 +176,12 @@ private-state calldata or contract target was involved. This makes the private-s
 the root cause. The next blocker is external to the CLI: the MetaMask Sepolia RPC/backend configuration must be fixed or
 replaced, and a normal Sepolia transaction should succeed from MetaMask before retrying private-state `channel create`.
 
+A later attempt to propose `https://ethereum-sepolia-rpc.publicnode.com` through `wallet_addEthereumChain` also failed
+with the same `-32006` / HTTP 401 error on a 0 ETH self transaction. The public RPC itself responded correctly to
+CLI-side `eth_chainId` and `eth_blockNumber` checks, so the likely issue is that MetaMask did not replace the active
+Sepolia RPC endpoint or is still using an unauthorized endpoint. The next step is manual MetaMask network settings
+inspection/editing; do not keep trying private-state transactions until a plain MetaMask Sepolia transaction succeeds.
+
 Before another manual Sepolia transaction attempt, the CLI should preserve structured diagnostic data from browser-wallet
 failures without exposing secrets or raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:
 

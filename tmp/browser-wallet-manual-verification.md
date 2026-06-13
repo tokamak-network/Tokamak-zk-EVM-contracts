@@ -58,7 +58,7 @@ Run the success and failure checks in at least two MetaMask-capable browsers whe
 
 | Browser | Provider | Result | Notes |
 | --- | --- | --- | --- |
-| Google Chrome | MetaMask-compatible provider | Not run | Browser application detected; wallet extension state and user-controlled approval were not verified. |
+| Google Chrome | MetaMask-compatible provider | Partially passed | Account address discovery passed with user-controlled wallet approval. Transaction, key-derivation, and failure-path checks are still not run. |
 | Second browser | MetaMask-compatible provider | Not run | No second browser application was detected during automated preflight. |
 
 ## Success Path Checks
@@ -77,6 +77,16 @@ Expected result:
 - The browser page requests account connection through the wallet.
 - The command prints the selected browser wallet address.
 - No local account private-key file is created.
+
+Manual result on 2026-06-13:
+
+- Result: passed in Google Chrome with a MetaMask-compatible provider.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs account get-l1-address --network mainnet`
+- The CLI opened `http://127.0.0.1:<ephemeral-port>/sign?...` and printed the signing URL.
+- The browser wallet account connection was approved by the human verifier, not by automation.
+- The CLI returned the selected browser wallet address, redacted here as `0x90dFe9...362f`.
+- The command output did not contain a private-key field and did not submit a transaction.
 
 ### Channel Join Without `--account`
 

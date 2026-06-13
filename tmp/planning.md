@@ -39,7 +39,9 @@ The browser-wallet signer must support:
 
 - address discovery through `eth_requestAccounts` or an equivalent wallet connection method
 - chain validation through `eth_chainId`
-- chain switching or clear user-facing failure when the wallet is on the wrong chain
+- chain switching through `wallet_switchEthereumChain` followed by `eth_chainId` revalidation when the wallet is on a
+  known wrong chain, or clear user-facing failure when the user rejects the switch or the wallet still reports the wrong
+  chain
 - EIP-191 message signing through `personal_sign`
 - EIP-712 signing through `eth_signTypedData_v4`
 - Ethereum transaction submission through `eth_sendTransaction`
@@ -157,6 +159,10 @@ For `wallet recover-workspace`, the browser-wallet path must:
    - Add request IDs, one-shot approval sessions, CSRF-resistant random session tokens, and strict localhost-only binding.
    - Add a structured request/response protocol for address, chain, message signing, typed-data signing, and transaction
      submission.
+   - Request `wallet_switchEthereumChain` when `eth_chainId` does not match the selected network, then re-run
+     `eth_chainId` and fail closed if the wallet still does not match.
+   - Do not send RPC URLs or API keys to the browser through `wallet_addEthereumChain`; unsupported chains should fail
+     with an explicit instruction instead of leaking local RPC configuration.
    - Ensure the page supports any injected EIP-1193 provider compatible with MetaMask methods.
    - Print the signing page URL whenever the CLI opens a browser so the user can manually open the same URL in a
      different MetaMask-capable browser if needed.
@@ -223,6 +229,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
   unless a later explicit design requires it.
 - Show the exact signing purpose before requesting browser approval.
 - Fail closed on user rejection, timeout, wrong address, wrong chain, provider absence, or malformed wallet response.
+- When a wrong browser-wallet chain is detected, request a user-approved wallet chain switch once, then fail closed if
+  the user rejects the switch, the wallet does not support the target chain, or the rechecked chain still differs.
 - Do not silently retry with a different account or with a local private key.
 - Do not store browser wallet signatures except where existing wallet recovery or audit data already requires storing
   derived public metadata.

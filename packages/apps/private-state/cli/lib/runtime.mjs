@@ -11531,7 +11531,7 @@ class BrowserWalletSigner {
       );
     }
     if (provider) {
-      const [walletChainIdHex, providerNetwork] = await Promise.all([
+      const [initialWalletChainIdHex, providerNetwork] = await Promise.all([
         requestBrowserWallet({
           role,
           action: "check network",
@@ -11541,8 +11541,25 @@ class BrowserWalletSigner {
         }),
         provider.getNetwork(),
       ]);
-      const walletChainId = Number(ethers.toBigInt(walletChainIdHex));
       const expectedChainId = Number(providerNetwork.chainId);
+      let walletChainId = Number(ethers.toBigInt(initialWalletChainIdHex));
+      if (walletChainId !== expectedChainId) {
+        await requestBrowserWallet({
+          role,
+          action: "switch network",
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: ethers.toQuantity(expectedChainId) }],
+          description: `Switch the browser wallet to the selected network chain ${expectedChainId}.`,
+        });
+        const switchedWalletChainIdHex = await requestBrowserWallet({
+          role,
+          action: "recheck network",
+          method: "eth_chainId",
+          params: [],
+          description: "Verify that the browser wallet switched to the selected network.",
+        });
+        walletChainId = Number(ethers.toBigInt(switchedWalletChainIdHex));
+      }
       expect(
         walletChainId === expectedChainId,
         `Browser wallet chain ${walletChainId} does not match selected network chain ${expectedChainId}.`,

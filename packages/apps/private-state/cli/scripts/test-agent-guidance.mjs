@@ -102,11 +102,15 @@ function postJson(url, payload) {
 
 function runCliWithBrowserCallbacks(args, responses, options = {}) {
   return new Promise((resolve, reject) => {
+    const home = options.home ?? fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-home-"));
+    if (options.writeTermsAcceptance !== false) {
+      writeTermsAcceptanceForHome(home);
+    }
     const child = spawn(process.execPath, [cliPath, ...args], {
       cwd: options.cwd ?? cliRoot,
       env: {
         ...process.env,
-        HOME: options.home ?? fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-home-")),
+        HOME: home,
         PATH: options.path ?? "/private-state-cli-test-no-browser-opener",
         ...(options.env ?? {}),
       },
@@ -116,6 +120,11 @@ function runCliWithBrowserCallbacks(args, responses, options = {}) {
     let stderr = "";
     const handledTokens = new Set();
     const pendingPosts = [];
+    const scanInterval = setInterval(() => handleSigningUrls(), 25);
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error(`Timed out waiting for browser-wallet callback test.\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+    }, options.timeoutMs ?? 15_000);
     const handleSigningUrls = () => {
       const matches = stderr.matchAll(/Signing URL: (http:\/\/127\.0\.0\.1:\d+\/sign\?token=([^\s]+))/gu);
       for (const match of matches) {
@@ -142,6 +151,8 @@ function runCliWithBrowserCallbacks(args, responses, options = {}) {
     });
     child.on("error", reject);
     child.on("close", async (status) => {
+      clearInterval(scanInterval);
+      clearTimeout(timeout);
       try {
         await Promise.all(pendingPosts);
         if (status !== 0) {
@@ -193,6 +204,10 @@ function testCanonicalTermsAssetMatchesPublicTerms() {
 }
 
 function createIsolatedHomeWithRpc(networkName = "mainnet") {
+  return createIsolatedHomeWithRpcUrl(networkName, TEST_RPC_CONFIG.rpcUrl);
+}
+
+function createIsolatedHomeWithRpcUrl(networkName, rpcUrl) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-home-"));
   const networkDir = path.join(home, "tokamak-private-channels", "workspace", networkName);
   fs.mkdirSync(networkDir, { recursive: true });
@@ -203,7 +218,7 @@ function createIsolatedHomeWithRpc(networkName = "mainnet") {
       `LOG_REQUESTS_PER_SECOND=${TEST_RPC_CONFIG.logRequestsPerSecond}`,
       `RPC_BLOCK_RANGE_CAP=${TEST_RPC_CONFIG.blockRangeCap}`,
       `RPC_PROVIDER=${TEST_RPC_CONFIG.provider}`,
-      `RPC_URL=${TEST_RPC_CONFIG.rpcUrl}`,
+      `RPC_URL=${rpcUrl}`,
       "",
     ].join("\n"),
     "utf8",
@@ -211,8 +226,47 @@ function createIsolatedHomeWithRpc(networkName = "mainnet") {
   return home;
 }
 
-function createIsolatedHomeWithRpcAndReadOnlyArtifacts(networkName = "mainnet", chainId = 1) {
-  const home = createIsolatedHomeWithRpc(networkName);
+async function withJsonRpcChain(chainId, callback) {
+  const server = http.createServer((request, response) => {
+    let body = "";
+    request.on("data", (chunk) => {
+      body += String(chunk);
+    });
+    request.on("end", () => {
+      let payload;
+      try {
+        payload = JSON.parse(body || "{}");
+      } catch {
+        response.writeHead(400, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: "invalid json" }));
+        return;
+      }
+      const result = payload.method === "eth_chainId"
+        ? `0x${BigInt(chainId).toString(16)}`
+        : null;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        jsonrpc: "2.0",
+        id: payload.id ?? 1,
+        result,
+      }));
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.listen(0, "127.0.0.1", resolve);
+    server.once("error", reject);
+  });
+  try {
+    const address = server.address();
+    expect(address && typeof address !== "string", "Test JSON-RPC server did not expose a TCP address.");
+    return await callback(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
+function createIsolatedHomeWithRpcAndReadOnlyArtifacts(networkName = "mainnet", chainId = 1, rpcUrl = TEST_RPC_CONFIG.rpcUrl) {
+  const home = createIsolatedHomeWithRpcUrl(networkName, rpcUrl);
   const artifactDir = path.join(
     home,
     "tokamak-private-channels",
@@ -746,7 +800,7 @@ function testReadmeJsonPurposeIsAgentSafe() {
     "README should explain that local L2 spending/viewing keys still apply in browser-wallet mode.",
   );
   expect(
-    normalizedReadme.includes("account connection, chain check, the EIP-191 message signature for L2 spending-key derivation"),
+    normalizedReadme.includes("account connection, chain check, network switch when needed, the EIP-191 message signature for L2 spending-key derivation"),
     "README should document channel join browser-wallet approval order.",
   );
   expect(
@@ -1038,10 +1092,16 @@ function testChannelJoinBrowserWalletFlowCoverage() {
   expect(
     browserSignerSource.includes("method: \"eth_requestAccounts\"")
       && browserSignerSource.includes("method: \"eth_chainId\"")
+      && browserSignerSource.includes("method: \"wallet_switchEthereumChain\"")
       && browserSignerSource.includes("method: \"personal_sign\"")
       && browserSignerSource.includes("method: \"eth_signTypedData_v4\"")
       && browserSignerSource.includes("method: \"eth_sendTransaction\""),
-    "BrowserWalletSigner should cover the channel join connect, chain check, key derivation, and transaction methods.",
+    "BrowserWalletSigner should cover the channel join connect, chain check, chain switch, key derivation, and transaction methods.",
+  );
+  expect(
+    indexInSource(browserSignerSource, "action: \"switch network\"")
+      < indexInSource(browserSignerSource, "action: \"recheck network\""),
+    "BrowserWalletSigner should recheck the chain after requesting wallet_switchEthereumChain.",
   );
   expect(
     joinSource.includes("typeof signer.privateKey === \"string\""),
@@ -1334,6 +1394,66 @@ async function testBrowserWalletHumanRejectsMalformedAccounts() {
   );
 }
 
+async function testBrowserWalletSwitchesWrongChainBeforeContinuing() {
+  await withJsonRpcChain(1, async (rpcUrl) => {
+    const selectedAddress = "0x1111111111111111111111111111111111111111";
+    const result = await runCliWithBrowserCallbacks([
+      "account",
+      "get-bridge-fund",
+      "--network",
+      "mainnet",
+    ], [
+      { ok: true, result: [selectedAddress] },
+      { ok: true, result: "0xaa36a7" },
+      { ok: true, result: null },
+      { ok: true, result: "0x1" },
+    ], {
+      home: createIsolatedHomeWithRpcAndReadOnlyArtifacts("mainnet", 1, rpcUrl),
+      expectFailure: true,
+    });
+    expect(
+      result.stderr.includes("Browser wallet approval required: switch network."),
+      "Wrong-chain browser wallet path should request wallet_switchEthereumChain.",
+    );
+    expect(
+      result.stderr.includes("Browser wallet approval required: recheck network."),
+      "Wrong-chain browser wallet path should recheck eth_chainId after switching.",
+    );
+    expect(
+      !result.stderr.includes("Browser wallet chain 11155111 does not match selected network chain 1."),
+      "Successful switch recheck should avoid the old wrong-chain failure.",
+    );
+    expect(result.status !== 0, "Isolated test command should fail after the chain-switch path is exercised.");
+  });
+}
+
+async function testBrowserWalletChainSwitchRejectionFailsClosed() {
+  await withJsonRpcChain(1, async (rpcUrl) => {
+    const selectedAddress = "0x1111111111111111111111111111111111111111";
+    const result = await runCliWithBrowserCallbacks([
+      "account",
+      "get-bridge-fund",
+      "--network",
+      "mainnet",
+    ], [
+      { ok: true, result: [selectedAddress] },
+      { ok: true, result: "0xaa36a7" },
+      { ok: false, error: "User rejected the network switch." },
+    ], {
+      home: createIsolatedHomeWithRpcAndReadOnlyArtifacts("mainnet", 1, rpcUrl),
+      expectFailure: true,
+    });
+    expect(
+      result.stderr.includes("Browser wallet switch network failed: User rejected the network switch."),
+      "Rejected wallet_switchEthereumChain should fail closed with the wallet rejection.",
+    );
+    expect(
+      !result.stderr.includes("Browser wallet approval required: recheck network."),
+      "Rejected wallet_switchEthereumChain must not continue to the recheck step.",
+    );
+  });
+}
+
 function testValueLessTxSubmitterPassesArgumentValidation() {
   const failure = runCliExpectFailure([
     "wallet",
@@ -1442,6 +1562,8 @@ async function main() {
   await testBrowserWalletHumanConnectsFromLocalCallback();
   await testBrowserWalletHumanRejectsLocalCallback();
   await testBrowserWalletHumanRejectsMalformedAccounts();
+  await testBrowserWalletSwitchesWrongChainBeforeContinuing();
+  await testBrowserWalletChainSwitchRejectionFailsClosed();
   testValueLessTxSubmitterPassesArgumentValidation();
   testCanonicalTermsAssetMatchesPublicTerms();
   testGuideJsonRefs();

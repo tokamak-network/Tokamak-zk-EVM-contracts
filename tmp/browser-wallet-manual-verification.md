@@ -113,7 +113,8 @@ Expected wallet requests:
 
 1. account connection
 2. chain check
-3. `createChannel` transaction
+3. network switch when the browser wallet is not already on Sepolia
+4. `createChannel` transaction
 
 Expected result:
 
@@ -129,7 +130,7 @@ separate test channel with a small nonzero Join Toll and record the extra approv
 
 Manual result on 2026-06-13:
 
-- Result: failed closed before transaction submission.
+- Result: failed closed before transaction submission before automatic network switching was added.
 - Test channel name: `browser-wallet-test-20260613-c2fc`.
 - The first attempt failed before browser-wallet approval because the full installation prerequisites were missing.
 - After full installation, the CLI opened the browser-wallet connection page and the human verifier approved account
@@ -265,17 +266,20 @@ Expected result:
 Procedure:
 
 1. Select a browser wallet network that does not match `--network`.
-2. Run `private-state-cli account get-l1-address --network <NETWORK>` or another browser-wallet command that has a provider.
+2. Run a browser-wallet command that has a provider, such as `channel create` or `account get-bridge-fund`.
 
 Expected result:
 
-- The CLI fails before transaction submission.
-- The error states that the browser wallet chain does not match the selected network chain.
+- The CLI detects the wrong browser wallet chain before transaction submission.
+- The CLI requests `wallet_switchEthereumChain` for the selected CLI network.
+- If the user approves the switch and the rechecked `eth_chainId` matches, the command continues.
+- If the user rejects the switch, the wallet does not support the target chain, or the rechecked chain still does not
+  match, the CLI fails before transaction submission.
 - The CLI does not retry with a local private key.
 
 Manual result on 2026-06-13:
 
-- Result: passed.
+- Result: passed for the pre-switch fail-closed behavior.
 - Triggering command: `channel create --channel-name browser-wallet-test-20260613-c2fc --join-toll 0 --network sepolia`.
 - The browser wallet was connected to chain `1`, while the CLI selected Sepolia chain `11155111`.
 - The CLI failed before transaction submission and did not fall back to a local private key.

@@ -61,10 +61,15 @@ note-receive viewing key, and stores those L2 keys under the existing protected 
 `wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes` still use the local spending key and viewing key
 for proof generation and note recovery.
 
+When the browser wallet is connected to a different chain than the CLI `--network`, the CLI asks the wallet to switch to
+the selected chain with `wallet_switchEthereumChain` and then verifies `eth_chainId` again. The command continues only
+after the user approves the switch and the wallet reports the expected chain. The CLI does not send local RPC URLs or API
+keys to the browser to add missing chains.
+
 `channel join` in browser-wallet mode asks the user to approve the following browser wallet requests: account connection,
-chain check, the EIP-191 message signature for L2 spending-key derivation, the EIP-712 typed-data signature for
-note-receive viewing-key derivation, any Join Toll token approval, and the final join transaction. User-Controlled AI
-Agents must not click browser wallet approval UI for the user.
+chain check, network switch when needed, the EIP-191 message signature for L2 spending-key derivation, the EIP-712
+typed-data signature for note-receive viewing-key derivation, any Join Toll token approval, and the final join
+transaction. User-Controlled AI Agents must not click browser wallet approval UI for the user.
 
 Proof-backed note commands can also separate local L2 authority from L1 gas payment. Use `--tx-submitter <ACCOUNT>` to
 submit `executeChannelTransaction` through a separate imported local account, or pass `--tx-submitter` without a value

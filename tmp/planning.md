@@ -205,6 +205,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
 
 9. Add manual verification.
    - Verify with MetaMask on at least two supported browsers when available.
+   - On Sepolia, create a fresh named test channel with browser-wallet `channel create` before `channel join` when no
+     existing named test channel is available.
    - Verify wrong-chain, wrong-account, rejection, timeout, and closed-browser failure paths.
    - Verify that no browser-wallet command writes an L1 private key file.
    - Verify that the existing local-account path still works.

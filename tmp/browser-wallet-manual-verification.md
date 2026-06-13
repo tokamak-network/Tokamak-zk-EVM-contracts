@@ -44,13 +44,18 @@ writing files.
 - Install the current private-state CLI build from this working tree or run it directly from `packages/apps/private-state/cli`.
 - Configure RPC for the target network with `private-state-cli set rpc`.
 - Install private-state runtime artifacts with `private-state-cli install` for transaction-sending commands.
-- Use a test channel and test funds unless production release verification explicitly requires mainnet.
+- Use a newly created test channel and test funds unless production release verification explicitly requires mainnet.
 - Install MetaMask or an equivalent EIP-1193 provider in each browser under test.
 - Prepare at least two browser wallet accounts:
   - the expected wallet owner account
   - a different account for wrong-account failure testing
 - Prepare a wallet secret source file with `private-state-cli secret create-wallet-secret-source`.
 - Before running a destructive or funds-moving command, record the starting balances and wallet workspace path.
+
+When Sepolia is used for release verification, create a fresh channel for this checklist instead of relying on an
+already deployed channel whose original `channelName` may be unavailable. The bridge stores `channelId` on-chain, but
+the CLI derives that value from `keccak256(utf8(channelName))`; without the original channel name, commands such as
+`channel join` cannot target the channel by name.
 
 ## Browser Coverage
 
@@ -88,14 +93,46 @@ Manual result on 2026-06-13:
 - The CLI returned the selected browser wallet address, redacted here as `0x90dFe9...362f`.
 - The command output did not contain a private-key field and did not submit a transaction.
 
+### Create A New Test Channel Without `--account`
+
+Use this step before `channel join` when no verified named test channel already exists. Choose a unique channel name
+that includes the date and a short verifier-controlled suffix, for example `browser-wallet-test-20260613-a1b2`.
+
+Command:
+
+```bash
+private-state-cli channel create \
+  --channel-name <NEW_TEST_CHANNEL> \
+  --join-toll 0 \
+  --network sepolia
+```
+
+Expected wallet requests:
+
+1. account connection
+2. chain check
+3. `createChannel` transaction
+
+Expected result:
+
+- The browser wallet submits the `createChannel` transaction.
+- The selected browser account becomes the channel leader.
+- The CLI creates or refreshes the local workspace for `<NEW_TEST_CHANNEL>`.
+- The command output records the channel id, channel manager, Join Toll, and policy snapshot.
+- No local L1 private-key file is created.
+
+Use `--join-toll 0` for the default release-verification path so that later `channel join` can verify key derivation and
+join submission without requiring a Join Toll token approval. If the Join Toll approval path must also be verified, run a
+separate test channel with a small nonzero Join Toll and record the extra approval request explicitly.
+
 ### Channel Join Without `--account`
 
 Command:
 
 ```bash
 private-state-cli channel join \
-  --channel-name <CHANNEL> \
-  --network <NETWORK> \
+  --channel-name <NEW_TEST_CHANNEL> \
+  --network sepolia \
   --wallet-secret-path ./wallet-secret.txt
 ```
 
@@ -110,7 +147,7 @@ Expected wallet requests:
 
 Expected local result:
 
-- The wallet workspace is created for `<CHANNEL>-<BROWSER_WALLET_ADDRESS>`.
+- The wallet workspace is created for `<NEW_TEST_CHANNEL>-<BROWSER_WALLET_ADDRESS>`.
 - The wallet metadata records the selected L1 address and derived L2 address.
 - L2 spending and viewing key files are written under the existing wallet-key model.
 - No raw L1 private-key file is written.

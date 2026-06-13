@@ -190,7 +190,7 @@ Manual retry results on 2026-06-14:
 - Test channel names: `browser-wallet-test-20260614-a1` through `browser-wallet-test-20260614-a6`.
 - The CLI reached account connection, network check, policy warning, connected-account checks, and send transaction
   relay requests on the same localhost origin.
-- Additional implementation hardening during these attempts:
+- Additional implementation hardening tried during these attempts:
   - transaction submission now checks `eth_accounts` before `eth_sendTransaction`
   - unauthorized transaction submission triggers one `wallet_requestPermissions` account-permission refresh, then one
     retry
@@ -199,6 +199,9 @@ Manual retry results on 2026-06-14:
   - the relay page performs an immediate `eth_requestAccounts` preflight in the same browser function before
     `eth_sendTransaction`
 - Despite those changes, the browser wallet still returned `Unauthorized.` for `eth_sendTransaction`.
+- Follow-up cleanup removed the extra `eth_accounts`, `wallet_requestPermissions`, retry, and transaction preflight
+  prompts because they did not resolve the failure and made the user approval sequence harder to understand. The
+  persistent relay page and same-origin browser session remain.
 - No `createChannel` transaction was submitted.
 - The Sepolia workspace still contained only `rpc-config.env`; no new channel workspace was created.
 - No Sepolia local account secret directory was created.

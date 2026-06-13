@@ -11582,7 +11582,6 @@ class BrowserWalletSigner {
   }
 
   async signMessage(message) {
-    await this.ensureAuthorizedAccount("message signature");
     return await requestBrowserWallet({
       role: "message signer",
       action: "sign message",
@@ -11593,7 +11592,6 @@ class BrowserWalletSigner {
   }
 
   async signTypedData(domain, types, value) {
-    await this.ensureAuthorizedAccount("typed-data signature");
     return await requestBrowserWallet({
       role: "typed-data signer",
       action: "sign typed data",
@@ -11628,12 +11626,17 @@ class BrowserWalletSigner {
 
   async sendTransaction(transaction) {
     expect(this.provider, "Browser wallet signer cannot submit transactions without a provider.");
-    await this.ensureAuthorizedAccount("transaction submission");
     const tx = normalizeBrowserTransaction({
       ...(await ethers.resolveProperties(transaction)),
       from: this.address,
     });
-    const hash = await this.requestSendTransactionWithPermissionRefresh(tx);
+    const hash = await requestBrowserWallet({
+      role: "transaction submitter",
+      action: "send transaction",
+      method: "eth_sendTransaction",
+      params: [tx],
+      description: "Approve the Ethereum transaction for this private-state CLI command.",
+    });
     return {
       hash,
       wait: async () => {
@@ -11642,74 +11645,6 @@ class BrowserWalletSigner {
         return receipt;
       },
     };
-  }
-
-  async requestSendTransactionWithPermissionRefresh(tx) {
-    try {
-      return await this.requestSendTransaction(tx);
-    } catch (error) {
-      if (!isBrowserWalletUnauthorizedError(error)) {
-        throw error;
-      }
-      await requestBrowserWallet({
-        role: "account permission checker",
-        action: "refresh account permission",
-        method: "wallet_requestPermissions",
-        params: [{ eth_accounts: {} }],
-        description: "Refresh the browser wallet account permission required for transaction submission.",
-      });
-      await this.ensureAuthorizedAccount("transaction submission");
-      return await this.requestSendTransaction(tx);
-    }
-  }
-
-  async requestSendTransaction(tx) {
-    return await requestBrowserWallet({
-      role: "transaction submitter",
-      action: "send transaction",
-      method: "eth_sendTransaction",
-      params: [tx],
-      description: "Approve the Ethereum transaction for this private-state CLI command.",
-    });
-  }
-
-  async ensureAuthorizedAccount(purpose) {
-    const accounts = await requestBrowserWallet({
-      role: "account permission checker",
-      action: "check connected account",
-      method: "eth_accounts",
-      params: [],
-      description: `Check that the browser wallet account is connected for ${purpose}.`,
-    });
-    if (browserWalletFirstAccountMatches(accounts, this.address)) {
-      return;
-    }
-    const requestedAccounts = await requestBrowserWallet({
-      role: "account permission checker",
-      action: "authorize connected account",
-      method: "eth_requestAccounts",
-      params: [],
-      description: `Authorize the browser wallet account required for ${purpose}.`,
-    });
-    expect(
-      browserWalletFirstAccountMatches(requestedAccounts, this.address),
-      `Browser wallet active account does not match required account ${this.address} for ${purpose}.`,
-    );
-  }
-}
-
-function isBrowserWalletUnauthorizedError(error) {
-  return /\bunauthorized\b|not authorized/iu.test(String(error?.message ?? error));
-}
-
-function browserWalletFirstAccountMatches(accounts, address) {
-  if (!Array.isArray(accounts)) return false;
-  if (!accounts[0]) return false;
-  const expected = getAddress(address);
-  try {
-    return getAddress(accounts[0]) === expected;
-  } catch {
-    return false;
   }
 }
 
@@ -11911,12 +11846,10 @@ class BrowserWalletBridgeSession {
   recordStatus(pending, event) {
     if (event === "loaded" && !pending.relayLoaded) {
       pending.relayLoaded = true;
-      process.stderr.write("Browser wallet relay page loaded.\n");
     }
     if (event === "request-started" && !pending.providerRequestStarted) {
       pending.providerRequestStarted = true;
       this.clearRequestStartReminder(pending);
-      process.stderr.write("Browser wallet provider request started. Check the wallet UI.\n");
     }
   }
 
@@ -12053,13 +11986,6 @@ function browserWalletSigningHtml({ token }) {
         }
         status.textContent = "Waiting for wallet response...";
         await postStatus(activeRequest, "request-started");
-        if (activeRequest.method === "eth_sendTransaction") {
-          const accounts = await provider.request({ method: "eth_requestAccounts", params: [] });
-          const from = activeRequest.params && activeRequest.params[0] ? activeRequest.params[0].from : null;
-          if (!Array.isArray(accounts) || !accounts[0] || !from || accounts[0].toLowerCase() !== from.toLowerCase()) {
-            throw new Error("Browser wallet active account does not match the transaction sender.");
-          }
-        }
         const result = await provider.request({ method: activeRequest.method, params: activeRequest.params });
         status.textContent = "Wallet response received. Waiting for the next CLI request.";
         await post(activeRequest, { ok: true, result });

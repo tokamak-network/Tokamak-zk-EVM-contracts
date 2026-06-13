@@ -176,8 +176,9 @@ For `wallet recover-workspace`, the browser-wallet path must:
      show only relay status, so the user's click target is the wallet extension UI, not CLI-provided UI.
    - Report relay page load and provider-request-start status back to the CLI so browser launch, provider injection, and
      wallet-response failures are distinguishable.
-   - Before browser-wallet transaction submission, confirm the active browser account and refresh account permission only
-     after an explicit unauthorized transaction failure. User rejection must not be retried.
+   - Do not add extra account-permission prompts around signatures or transaction submission. After the initial wallet
+     connection, forward the requested signature or transaction to the wallet and fail clearly on `Unauthorized`, wrong
+     account, rejection, or malformed wallet responses.
    - Ensure the page supports any injected EIP-1193 provider compatible with MetaMask methods.
    - Print the signing page URL whenever the CLI opens a browser so the user can manually open the same URL in a
      different MetaMask-capable browser if needed.

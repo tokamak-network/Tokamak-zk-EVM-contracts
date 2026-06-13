@@ -1133,10 +1133,8 @@ function testChannelJoinBrowserWalletFlowCoverage() {
       && browserSignerSource.includes("method: \"wallet_switchEthereumChain\"")
       && browserSignerSource.includes("method: \"personal_sign\"")
       && browserSignerSource.includes("method: \"eth_signTypedData_v4\"")
-      && browserSignerSource.includes("method: \"eth_accounts\"")
-      && browserSignerSource.includes("method: \"wallet_requestPermissions\"")
       && browserSignerSource.includes("method: \"eth_sendTransaction\""),
-    "BrowserWalletSigner should cover the channel join connect, chain check, chain switch, account permission refresh, key derivation, and transaction methods.",
+    "BrowserWalletSigner should cover the channel join connect, chain check, chain switch, key derivation, and transaction methods.",
   );
   expect(
     indexInSource(browserSignerSource, "action: \"switch network\"")
@@ -1234,14 +1232,10 @@ function testL1TransactionBrowserWalletFlowCoverage() {
     "BrowserWalletSigner should submit L1 transaction commands through eth_sendTransaction.",
   );
   expect(
-    indexInSource(browserSignerSource, "await this.ensureAuthorizedAccount(\"transaction submission\")")
-      < indexInSource(browserSignerSource, "method: \"eth_sendTransaction\""),
-    "BrowserWalletSigner should confirm the browser account permission before eth_sendTransaction.",
-  );
-  expect(
-    browserSignerSource.includes("isBrowserWalletUnauthorizedError(error)")
-      && browserSignerSource.includes("action: \"refresh account permission\""),
-    "BrowserWalletSigner should refresh account permissions only after an unauthorized transaction submission failure.",
+    !browserSignerSource.includes("wallet_requestPermissions")
+      && !browserSignerSource.includes("ensureAuthorizedAccount")
+      && !browserSignerSource.includes("eth_accounts"),
+    "BrowserWalletSigner should not add extra account-permission prompts beyond the initial browser wallet connection.",
   );
 }
 

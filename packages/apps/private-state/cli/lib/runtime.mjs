@@ -11636,6 +11636,9 @@ class BrowserWalletSigner {
       method: "eth_sendTransaction",
       params: [tx],
       description: "Approve the Ethereum transaction for this private-state CLI command.",
+      diagnostics: {
+        signerAddress: this.address,
+      },
     });
     return {
       hash,
@@ -11676,6 +11679,7 @@ class BrowserWalletBridgeSession {
     method,
     params,
     description,
+    diagnostics = null,
   }) {
     await this.ensureStarted();
     expect(!this.pending, "Browser wallet bridge already has a pending request.");
@@ -11693,6 +11697,7 @@ class BrowserWalletBridgeSession {
         method,
         params,
         description,
+        diagnostics,
         signingUrl,
         settled: false,
         relayLoaded: false,
@@ -11794,6 +11799,7 @@ class BrowserWalletBridgeSession {
             method: this.pending.method,
             params: this.pending.params,
             description: this.pending.description,
+            diagnostics: this.pending.diagnostics,
           }),
         );
         return;
@@ -11825,7 +11831,7 @@ class BrowserWalletBridgeSession {
         if (payload.ok) {
           this.resolvePending(pending, payload.result);
         } else {
-          this.rejectPending(new Error(`Browser wallet ${pending.action} failed: ${payload.error ?? "unknown error"}`));
+          this.rejectPending(new Error(formatBrowserWalletFailure(pending.action, payload)));
         }
         return;
       }
@@ -11902,6 +11908,99 @@ class BrowserWalletBridgeSession {
   }
 }
 
+function formatBrowserWalletFailure(action, payload) {
+  const walletError = normalizeBrowserWalletError(payload.error);
+  const lines = [
+    `Browser wallet ${action} failed: ${walletError.message}`,
+  ];
+  if (walletError.code !== null) {
+    lines.push(`Wallet error code: ${walletError.code}`);
+  }
+  if (walletError.data !== null) {
+    lines.push(`Wallet error data: ${walletError.data}`);
+  }
+  const diagnostics = payload.diagnostics && typeof payload.diagnostics === "object"
+    ? payload.diagnostics
+    : null;
+  if (diagnostics) {
+    lines.push("Browser wallet diagnostics:");
+    if (diagnostics.provider?.isMetaMask !== undefined) {
+      lines.push(`  provider.isMetaMask: ${String(Boolean(diagnostics.provider.isMetaMask))}`);
+    }
+    if (diagnostics.preflight?.ethAccounts !== undefined) {
+      lines.push(`  eth_accounts: ${formatBrowserDiagnosticValue(diagnostics.preflight.ethAccounts)}`);
+    }
+    if (diagnostics.preflight?.ethChainId !== undefined) {
+      lines.push(`  eth_chainId: ${formatBrowserDiagnosticValue(diagnostics.preflight.ethChainId)}`);
+    }
+    if (diagnostics.transaction?.from !== undefined) {
+      lines.push(`  transaction.from: ${formatBrowserDiagnosticValue(diagnostics.transaction.from)}`);
+    }
+    if (diagnostics.transaction?.to !== undefined) {
+      lines.push(`  transaction.to: ${formatBrowserDiagnosticValue(diagnostics.transaction.to)}`);
+    }
+    if (diagnostics.transaction?.value !== undefined) {
+      lines.push(`  transaction.value: ${formatBrowserDiagnosticValue(diagnostics.transaction.value)}`);
+    }
+    if (diagnostics.transaction?.dataByteLength !== undefined) {
+      lines.push(`  transaction.dataByteLength: ${formatBrowserDiagnosticValue(diagnostics.transaction.dataByteLength)}`);
+    }
+    if (diagnostics.signerAddress !== undefined) {
+      lines.push(`  signerAddress: ${formatBrowserDiagnosticValue(diagnostics.signerAddress)}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function normalizeBrowserWalletError(error) {
+  if (error && typeof error === "object") {
+    return {
+      code: error.code ?? null,
+      message: String(error.message ?? "unknown error"),
+      data: error.data === undefined ? null : formatBrowserDiagnosticValue(error.data),
+    };
+  }
+  return {
+    code: null,
+    message: String(error ?? "unknown error"),
+    data: null,
+  };
+}
+
+function formatBrowserDiagnosticValue(value) {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  if (typeof value === "string") {
+    if (value.startsWith("0x") && value.length > 130) {
+      return `<hex ${hexStringByteLength(value)} bytes>`;
+    }
+    return value.length > 320 ? `${value.slice(0, 317)}...` : value;
+  }
+  try {
+    const json = JSON.stringify(value, (key, entry) => {
+      if (
+        typeof entry === "string"
+        && entry.startsWith("0x")
+        && entry.length > 130
+        && /^(data|input|calldata|transactionData)$/iu.test(key)
+      ) {
+        return `<hex ${hexStringByteLength(entry)} bytes>`;
+      }
+      return entry;
+    });
+    if (json === undefined) {
+      return String(value);
+    }
+    return json.length > 320 ? `${json.slice(0, 317)}...` : json;
+  } catch {
+    return String(value);
+  }
+}
+
+function hexStringByteLength(value) {
+  return Math.ceil(Math.max(String(value).length - 2, 0) / 2);
+}
+
 function browserWalletSigningHtml({ token }) {
   const requestJson = safeJsonForScript({ token });
   return `<!doctype html>
@@ -11974,7 +12073,76 @@ function browserWalletSigningHtml({ token }) {
       }
       return null;
     }
+    function hexDataByteLength(value) {
+      if (typeof value !== "string" || !value.startsWith("0x")) return null;
+      return Math.ceil(Math.max(value.length - 2, 0) / 2);
+    }
+    function transactionDiagnostics(activeRequest) {
+      const tx = activeRequest.params && activeRequest.params[0] ? activeRequest.params[0] : {};
+      return {
+        from: tx.from ?? null,
+        to: tx.to ?? null,
+        value: tx.value ?? null,
+        dataByteLength: hexDataByteLength(tx.data),
+      };
+    }
+    function sanitizeWalletErrorData(data) {
+      if (data === undefined) return null;
+      if (typeof data === "string" && data.startsWith("0x") && data.length > 130) {
+        return "<hex " + hexDataByteLength(data) + " bytes>";
+      }
+      try {
+        const json = JSON.stringify(data, (key, value) => {
+          if (
+            typeof value === "string"
+            && value.startsWith("0x")
+            && value.length > 130
+            && /^(data|input|calldata|transactionData)$/iu.test(key)
+          ) {
+            return "<hex " + hexDataByteLength(value) + " bytes>";
+          }
+          return value;
+        });
+        return json && json.length > 1000 ? json.slice(0, 997) + "..." : JSON.parse(json);
+      } catch {
+        const text = String(data);
+        return text.length > 1000 ? text.slice(0, 997) + "..." : text;
+      }
+    }
+    function serializeWalletError(error) {
+      return {
+        code: error && error.code !== undefined ? error.code : null,
+        message: error && error.message ? error.message : String(error),
+        data: error ? sanitizeWalletErrorData(error.data) : null,
+      };
+    }
+    async function safeProviderRequest(provider, method, params) {
+      try {
+        return { ok: true, value: await provider.request({ method, params }) };
+      } catch (error) {
+        return { ok: false, error: serializeWalletError(error) };
+      }
+    }
+    async function collectTransactionFailureDiagnostics(provider, activeRequest) {
+      if (activeRequest.method !== "eth_sendTransaction") {
+        return null;
+      }
+      const accounts = await safeProviderRequest(provider, "eth_accounts", []);
+      const chainId = await safeProviderRequest(provider, "eth_chainId", []);
+      return {
+        provider: {
+          isMetaMask: Boolean(provider.isMetaMask),
+        },
+        preflight: {
+          ethAccounts: accounts.ok ? accounts.value : { error: accounts.error },
+          ethChainId: chainId.ok ? chainId.value : { error: chainId.error },
+        },
+        transaction: transactionDiagnostics(activeRequest),
+        signerAddress: activeRequest.diagnostics ? activeRequest.diagnostics.signerAddress : null,
+      };
+    }
     async function requestWallet(activeRequest) {
+      let failureDiagnostics = null;
       try {
         description.textContent = activeRequest.description;
         meta.textContent = "Role: " + activeRequest.role + ". Action: " + activeRequest.action + ".";
@@ -11986,12 +12154,17 @@ function browserWalletSigningHtml({ token }) {
         }
         status.textContent = "Waiting for wallet response...";
         await postStatus(activeRequest, "request-started");
+        failureDiagnostics = await collectTransactionFailureDiagnostics(provider, activeRequest);
         const result = await provider.request({ method: activeRequest.method, params: activeRequest.params });
         status.textContent = "Wallet response received. Waiting for the next CLI request.";
         await post(activeRequest, { ok: true, result });
       } catch (error) {
         status.textContent = "Request failed. Waiting for the next CLI request.";
-        await post(activeRequest, { ok: false, error: error && error.message ? error.message : String(error) });
+        await post(activeRequest, {
+          ok: false,
+          error: serializeWalletError(error),
+          diagnostics: failureDiagnostics,
+        });
       }
     }
     async function runRelayLoop() {

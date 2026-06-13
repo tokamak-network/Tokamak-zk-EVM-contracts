@@ -1162,6 +1162,14 @@ function testChannelJoinBrowserWalletFlowCoverage() {
     "Browser wallet signing page should report page load and provider request start status back to the CLI.",
   );
   expect(
+    browserSigningPageSource.includes("collectTransactionFailureDiagnostics")
+      && browserSigningPageSource.includes("provider.isMetaMask")
+      && browserSigningPageSource.includes("\"eth_accounts\"")
+      && browserSigningPageSource.includes("\"eth_chainId\"")
+      && browserSigningPageSource.includes("dataByteLength"),
+    "Browser wallet signing page should collect sanitized eth_sendTransaction failure diagnostics.",
+  );
+  expect(
     browserBridgeSessionSource.includes("this.token = ethers.hexlify(randomBytes(24))")
       && browserBridgeSessionSource.includes("requestId = ethers.hexlify(randomBytes(12))")
       && browserBridgeSessionSource.includes("requestUrl.pathname === \"/request\"")
@@ -1448,6 +1456,57 @@ async function testBrowserWalletHumanRejectsLocalCallback() {
   );
 }
 
+async function testBrowserWalletFailureIncludesDiagnostics() {
+  const longCalldata = `0x${"12".repeat(128)}`;
+  const selectedAddress = "0x1111111111111111111111111111111111111111";
+  const result = await runCliWithBrowserCallbacks([
+    "account",
+    "get-l1-address",
+    "--network",
+    "mainnet",
+  ], [
+    {
+      ok: false,
+      error: {
+        code: 4100,
+        message: "Unauthorized.",
+        data: {
+          calldata: longCalldata,
+        },
+      },
+      diagnostics: {
+        provider: { isMetaMask: true },
+        preflight: {
+          ethAccounts: [selectedAddress],
+          ethChainId: "0xaa36a7",
+        },
+        transaction: {
+          from: selectedAddress,
+          to: "0x2222222222222222222222222222222222222222",
+          value: "0x0",
+          dataByteLength: 128,
+        },
+        signerAddress: selectedAddress,
+      },
+    },
+  ], {
+    expectFailure: true,
+  });
+  expect(
+    result.stderr.includes("Wallet error code: 4100")
+      && result.stderr.includes("provider.isMetaMask: true")
+      && result.stderr.includes("eth_chainId: 0xaa36a7")
+      && result.stderr.includes(`transaction.from: ${selectedAddress}`)
+      && result.stderr.includes("transaction.dataByteLength: 128")
+      && result.stderr.includes(`signerAddress: ${selectedAddress}`),
+    "Browser wallet failures should include structured diagnostics.",
+  );
+  expect(
+    !result.stderr.includes(longCalldata),
+    "Browser wallet diagnostics must not print full calldata.",
+  );
+}
+
 async function testBrowserWalletHumanRejectsMalformedAccounts() {
   const result = await runCliWithBrowserCallbacks([
     "account",
@@ -1636,6 +1695,7 @@ async function main() {
   testMissingAccountSelectsBrowserWalletMode();
   await testBrowserWalletHumanConnectsFromLocalCallback();
   await testBrowserWalletHumanRejectsLocalCallback();
+  await testBrowserWalletFailureIncludesDiagnostics();
   await testBrowserWalletHumanRejectsMalformedAccounts();
   await testBrowserWalletSwitchesWrongChainBeforeContinuing();
   await testBrowserWalletChainSwitchRejectionFailsClosed();

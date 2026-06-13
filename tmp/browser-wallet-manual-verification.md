@@ -26,6 +26,8 @@ extension UI. The localhost page is not an approval UI and must not present a CL
 - Second MetaMask-capable browser: not detected in `/Applications`
 - Follow-up command: `npm run test:agent-guidance`
 - Follow-up result: passed on 2026-06-13
+- Browser-wallet transaction diagnostic implementation check: `npm run test:agent-guidance`
+- Browser-wallet transaction diagnostic result: passed on 2026-06-14
 - Non-interactive browser-wallet check:
   `HOME=$(mktemp -d) node packages/apps/private-state/cli/private-state-bridge-cli.mjs account get-l1-address --network mainnet --json`
 - Non-interactive result: exited with status `1` and reported that browser-wallet signing requires interactive human
@@ -202,6 +204,8 @@ Manual retry results on 2026-06-14:
 - Follow-up cleanup removed the extra `eth_accounts`, `wallet_requestPermissions`, retry, and transaction preflight
   prompts because they did not resolve the failure and made the user approval sequence harder to understand. The
   persistent relay page and same-origin browser session remain.
+- Follow-up implementation added structured `eth_sendTransaction` failure diagnostics without retrying, switching
+  accounts, or requesting extra wallet permissions. The next manual retry should record the diagnostic output.
 - No `createChannel` transaction was submitted.
 - The Sepolia workspace still contained only `rpc-config.env`; no new channel workspace was created.
 - No Sepolia local account secret directory was created.

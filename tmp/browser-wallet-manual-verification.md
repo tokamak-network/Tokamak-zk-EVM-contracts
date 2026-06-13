@@ -13,7 +13,8 @@ or storing the user's raw L1 private key. The checklist also verifies that local
 authority for private-state note operations.
 
 This checklist must not be executed by an AI agent that clicks wallet-extension approval UI. The CLI may open a local
-signing page, but the verifier must inspect and approve or reject each wallet request directly.
+signing relay page, but the verifier must inspect and approve or reject each wallet request directly in the wallet
+extension UI. The localhost page is not an approval UI and must not present a CLI-controlled approval button.
 
 ## Automated Preflight Log
 
@@ -81,7 +82,7 @@ private-state-cli account get-l1-address --network <NETWORK>
 Expected result:
 
 - The CLI opens or prints a localhost signing URL.
-- The browser page requests account connection through the wallet.
+- The browser relay page automatically requests account connection through the wallet.
 - The command prints the selected browser wallet address.
 - No local account private-key file is created.
 
@@ -338,7 +339,7 @@ Expected result:
 Procedure:
 
 1. Open the printed localhost signing URL in a browser without MetaMask or an equivalent provider.
-2. Continue on the signing page.
+2. Wait for the relay page to start the wallet provider request.
 
 Expected result:
 

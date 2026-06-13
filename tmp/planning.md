@@ -46,10 +46,11 @@ The browser-wallet signer must support:
 - EIP-712 signing through `eth_signTypedData_v4`
 - Ethereum transaction submission through `eth_sendTransaction`
 
-The CLI should launch a local signing page served from `127.0.0.1` on an ephemeral port. The page connects to the browser
-wallet, displays the request being approved, sends provider requests from the browser context, and returns the result to
-the CLI over a localhost callback channel. This is more stable than controlling extension UI and keeps the user approval
-surface inside the wallet.
+The CLI should launch a local signing relay page served from `127.0.0.1` on an ephemeral port. The page must not act as
+a trusted approval UI and must not ask the user to click a CLI-provided approval button. Instead, it should immediately
+send the EIP-1193 provider request from the browser context and return the provider result to the CLI over a localhost
+callback channel. The only approval or rejection button the user should click is the MetaMask-compatible wallet UI.
+This is more stable than controlling extension UI while keeping the user approval surface inside the wallet itself.
 
 ## Command Surface
 
@@ -163,6 +164,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
      `eth_chainId` and fail closed if the wallet still does not match.
    - Do not send RPC URLs or API keys to the browser through `wallet_addEthereumChain`; unsupported chains should fail
      with an explicit instruction instead of leaking local RPC configuration.
+   - Remove local approval buttons from the signing page. The page should start the wallet provider request on load and
+     show only relay status, so the user's click target is the wallet extension UI, not CLI-provided UI.
    - Ensure the page supports any injected EIP-1193 provider compatible with MetaMask methods.
    - Print the signing page URL whenever the CLI opens a browser so the user can manually open the same URL in a
      different MetaMask-capable browser if needed.
@@ -228,6 +231,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
 - Never expose wallet secrets, L2 spending keys, viewing keys, note plaintext, or proof artifacts to the browser page
   unless a later explicit design requires it.
 - Show the exact signing purpose before requesting browser approval.
+- Do not present a localhost approval button. The localhost page is a request relay only; user approval must happen in
+  the wallet extension UI.
 - Fail closed on user rejection, timeout, wrong address, wrong chain, provider absence, or malformed wallet response.
 - When a wrong browser-wallet chain is detected, request a user-approved wallet chain switch once, then fail closed if
   the user rejects the switch, the wallet does not support the target chain, or the rechecked chain still differs.

@@ -55,6 +55,10 @@ the required L1 action in a MetaMask-compatible browser wallet. The browser-wall
 provider and is not Chrome-specific. The CLI prints the localhost signing URL so the same approval page can be opened in
 another MetaMask-capable browser when the default browser is not the intended wallet browser.
 
+The localhost page is a request relay, not an approval UI. It starts the wallet provider request when the page loads and
+returns the provider result to the terminal. Users should approve or reject only in the MetaMask-compatible wallet UI,
+not in UI provided by the CLI page.
+
 Browser-wallet mode avoids CLI access to the raw L1 private key. It does not remove the local private-state wallet key
 model: `channel join` still reads `--wallet-secret-path` once, derives the channel-bound spending key, derives the
 note-receive viewing key, and stores those L2 keys under the existing protected wallet-key rules. Note commands such as

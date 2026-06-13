@@ -800,6 +800,11 @@ function testReadmeJsonPurposeIsAgentSafe() {
     "README should explain that local L2 spending/viewing keys still apply in browser-wallet mode.",
   );
   expect(
+    normalizedReadme.includes("The localhost page is a request relay, not an approval UI")
+      && normalizedReadme.includes("approve or reject only in the MetaMask-compatible wallet UI"),
+    "README should explain that browser-wallet approval happens in the wallet UI, not the localhost page.",
+  );
+  expect(
     normalizedReadme.includes("account connection, chain check, network switch when needed, the EIP-191 message signature for L2 spending-key derivation"),
     "README should document channel join browser-wallet approval order.",
   );
@@ -1072,6 +1077,11 @@ function testChannelJoinBrowserWalletFlowCoverage() {
     "class BrowserWalletSigner",
     "async function requestBrowserWallet",
   );
+  const browserSigningPageSource = sourceBetween(
+    runtimeSource,
+    "function browserWalletSigningHtml",
+    "function browserWalletResultHtml",
+  );
   expect(
     joinSource.includes("const signer = await requireL1Signer(args, provider);"),
     "channel join should resolve local-account or browser-wallet L1 authority through requireL1Signer.",
@@ -1102,6 +1112,19 @@ function testChannelJoinBrowserWalletFlowCoverage() {
     indexInSource(browserSignerSource, "action: \"switch network\"")
       < indexInSource(browserSignerSource, "action: \"recheck network\""),
     "BrowserWalletSigner should recheck the chain after requesting wallet_switchEthereumChain.",
+  );
+  expect(
+    !browserSigningPageSource.includes("Continue In Browser Wallet")
+      && !browserSigningPageSource.includes("addEventListener(\"click\"")
+      && !browserSigningPageSource.includes("<button")
+      && !browserSigningPageSource.includes("Browser Wallet Approval"),
+    "Browser wallet signing page must not present a CLI-controlled approval UI.",
+  );
+  expect(
+    browserSigningPageSource.includes("window.addEventListener(\"load\"")
+      && browserSigningPageSource.includes("requestWallet();")
+      && browserSigningPageSource.includes("window.ethereum.request"),
+    "Browser wallet signing page should start the provider request on page load.",
   );
   expect(
     joinSource.includes("typeof signer.privateKey === \"string\""),
@@ -1341,6 +1364,10 @@ async function testBrowserWalletHumanConnectsFromLocalCallback() {
   expect(
     result.stderr.includes("MetaMask-capable browser"),
     "Human browser-wallet mode should explain that the signing URL can be opened in a MetaMask-capable browser.",
+  );
+  expect(
+    result.stderr.includes("localhost page is only a wallet-request relay and has no approval button"),
+    "Human browser-wallet mode should explain that approval happens in the wallet UI, not the localhost page.",
   );
   expect(
     result.stdout.includes(selectedAddress),

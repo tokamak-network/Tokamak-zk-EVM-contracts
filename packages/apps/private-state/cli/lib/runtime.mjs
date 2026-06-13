@@ -11733,9 +11733,10 @@ async function requestBrowserWallet({
       `Browser wallet approval required: ${action}.`,
       `Signing URL: ${signingUrl}`,
       browser.opened
-        ? "Browser opened. Review the wallet request and approve it yourself."
+        ? "Browser opened. Approve or reject only in the browser wallet UI."
         : "If the signing page is not already open, copy the Signing URL into a MetaMask-capable browser.",
-      "User-Controlled AI Agents must not approve wallet requests for the user.",
+      "The localhost page is only a wallet-request relay and has no approval button.",
+      "User-Controlled AI Agents must not approve wallet requests in the wallet UI for the user.",
       "",
     ].join("\n"));
     return await resultPromise;
@@ -11752,13 +11753,12 @@ function browserWalletSigningHtml({ token, role, action, method, params, descrip
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Private-State Browser Wallet Approval</title>
+  <title>Private-State Browser Wallet Request Relay</title>
   <style>
     :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { margin: 0; background: Canvas; color: CanvasText; }
     main { max-width: 760px; margin: 0 auto; padding: 32px 20px; }
     .panel { border: 1px solid color-mix(in srgb, CanvasText 20%, transparent); border-radius: 8px; padding: 20px; }
-    button { font: inherit; padding: 10px 14px; border-radius: 6px; border: 1px solid CanvasText; cursor: pointer; }
     pre { overflow: auto; padding: 12px; border-radius: 6px; background: color-mix(in srgb, CanvasText 8%, transparent); }
     .muted { color: color-mix(in srgb, CanvasText 70%, transparent); }
   </style>
@@ -11766,11 +11766,10 @@ function browserWalletSigningHtml({ token, role, action, method, params, descrip
 <body>
   <main>
     <section class="panel">
-      <h1>Browser Wallet Approval</h1>
+      <h1>Browser Wallet Request Relay</h1>
       <p>${escapeHtml(description)}</p>
       <p class="muted">Role: ${escapeHtml(role)}. Action: ${escapeHtml(action)}.</p>
-      <button id="approve" type="button">Continue In Browser Wallet</button>
-      <p id="status" class="muted">Waiting for approval.</p>
+      <p id="status" class="muted">Opening the wallet request. Approve or reject only in your wallet UI.</p>
       <details>
         <summary>Request details</summary>
         <pre>${escapeHtml(JSON.stringify({ method }, null, 2))}</pre>
@@ -11787,7 +11786,7 @@ function browserWalletSigningHtml({ token, role, action, method, params, descrip
         body: JSON.stringify({ token: request.token, ...payload }),
       });
     }
-    document.getElementById("approve").addEventListener("click", async () => {
+    async function requestWallet() {
       try {
         if (!window.ethereum || typeof window.ethereum.request !== "function") {
           throw new Error("No MetaMask-compatible browser wallet provider was found.");
@@ -11800,6 +11799,9 @@ function browserWalletSigningHtml({ token, role, action, method, params, descrip
         status.textContent = "Request failed. You can return to the terminal.";
         await post({ ok: false, error: error && error.message ? error.message : String(error) });
       }
+    }
+    window.addEventListener("load", () => {
+      requestWallet();
     });
   </script>
 </body>
@@ -11812,7 +11814,7 @@ function browserWalletResultHtml(ok) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Private-State Browser Wallet Approval</title>
+  <title>Private-State Browser Wallet Request Relay</title>
 </head>
 <body>
   <main>

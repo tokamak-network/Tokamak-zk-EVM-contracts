@@ -208,6 +208,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
    - Verify wrong-chain, wrong-account, rejection, timeout, and closed-browser failure paths.
    - Verify that no browser-wallet command writes an L1 private key file.
    - Verify that the existing local-account path still works.
+   - Use `tmp/browser-wallet-manual-verification.md` to record browser coverage, success paths, failure paths, and local
+     file checks before release.
 
 ## Security Requirements
 

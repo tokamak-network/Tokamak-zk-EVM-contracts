@@ -149,6 +149,37 @@ For `wallet recover-workspace`, the browser-wallet path must:
 4. reject recovery when the derived keys do not match the registered channel-local address, storage key, or note-receive
    public key
 
+## Current `eth_sendTransaction` Investigation
+
+The repeated Sepolia `channel create` failures at `eth_sendTransaction` must not be treated as solved by retrying the
+command or by adding more wallet-permission prompts. The current evidence only proves that the command reaches
+transaction submission and that the browser wallet returns `Unauthorized.`. It does not yet prove which input or wallet
+state causes that provider error.
+
+The leading hypothesis is that the browser wallet does not consider the transaction `from` account to be authorized for
+the localhost origin at the moment `eth_sendTransaction` runs. Other plausible causes remain open:
+
+- the injected provider is not the intended MetaMask provider
+- the browser wallet connected-sites state for the localhost origin is stale or inconsistent
+- the wallet active account differs from the account returned by the initial `eth_requestAccounts`
+- the transaction payload shape includes a field that the wallet rejects for this request
+- the persistent relay page or localhost origin model triggers provider-specific authorization behavior
+
+Before another manual Sepolia transaction attempt, the CLI should preserve structured diagnostic data from browser-wallet
+failures without exposing secrets or raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:
+
+- wallet error `code`, `message`, and sanitized `data`
+- whether the injected provider reported `isMetaMask`
+- the `eth_accounts` result immediately before the failed request
+- the `eth_chainId` result immediately before the failed request
+- the transaction `from`, `to`, `value`, and `data` byte length, but not full calldata unless a later explicit debug mode
+  is approved
+- the signer address selected from the initial browser-wallet connection
+
+This diagnostic path is not a fallback and must not retry, switch accounts, or request extra wallet permissions. It is
+only for distinguishing wallet permission state, provider selection, wrong account, wrong chain, and payload-shape
+failures.
+
 ## Implementation Steps
 
 1. Add signer-mode parsing.
@@ -179,6 +210,7 @@ For `wallet recover-workspace`, the browser-wallet path must:
    - Do not add extra account-permission prompts around signatures or transaction submission. After the initial wallet
      connection, forward the requested signature or transaction to the wallet and fail clearly on `Unauthorized`, wrong
      account, rejection, or malformed wallet responses.
+   - Preserve structured failure diagnostics for `eth_sendTransaction` before running more Sepolia transaction retries.
    - Ensure the page supports any injected EIP-1193 provider compatible with MetaMask methods.
    - Print the signing page URL whenever the CLI opens a browser so the user can manually open the same URL in a
      different MetaMask-capable browser if needed.
@@ -226,6 +258,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
      submitter.
 
 9. Add manual verification.
+   - Do not continue repeated `channel create` transaction attempts until `eth_sendTransaction` failure diagnostics are
+     available and recorded.
    - Verify with MetaMask on at least two supported browsers when available.
    - On Sepolia, create a fresh named test channel with browser-wallet `channel create` before `channel join` when no
      existing named test channel is available.

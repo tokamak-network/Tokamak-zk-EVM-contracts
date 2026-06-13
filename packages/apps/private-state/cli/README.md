@@ -57,7 +57,8 @@ another MetaMask-capable browser when the default browser is not the intended wa
 
 The localhost page is a request relay, not an approval UI. It starts the wallet provider request when the page loads and
 returns the provider result to the terminal. Users should approve or reject only in the MetaMask-compatible wallet UI,
-not in UI provided by the CLI page.
+not in UI provided by the CLI page. During one CLI command, sequential wallet requests use the same localhost origin so
+the wallet account permission granted at connection can apply to later signature and transaction requests.
 
 Browser-wallet mode avoids CLI access to the raw L1 private key. It does not remove the local private-state wallet key
 model: `channel join` still reads `--wallet-secret-path` once, derives the channel-bound spending key, derives the

@@ -51,6 +51,9 @@ a trusted approval UI and must not ask the user to click a CLI-provided approval
 send the EIP-1193 provider request from the browser context and return the provider result to the CLI over a localhost
 callback channel. The only approval or rejection button the user should click is the MetaMask-compatible wallet UI.
 This is more stable than controlling extension UI while keeping the user approval surface inside the wallet itself.
+Sequential wallet requests in a single CLI command must reuse one localhost origin because browser-wallet account
+permissions are origin-scoped. The request id may change per approval, but the host, port, and session token should
+remain stable for that command.
 
 ## Command Surface
 
@@ -158,6 +161,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
 2. Build the browser signing bridge.
    - Add a small localhost HTTP server that serves a static signing page.
    - Add request IDs, one-shot approval sessions, CSRF-resistant random session tokens, and strict localhost-only binding.
+   - Keep one browser-wallet bridge server and localhost origin alive across sequential requests in a single CLI command,
+     while using per-request IDs to prevent stale page responses from satisfying a later request.
    - Add a structured request/response protocol for address, chain, message signing, typed-data signing, and transaction
      submission.
    - Request `wallet_switchEthereumChain` when `eth_chainId` does not match the selected network, then re-run
@@ -166,6 +171,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
      with an explicit instruction instead of leaking local RPC configuration.
    - Remove local approval buttons from the signing page. The page should start the wallet provider request on load and
      show only relay status, so the user's click target is the wallet extension UI, not CLI-provided UI.
+   - Report relay page load and provider-request-start status back to the CLI so browser launch, provider injection, and
+     wallet-response failures are distinguishable.
    - Ensure the page supports any injected EIP-1193 provider compatible with MetaMask methods.
    - Print the signing page URL whenever the CLI opens a browser so the user can manually open the same URL in a
      different MetaMask-capable browser if needed.

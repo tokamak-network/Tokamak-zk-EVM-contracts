@@ -118,7 +118,7 @@ function runCliWithBrowserCallbacks(args, responses, options = {}) {
     });
     let stdout = "";
     let stderr = "";
-    const handledTokens = new Set();
+    const handledRequests = new Set();
     const pendingPosts = [];
     const scanInterval = setInterval(() => handleSigningUrls(), 25);
     const timeout = setTimeout(() => {
@@ -126,20 +126,21 @@ function runCliWithBrowserCallbacks(args, responses, options = {}) {
       reject(new Error(`Timed out waiting for browser-wallet callback test.\nstdout:\n${stdout}\nstderr:\n${stderr}`));
     }, options.timeoutMs ?? 15_000);
     const handleSigningUrls = () => {
-      const matches = stderr.matchAll(/Signing URL: (http:\/\/127\.0\.0\.1:\d+\/sign\?token=([^\s]+))/gu);
+      const matches = stderr.matchAll(/Signing URL: (http:\/\/127\.0\.0\.1:\d+\/sign\?token=([^\s&]+)&request=([^\s]+))/gu);
       for (const match of matches) {
         const url = match[1];
         const token = decodeURIComponent(match[2]);
-        if (handledTokens.has(token)) {
+        const requestId = decodeURIComponent(match[3]);
+        if (handledRequests.has(requestId)) {
           continue;
         }
-        handledTokens.add(token);
+        handledRequests.add(requestId);
         const response = responses.shift();
         if (!response) {
           reject(new Error(`No browser-wallet test response was provided for ${url}.`));
           continue;
         }
-        pendingPosts.push(postJson(new URL("/result", url), { token, ...response }));
+        pendingPosts.push(postJson(new URL("/result", url), { token, requestId, ...response }));
       }
     };
     child.stdout.on("data", (chunk) => {
@@ -1082,6 +1083,11 @@ function testChannelJoinBrowserWalletFlowCoverage() {
     "function browserWalletSigningHtml",
     "function browserWalletResultHtml",
   );
+  const browserBridgeSessionSource = sourceBetween(
+    runtimeSource,
+    "class BrowserWalletBridgeSession",
+    "function browserWalletSigningHtml",
+  );
   expect(
     joinSource.includes("const signer = await requireL1Signer(args, provider);"),
     "channel join should resolve local-account or browser-wallet L1 authority through requireL1Signer.",
@@ -1123,8 +1129,20 @@ function testChannelJoinBrowserWalletFlowCoverage() {
   expect(
     browserSigningPageSource.includes("window.addEventListener(\"load\"")
       && browserSigningPageSource.includes("requestWallet();")
-      && browserSigningPageSource.includes("window.ethereum.request"),
-    "Browser wallet signing page should start the provider request on page load.",
+      && browserSigningPageSource.includes("waitForEthereumProvider")
+      && browserSigningPageSource.includes("provider.request"),
+    "Browser wallet signing page should wait for provider injection and start the provider request on page load.",
+  );
+  expect(
+    browserSigningPageSource.includes("postStatus(\"loaded\")")
+      && browserSigningPageSource.includes("postStatus(\"request-started\")"),
+    "Browser wallet signing page should report page load and provider request start status back to the CLI.",
+  );
+  expect(
+    browserBridgeSessionSource.includes("this.token = ethers.hexlify(randomBytes(24))")
+      && browserBridgeSessionSource.includes("&request=")
+      && browserBridgeSessionSource.includes("this.server.unref()"),
+    "Browser wallet bridge should keep one localhost origin per CLI process while using per-request IDs.",
   );
   expect(
     joinSource.includes("typeof signer.privateKey === \"string\""),

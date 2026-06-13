@@ -155,6 +155,35 @@ Manual retry result on 2026-06-13 after automatic network switching was added:
 - The Sepolia workspace still contained only `rpc-config.env`; no new channel workspace was created.
 - No Sepolia local account secret directory was created.
 
+Manual retry result on 2026-06-13 after removing the localhost approval button:
+
+- Result: failed before transaction submission because the per-request browser bridge used different localhost ports for
+  account connection and transaction submission.
+- Test channel name: `browser-wallet-test-20260613-relay2`.
+- The relay page loaded and reported provider request start for account connection, network check, and send transaction.
+- The browser wallet returned `The requested account and/or method has not been authorized by the user.` at
+  `eth_sendTransaction`.
+- Diagnosis: browser wallet permissions are origin-scoped, so approving `eth_requestAccounts` on one localhost port does
+  not authorize `eth_sendTransaction` from another localhost port.
+- No `createChannel` transaction was submitted.
+- The Sepolia workspace still contained only `rpc-config.env`; no new channel workspace was created.
+- No Sepolia local account secret directory was created.
+
+Manual retry result on 2026-06-13 after switching the browser bridge to one localhost origin per CLI command:
+
+- Result: reached the transaction-signature prompt and failed closed after the human verifier rejected the transaction
+  signature in the browser wallet UI.
+- Test channel name: `browser-wallet-test-20260613-relay3`.
+- The CLI reused the same localhost port for account connection, network check, and send transaction. Each request used
+  a different request id under the same session token.
+- The relay page loaded and reported provider request start for each browser-wallet request.
+- The command continued past account connection and network check, printed the immutable channel policy warning, and
+  requested the `createChannel` transaction.
+- The `createChannel` transaction was not submitted because the browser wallet returned
+  `MetaMask Tx Signature: User denied transaction signature.`
+- The Sepolia workspace still contained only `rpc-config.env`; no new channel workspace was created.
+- No Sepolia local account secret directory was created.
+
 ### Channel Join Without `--account`
 
 Command:

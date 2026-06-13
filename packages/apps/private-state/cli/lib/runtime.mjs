@@ -11648,86 +11648,76 @@ class BrowserWalletSigner {
   }
 }
 
-async function requestBrowserWallet({
-  role,
-  action,
-  method,
-  params,
-  description,
-}) {
-  const token = ethers.hexlify(randomBytes(24));
-  let settled = false;
-  let resolveResult;
-  let rejectResult;
-  const resultPromise = new Promise((resolve, reject) => {
-    resolveResult = resolve;
-    rejectResult = reject;
-  });
-  const server = http.createServer(async (request, response) => {
-    try {
-      const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
-      if (request.method === "GET" && requestUrl.pathname === "/sign") {
-        if (requestUrl.searchParams.get("token") !== token) {
-          writeBrowserTermsResponse(response, 403, "text/plain; charset=utf-8", "Invalid browser wallet token.");
-          return;
-        }
-        writeBrowserTermsResponse(
-          response,
-          200,
-          "text/html; charset=utf-8",
-          browserWalletSigningHtml({
-            token,
-            role,
-            action,
-            method,
-            params,
-            description,
-          }),
-        );
-        return;
-      }
-      if (request.method === "POST" && requestUrl.pathname === "/result") {
-        const payload = JSON.parse(await readRequestBodyText(request));
-        if (payload.token !== token) {
-          writeBrowserTermsResponse(response, 400, "text/plain; charset=utf-8", "Browser wallet response was invalid.");
-          return;
-        }
-        settled = true;
-        writeBrowserTermsResponse(
-          response,
-          200,
-          "text/html; charset=utf-8",
-          browserWalletResultHtml(Boolean(payload.ok)),
-        );
-        if (payload.ok) {
-          resolveResult(payload.result);
-        } else {
-          rejectResult(new Error(`Browser wallet ${action} failed: ${payload.error ?? "unknown error"}`));
-        }
-        return;
-      }
-      writeBrowserTermsResponse(response, 404, "text/plain; charset=utf-8", "Not found.");
-    } catch (error) {
-      writeBrowserTermsResponse(response, 500, "text/plain; charset=utf-8", `Browser wallet signing error: ${error.message}`);
-      rejectResult(error);
-    }
-  });
-  server.on("error", rejectResult);
-  const timeout = setTimeout(() => {
-    if (!settled) {
-      rejectResult(new Error(`Timed out waiting for browser wallet ${action}.`));
-    }
-  }, 10 * 60 * 1000);
-  try {
-    await new Promise((resolve, reject) => {
-      server.listen(0, "127.0.0.1", () => resolve());
-      server.once("error", reject);
-    });
-    const address = server.address();
+let browserWalletBridgeSession = null;
+
+function getBrowserWalletBridgeSession() {
+  if (!browserWalletBridgeSession) {
+    browserWalletBridgeSession = new BrowserWalletBridgeSession();
+  }
+  return browserWalletBridgeSession;
+}
+
+async function requestBrowserWallet(request) {
+  return await getBrowserWalletBridgeSession().request(request);
+}
+
+class BrowserWalletBridgeSession {
+  constructor() {
+    this.token = ethers.hexlify(randomBytes(24));
+    this.server = null;
+    this.ready = null;
+    this.pending = null;
+  }
+
+  async request({
+    role,
+    action,
+    method,
+    params,
+    description,
+  }) {
+    await this.ensureStarted();
+    expect(!this.pending, "Browser wallet bridge already has a pending request.");
+    const requestId = ethers.hexlify(randomBytes(12));
+    const address = this.server.address();
     if (!address || typeof address === "string") {
       throw new Error("Could not determine local browser wallet signing server address.");
     }
-    const signingUrl = `http://127.0.0.1:${address.port}/sign?token=${encodeURIComponent(token)}`;
+    const signingUrl = `http://127.0.0.1:${address.port}/sign?token=${encodeURIComponent(this.token)}&request=${encodeURIComponent(requestId)}`;
+    const resultPromise = new Promise((resolve, reject) => {
+      this.pending = {
+        requestId,
+        role,
+        action,
+        method,
+        params,
+        description,
+        signingUrl,
+        settled: false,
+        relayLoaded: false,
+        providerRequestStarted: false,
+        pageLoadReminder: null,
+        requestStartReminder: null,
+        timeout: null,
+        resolve,
+        reject,
+      };
+    });
+    const pending = this.pending;
+    pending.timeout = setTimeout(() => {
+      this.rejectPending(new Error(`Timed out waiting for browser wallet ${action}.`));
+    }, 10 * 60 * 1000);
+    pending.pageLoadReminder = setTimeout(() => {
+      if (!pending.settled && !pending.relayLoaded) {
+        process.stderr.write([
+          "Browser wallet relay page has not connected to the CLI.",
+          "Open the Signing URL in the MetaMask-capable browser you want to use:",
+          signingUrl,
+          "",
+        ].join("\n"));
+      }
+    }, 15_000);
+    this.scheduleRequestStartReminder(pending);
     const browser = openUrlInDefaultBrowser(signingUrl);
     process.stderr.write([
       `Browser wallet approval required: ${action}.`,
@@ -11740,14 +11730,161 @@ async function requestBrowserWallet({
       "",
     ].join("\n"));
     return await resultPromise;
-  } finally {
-    clearTimeout(timeout);
-    await closeLocalTermsServer(server);
+  }
+
+  async ensureStarted() {
+    if (this.ready) {
+      return await this.ready;
+    }
+    this.server = http.createServer(async (request, response) => {
+      await this.handleRequest(request, response);
+    });
+    this.server.on("error", (error) => {
+      this.rejectPending(error);
+    });
+    this.ready = new Promise((resolve, reject) => {
+      this.server.listen(0, "127.0.0.1", () => {
+        this.server.unref();
+        resolve();
+      });
+      this.server.once("error", reject);
+    });
+    return await this.ready;
+  }
+
+  async handleRequest(request, response) {
+    try {
+      const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+      if (request.method === "GET" && requestUrl.pathname === "/sign") {
+        if (requestUrl.searchParams.get("token") !== this.token) {
+          writeBrowserTermsResponse(response, 403, "text/plain; charset=utf-8", "Invalid browser wallet token.");
+          return;
+        }
+        const pending = this.requireMatchingPendingRequest(requestUrl.searchParams.get("request"));
+        writeBrowserTermsResponse(
+          response,
+          200,
+          "text/html; charset=utf-8",
+          browserWalletSigningHtml({
+            token: this.token,
+            requestId: pending.requestId,
+            role: pending.role,
+            action: pending.action,
+            method: pending.method,
+            params: pending.params,
+            description: pending.description,
+          }),
+        );
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/status") {
+        const payload = JSON.parse(await readRequestBodyText(request));
+        if (payload.token !== this.token) {
+          writeBrowserTermsResponse(response, 400, "text/plain; charset=utf-8", "Browser wallet status was invalid.");
+          return;
+        }
+        const pending = this.requireMatchingPendingRequest(payload.requestId);
+        this.recordStatus(pending, payload.event);
+        writeBrowserTermsResponse(response, 204, "text/plain; charset=utf-8", "");
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/result") {
+        const payload = JSON.parse(await readRequestBodyText(request));
+        if (payload.token !== this.token) {
+          writeBrowserTermsResponse(response, 400, "text/plain; charset=utf-8", "Browser wallet response was invalid.");
+          return;
+        }
+        const pending = this.requireMatchingPendingRequest(payload.requestId);
+        writeBrowserTermsResponse(
+          response,
+          200,
+          "text/html; charset=utf-8",
+          browserWalletResultHtml(Boolean(payload.ok)),
+        );
+        if (payload.ok) {
+          this.resolvePending(pending, payload.result);
+        } else {
+          this.rejectPending(new Error(`Browser wallet ${pending.action} failed: ${payload.error ?? "unknown error"}`));
+        }
+        return;
+      }
+      writeBrowserTermsResponse(response, 404, "text/plain; charset=utf-8", "Not found.");
+    } catch (error) {
+      writeBrowserTermsResponse(response, 500, "text/plain; charset=utf-8", `Browser wallet signing error: ${error.message}`);
+      this.rejectPending(error);
+    }
+  }
+
+  requireMatchingPendingRequest(requestId) {
+    if (!this.pending || this.pending.requestId !== requestId) {
+      throw new Error("No matching browser wallet request is active.");
+    }
+    return this.pending;
+  }
+
+  recordStatus(pending, event) {
+    if (event === "loaded" && !pending.relayLoaded) {
+      pending.relayLoaded = true;
+      process.stderr.write("Browser wallet relay page loaded.\n");
+    }
+    if (event === "request-started" && !pending.providerRequestStarted) {
+      pending.providerRequestStarted = true;
+      this.clearRequestStartReminder(pending);
+      process.stderr.write("Browser wallet provider request started. Check the wallet UI.\n");
+    }
+  }
+
+  scheduleRequestStartReminder(pending) {
+    this.clearRequestStartReminder(pending);
+    pending.requestStartReminder = setTimeout(() => {
+      if (!pending.settled && pending.relayLoaded && !pending.providerRequestStarted) {
+        process.stderr.write([
+          "Browser wallet relay page loaded, but the provider request has not started.",
+          "Refresh the signing page or open the Signing URL in a MetaMask-capable browser:",
+          pending.signingUrl,
+          "",
+        ].join("\n"));
+      }
+    }, 15_000);
+  }
+
+  clearRequestStartReminder(pending) {
+    if (pending.requestStartReminder) {
+      clearTimeout(pending.requestStartReminder);
+      pending.requestStartReminder = null;
+    }
+  }
+
+  clearPendingTimers(pending) {
+    if (pending.timeout) {
+      clearTimeout(pending.timeout);
+    }
+    if (pending.pageLoadReminder) {
+      clearTimeout(pending.pageLoadReminder);
+    }
+    this.clearRequestStartReminder(pending);
+  }
+
+  resolvePending(pending, result) {
+    if (pending.settled) return;
+    pending.settled = true;
+    this.clearPendingTimers(pending);
+    this.pending = null;
+    pending.resolve(result);
+  }
+
+  rejectPending(error) {
+    const pending = this.pending;
+    if (!pending || pending.settled) return;
+    pending.settled = true;
+    this.clearPendingTimers(pending);
+    this.pending = null;
+    pending.reject(error);
   }
 }
 
-function browserWalletSigningHtml({ token, role, action, method, params, description }) {
-  const requestJson = safeJsonForScript({ token, method, params });
+function browserWalletSigningHtml({ token, requestId, role, action, method, params, description }) {
+  const requestJson = safeJsonForScript({ token, requestId, method, params });
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -11783,16 +11920,36 @@ function browserWalletSigningHtml({ token, role, action, method, params, descrip
       await fetch("/result", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: request.token, ...payload }),
+        body: JSON.stringify({ token: request.token, requestId: request.requestId, ...payload }),
       });
+    }
+    async function postStatus(event) {
+      await fetch("/status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: request.token, requestId: request.requestId, event }),
+      });
+    }
+    async function waitForEthereumProvider() {
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < 5000) {
+        if (window.ethereum && typeof window.ethereum.request === "function") {
+          return window.ethereum;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      return null;
     }
     async function requestWallet() {
       try {
-        if (!window.ethereum || typeof window.ethereum.request !== "function") {
+        await postStatus("loaded");
+        const provider = await waitForEthereumProvider();
+        if (!provider) {
           throw new Error("No MetaMask-compatible browser wallet provider was found.");
         }
         status.textContent = "Waiting for wallet response...";
-        const result = await window.ethereum.request({ method: request.method, params: request.params });
+        await postStatus("request-started");
+        const result = await provider.request({ method: request.method, params: request.params });
         status.textContent = "Approved. You can return to the terminal.";
         await post({ ok: true, result });
       } catch (error) {

@@ -184,6 +184,27 @@ Manual retry result on 2026-06-13 after switching the browser bridge to one loca
 - The Sepolia workspace still contained only `rpc-config.env`; no new channel workspace was created.
 - No Sepolia local account secret directory was created.
 
+Manual retry results on 2026-06-14:
+
+- Result: still blocked at browser-wallet `eth_sendTransaction` authorization.
+- Test channel names: `browser-wallet-test-20260614-a1` through `browser-wallet-test-20260614-a6`.
+- The CLI reached account connection, network check, policy warning, connected-account checks, and send transaction
+  relay requests on the same localhost origin.
+- Additional implementation hardening during these attempts:
+  - transaction submission now checks `eth_accounts` before `eth_sendTransaction`
+  - unauthorized transaction submission triggers one `wallet_requestPermissions` account-permission refresh, then one
+    retry
+  - connected-account checks require the first active browser account to match the transaction sender
+  - the browser bridge now keeps one persistent relay page open and feeds later requests through `/request`
+  - the relay page performs an immediate `eth_requestAccounts` preflight in the same browser function before
+    `eth_sendTransaction`
+- Despite those changes, the browser wallet still returned `Unauthorized.` for `eth_sendTransaction`.
+- No `createChannel` transaction was submitted.
+- The Sepolia workspace still contained only `rpc-config.env`; no new channel workspace was created.
+- No Sepolia local account secret directory was created.
+- Next manual check should inspect the browser wallet connected-sites state for the localhost origin, reset that
+  connection if needed, and retry `channel create` with the persistent relay page open.
+
 ### Channel Join Without `--account`
 
 Command:

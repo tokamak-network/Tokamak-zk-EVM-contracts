@@ -53,7 +53,8 @@ callback channel. The only approval or rejection button the user should click is
 This is more stable than controlling extension UI while keeping the user approval surface inside the wallet itself.
 Sequential wallet requests in a single CLI command must reuse one localhost origin because browser-wallet account
 permissions are origin-scoped. The request id may change per approval, but the host, port, and session token should
-remain stable for that command.
+remain stable for that command. The preferred browser bridge shape is one persistent relay page that polls the CLI for
+the next request and performs all provider calls from the same browser JavaScript context.
 
 ## Command Surface
 
@@ -163,6 +164,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
    - Add request IDs, one-shot approval sessions, CSRF-resistant random session tokens, and strict localhost-only binding.
    - Keep one browser-wallet bridge server and localhost origin alive across sequential requests in a single CLI command,
      while using per-request IDs to prevent stale page responses from satisfying a later request.
+   - Keep one relay page open for the command and let it poll the CLI for the next request, so account connection,
+     network checks, signatures, and transaction submission run from one browser JavaScript context.
    - Add a structured request/response protocol for address, chain, message signing, typed-data signing, and transaction
      submission.
    - Request `wallet_switchEthereumChain` when `eth_chainId` does not match the selected network, then re-run
@@ -173,6 +176,8 @@ For `wallet recover-workspace`, the browser-wallet path must:
      show only relay status, so the user's click target is the wallet extension UI, not CLI-provided UI.
    - Report relay page load and provider-request-start status back to the CLI so browser launch, provider injection, and
      wallet-response failures are distinguishable.
+   - Before browser-wallet transaction submission, confirm the active browser account and refresh account permission only
+     after an explicit unauthorized transaction failure. User rejection must not be retried.
    - Ensure the page supports any injected EIP-1193 provider compatible with MetaMask methods.
    - Print the signing page URL whenever the CLI opens a browser so the user can manually open the same URL in a
      different MetaMask-capable browser if needed.

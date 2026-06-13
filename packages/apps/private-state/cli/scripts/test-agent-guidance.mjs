@@ -100,6 +100,29 @@ function postJson(url, payload) {
   });
 }
 
+function getJson(url) {
+  return new Promise((resolve, reject) => {
+    const request = http.request(url, {
+      method: "GET",
+    }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`Expected JSON response from ${url}, got HTTP ${response.statusCode}.`));
+          return;
+        }
+        resolve(JSON.parse(body));
+      });
+    });
+    request.on("error", reject);
+    request.end();
+  });
+}
+
 function runCliWithBrowserCallbacks(args, responses, options = {}) {
   return new Promise((resolve, reject) => {
     const home = options.home ?? fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-home-"));
@@ -118,7 +141,7 @@ function runCliWithBrowserCallbacks(args, responses, options = {}) {
     });
     let stdout = "";
     let stderr = "";
-    const handledRequests = new Set();
+    let handledSigningUrlCount = 0;
     const pendingPosts = [];
     const scanInterval = setInterval(() => handleSigningUrls(), 25);
     const timeout = setTimeout(() => {
@@ -126,21 +149,20 @@ function runCliWithBrowserCallbacks(args, responses, options = {}) {
       reject(new Error(`Timed out waiting for browser-wallet callback test.\nstdout:\n${stdout}\nstderr:\n${stderr}`));
     }, options.timeoutMs ?? 15_000);
     const handleSigningUrls = () => {
-      const matches = stderr.matchAll(/Signing URL: (http:\/\/127\.0\.0\.1:\d+\/sign\?token=([^\s&]+)&request=([^\s]+))/gu);
-      for (const match of matches) {
+      const matches = [...stderr.matchAll(/Signing URL: (http:\/\/127\.0\.0\.1:\d+\/sign\?token=([^\s]+))/gu)];
+      for (const match of matches.slice(handledSigningUrlCount)) {
         const url = match[1];
         const token = decodeURIComponent(match[2]);
-        const requestId = decodeURIComponent(match[3]);
-        if (handledRequests.has(requestId)) {
-          continue;
-        }
-        handledRequests.add(requestId);
+        handledSigningUrlCount += 1;
         const response = responses.shift();
         if (!response) {
           reject(new Error(`No browser-wallet test response was provided for ${url}.`));
           continue;
         }
-        pendingPosts.push(postJson(new URL("/result", url), { token, requestId, ...response }));
+        pendingPosts.push((async () => {
+          const activeRequest = await getJson(new URL(`/request?token=${encodeURIComponent(token)}`, url));
+          await postJson(new URL("/result", url), { token, requestId: activeRequest.requestId, ...response });
+        })());
       }
     };
     child.stdout.on("data", (chunk) => {
@@ -1111,8 +1133,10 @@ function testChannelJoinBrowserWalletFlowCoverage() {
       && browserSignerSource.includes("method: \"wallet_switchEthereumChain\"")
       && browserSignerSource.includes("method: \"personal_sign\"")
       && browserSignerSource.includes("method: \"eth_signTypedData_v4\"")
+      && browserSignerSource.includes("method: \"eth_accounts\"")
+      && browserSignerSource.includes("method: \"wallet_requestPermissions\"")
       && browserSignerSource.includes("method: \"eth_sendTransaction\""),
-    "BrowserWalletSigner should cover the channel join connect, chain check, chain switch, key derivation, and transaction methods.",
+    "BrowserWalletSigner should cover the channel join connect, chain check, chain switch, account permission refresh, key derivation, and transaction methods.",
   );
   expect(
     indexInSource(browserSignerSource, "action: \"switch network\"")
@@ -1128,21 +1152,23 @@ function testChannelJoinBrowserWalletFlowCoverage() {
   );
   expect(
     browserSigningPageSource.includes("window.addEventListener(\"load\"")
-      && browserSigningPageSource.includes("requestWallet();")
+      && browserSigningPageSource.includes("runRelayLoop()")
+      && browserSigningPageSource.includes("readNextRequest")
       && browserSigningPageSource.includes("waitForEthereumProvider")
       && browserSigningPageSource.includes("provider.request"),
-    "Browser wallet signing page should wait for provider injection and start the provider request on page load.",
+    "Browser wallet signing page should keep one relay loop, wait for provider injection, and start provider requests from the page.",
   );
   expect(
-    browserSigningPageSource.includes("postStatus(\"loaded\")")
-      && browserSigningPageSource.includes("postStatus(\"request-started\")"),
+    browserSigningPageSource.includes("postStatus(activeRequest, \"loaded\")")
+      && browserSigningPageSource.includes("postStatus(activeRequest, \"request-started\")"),
     "Browser wallet signing page should report page load and provider request start status back to the CLI.",
   );
   expect(
     browserBridgeSessionSource.includes("this.token = ethers.hexlify(randomBytes(24))")
-      && browserBridgeSessionSource.includes("&request=")
+      && browserBridgeSessionSource.includes("requestId = ethers.hexlify(randomBytes(12))")
+      && browserBridgeSessionSource.includes("requestUrl.pathname === \"/request\"")
       && browserBridgeSessionSource.includes("this.server.unref()"),
-    "Browser wallet bridge should keep one localhost origin per CLI process while using per-request IDs.",
+    "Browser wallet bridge should keep one localhost origin and feed per-request IDs to the persistent relay page.",
   );
   expect(
     joinSource.includes("typeof signer.privateKey === \"string\""),
@@ -1206,6 +1232,16 @@ function testL1TransactionBrowserWalletFlowCoverage() {
   expect(
     browserSignerSource.includes("method: \"eth_sendTransaction\""),
     "BrowserWalletSigner should submit L1 transaction commands through eth_sendTransaction.",
+  );
+  expect(
+    indexInSource(browserSignerSource, "await this.ensureAuthorizedAccount(\"transaction submission\")")
+      < indexInSource(browserSignerSource, "method: \"eth_sendTransaction\""),
+    "BrowserWalletSigner should confirm the browser account permission before eth_sendTransaction.",
+  );
+  expect(
+    browserSignerSource.includes("isBrowserWalletUnauthorizedError(error)")
+      && browserSignerSource.includes("action: \"refresh account permission\""),
+    "BrowserWalletSigner should refresh account permissions only after an unauthorized transaction submission failure.",
   );
 }
 

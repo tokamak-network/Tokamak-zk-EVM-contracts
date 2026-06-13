@@ -47,6 +47,30 @@ contract state does not automatically reconstruct the full note path.
 This CLI does not send your spending key, wallet secret, or private note plaintext to the Provider or Tokamak Network
 PTE. LTD.
 
+## Browser Wallet L1 Signing
+
+The CLI supports two L1 signing paths. Supplying `--account <ACCOUNT>` uses the protected local account secret imported
+with `account import`. Omitting `--account` on supported commands opens a local signing page and asks the user to approve
+the required L1 action in a MetaMask-compatible browser wallet. The browser-wallet path uses an injected EIP-1193
+provider and is not Chrome-specific. The CLI prints the localhost signing URL so the same approval page can be opened in
+another MetaMask-capable browser when the default browser is not the intended wallet browser.
+
+Browser-wallet mode avoids CLI access to the raw L1 private key. It does not remove the local private-state wallet key
+model: `channel join` still reads `--wallet-secret-path` once, derives the channel-bound spending key, derives the
+note-receive viewing key, and stores those L2 keys under the existing protected wallet-key rules. Note commands such as
+`wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes` still use the local spending key and viewing key
+for proof generation and note recovery.
+
+`channel join` in browser-wallet mode asks the user to approve the following browser wallet requests: account connection,
+chain check, the EIP-191 message signature for L2 spending-key derivation, the EIP-712 typed-data signature for
+note-receive viewing-key derivation, any Join Toll token approval, and the final join transaction. User-Controlled AI
+Agents must not click browser wallet approval UI for the user.
+
+Proof-backed note commands can also separate local L2 authority from L1 gas payment. Use `--tx-submitter <ACCOUNT>` to
+submit `executeChannelTransaction` through a separate imported local account, or pass `--tx-submitter` without a value
+to submit through a browser wallet. If `--tx-submitter` is omitted and the wallet owner L1 key is not available locally,
+the CLI falls back to the browser wallet and requires the selected browser account to match the wallet owner address.
+
 ## Documented Mainnet Channels
 
 The table below lists private-state mainnet channels documented by this package. Dates are UTC.
@@ -408,7 +432,9 @@ private-state-cli wallet mint-notes --wallet <WALLET> --network mainnet --amount
 `--tx-submitter <ACCOUNT>` is available on `wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`. The wallet still proves
 note ownership and builds the ZK proof, but the selected local account submits `executeChannelTransaction` and pays gas.
 Use this option when a separate imported local account should submit the Ethereum mainnet transaction and pay gas for a proof-backed
-note command.
+note command. Use `--tx-submitter` without a value when the L1 submitter should be selected in a MetaMask-compatible
+browser wallet instead. In both cases, the local wallet spending key remains the authority for the private-state note
+transition.
 
 `wallet transfer-notes` takes JSON arrays for note selection and outputs. `--note-ids` is a JSON array of input note
 commitment IDs from `wallet get-notes`; `--recipients` is a JSON array of recipient channel-local addresses; `--amounts` is a JSON
@@ -452,6 +478,7 @@ Local helper commands:
 private-state-cli secret create-private-key-source --output ./ethereum-private-key.txt
 private-state-cli account import --account <ACCOUNT_NAME> --network mainnet --private-key-file ./ethereum-private-key.txt
 private-state-cli account get-l1-address --account <ACCOUNT_NAME> --network mainnet
+private-state-cli account get-l1-address --network mainnet
 private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt
 private-state-cli wallet list --network mainnet --channel-name <CHANNEL>
 private-state-cli wallet get-meta --wallet <WALLET_NAME> --network mainnet
@@ -470,7 +497,8 @@ wallet backup metadata, viewing-key metadata, and spending-key metadata as separ
 `wallet get-meta` opens the wallet metadata and reports the stored Ethereum/channel-local identity metadata plus the current
 on-chain channel registration match state, including the registered note-receive public key when present. On
 epoch-aware wallet workspaces it also reports the selected wallet epoch and whether that epoch is active or exited.
-`account get-l1-address` is a simple offline helper that derives the Ethereum address for a local account.
+`account get-l1-address --account <ACCOUNT_NAME>` is a simple offline helper that derives the Ethereum address for a
+local account. Omitting `--account` opens the browser-wallet path and reports the selected browser account address.
 
 ### Wallet Secret Source File
 
@@ -482,8 +510,11 @@ Create one before joining a channel:
 
 ```bash
 private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt
-private-state-cli channel join --channel-name <CHANNEL> --network mainnet --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
+private-state-cli channel join --channel-name <CHANNEL> --network mainnet --wallet-secret-path ./wallet-secret.txt
 ```
+
+Add `--account <ACCOUNT>` only when the join should use an imported local account alias instead of browser-wallet L1
+signing.
 
 The default helper flow lets the user type a wallet secret so it can be retained more easily. If random generation is
 explicitly wanted, run `private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt --random`.
@@ -494,10 +525,11 @@ spending key as separate protected key files under the CLI secret root; macOS/Li
 repair and inspection when possible.
 
 Keep the wallet secret source separately backed up if you expect to rederive the spending key later. The viewing key can
-be rederived from the same Ethereum private key and channel context because it comes from the note-receive typed-data signing
-flow. The spending key needs the same Ethereum private key, the same channel context, and the same wallet secret source. If the
-spending-key file is lost and the wallet secret source is also lost, no recovery method exists for the spending key and the
-notes for that wallet cannot be spent, transferred, or redeemed through the normal note flow.
+be rederived from the same Ethereum account signing authority and channel context because it comes from the note-receive
+typed-data signing flow. The spending key needs the same Ethereum account signing authority, the same channel context,
+and the same wallet secret source. If the spending-key file is lost and the wallet secret source is also lost, no
+recovery method exists for the spending key and the notes for that wallet cannot be spent, transferred, or redeemed
+through the normal note flow.
 
 `wallet recover-workspace` restores the viewing key by default. Add `--wallet-secret-path <PATH>` only when the
 account is currently active in the channel and you need to rederive the spending key. In that mode, the CLI checks the
@@ -521,8 +553,8 @@ that create or consume notes, such as `wallet mint-notes`, `wallet transfer-note
 the viewing key and the spending key because the CLI refreshes the readable note workspace after accepted note
 transactions and then proves authorized note use when inputs are consumed.
 
-Key recovery is intentionally split. Recreating the viewing key requires the original Ethereum private key and the same channel
-context. Recreating the spending key requires the original Ethereum private key, the same channel context, and the same wallet
+Key recovery is intentionally split. Recreating the viewing key requires the original Ethereum account signing authority and the same channel
+context. Recreating the spending key requires the original Ethereum account signing authority, the same channel context, and the same wallet
 secret source used at `channel join`. `wallet recover-workspace --wallet-secret-path <PATH>` performs this spending-key
 rederivation only for active channel registrations. Importing `wallet-viewing.key` or `wallet-spending.key` restores the
 corresponding capability without rerunning derivation, but a backup ZIP alone never restores either capability.

@@ -268,16 +268,23 @@ also lost.
 
 Goal: join a channel and create/register the local private-state wallet using the prepared wallet secret source.
 
-When to use: after the Ethereum account is imported, RPC is configured, the channel/workspace is ready, and the wallet
-secret source exists.
+When to use: after L1 signing authority is available through either an imported local account alias or a browser wallet,
+RPC is configured, the channel/workspace is ready, and the wallet secret source exists.
 
 Minimal user actions: review the channel policy and CLI warning summary, then run the join command directly.
 
-AI may ask: channel name, network, account alias, and wallet secret source path.
+AI may ask: channel name, network, whether the user wants a local account alias or browser wallet L1 signing, and wallet
+secret source path.
 
 AI must not ask: wallet secret contents, Ethereum private key contents, seed phrase, or password/passphrase contents.
 
 Command template:
+
+```bash
+private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --wallet-secret-path ./wallet-secret.txt
+```
+
+Local-account variant:
 
 ```bash
 private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
@@ -295,7 +302,10 @@ warning summary, stop and do not join. If registration already exists, use walle
 instead of joining again.
 
 Optional explanation: joining creates/registers the private-state wallet for that channel and may pay the Join Toll
-directly from the Ethereum account.
+directly from the Ethereum account. When `--account` is omitted, the CLI opens a local signing page and the user approves
+the account connection, chain check, L2 spending-key message signature, note-receive viewing-key typed-data signature,
+any Join Toll approval, and the join transaction in a MetaMask-compatible browser wallet. The AI must not approve wallet
+requests for the user.
 
 ## C. RPC Setup Recipes
 
@@ -637,7 +647,13 @@ AI may ask: whether the user has read the channel policy and warning summary.
 
 AI must not ask: wallet secret contents, private key contents, seed phrase, or password/passphrase contents.
 
-Command template:
+Browser-wallet command template:
+
+```bash
+private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --wallet-secret-path ./wallet-secret.txt
+```
+
+Local-account command template:
 
 ```bash
 private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path ./wallet-secret.txt
@@ -648,7 +664,8 @@ Success check: run `wallet list` and `wallet get-meta` as shown in B.7.
 Failure recovery: if the user is not ready to accept the policy or warning summary, stop. If workspace is missing,
 follow D.7.
 
-Optional explanation: channel join may pay a Join Toll directly from the Ethereum account.
+Optional explanation: channel join may pay a Join Toll directly from the Ethereum account. Omitting `--account` uses a
+MetaMask-compatible browser wallet for L1 signing without importing the raw L1 private key into the CLI.
 
 ### D.9 Discover wallet name
 
@@ -1189,26 +1206,36 @@ wallet.
 
 Goal: explain optional transaction-submission privacy without changing ownership semantics.
 
-When to use: proof-backed commands such as mint, transfer, or redeem may use a separate Ethereum submitter account.
+When to use: proof-backed commands such as mint, transfer, or redeem may use a separate Ethereum submitter account or a
+browser wallet for the L1 `executeChannelTransaction` submission.
 
-Minimal user actions: decide whether to use a separate imported local account for gas submission.
+Minimal user actions: decide whether to use the wallet owner, a separate imported local account, or a browser wallet for
+gas submission.
 
-AI may ask: submitter account alias if the user wants this option.
+AI may ask: submitter account alias if the user wants a local submitter account.
 
 AI must not ask: private keys, wallet secrets, seed phrases, or submitter private key contents.
 
-Command template:
+Local submitter command template:
 
 ```bash
 private-state-cli wallet transfer-notes --wallet <WALLET> --network <NETWORK> --note-ids <JSON_ARRAY> --recipients <JSON_ARRAY> --amounts <JSON_ARRAY> --tx-submitter <ACCOUNT>
 ```
 
-Success check: the command accepts the submitter alias and submits with that local account.
+Browser-wallet submitter command template:
 
-Failure recovery: if submitter account is missing, import it with B.1 through B.3 or omit `--tx-submitter`.
+```bash
+private-state-cli wallet transfer-notes --wallet <WALLET> --network <NETWORK> --note-ids <JSON_ARRAY> --recipients <JSON_ARRAY> --amounts <JSON_ARRAY> --tx-submitter
+```
+
+Success check: the command accepts the submitter selector and submits `executeChannelTransaction` with the selected L1
+submitter.
+
+Failure recovery: if a local submitter account is missing, import it with B.1 through B.3, omit `--tx-submitter`, or pass
+`--tx-submitter` without a value to use browser-wallet submission.
 
 Optional explanation: the wallet owner still proves note ownership; the submitter only submits the on-chain transaction
-and pays gas.
+and pays gas. Browser-wallet submission does not replace local L2 spending/viewing keys.
 
 ### G.6 Exit safety
 

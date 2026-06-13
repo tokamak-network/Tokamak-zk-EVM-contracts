@@ -608,12 +608,20 @@ function testHelpCommandsOutputUsesFinalPromptPolicy() {
   expect(stdout.includes("User-Controlled AI Agents must not confirm this export or receive the raw evidence ZIP"), "Evidence export help should forbid agent confirmation and raw ZIP handling.");
   expect(stdout.includes("Do not give the raw evidence ZIP to User-Controlled AI Agents, support channels, or untrusted parties"), "Investigator help should warn against raw ZIP disclosure.");
   expect(
-    stdout.includes("Omit --account to use a browser wallet instead of a local account alias."),
+    stdout.includes("Omit --account to use a MetaMask-compatible browser wallet instead of a local account alias; the CLI does not read or store the raw L1 private key in this mode."),
     "Command help should explain browser-wallet mode through omitted --account.",
   );
   expect(
-    stdout.includes("Use --tx-submitter without a value when a browser wallet should submit the transaction and pay gas."),
+    stdout.includes("Use --tx-submitter without a value when a browser wallet should submit executeChannelTransaction and pay gas."),
     "Command help should explain value-less --tx-submitter browser-wallet submission.",
+  );
+  expect(
+    stdout.includes("Browser-wallet L1 signing does not replace local wallet keys; note commands still use the local viewing key and spending key."),
+    "Command help should explain that browser-wallet L1 signing does not replace local L2 wallet keys.",
+  );
+  expect(
+    stdout.includes("With browser-wallet mode, the user approves account connection, chain check, the L2 spending-key message signature, the note-receive viewing-key typed-data signature, any Join Toll token approval, and the join transaction in the browser wallet"),
+    "Channel join help should explain each browser-wallet approval request.",
   );
 }
 
@@ -712,6 +720,22 @@ function testReadmeJsonPurposeIsAgentSafe() {
     "README should forbid secret collection through prompts.",
   );
   expect(
+    normalizedReadme.includes("The CLI supports two L1 signing paths"),
+    "README should explain local-account and browser-wallet L1 signing paths.",
+  );
+  expect(
+    normalizedReadme.includes("Browser-wallet mode avoids CLI access to the raw L1 private key"),
+    "README should explain that browser-wallet mode avoids raw L1 private-key access.",
+  );
+  expect(
+    normalizedReadme.includes("Browser-wallet mode avoids CLI access to the raw L1 private key") && normalizedReadme.includes("does not remove the local private-state wallet key model"),
+    "README should explain that local L2 spending/viewing keys still apply in browser-wallet mode.",
+  );
+  expect(
+    normalizedReadme.includes("account connection, chain check, the EIP-191 message signature for L2 spending-key derivation"),
+    "README should document channel join browser-wallet approval order.",
+  );
+  expect(
     normalizedReadme.includes("Channel public observer URLs are also Channel-scoped"),
     "README should explain Channel-scoped observer URLs.",
   );
@@ -732,6 +756,18 @@ function testAgentsDescribeChannelScopedObserverMetadata() {
   expect(
     agents.includes("Mirror and observer URLs are Channel-scoped metadata"),
     "agents.md should state that mirror and observer URLs are Channel-scoped metadata.",
+  );
+  expect(
+    agents.includes("whether the user wants a local account alias or browser wallet L1 signing"),
+    "agents.md should let user-controlled agents ask for the intended L1 signing path without asking for secrets.",
+  );
+  expect(
+    agents.includes("private-state-cli channel join --channel-name <CHANNEL> --network <NETWORK> --wallet-secret-path ./wallet-secret.txt"),
+    "agents.md should include the browser-wallet channel join template without --account.",
+  );
+  expect(
+    agents.includes("private-state-cli wallet transfer-notes --wallet <WALLET> --network <NETWORK> --note-ids <JSON_ARRAY> --recipients <JSON_ARRAY> --amounts <JSON_ARRAY> --tx-submitter"),
+    "agents.md should include the value-less --tx-submitter browser-wallet template.",
   );
 }
 

@@ -31,6 +31,8 @@ signing page, but the verifier must inspect and approve or reject each wallet re
   approval and cannot run in `--json` mode.
 - Temporary HOME file check: file count remained `0`, so the non-interactive browser-wallet failure did not write a
   local account key or any other file.
+- Sepolia RPC configuration: completed on 2026-06-13 with a local Alchemy RPC URL stored under the CLI workspace.
+- Full artifact installation: completed on 2026-06-13 after human Terms acceptance in the browser.
 
 The browser scan only confirms an installed browser application. It does not prove that MetaMask or another compatible
 EIP-1193 provider is installed, unlocked, funded, or connected to the intended network.
@@ -124,6 +126,20 @@ Expected result:
 Use `--join-toll 0` for the default release-verification path so that later `channel join` can verify key derivation and
 join submission without requiring a Join Toll token approval. If the Join Toll approval path must also be verified, run a
 separate test channel with a small nonzero Join Toll and record the extra approval request explicitly.
+
+Manual result on 2026-06-13:
+
+- Result: failed closed before transaction submission.
+- Test channel name: `browser-wallet-test-20260613-c2fc`.
+- The first attempt failed before browser-wallet approval because the full installation prerequisites were missing.
+- After full installation, the CLI opened the browser-wallet connection page and the human verifier approved account
+  connection.
+- The next browser-wallet request checked `eth_chainId`; it returned chain `1` while the selected CLI network required
+  chain `11155111`.
+- The CLI failed with `Browser wallet chain 1 does not match selected network chain 11155111.`
+- No `createChannel` transaction was submitted.
+- The Sepolia workspace contained only `rpc-config.env`; no new channel workspace was created.
+- No Sepolia local account secret directory was created.
 
 ### Channel Join Without `--account`
 
@@ -256,6 +272,13 @@ Expected result:
 - The CLI fails before transaction submission.
 - The error states that the browser wallet chain does not match the selected network chain.
 - The CLI does not retry with a local private key.
+
+Manual result on 2026-06-13:
+
+- Result: passed.
+- Triggering command: `channel create --channel-name browser-wallet-test-20260613-c2fc --join-toll 0 --network sepolia`.
+- The browser wallet was connected to chain `1`, while the CLI selected Sepolia chain `11155111`.
+- The CLI failed before transaction submission and did not fall back to a local private key.
 
 ### Wrong Account
 

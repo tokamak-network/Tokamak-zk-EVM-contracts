@@ -165,6 +165,12 @@ the localhost origin at the moment `eth_sendTransaction` runs. Other plausible c
 - the transaction payload shape includes a field that the wallet rejects for this request
 - the persistent relay page or localhost origin model triggers provider-specific authorization behavior
 
+The first diagnostic retry on 2026-06-14 narrowed the failure. The browser provider reported `isMetaMask: true`, the
+wallet account matched `transaction.from`, and `eth_chainId` matched Sepolia. The wallet error was `Unauthorized.` with
+code `-32006` and data `{"httpStatus":401,"cause":null}`. This weakens the wrong-provider, wrong-account, and
+wrong-chain hypotheses. Before changing CLI behavior again, inspect the MetaMask Sepolia network RPC/backend
+configuration because the browser wallet appears to be receiving an HTTP 401 while submitting the transaction.
+
 Before another manual Sepolia transaction attempt, the CLI should preserve structured diagnostic data from browser-wallet
 failures without exposing secrets or raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:
 
@@ -260,6 +266,8 @@ failures.
 9. Add manual verification.
    - Do not continue repeated `channel create` transaction attempts until `eth_sendTransaction` failure diagnostics are
      available and recorded.
+   - After diagnostics are recorded, verify the browser wallet's Sepolia RPC/backend configuration before retrying
+     private-state transaction submission.
    - Verify with MetaMask on at least two supported browsers when available.
    - On Sepolia, create a fresh named test channel with browser-wallet `channel create` before `channel join` when no
      existing named test channel is available.

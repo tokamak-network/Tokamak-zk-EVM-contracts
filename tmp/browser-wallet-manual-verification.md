@@ -212,6 +212,28 @@ Manual retry results on 2026-06-14:
 - Next manual check should inspect the browser wallet connected-sites state for the localhost origin, reset that
   connection if needed, and retry `channel create` with the persistent relay page open.
 
+Manual diagnostic retry result on 2026-06-14:
+
+- Result: failed closed at `eth_sendTransaction` with structured diagnostics.
+- Test channel name: `browser-wallet-test-20260614-diagnostic-a1`.
+- Wallet error message: `Unauthorized.`
+- Wallet error code: `-32006`.
+- Wallet error data: `{"httpStatus":401,"cause":null}`.
+- Provider diagnostic: `provider.isMetaMask: true`.
+- Account diagnostic: `eth_accounts` returned the same selected browser account as `transaction.from` and
+  `signerAddress`, redacted here as `0x90dFe9...362f`.
+- Chain diagnostic: `eth_chainId: 0xaa36a7`, matching Sepolia.
+- Transaction diagnostic: `to: 0x1995B1cDe4e0a3F77bDeC297824504CdAc9a838E`, `value: null`,
+  `dataByteLength: 132`.
+- Interpretation: this result weakens the wrong-account and wrong-chain hypotheses. The strongest remaining hypothesis
+  is that the MetaMask Sepolia RPC/backend used by the browser wallet is returning HTTP 401 when submitting the
+  transaction.
+- No `createChannel` transaction was submitted.
+- The Sepolia workspace still contained only `rpc-config.env`; no new channel workspace was created.
+- No Sepolia local account secret directory was created.
+- Next manual check should inspect the MetaMask Sepolia network RPC configuration and verify that the browser wallet can
+  submit a normal Sepolia transaction through that network before retrying private-state `channel create`.
+
 ### Channel Join Without `--account`
 
 Command:

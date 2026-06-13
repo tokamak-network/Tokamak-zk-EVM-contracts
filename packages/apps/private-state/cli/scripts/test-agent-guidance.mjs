@@ -1053,6 +1053,61 @@ function testChannelJoinBrowserWalletFlowCoverage() {
   );
 }
 
+function testL1TransactionBrowserWalletFlowCoverage() {
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
+  const l1CommandSources = [
+    ["channel create", sourceBetween(runtimeSource, "async function handleChannelCreate", "async function handleWorkspaceInit")],
+    ["channel set-workspace-mirror", sourceBetween(runtimeSource, "async function handleSetChannelWorkspaceMirror", "async function handleAbandonChannelOperation")],
+    ["channel abandon-operation", sourceBetween(runtimeSource, "async function handleAbandonChannelOperation", "async function publishChannelWorkspaceMirrorFromRecoveredWorkspace")],
+    ["account deposit-bridge", sourceBetween(runtimeSource, "async function handleDepositBridge", "async function handleAccountGetBridgeFund")],
+    ["account withdraw-bridge", sourceBetween(runtimeSource, "async function handleWithdrawBridge", "function resolveFunctionMetadataProofForExecution")],
+    ["wallet recover-workspace", sourceBetween(runtimeSource, "async function handleRecoverWallet", "async function deriveRecoverWalletSpendingIdentity")],
+  ];
+  for (const [name, source] of l1CommandSources) {
+    expect(
+      source.includes("const signer = await requireL1Signer(args, provider);"),
+      `${name} should resolve omitted --account through browser-wallet-capable requireL1Signer.`,
+    );
+  }
+
+  const depositSource = sourceBetween(
+    runtimeSource,
+    "async function handleDepositBridge",
+    "async function handleAccountGetBridgeFund",
+  );
+  expect(
+    depositSource.includes("const usesLocalL1PrivateKey = typeof signer.privateKey === \"string\";"),
+    "account deposit-bridge should distinguish local account signing from browser-wallet signing.",
+  );
+  expect(
+    depositSource.includes("const nextL1TransactionOverrides = () => usesLocalL1PrivateKey ? { nonce: nextNonce++ } : undefined;"),
+    "account deposit-bridge should omit explicit nonce overrides when browser wallet submission is used.",
+  );
+  expect(
+    countOccurrences(depositSource, "nextL1TransactionOverrides()") === 2,
+    "account deposit-bridge should apply the browser-safe override policy to both approve and fund transactions.",
+  );
+
+  const browserSignerSource = sourceBetween(
+    runtimeSource,
+    "class BrowserWalletSigner",
+    "async function requestBrowserWallet",
+  );
+  expect(
+    indexInSource(browserSignerSource, "method: \"eth_requestAccounts\"")
+      < indexInSource(browserSignerSource, "method: \"eth_chainId\""),
+    "BrowserWalletSigner should connect the account before checking chain id for provider-backed L1 transaction commands.",
+  );
+  expect(
+    browserSignerSource.includes("Browser wallet chain ${walletChainId} does not match selected network chain ${expectedChainId}."),
+    "BrowserWalletSigner should fail clearly on wrong-chain browser wallets.",
+  );
+  expect(
+    browserSignerSource.includes("method: \"eth_sendTransaction\""),
+    "BrowserWalletSigner should submit L1 transaction commands through eth_sendTransaction.",
+  );
+}
+
 function testWalletOwnerBrowserFallbackFlowCoverage() {
   const runtimeSource = fs.readFileSync(runtimePath, "utf8");
   const exitSource = sourceBetween(
@@ -1380,6 +1435,7 @@ async function main() {
   testBrowserWalletPayloadHelpers();
   await testMockedBrowserSignaturesDeriveWalletKeys();
   testChannelJoinBrowserWalletFlowCoverage();
+  testL1TransactionBrowserWalletFlowCoverage();
   testWalletOwnerBrowserFallbackFlowCoverage();
   testNoteCommandBrowserSubmitterFlowCoverage();
   testMissingAccountSelectsBrowserWalletMode();

@@ -2440,13 +2440,15 @@ async function handleDepositBridge({ args, network, provider }) {
     bridgeVaultContext.bridgeAbiManifest.contracts.erc20.abi,
     signer,
   );
-  let nextNonce = await provider.getTransactionCount(signer.address, "pending");
+  const usesLocalL1PrivateKey = typeof signer.privateKey === "string";
+  let nextNonce = usesLocalL1PrivateKey ? await provider.getTransactionCount(signer.address, "pending") : null;
+  const nextL1TransactionOverrides = () => usesLocalL1PrivateKey ? { nonce: nextNonce++ } : undefined;
   const approveReceipt = await dryRunThenSubmitTransaction({
     operationName: "account deposit-bridge approve",
     call: contractTxCall(
       asset.approve,
       [bridgeVaultContext.bridgeTokenVaultAddress, amount],
-      { nonce: nextNonce++ },
+      nextL1TransactionOverrides(),
       asset.interface,
     ),
   });
@@ -2455,7 +2457,7 @@ async function handleDepositBridge({ args, network, provider }) {
     call: contractTxCall(
       bridgeTokenVault.fund,
       [amount],
-      { nonce: nextNonce++ },
+      nextL1TransactionOverrides(),
       bridgeTokenVault.interface,
     ),
     submittedBefore: [submittedReceiptSummary("account deposit-bridge approve", approveReceipt)],

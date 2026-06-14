@@ -68,7 +68,7 @@ Run the success and failure checks in at least two MetaMask-capable browsers whe
 
 | Browser | Provider | Result | Notes |
 | --- | --- | --- | --- |
-| Google Chrome | MetaMask-compatible provider | Partially passed | Account address discovery passed with user-controlled wallet approval. Transaction, key-derivation, and failure-path checks are still not run. |
+| Google Chrome | MetaMask-compatible provider | Partially passed | Account address discovery and browser-wallet `channel create` transaction submission passed with user-controlled wallet approval. Key-derivation and later note-operation checks are still not run. |
 | Second browser | MetaMask-compatible provider | Not run | No second browser application was detected during automated preflight. |
 
 ## Success Path Checks
@@ -292,6 +292,35 @@ Manual retry result on 2026-06-14 after MetaMask network recovery:
 - No Sepolia local account secret directory was found.
 - Follow-up implementation check: after the wallet rejection, the CLI process remained alive until interrupted. The
   browser-wallet relay should shut down and let the command exit after terminal failure reporting.
+
+Manual funded retry result on 2026-06-14 after Sepolia gas top-up:
+
+- Result: passed. The browser wallet submitted `createChannel`, the transaction was mined successfully, and the CLI
+  recovered the new channel workspace.
+- Test channel name: `browser-wallet-test-20260614-funded-a1`.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create --channel-name browser-wallet-test-20260614-funded-a1 --join-toll 0 --network sepolia`.
+- The CLI reached account connection, network check, immutable policy review, and `eth_sendTransaction` from the same
+  localhost relay origin.
+- Channel id: `63166577588146897076769483836298559099274750786491139304148899339480295544043`.
+- Leader: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Manager: `0xF344b292D807116cF95dceA7c797CB3892e77beD`.
+- Bridge Token Vault: `0xac95B08BBB7726ea71Eb9b055BEF8e9383d470eC`.
+- Transaction hash: `0x969356b099a09d994369ed03a9f94b0946977507b07036447e306a51642c2d1a`.
+- Transaction URL:
+  `https://sepolia.etherscan.io/tx/0x969356b099a09d994369ed03a9f94b0946977507b07036447e306a51642c2d1a`.
+- Block number: `11055070`.
+- Gas used: `2739072`.
+- Transaction status: `1`.
+- Workspace path:
+  `/Users/jehyuk/tokamak-private-channels/workspace/sepolia/browser-wallet-test-20260614-funded-a1`.
+- Workspace file check found `channel/workspace.json`, `channel/current/block_info.json`,
+  `channel/current/contract_codes.json`, `channel/current/state_snapshot.json`, and
+  `channel/current/state_snapshot.normalized.json`.
+- No Sepolia local account secret directory was found after the command, so the browser-wallet `channel create` path did
+  not write a local L1 private key file.
+- Follow-up implementation check: after the successful result was printed, the CLI process remained alive until
+  interrupted. The browser-wallet relay should shut down and let the command exit after success reporting.
 
 ### Channel Join Without `--account`
 

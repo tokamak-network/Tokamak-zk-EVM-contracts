@@ -182,6 +182,14 @@ CLI-side `eth_chainId` and `eth_blockNumber` checks, so the likely issue is that
 Sepolia RPC endpoint or is still using an unauthorized endpoint. The next step is manual MetaMask network settings
 inspection/editing; do not keep trying private-state transactions until a plain MetaMask Sepolia transaction succeeds.
 
+After the verifier restored MetaMask and topped up Sepolia gas on 2026-06-14, browser-wallet `channel create` succeeded
+for `browser-wallet-test-20260614-funded-a1`. The command used the browser wallet without `--account`, submitted
+transaction `0x969356b099a09d994369ed03a9f94b0946977507b07036447e306a51642c2d1a`, and created the channel workspace
+without writing a Sepolia local L1 private-key directory. The earlier `-32006` / HTTP 401 wallet backend failure is no
+longer the active blocker. The next active implementation issue is that the CLI process remains alive after both
+successful and rejected browser-wallet transaction results; the browser-wallet relay should shut down and let the
+command exit after terminal result reporting.
+
 Before another manual Sepolia transaction attempt, the CLI should preserve structured diagnostic data from browser-wallet
 failures without exposing secrets or raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:
 

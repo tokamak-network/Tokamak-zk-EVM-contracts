@@ -244,6 +244,15 @@ before the gas-funds failure was returned, so the short fetch retry change did n
 next active target is to top up the browser wallet account's Sepolia ETH, retry `wallet redeem-notes --tx-submitter`,
 and separately continue investigating why the relay page still misses the final send-transaction request during redeem.
 
+After topping up Sepolia ETH, `wallet redeem-notes --tx-submitter` passed. The CLI redeemed the remaining `0.00005`
+note, submitted transaction `0xc3031a06d2b4a7a31802b79a92e4e534e97da19462e7a696c75327c4e0081281` through the browser
+wallet with `txSubmitterSource: browser-wallet`, marked the note spent, increased channel deposit back to `0.0001`,
+wrote no local Sepolia L1 private key, and exited naturally. This completes browser-wallet verification for
+`wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`. However, the final send-transaction relay
+pickup reminder still appeared during redeem, so the relay page final-request pickup issue remains unresolved. The next
+active target is to investigate and fix that relay pickup UX issue before continuing to `wallet withdraw-channel` and
+`channel exit`.
+
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look
 like a wallet or transaction failure. The relay session now has a closing state, wakes pending `/request` long-polls

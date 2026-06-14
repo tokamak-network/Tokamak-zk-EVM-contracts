@@ -734,6 +734,45 @@ Manual redeem-notes retry with visible wallet response on 2026-06-14:
 - Next check: top up Sepolia ETH for the browser wallet account, then retry redeem. Separately investigate why the relay
   page still misses the final send-transaction request during redeem.
 
+Manual redeem-notes funded retry on 2026-06-14:
+
+- Result: passed. After topping up Sepolia ETH, the CLI redeemed the remaining private note with the local wallet
+  spending key, used the browser wallet only for the final L1 `executeChannelTransaction` submission, recovered the
+  spent note and channel accounting state from logs, and exited naturally with code `0`.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs wallet redeem-notes --wallet browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1 --network sepolia --note-ids '["0x0e0abed1eda5134edf38edddc8aee13fbb068cb3da751d883621819ab152dc6d"]' --tx-submitter`.
+- Pre-check browser wallet balance: `0.128313599027843561` Sepolia ETH.
+- Pre-check redeem target note commitment: `0x0e0abed1eda5134edf38edddc8aee13fbb068cb3da751d883621819ab152dc6d`.
+- Pre-check redeem target note nullifier: `0x3ddffcf994dc54bfad8c17952cf3f71003bab877ac508bf96f98dbab599641f5`.
+- Pre-check channel deposit: `0.00005`.
+- L1 submitter: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- L1 wallet owner: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Tx submitter source: `browser-wallet`.
+- Tx submitter account: `none`.
+- Underlying method: `redeemNotes1`.
+- Nonce: `2`.
+- Redeemed amount: `0.00005`.
+- Transaction hash: `0xc3031a06d2b4a7a31802b79a92e4e534e97da19462e7a696c75327c4e0081281`.
+- Transaction URL:
+  `https://sepolia.etherscan.io/tx/0xc3031a06d2b4a7a31802b79a92e4e534e97da19462e7a696c75327c4e0081281`.
+- Block number: `11056303`.
+- Gas used: `837649`.
+- Transaction status: `1`.
+- Updated roots:
+  `0x4c20d7050177bc381f133368bca01bc81b4a8ed46f709449402d1b6df8cff0d5`,
+  `0x221ae45575931b5d5915675dca6207def3870db1e4b8e0e168c7c1f2a8cdcf3f`.
+- Operation directory:
+  `/Users/jehyuk/tokamak-private-channels/workspace/sepolia/browser-wallet-test-20260614-funded-a1/wallets/browser-wallet-test-20260614-funded-a1-0x094ac5364ee8b6db0e5b1e1c588be8617fd499a1/epochs/join-0x49e67519a09cb33578431d100bc79f808df958a0da439c0e642854283c25e503-615/operations/20260614T053819Z-wallet-redeem-notes-50a7857a`.
+- Operation file check found `transaction.json`, `bridge-submit-receipt.json`, `state_snapshot.json`,
+  `state_snapshot.normalized.json`, `wallet redeem-notes.zip`, and Tokamak proof logs.
+- Post-check notes: no unused notes remain. The redeemed note is marked spent, bridge commitment present, bridge
+  nullifier used, and wallet status matching bridge state.
+- Post-check channel deposit: `0.0001`.
+- No Sepolia local account secret directory or local L1 private-key file was found after the command.
+- UX observation: the final send-transaction relay pickup reminder still appeared, and the CLI reopened the same Signing
+  URL before the wallet approval completed. The browser-wallet note-command flow works end to end, but the relay pickup
+  issue remains unresolved.
+
 ### Channel Exit
 
 Command:

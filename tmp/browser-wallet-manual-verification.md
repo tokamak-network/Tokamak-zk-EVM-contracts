@@ -516,6 +516,37 @@ Expected result:
 - The L2 accounting proof still uses the local wallet spending key.
 - The L1 transaction is submitted through the browser wallet.
 
+Manual deposit-channel result on 2026-06-14:
+
+- Result: passed. The CLI used the browser wallet for L1 authority without a local Sepolia L1 private key, generated the
+  L2 accounting proof locally with the wallet spending key, submitted the L1 channel deposit transaction through the
+  browser wallet, persisted the operation, and exited naturally with code `0`.
+- Test channel name: `browser-wallet-test-20260614-funded-a1`.
+- Wallet name: `browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs wallet deposit-channel --wallet browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1 --network sepolia --amount 0.0001`.
+- Pre-check channel deposit: `0.0`.
+- Amount: `0.0001`.
+- Amount base units: `100000000000000`.
+- L1 address: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- L2 address: `0x50A7857Ad460D3e303a196Cf673dac5de3dA6078`.
+- Current root vector:
+  `0x32fe7eab871c48cbc0c5c1b6444be3d71bfba4056511b49dd0ceb179c8807bc6`,
+  `0x32fe7eab871c48cbc0c5c1b6444be3d71bfba4056511b49dd0ceb179c8807bc6`.
+- Updated root: `0x221ae45575931b5d5915675dca6207def3870db1e4b8e0e168c7c1f2a8cdcf3f`.
+- Transaction hash: `0xe76836c1f22ed3a013cc978308c060784be0fff541f6841db9dcb83b4077f45c`.
+- Transaction URL:
+  `https://sepolia.etherscan.io/tx/0xe76836c1f22ed3a013cc978308c060784be0fff541f6841db9dcb83b4077f45c`.
+- Block number: `11055974`.
+- Gas used: `341284`.
+- Transaction status: `1`.
+- Operation directory:
+  `/Users/jehyuk/tokamak-private-channels/workspace/sepolia/browser-wallet-test-20260614-funded-a1/wallets/browser-wallet-test-20260614-funded-a1-0x094ac5364ee8b6db0e5b1e1c588be8617fd499a1/epochs/join-0x49e67519a09cb33578431d100bc79f808df958a0da439c0e642854283c25e503-615/operations/20260614T043151Z-wallet-deposit-channel-094ac536`.
+- Operation file check found `input.json`, `state_snapshot.json`, `state_snapshot.normalized.json`, and the encrypted
+  `wallet deposit-channel-receipt.json`.
+- Post-check channel deposit: `0.0001`.
+- No Sepolia local account secret directory or local L1 private-key file was found after the command.
+
 ### Note Commands With Browser Submitter
 
 Commands:

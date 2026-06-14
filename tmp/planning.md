@@ -201,8 +201,11 @@ before timeout; only the approval transaction was submitted, leaving `0.0001` al
 The timed-out `fund` transaction was later reflected on-chain, and a follow-up change made `account deposit-bridge`
 reuse sufficient existing allowance instead of forcing a duplicate approval. The allowance-reuse retry skipped approval,
 submitted only the bridge `fund` transaction, increased available bridge balance to `0.0012`, left no Sepolia local L1
-private-key file, and exited naturally. The next active manual verification target is `wallet deposit-channel` for the
-joined wallet, followed by note-command verification.
+private-key file, and exited naturally. The follow-up `wallet deposit-channel` verification for the joined wallet also
+passed without a local Sepolia L1 private key: the CLI generated the L2 accounting proof locally, submitted transaction
+`0xe76836c1f22ed3a013cc978308c060784be0fff541f6841db9dcb83b4077f45c` through the browser wallet, increased channel
+deposit from `0.0` to `0.0001`, and exited naturally. The next active manual verification target is note-command
+verification with browser-wallet L1 submission.
 
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look

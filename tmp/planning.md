@@ -204,8 +204,14 @@ submitted only the bridge `fund` transaction, increased available bridge balance
 private-key file, and exited naturally. The follow-up `wallet deposit-channel` verification for the joined wallet also
 passed without a local Sepolia L1 private key: the CLI generated the L2 accounting proof locally, submitted transaction
 `0xe76836c1f22ed3a013cc978308c060784be0fff541f6841db9dcb83b4077f45c` through the browser wallet, increased channel
-deposit from `0.0` to `0.0001`, and exited naturally. The next active manual verification target is note-command
-verification with browser-wallet L1 submission.
+deposit from `0.0` to `0.0001`, and exited naturally. The first note-command verification also passed: `wallet
+mint-notes --tx-submitter` generated the L2 note proof locally, submitted transaction
+`0x200163ab5d109893b345500604755531ce17df52fcf59bfc0fbd2edf0e97460f` through the browser wallet with
+`txSubmitterSource: browser-wallet`, created one unused `0.00005` note, reduced channel deposit to `0.00005`, wrote no
+local Sepolia L1 private key, and exited naturally. One UX observation remains: the mint command's final
+send-transaction request triggered the relay page pickup reminder and auto-reopened the same Signing URL before the
+wallet approval completed. The next active manual verification target is `wallet transfer-notes --tx-submitter`, while
+watching whether that relay pickup reminder repeats.
 
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look

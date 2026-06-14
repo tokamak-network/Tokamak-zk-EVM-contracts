@@ -580,6 +580,48 @@ Expected result:
 - The result records `txSubmitterSource` as browser wallet submission.
 - No local L1 private key is imported or written.
 
+Manual mint-notes result on 2026-06-14:
+
+- Result: passed. The CLI used the local wallet spending key for the L2 note transaction and proof, used the browser
+  wallet only for the final L1 `executeChannelTransaction` submission, created one unused private note, recovered the
+  wallet note state from logs, and exited naturally with code `0`.
+- Test channel name: `browser-wallet-test-20260614-funded-a1`.
+- Wallet name: `browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs wallet mint-notes --wallet browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1 --network sepolia --amounts '["0.00005"]' --tx-submitter`.
+- Pre-check channel deposit: `0.0001`.
+- Pre-check notes: no unused or spent notes.
+- Amount input: `0.00005`.
+- Amount base units: `50000000000000`.
+- L1 submitter: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- L1 wallet owner: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Tx submitter source: `browser-wallet`.
+- Tx submitter account: `none`.
+- Underlying method: `mintNotes1`.
+- Nonce: `0`.
+- Output note commitment: `0x50e8fe93a985bf4af5946862840288748107d6bbb70e63016f1464dc6c18dade`.
+- Output note nullifier: `0x0a3cafa476ab5a83656cfcf79f7ff450aaf3b3f1fcbccc4dc11b38344156ac37`.
+- Transaction hash: `0x200163ab5d109893b345500604755531ce17df52fcf59bfc0fbd2edf0e97460f`.
+- Transaction URL:
+  `https://sepolia.etherscan.io/tx/0x200163ab5d109893b345500604755531ce17df52fcf59bfc0fbd2edf0e97460f`.
+- Block number: `11056014`.
+- Gas used: `850270`.
+- Transaction status: `1`.
+- Updated roots:
+  `0x6ea7cb3874314bf549cea10cf3d5f87f6ef668d07a7d8095db97cfce9590e4c7`,
+  `0x44ed405561cfe2a389e3082ff310562f09c9a3dcc9320f9824360577c2a727f0`.
+- Operation directory:
+  `/Users/jehyuk/tokamak-private-channels/workspace/sepolia/browser-wallet-test-20260614-funded-a1/wallets/browser-wallet-test-20260614-funded-a1-0x094ac5364ee8b6db0e5b1e1c588be8617fd499a1/epochs/join-0x49e67519a09cb33578431d100bc79f808df958a0da439c0e642854283c25e503-615/operations/20260614T043834Z-wallet-mint-notes-50a7857a`.
+- Operation file check found `transaction.json`, `bridge-submit-receipt.json`, `state_snapshot.json`,
+  `state_snapshot.normalized.json`, `wallet mint-notes.zip`, and Tokamak proof logs.
+- Post-check channel deposit: `0.00005`.
+- Post-check notes: one unused note with value `0.00005`, bridge commitment present, bridge nullifier unused, and wallet
+  status matching bridge state.
+- No Sepolia local account secret directory or local L1 private-key file was found after the command.
+- UX observation: at the final send-transaction request, the relay page did not pick up the request within the reminder
+  window and the CLI reopened the same Signing URL automatically. The command still completed after the wallet approval,
+  but transfer/redeem verification should watch whether this reminder repeats.
+
 ### Channel Exit
 
 Command:

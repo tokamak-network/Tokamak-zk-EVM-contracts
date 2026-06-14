@@ -188,8 +188,11 @@ transaction `0x969356b099a09d994369ed03a9f94b0946977507b07036447e306a51642c2d1a`
 without writing a Sepolia local L1 private-key directory. The earlier `-32006` / HTTP 401 wallet backend failure is no
 longer the active blocker. A follow-up implementation change closes the browser-wallet relay at command completion, and
 `account get-l1-address --network sepolia` was manually verified to exit with code `0` after browser-wallet approval.
-The next active manual verification target is `channel join` without `--account` against the newly created Sepolia test
-channel.
+The follow-up `channel join` without `--account` also succeeded against that Sepolia test channel, including browser
+message signing, typed-data signing, `joinChannel` submission, wallet workspace creation, local L2 spending/viewing key
+storage, no local L1 private-key file creation, and natural process exit. The next active manual verification target is
+the browser-wallet funding path before note-command verification: `account deposit-bridge` without `--account`, followed
+by wallet/channel funding as needed for note tests.
 
 The CLI should continue to preserve structured diagnostic data from browser-wallet failures without exposing secrets or
 raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:

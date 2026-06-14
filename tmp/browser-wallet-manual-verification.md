@@ -706,6 +706,34 @@ Manual redeem-notes retry after relay pickup fix on 2026-06-14:
   during this failed run, investigate why the page/provider did not return the result to `/result`; otherwise treat this
   run as an unapproved wallet request timeout rather than a CLI submission failure.
 
+Manual redeem-notes retry with visible wallet response on 2026-06-14:
+
+- Result: failed closed before transaction submission because the browser wallet account did not have enough Sepolia ETH
+  to cover the wallet-selected gas cost. This run confirms that the wallet/provider result returned to the CLI, so the
+  previous timeout should be treated separately from this gas-funds failure.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs wallet redeem-notes --wallet browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1 --network sepolia --note-ids '["0x0e0abed1eda5134edf38edddc8aee13fbb068cb3da751d883621819ab152dc6d"]' --tx-submitter`.
+- Failure message:
+  `Browser wallet send transaction failed: RPC submit: insufficient funds for gas * price + value: have 28522933657669279 want 39659405480142168`.
+- Wallet error code: `-32603`.
+- Browser wallet diagnostics:
+  `provider.isMetaMask: true`, `eth_accounts: ["0x094ac5364ee8b6db0e5b1e1c588be8617fd499a1"]`,
+  `eth_chainId: 0xaa36a7`, `transaction.from: 0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`,
+  `transaction.to: 0xF344b292D807116cF95dceA7c797CB3892e77beD`, `transaction.dataByteLength: 8132`,
+  `signerAddress: 0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Operation directory:
+  `/Users/jehyuk/tokamak-private-channels/workspace/sepolia/browser-wallet-test-20260614-funded-a1/wallets/browser-wallet-test-20260614-funded-a1-0x094ac5364ee8b6db0e5b1e1c588be8617fd499a1/epochs/join-0x49e67519a09cb33578431d100bc79f808df958a0da439c0e642854283c25e503-615/operations/20260614T052835Z-wallet-redeem-notes-50a7857a`.
+- Operation file check found pre-submission artifacts including `transaction.json`, `previous_state_snapshot.json`,
+  `wallet redeem-notes.zip`, and Tokamak proof logs; no bridge submission receipt was written.
+- Post-check notes: unchanged. The redeem target note remains unused with bridge commitment present, bridge nullifier
+  unused, and wallet status matching bridge state.
+- Post-check channel deposit: unchanged at `0.00005`.
+- No Sepolia local account secret directory or local L1 private-key file was found after the command.
+- UX observation: the final send-transaction relay pickup reminder reappeared and the CLI reopened the same Signing URL
+  before receiving the wallet gas-funds failure. The short fetch retry change did not fully eliminate this reminder.
+- Next check: top up Sepolia ETH for the browser wallet account, then retry redeem. Separately investigate why the relay
+  page still misses the final send-transaction request during redeem.
+
 ### Channel Exit
 
 Command:

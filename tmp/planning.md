@@ -236,6 +236,14 @@ no local Sepolia L1 private key was created. The next active target remains rede
 transaction during the failed run, investigate why the page/provider did not return the result to `/result`; otherwise
 treat the run as an unapproved wallet request timeout.
 
+The visible-wallet redeem retry returned a browser-wallet provider error instead of timing out: Sepolia ETH was
+insufficient for the wallet-selected gas cost (`have 28522933657669279 want 39659405480142168`). The transaction was not
+submitted, no bridge submission receipt was written, the redeem target note remains unused, channel deposit remains
+`0.00005`, and no local Sepolia L1 private key was created. The final send-transaction relay pickup reminder reappeared
+before the gas-funds failure was returned, so the short fetch retry change did not fully eliminate that UX issue. The
+next active target is to top up the browser wallet account's Sepolia ETH, retry `wallet redeem-notes --tx-submitter`,
+and separately continue investigating why the relay page still misses the final send-transaction request during redeem.
+
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look
 like a wallet or transaction failure. The relay session now has a closing state, wakes pending `/request` long-polls

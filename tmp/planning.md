@@ -186,12 +186,13 @@ After the verifier restored MetaMask and topped up Sepolia gas on 2026-06-14, br
 for `browser-wallet-test-20260614-funded-a1`. The command used the browser wallet without `--account`, submitted
 transaction `0x969356b099a09d994369ed03a9f94b0946977507b07036447e306a51642c2d1a`, and created the channel workspace
 without writing a Sepolia local L1 private-key directory. The earlier `-32006` / HTTP 401 wallet backend failure is no
-longer the active blocker. The next active implementation issue is that the CLI process remains alive after both
-successful and rejected browser-wallet transaction results; the browser-wallet relay should shut down and let the
-command exit after terminal result reporting.
+longer the active blocker. A follow-up implementation change closes the browser-wallet relay at command completion, and
+`account get-l1-address --network sepolia` was manually verified to exit with code `0` after browser-wallet approval.
+The next active manual verification target is `channel join` without `--account` against the newly created Sepolia test
+channel.
 
-Before another manual Sepolia transaction attempt, the CLI should preserve structured diagnostic data from browser-wallet
-failures without exposing secrets or raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:
+The CLI should continue to preserve structured diagnostic data from browser-wallet failures without exposing secrets or
+raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:
 
 - wallet error `code`, `message`, and sanitized `data`
 - whether the injected provider reported `isMetaMask`

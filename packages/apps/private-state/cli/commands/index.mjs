@@ -1,6 +1,7 @@
 import {
   assertHelpCommandsArgs,
   assertVersionArgs,
+  closeBrowserWalletBridgeSession,
   cliOutput,
   configureOutput,
   parseArgs,
@@ -56,5 +57,7 @@ export async function runPrivateStateCli(argv) {
   } catch (error) {
     cliOutput.error(error, args);
     process.exitCode = 1;
+  } finally {
+    await closeBrowserWalletBridgeSession();
   }
 }

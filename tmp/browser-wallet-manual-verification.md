@@ -28,6 +28,8 @@ extension UI. The localhost page is not an approval UI and must not present a CL
 - Follow-up result: passed on 2026-06-13
 - Browser-wallet transaction diagnostic implementation check: `npm run test:agent-guidance`
 - Browser-wallet transaction diagnostic result: passed on 2026-06-14
+- Browser-wallet relay shutdown implementation check: `npm run test:agent-guidance`
+- Browser-wallet relay shutdown implementation result: passed on 2026-06-14
 - Non-interactive browser-wallet check:
   `HOME=$(mktemp -d) node packages/apps/private-state/cli/private-state-bridge-cli.mjs account get-l1-address --network mainnet --json`
 - Non-interactive result: exited with status `1` and reported that browser-wallet signing requires interactive human
@@ -97,6 +99,16 @@ Manual result on 2026-06-13:
 - The browser wallet account connection was approved by the human verifier, not by automation.
 - The CLI returned the selected browser wallet address, redacted here as `0x90dFe9...362f`.
 - The command output did not contain a private-key field and did not submit a transaction.
+
+Manual relay shutdown retry on 2026-06-14:
+
+- Result: passed in Google Chrome with a MetaMask-compatible provider.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs account get-l1-address --network sepolia`.
+- The browser wallet account connection was approved by the human verifier, not by automation.
+- The CLI returned the selected browser wallet address as `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- The command exited naturally with code `0` after printing the result, confirming that the browser-wallet relay shutdown
+  path no longer leaves the CLI process alive for this success case.
 
 ### Create A New Test Channel Without `--account`
 

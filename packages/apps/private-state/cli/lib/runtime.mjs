@@ -11664,6 +11664,14 @@ async function requestBrowserWallet(request) {
   return await getBrowserWalletBridgeSession().request(request);
 }
 
+async function closeBrowserWalletBridgeSession() {
+  const session = browserWalletBridgeSession;
+  browserWalletBridgeSession = null;
+  if (session) {
+    await session.close();
+  }
+}
+
 class BrowserWalletBridgeSession {
   constructor() {
     this.token = ethers.hexlify(randomBytes(24));
@@ -11671,6 +11679,7 @@ class BrowserWalletBridgeSession {
     this.ready = null;
     this.pending = null;
     this.pageOpened = false;
+    this.sockets = new Set();
   }
 
   async request({
@@ -11748,6 +11757,12 @@ class BrowserWalletBridgeSession {
     this.server = http.createServer(async (request, response) => {
       await this.handleRequest(request, response);
     });
+    this.server.on("connection", (socket) => {
+      this.sockets.add(socket);
+      socket.on("close", () => {
+        this.sockets.delete(socket);
+      });
+    });
     this.server.on("error", (error) => {
       this.rejectPending(error);
     });
@@ -11759,6 +11774,25 @@ class BrowserWalletBridgeSession {
       this.server.once("error", reject);
     });
     return await this.ready;
+  }
+
+  async close() {
+    if (this.pending && !this.pending.settled) {
+      this.rejectPending(new Error("Browser wallet bridge closed before the wallet request completed."));
+    }
+    const server = this.server;
+    this.server = null;
+    this.ready = null;
+    this.pageOpened = false;
+    for (const socket of this.sockets) {
+      socket.destroy();
+    }
+    this.sockets.clear();
+    if (server?.listening) {
+      await new Promise((resolve) => {
+        server.close(() => resolve());
+      });
+    }
   }
 
   async handleRequest(request, response) {
@@ -14896,6 +14930,7 @@ export {
   assertVersionArgs,
   printVersion,
   printHelp,
+  closeBrowserWalletBridgeSession,
   assertHelpCommandsArgs,
   assertInstallZkEvmArgs,
   assertUninstallArgs,

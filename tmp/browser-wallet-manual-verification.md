@@ -267,6 +267,32 @@ Manual MetaMask Sepolia RPC repair attempt on 2026-06-14:
   active Sepolia network endpoint used by MetaMask is still unauthorized. The next step requires manual MetaMask network
   settings inspection/editing rather than another CLI retry.
 
+Manual retry result on 2026-06-14 after MetaMask network recovery:
+
+- Result: failed closed after the human verifier rejected the `createChannel` transaction signature in MetaMask.
+- Test channel name: `browser-wallet-test-20260614-recovered-a1`.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create --channel-name browser-wallet-test-20260614-recovered-a1 --join-toll 0 --network sepolia`.
+- The CLI reached account connection, network check, immutable policy review, and `eth_sendTransaction` from the same
+  localhost relay origin.
+- Wallet error message: `MetaMask Tx Signature: User denied transaction signature.`
+- Wallet error code: `4001`.
+- Wallet error data: `{"location":"confirmation","cause":null}`.
+- Provider diagnostic: `provider.isMetaMask: true`.
+- Account diagnostic: `eth_accounts` returned the same selected browser account as `transaction.from` and
+  `signerAddress`, redacted here as `0x90dFe9...362f`.
+- Chain diagnostic: `eth_chainId: 0xaa36a7`, matching Sepolia.
+- Transaction diagnostic: `to: 0x1995B1cDe4e0a3F77bDeC297824504CdAc9a838E`, `value: null`,
+  `dataByteLength: 132`.
+- Interpretation: this retry confirms that the previous MetaMask `-32006` / HTTP 401 network failure was not reproduced
+  after the verifier restored MetaMask. The browser-wallet path now reaches the wallet transaction confirmation UI, and
+  the remaining result is a normal user-rejection failure path rather than a wallet backend authorization failure.
+- No `createChannel` transaction was submitted.
+- No workspace for `browser-wallet-test-20260614-recovered-a1` was found under the Sepolia private-state workspace.
+- No Sepolia local account secret directory was found.
+- Follow-up implementation check: after the wallet rejection, the CLI process remained alive until interrupted. The
+  browser-wallet relay should shut down and let the command exit after terminal failure reporting.
+
 ### Channel Join Without `--account`
 
 Command:

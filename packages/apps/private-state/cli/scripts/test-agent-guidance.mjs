@@ -1157,6 +1157,13 @@ function testChannelJoinBrowserWalletFlowCoverage() {
     "Browser wallet signing page should keep one relay loop, wait for provider injection, and start provider requests from the page.",
   );
   expect(
+    browserSigningPageSource.includes("activeRequest && activeRequest.done")
+      && browserSigningPageSource.includes("markComplete(activeRequest.message)")
+      && browserSigningPageSource.includes("The CLI session has ended. You can close this page.")
+      && browserSigningPageSource.includes("markRelayStopped(error)"),
+    "Browser wallet signing page should stop cleanly on command completion and avoid showing raw stale fetch failures.",
+  );
+  expect(
     browserSigningPageSource.includes("postStatus(activeRequest, \"loaded\")")
       && browserSigningPageSource.includes("postStatus(activeRequest, \"request-started\")"),
     "Browser wallet signing page should report page load and provider request start status back to the CLI.",
@@ -1176,9 +1183,12 @@ function testChannelJoinBrowserWalletFlowCoverage() {
       && browserBridgeSessionSource.includes("waitForPendingRequest")
       && browserBridgeSessionSource.includes("notifyRequestWaiters")
       && browserBridgeSessionSource.includes("canDeliverPendingRequest")
+      && browserBridgeSessionSource.includes("this.closing")
+      && browserBridgeSessionSource.includes("writeCompletionResponse")
+      && browserBridgeSessionSource.includes("done: true")
       && browserBridgeSessionSource.includes("pageReopenAttempted")
       && browserBridgeSessionSource.includes("this.server.unref()"),
-    "Browser wallet bridge should keep one localhost origin, long-poll per-request IDs, and safely wake stale relay pages.",
+    "Browser wallet bridge should keep one localhost origin, long-poll per-request IDs, and safely wake stale relay pages including command completion.",
   );
   expect(
     joinSource.includes("typeof signer.privateKey === \"string\""),

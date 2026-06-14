@@ -110,6 +110,19 @@ Manual relay shutdown retry on 2026-06-14:
 - The command exited naturally with code `0` after printing the result, confirming that the browser-wallet relay shutdown
   path no longer leaves the CLI process alive for this success case.
 
+Manual relay completion UX retry on 2026-06-14:
+
+- Result: terminal path passed; browser final-state visual inspection was not available from the automation environment.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs account get-l1-address --network sepolia`.
+- The browser wallet account connection was approved by the human verifier, not by automation.
+- The CLI returned the selected browser wallet address as `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- The command exited naturally with code `0` after printing the result.
+- The implementation now returns a `{ "done": true }` completion response to the relay page before closing the
+  localhost server and treats stale post-close polling failures as an ended CLI session. A human verifier should confirm
+  that the relay page shows `Command finished. You can return to the terminal.` or `The CLI session has ended. You can
+  close this page.` instead of raw `Failed to fetch`.
+
 ### Create A New Test Channel Without `--account`
 
 Use this step before `channel join` when no verified named test channel already exists. Choose a unique channel name

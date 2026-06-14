@@ -11685,6 +11685,7 @@ class BrowserWalletBridgeSession {
     this.ready = null;
     this.pending = null;
     this.pageOpened = false;
+    this.closing = false;
     this.sockets = new Set();
     this.requestWaiters = new Set();
   }
@@ -11698,6 +11699,7 @@ class BrowserWalletBridgeSession {
     diagnostics = null,
   }) {
     await this.ensureStarted();
+    expect(!this.closing, "Browser wallet bridge is closing.");
     expect(!this.pending, "Browser wallet bridge already has a pending request.");
     const requestId = ethers.hexlify(randomBytes(12));
     const address = this.server.address();
@@ -11769,6 +11771,7 @@ class BrowserWalletBridgeSession {
     if (this.ready) {
       return await this.ready;
     }
+    this.closing = false;
     this.server = http.createServer(async (request, response) => {
       await this.handleRequest(request, response);
     });
@@ -11795,6 +11798,9 @@ class BrowserWalletBridgeSession {
     if (this.pending && !this.pending.settled) {
       this.rejectPending(new Error("Browser wallet bridge closed before the wallet request completed."));
     }
+    this.closing = true;
+    this.notifyRequestWaiters();
+    await sleep(500);
     const server = this.server;
     this.server = null;
     this.ready = null;
@@ -11834,8 +11840,16 @@ class BrowserWalletBridgeSession {
           writeBrowserTermsResponse(response, 403, "text/plain; charset=utf-8", "Invalid browser wallet token.");
           return;
         }
+        if (this.closing) {
+          this.writeCompletionResponse(response);
+          return;
+        }
         if (!this.pending) {
           await this.waitForPendingRequest();
+        }
+        if (this.closing) {
+          this.writeCompletionResponse(response);
+          return;
         }
         if (!this.pending) {
           writeBrowserTermsResponse(response, 204, "application/json; charset=utf-8", "");
@@ -11908,7 +11922,7 @@ class BrowserWalletBridgeSession {
   }
 
   waitForPendingRequest() {
-    if (this.pending || !this.server) {
+    if (this.pending || !this.server || this.closing) {
       return Promise.resolve();
     }
     return new Promise((resolve) => {
@@ -11943,6 +11957,18 @@ class BrowserWalletBridgeSession {
       return true;
     }
     return Date.now() - pending.deliveredAt > 5_000;
+  }
+
+  writeCompletionResponse(response) {
+    writeBrowserTermsResponse(
+      response,
+      200,
+      "application/json; charset=utf-8",
+      JSON.stringify({
+        done: true,
+        message: "Command finished. You can return to the terminal.",
+      }),
+    );
   }
 
   recordStatus(pending, event) {
@@ -12148,9 +12174,17 @@ function browserWalletSigningHtml({ token }) {
       });
     }
     async function readNextRequest() {
-      const response = await fetch("/request?token=" + encodeURIComponent(request.token), {
-        cache: "no-store",
-      });
+      let response;
+      try {
+        response = await fetch("/request?token=" + encodeURIComponent(request.token), {
+          cache: "no-store",
+        });
+      } catch {
+        return {
+          done: true,
+          message: "The CLI session has ended. You can close this page.",
+        };
+      }
       if (response.status === 204) {
         return null;
       }
@@ -12158,6 +12192,20 @@ function browserWalletSigningHtml({ token }) {
         throw new Error("Unable to read the next browser wallet request.");
       }
       return await response.json();
+    }
+    function markComplete(message) {
+      description.textContent = "Command finished.";
+      meta.textContent = "";
+      status.textContent = message || "You can return to the terminal.";
+      details.textContent = "{}";
+    }
+    function markRelayStopped(error) {
+      description.textContent = "Browser wallet relay stopped.";
+      meta.textContent = "";
+      status.textContent = "The relay could not contact the CLI. Check the terminal for the command result.";
+      details.textContent = JSON.stringify({
+        error: error && error.message ? error.message : String(error),
+      }, null, 2);
     }
     async function waitForEthereumProvider() {
       const startedAt = Date.now();
@@ -12266,6 +12314,10 @@ function browserWalletSigningHtml({ token }) {
     async function runRelayLoop() {
       for (;;) {
         const activeRequest = await readNextRequest();
+        if (activeRequest && activeRequest.done) {
+          markComplete(activeRequest.message);
+          return;
+        }
         if (activeRequest) {
           await requestWallet(activeRequest);
         } else {
@@ -12275,7 +12327,7 @@ function browserWalletSigningHtml({ token }) {
     }
     window.addEventListener("load", () => {
       runRelayLoop().catch((error) => {
-        status.textContent = error && error.message ? error.message : String(error);
+        markRelayStopped(error);
       });
     });
   </script>

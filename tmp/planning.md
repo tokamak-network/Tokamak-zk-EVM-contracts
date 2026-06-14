@@ -190,9 +190,13 @@ longer the active blocker. A follow-up implementation change closes the browser-
 `account get-l1-address --network sepolia` was manually verified to exit with code `0` after browser-wallet approval.
 The follow-up `channel join` without `--account` also succeeded against that Sepolia test channel, including browser
 message signing, typed-data signing, `joinChannel` submission, wallet workspace creation, local L2 spending/viewing key
-storage, no local L1 private-key file creation, and natural process exit. The next active manual verification target is
-the browser-wallet funding path before note-command verification: `account deposit-bridge` without `--account`, followed
-by wallet/channel funding as needed for note tests.
+storage, no local L1 private-key file creation, and natural process exit. The browser-wallet `account deposit-bridge`
+path also succeeded without `--account` for `0.001` Sepolia canonical tokens, including approval, bridge funding,
+available bridge balance increase, no local L1 private-key file creation, and natural process exit. However, the
+persistent relay page did not automatically pick up the second sequential transaction request after approval; reopening
+the same Signing URL allowed the bridge `fund` request to continue. The next active implementation check is improving or
+explaining the relay page polling continuity across sequential browser-wallet transaction requests. After that, continue
+with `wallet deposit-channel` and note-command verification.
 
 The CLI should continue to preserve structured diagnostic data from browser-wallet failures without exposing secrets or
 raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:

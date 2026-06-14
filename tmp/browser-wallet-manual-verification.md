@@ -409,6 +409,34 @@ Expected result:
 - The CLI does not force a nonce override in browser-wallet mode.
 - The shared bridge vault balance increases for the selected browser wallet account.
 
+Manual result on 2026-06-14:
+
+- Result: passed. The browser wallet submitted both the ERC-20 approval and bridge `fund` transaction without
+  `--account`.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs account deposit-bridge --amount 0.001 --network sepolia`.
+- L1 address: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Canonical asset: `0xa30fe40285B8f5c0457DbC3B7C8A280373c40044`.
+- Bridge Token Vault: `0xac95B08BBB7726ea71Eb9b055BEF8e9383d470eC`.
+- Amount: `0.001`.
+- Approval transaction hash: `0x15f66b038ca17a16052eecf4237bd2d7037845c9999e8e50655409efce2a278d`.
+- Approval transaction URL:
+  `https://sepolia.etherscan.io/tx/0x15f66b038ca17a16052eecf4237bd2d7037845c9999e8e50655409efce2a278d`.
+- Fund transaction hash: `0x8e5a6d5ac483877736374d8537225de8741c47f077a15120c3f7652882ce4ab1`.
+- Fund transaction URL:
+  `https://sepolia.etherscan.io/tx/0x8e5a6d5ac483877736374d8537225de8741c47f077a15120c3f7652882ce4ab1`.
+- Approval gas used: `46320`.
+- Fund gas used: `77951`.
+- Available bridge balance after the command: `0.001`.
+- Token balance after the command: `2330.999`.
+- ERC-20 allowance after the command: `0.0`.
+- No Sepolia local account secret directory was found after the command, so the browser-wallet `account deposit-bridge`
+  path did not write a local L1 private key file.
+- The command exited naturally with code `0` after printing the result.
+- Follow-up implementation check: after the approval transaction completed, the persistent relay page did not pick up the
+  next `fund` request until the same Signing URL was opened again. The same-origin relay model still works, but the
+  relay page should reliably continue polling across sequential transaction requests without requiring a manual reopen.
+
 ### Wallet Deposit And Withdraw Channel
 
 Commands:

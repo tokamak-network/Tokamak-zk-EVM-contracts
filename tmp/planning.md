@@ -194,8 +194,11 @@ storage, no local L1 private-key file creation, and natural process exit. The br
 path also succeeded without `--account` for `0.001` Sepolia canonical tokens, including approval, bridge funding,
 available bridge balance increase, no local L1 private-key file creation, and natural process exit. However, the
 persistent relay page did not automatically pick up the second sequential transaction request after approval; reopening
-the same Signing URL allowed the bridge `fund` request to continue. The next active implementation check is improving or
-explaining the relay page polling continuity across sequential browser-wallet transaction requests. After that, continue
+the same Signing URL allowed the bridge `fund` request to continue. A follow-up implementation changed `/request` to
+long-poll and wake when the CLI creates the next browser-wallet request. The retry showed that the second sequential
+`fund` request was picked up without reopening the Signing URL, but the wallet did not return a confirmation response
+before timeout; only the approval transaction was submitted, leaving `0.0001` allowance and no additional bridge fund.
+The next active check is to clear or answer any pending wallet confirmation and rerun the funding sequence, then continue
 with `wallet deposit-channel` and note-command verification.
 
 The CLI should continue to preserve structured diagnostic data from browser-wallet failures without exposing secrets or

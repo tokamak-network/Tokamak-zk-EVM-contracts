@@ -11680,6 +11680,7 @@ class BrowserWalletBridgeSession {
     this.pending = null;
     this.pageOpened = false;
     this.sockets = new Set();
+    this.requestWaiters = new Set();
   }
 
   async request({
@@ -11718,6 +11719,7 @@ class BrowserWalletBridgeSession {
         reject,
       };
     });
+    this.notifyRequestWaiters();
     const pending = this.pending;
     pending.timeout = setTimeout(() => {
       this.rejectPending(new Error(`Timed out waiting for browser wallet ${action}.`));
@@ -11784,6 +11786,7 @@ class BrowserWalletBridgeSession {
     this.server = null;
     this.ready = null;
     this.pageOpened = false;
+    this.notifyRequestWaiters();
     for (const socket of this.sockets) {
       socket.destroy();
     }
@@ -11817,6 +11820,9 @@ class BrowserWalletBridgeSession {
         if (requestUrl.searchParams.get("token") !== this.token) {
           writeBrowserTermsResponse(response, 403, "text/plain; charset=utf-8", "Invalid browser wallet token.");
           return;
+        }
+        if (!this.pending) {
+          await this.waitForPendingRequest();
         }
         if (!this.pending) {
           writeBrowserTermsResponse(response, 204, "application/json; charset=utf-8", "");
@@ -11881,6 +11887,34 @@ class BrowserWalletBridgeSession {
       throw new Error("No matching browser wallet request is active.");
     }
     return this.pending;
+  }
+
+  waitForPendingRequest() {
+    if (this.pending || !this.server) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const waiter = {
+        resolve,
+        timeout: null,
+      };
+      waiter.timeout = setTimeout(() => {
+        this.requestWaiters.delete(waiter);
+        resolve();
+      }, 25_000);
+      this.requestWaiters.add(waiter);
+    });
+  }
+
+  notifyRequestWaiters() {
+    const waiters = [...this.requestWaiters];
+    this.requestWaiters.clear();
+    for (const waiter of waiters) {
+      if (waiter.timeout) {
+        clearTimeout(waiter.timeout);
+      }
+      waiter.resolve();
+    }
   }
 
   recordStatus(pending, event) {

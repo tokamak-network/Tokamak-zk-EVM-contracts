@@ -437,6 +437,27 @@ Manual result on 2026-06-14:
   next `fund` request until the same Signing URL was opened again. The same-origin relay model still works, but the
   relay page should reliably continue polling across sequential transaction requests without requiring a manual reopen.
 
+Manual relay long-poll retry on 2026-06-14:
+
+- Result: partially passed. The relay page picked up the second sequential `fund` request automatically after the
+  approval transaction, but the wallet did not return a confirmation response for the `fund` transaction before the CLI
+  wallet-request timeout.
+- Implementation change under test: `/request` now long-polls while no request is pending and is woken when the CLI
+  creates the next browser-wallet request.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs account deposit-bridge --amount 0.0001 --network sepolia`.
+- Approval transaction hash: `0xd7d1e411cf323ade0897849224eadd7ef789d32a6cfe0db6d9d897b5ce5c0f7b`.
+- The CLI printed the second `Browser wallet approval required: send transaction.` message without requiring the Signing
+  URL to be reopened, and no relay-page pickup reminder was printed for that second request.
+- The command failed closed at the `fund` transaction with:
+  `Timed out waiting for browser wallet send transaction.`
+- Post-check token balance: `2330.999`.
+- Post-check ERC-20 allowance: `0.0001`.
+- Post-check available bridge balance: `0.001`.
+- Interpretation: the original relay continuity issue was not reproduced, but the `fund` confirmation was not completed
+  in the wallet UI. The on-chain state matches one submitted approval and no submitted fund transaction.
+- No Sepolia local account secret directory was found after the command.
+
 ### Wallet Deposit And Withdraw Channel
 
 Commands:

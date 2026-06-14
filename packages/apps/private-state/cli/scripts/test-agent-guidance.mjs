@@ -1173,8 +1173,10 @@ function testChannelJoinBrowserWalletFlowCoverage() {
     browserBridgeSessionSource.includes("this.token = ethers.hexlify(randomBytes(24))")
       && browserBridgeSessionSource.includes("requestId = ethers.hexlify(randomBytes(12))")
       && browserBridgeSessionSource.includes("requestUrl.pathname === \"/request\"")
+      && browserBridgeSessionSource.includes("waitForPendingRequest")
+      && browserBridgeSessionSource.includes("notifyRequestWaiters")
       && browserBridgeSessionSource.includes("this.server.unref()"),
-    "Browser wallet bridge should keep one localhost origin and feed per-request IDs to the persistent relay page.",
+    "Browser wallet bridge should keep one localhost origin and long-poll per-request IDs to the persistent relay page.",
   );
   expect(
     joinSource.includes("typeof signer.privateKey === \"string\""),

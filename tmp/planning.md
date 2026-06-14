@@ -218,6 +218,15 @@ reminder repeated on the final send-transaction request and the CLI again auto-r
 wallet approval completed. The next active manual verification target is `wallet redeem-notes --tx-submitter`, but the
 repeated relay pickup reminder is now a concrete UX issue to investigate before or alongside redeem verification.
 
+The first relay pickup investigation found a likely CLI-side cause. The browser signing page treated any `/request`
+fetch failure as an ended CLI session. During long-running proof work, a transient relay read failure can therefore stop
+the existing relay page before the final `eth_sendTransaction` request exists; the CLI then has to reopen the same
+Signing URL to recover. The relay page now keeps polling after short-lived `/request` fetch failures and shows
+`Waiting for the CLI relay to respond...`; it only converts repeated fetch failures into an ended-session message after
+they persist for more than 60 seconds, which is long enough to avoid treating short proof-time relay interruptions as
+command completion. The next `wallet redeem-notes --tx-submitter` manual verification should confirm that the final
+send-transaction request is picked up without the relay pickup reminder.
+
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look
 like a wallet or transaction failure. The relay session now has a closing state, wakes pending `/request` long-polls

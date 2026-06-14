@@ -1160,8 +1160,10 @@ function testChannelJoinBrowserWalletFlowCoverage() {
     browserSigningPageSource.includes("activeRequest && activeRequest.done")
       && browserSigningPageSource.includes("markComplete(activeRequest.message)")
       && browserSigningPageSource.includes("The CLI session has ended. You can close this page.")
+      && browserSigningPageSource.includes("requestReadFailureStartedAt")
+      && browserSigningPageSource.includes("Waiting for the CLI relay to respond...")
       && browserSigningPageSource.includes("markRelayStopped(error)"),
-    "Browser wallet signing page should stop cleanly on command completion and avoid showing raw stale fetch failures.",
+    "Browser wallet signing page should stop cleanly on command completion, retry transient relay fetch failures, and avoid showing raw stale fetch failures.",
   );
   expect(
     browserSigningPageSource.includes("postStatus(activeRequest, \"loaded\")")

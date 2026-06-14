@@ -671,6 +671,17 @@ Manual transfer-notes result on 2026-06-14:
   the same Signing URL before wallet approval completed. The command still completed after the wallet approval. This
   repeated reminder is now a concrete UX issue to investigate before or alongside redeem verification.
 
+Relay pickup follow-up on 2026-06-14:
+
+- Diagnosis: the relay page treated any `/request` fetch failure as an ended CLI session. During long-running proof
+  work, a transient fetch failure could stop the page's polling loop before the final `eth_sendTransaction` request was
+  created, forcing the CLI to reopen the same Signing URL.
+- Implementation change under test: the relay page now retries short-lived `/request` fetch failures, displays
+  `Waiting for the CLI relay to respond...`, and only shows the ended-session message after repeated failures persist
+  for more than 60 seconds, long enough to avoid treating short proof-time relay interruptions as command completion.
+- Next check: `wallet redeem-notes --tx-submitter` should confirm whether the final send-transaction request is picked
+  up without the relay pickup reminder.
+
 ### Channel Exit
 
 Command:

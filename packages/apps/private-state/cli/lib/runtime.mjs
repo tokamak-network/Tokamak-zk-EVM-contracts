@@ -12159,6 +12159,10 @@ function browserWalletSigningHtml({ token }) {
     const description = document.getElementById("description");
     const meta = document.getElementById("meta");
     const details = document.getElementById("details");
+    let requestReadFailureStartedAt = null;
+    function noteRequestReadSuccess() {
+      requestReadFailureStartedAt = null;
+    }
     async function post(activeRequest, payload) {
       await fetch("/result", {
         method: "POST",
@@ -12180,11 +12184,18 @@ function browserWalletSigningHtml({ token }) {
           cache: "no-store",
         });
       } catch {
-        return {
-          done: true,
-          message: "The CLI session has ended. You can close this page.",
-        };
+        const now = Date.now();
+        requestReadFailureStartedAt = requestReadFailureStartedAt ?? now;
+        if (now - requestReadFailureStartedAt > 60_000) {
+          return {
+            done: true,
+            message: "The CLI session has ended. You can close this page.",
+          };
+        }
+        status.textContent = "Waiting for the CLI relay to respond...";
+        return null;
       }
+      noteRequestReadSuccess();
       if (response.status === 204) {
         return null;
       }

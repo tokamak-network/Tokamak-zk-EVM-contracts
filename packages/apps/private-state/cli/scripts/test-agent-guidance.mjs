@@ -1175,8 +1175,10 @@ function testChannelJoinBrowserWalletFlowCoverage() {
       && browserBridgeSessionSource.includes("requestUrl.pathname === \"/request\"")
       && browserBridgeSessionSource.includes("waitForPendingRequest")
       && browserBridgeSessionSource.includes("notifyRequestWaiters")
+      && browserBridgeSessionSource.includes("canDeliverPendingRequest")
+      && browserBridgeSessionSource.includes("pageReopenAttempted")
       && browserBridgeSessionSource.includes("this.server.unref()"),
-    "Browser wallet bridge should keep one localhost origin and long-poll per-request IDs to the persistent relay page.",
+    "Browser wallet bridge should keep one localhost origin, long-poll per-request IDs, and safely wake stale relay pages.",
   );
   expect(
     joinSource.includes("typeof signer.privateKey === \"string\""),
@@ -1217,6 +1219,12 @@ function testL1TransactionBrowserWalletFlowCoverage() {
   expect(
     depositSource.includes("const nextL1TransactionOverrides = () => usesLocalL1PrivateKey ? { nonce: nextNonce++ } : undefined;"),
     "account deposit-bridge should omit explicit nonce overrides when browser wallet submission is used.",
+  );
+  expect(
+    depositSource.includes("asset.allowance(signer.address, bridgeVaultContext.bridgeTokenVaultAddress)")
+      && depositSource.includes("if (currentAllowance < amount)")
+      && depositSource.includes("approveSkipped"),
+    "account deposit-bridge should reuse sufficient existing allowance instead of forcing a duplicate approval.",
   );
   expect(
     countOccurrences(depositSource, "nextL1TransactionOverrides()") === 2,

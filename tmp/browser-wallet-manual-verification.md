@@ -458,6 +458,28 @@ Manual relay long-poll retry on 2026-06-14:
   in the wallet UI. The on-chain state matches one submitted approval and no submitted fund transaction.
 - No Sepolia local account secret directory was found after the command.
 
+Manual allowance reuse retry on 2026-06-14:
+
+- Result: passed. The CLI detected the existing `0.0001` allowance, skipped a duplicate approval, and submitted only the
+  bridge `fund` transaction through the browser wallet.
+- Implementation change under test: `account deposit-bridge` now checks ERC-20 allowance and skips approval when the
+  current allowance already covers the requested amount.
+- Pre-check note: the previously timed-out `fund` transaction was later reflected on-chain before this retry, raising
+  available bridge balance to `0.0011` and reducing allowance to `0.0`. An intermediate retry created a fresh `0.0001`
+  allowance before the fund-only verification path consumed it.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs account deposit-bridge --amount 0.0001 --network sepolia`.
+- CLI result fields: `Approve Skipped: true`, `Allowance Before: 100000000000000`, `Approve Receipt: none`.
+- Fund transaction hash: `0xd46096eec05496c68915db22f145069c7130d0ec1ae55568f898b07e0abe5d1a`.
+- Fund transaction URL:
+  `https://sepolia.etherscan.io/tx/0xd46096eec05496c68915db22f145069c7130d0ec1ae55568f898b07e0abe5d1a`.
+- Fund gas used: `60839`.
+- Post-check token balance: `2330.9988`.
+- Post-check ERC-20 allowance: `0.0`.
+- Post-check available bridge balance: `0.0012`.
+- No Sepolia local account secret directory was found after the command.
+- The command exited naturally with code `0` after printing the result.
+
 ### Wallet Deposit And Withdraw Channel
 
 Commands:

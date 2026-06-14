@@ -2443,15 +2443,19 @@ async function handleDepositBridge({ args, network, provider }) {
   const usesLocalL1PrivateKey = typeof signer.privateKey === "string";
   let nextNonce = usesLocalL1PrivateKey ? await provider.getTransactionCount(signer.address, "pending") : null;
   const nextL1TransactionOverrides = () => usesLocalL1PrivateKey ? { nonce: nextNonce++ } : undefined;
-  const approveReceipt = await dryRunThenSubmitTransaction({
-    operationName: "account deposit-bridge approve",
-    call: contractTxCall(
-      asset.approve,
-      [bridgeVaultContext.bridgeTokenVaultAddress, amount],
-      nextL1TransactionOverrides(),
-      asset.interface,
-    ),
-  });
+  let approveReceipt = null;
+  const currentAllowance = ethers.toBigInt(await asset.allowance(signer.address, bridgeVaultContext.bridgeTokenVaultAddress));
+  if (currentAllowance < amount) {
+    approveReceipt = await dryRunThenSubmitTransaction({
+      operationName: "account deposit-bridge approve",
+      call: contractTxCall(
+        asset.approve,
+        [bridgeVaultContext.bridgeTokenVaultAddress, amount],
+        nextL1TransactionOverrides(),
+        asset.interface,
+      ),
+    });
+  }
   const fundReceipt = await dryRunThenSubmitTransaction({
     operationName: "account deposit-bridge fund",
     call: contractTxCall(
@@ -2460,7 +2464,7 @@ async function handleDepositBridge({ args, network, provider }) {
       nextL1TransactionOverrides(),
       bridgeTokenVault.interface,
     ),
-    submittedBefore: [submittedReceiptSummary("account deposit-bridge approve", approveReceipt)],
+    submittedBefore: approveReceipt ? [submittedReceiptSummary("account deposit-bridge approve", approveReceipt)] : [],
   });
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
 
@@ -2471,12 +2475,14 @@ async function handleDepositBridge({ args, network, provider }) {
     l1Address: signer.address,
     availableBalance: availableBalance.toString(),
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
-    approveGasUsed: receiptGasUsed(approveReceipt),
+    approveSkipped: approveReceipt === null,
+    allowanceBefore: currentAllowance.toString(),
+    approveGasUsed: approveReceipt ? receiptGasUsed(approveReceipt) : null,
     fundGasUsed: receiptGasUsed(fundReceipt),
-    totalGasUsed: (ethers.toBigInt(approveReceipt.gasUsed) + ethers.toBigInt(fundReceipt.gasUsed)).toString(),
-    approveTxUrl: explorerTxUrl(network, approveReceipt.hash),
+    totalGasUsed: ((approveReceipt ? ethers.toBigInt(approveReceipt.gasUsed) : 0n) + ethers.toBigInt(fundReceipt.gasUsed)).toString(),
+    approveTxUrl: approveReceipt ? explorerTxUrl(network, approveReceipt.hash) : null,
     fundTxUrl: explorerTxUrl(network, fundReceipt.hash),
-    approveReceipt: sanitizeReceipt(approveReceipt),
+    approveReceipt: approveReceipt ? sanitizeReceipt(approveReceipt) : null,
     fundReceipt: sanitizeReceipt(fundReceipt),
   });
 }
@@ -11712,6 +11718,8 @@ class BrowserWalletBridgeSession {
         settled: false,
         relayLoaded: false,
         providerRequestStarted: false,
+        deliveredAt: null,
+        pageReopenAttempted: false,
         pageLoadReminder: null,
         requestStartReminder: null,
         timeout: null,
@@ -11726,9 +11734,14 @@ class BrowserWalletBridgeSession {
     }, 10 * 60 * 1000);
     pending.pageLoadReminder = setTimeout(() => {
       if (!pending.settled && !pending.relayLoaded) {
+        const reopened = !pending.pageReopenAttempted && openUrlInDefaultBrowser(signingUrl).opened;
+        pending.pageReopenAttempted = pending.pageReopenAttempted || reopened;
+        this.pageOpened = this.pageOpened || reopened;
         process.stderr.write([
           "Browser wallet relay page has not picked up the current request.",
-          "Open or refresh the Signing URL in the MetaMask-capable browser you want to use:",
+          reopened
+            ? "The CLI reopened the same Signing URL in the default browser. Approve or reject only in the wallet UI."
+            : "Open or refresh the Signing URL in the MetaMask-capable browser you want to use:",
           signingUrl,
           "",
         ].join("\n"));
@@ -11828,6 +11841,11 @@ class BrowserWalletBridgeSession {
           writeBrowserTermsResponse(response, 204, "application/json; charset=utf-8", "");
           return;
         }
+        if (!this.canDeliverPendingRequest(this.pending)) {
+          writeBrowserTermsResponse(response, 204, "application/json; charset=utf-8", "");
+          return;
+        }
+        this.pending.deliveredAt = Date.now();
         writeBrowserTermsResponse(
           response,
           200,
@@ -11915,6 +11933,16 @@ class BrowserWalletBridgeSession {
       }
       waiter.resolve();
     }
+  }
+
+  canDeliverPendingRequest(pending) {
+    if (pending.providerRequestStarted) {
+      return false;
+    }
+    if (!pending.deliveredAt || pending.relayLoaded) {
+      return true;
+    }
+    return Date.now() - pending.deliveredAt > 5_000;
   }
 
   recordStatus(pending, event) {

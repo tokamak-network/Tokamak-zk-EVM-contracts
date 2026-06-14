@@ -198,8 +198,11 @@ the same Signing URL allowed the bridge `fund` request to continue. A follow-up 
 long-poll and wake when the CLI creates the next browser-wallet request. The retry showed that the second sequential
 `fund` request was picked up without reopening the Signing URL, but the wallet did not return a confirmation response
 before timeout; only the approval transaction was submitted, leaving `0.0001` allowance and no additional bridge fund.
-The next active check is to clear or answer any pending wallet confirmation and rerun the funding sequence, then continue
-with `wallet deposit-channel` and note-command verification.
+The timed-out `fund` transaction was later reflected on-chain, and a follow-up change made `account deposit-bridge`
+reuse sufficient existing allowance instead of forcing a duplicate approval. The allowance-reuse retry skipped approval,
+submitted only the bridge `fund` transaction, increased available bridge balance to `0.0012`, left no Sepolia local L1
+private-key file, and exited naturally. The next active manual verification target is `wallet deposit-channel` for the
+joined wallet, followed by note-command verification.
 
 The CLI should continue to preserve structured diagnostic data from browser-wallet failures without exposing secrets or
 raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:

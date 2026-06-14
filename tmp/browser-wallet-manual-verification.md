@@ -622,6 +622,55 @@ Manual mint-notes result on 2026-06-14:
   window and the CLI reopened the same Signing URL automatically. The command still completed after the wallet approval,
   but transfer/redeem verification should watch whether this reminder repeats.
 
+Manual transfer-notes result on 2026-06-14:
+
+- Result: passed. The CLI spent the existing private note with the local wallet spending key, proved a 1-to-1
+  self-transfer, used the browser wallet only for the final L1 `executeChannelTransaction` submission, recovered the
+  spent and new note state from logs, and exited naturally with code `0`.
+- Test channel name: `browser-wallet-test-20260614-funded-a1`.
+- Wallet name: `browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs wallet transfer-notes --wallet browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1 --network sepolia --note-ids '["0x50e8fe93a985bf4af5946862840288748107d6bbb70e63016f1464dc6c18dade"]' --recipients '["0x50A7857Ad460D3e303a196Cf673dac5de3dA6078"]' --amounts '["0.00005"]' --tx-submitter`.
+- Pre-check unused note commitment: `0x50e8fe93a985bf4af5946862840288748107d6bbb70e63016f1464dc6c18dade`.
+- Pre-check unused note nullifier: `0x0a3cafa476ab5a83656cfcf79f7ff450aaf3b3f1fcbccc4dc11b38344156ac37`.
+- Pre-check channel deposit: `0.00005`.
+- Transfer shape: `1->1`.
+- Recipient: `0x50A7857Ad460D3e303a196Cf673dac5de3dA6078`.
+- Amount input: `0.00005`.
+- Amount base units: `50000000000000`.
+- L1 submitter: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- L1 wallet owner: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Tx submitter source: `browser-wallet`.
+- Tx submitter account: `none`.
+- Underlying method: `transferNotes1To1`.
+- Nonce: `1`.
+- Output note commitment: `0x0e0abed1eda5134edf38edddc8aee13fbb068cb3da751d883621819ab152dc6d`.
+- Output note nullifier: `0x3ddffcf994dc54bfad8c17952cf3f71003bab877ac508bf96f98dbab599641f5`.
+- Transaction hash: `0xee51231d4e918a96b7f9c4bedcbd0e4600086f284de84e6e67a4b4853adb9caf`.
+- Transaction URL:
+  `https://sepolia.etherscan.io/tx/0xee51231d4e918a96b7f9c4bedcbd0e4600086f284de84e6e67a4b4853adb9caf`.
+- Block number: `11056049`.
+- Gas used: `842428`.
+- Transaction status: `1`.
+- Updated roots:
+  `0x68a2764866ed58b464972867afdde9dce4476a80349bbca9820f3a0ddf64d8eb`,
+  `0x44ed405561cfe2a389e3082ff310562f09c9a3dcc9320f9824360577c2a727f0`.
+- Operation directory:
+  `/Users/jehyuk/tokamak-private-channels/workspace/sepolia/browser-wallet-test-20260614-funded-a1/wallets/browser-wallet-test-20260614-funded-a1-0x094ac5364ee8b6db0e5b1e1c588be8617fd499a1/epochs/join-0x49e67519a09cb33578431d100bc79f808df958a0da439c0e642854283c25e503-615/operations/20260614T044509Z-wallet-transfer-notes-50a7857a`.
+- Operation file check found `transaction.json`, `bridge-submit-receipt.json`, `state_snapshot.json`,
+  `state_snapshot.normalized.json`, `wallet transfer-notes.zip`, and Tokamak proof logs.
+- Post-check unused note: one note with value `0.00005`, commitment
+  `0x0e0abed1eda5134edf38edddc8aee13fbb068cb3da751d883621819ab152dc6d`, bridge commitment present, bridge nullifier
+  unused, and wallet status matching bridge state.
+- Post-check spent note: the input commitment
+  `0x50e8fe93a985bf4af5946862840288748107d6bbb70e63016f1464dc6c18dade` is marked spent, its bridge nullifier is used,
+  and wallet status matches bridge state.
+- Post-check channel deposit: `0.00005`.
+- No Sepolia local account secret directory or local L1 private-key file was found after the command.
+- UX observation: the final send-transaction request again triggered the relay page pickup reminder and auto-reopened
+  the same Signing URL before wallet approval completed. The command still completed after the wallet approval. This
+  repeated reminder is now a concrete UX issue to investigate before or alongside redeem verification.
+
 ### Channel Exit
 
 Command:

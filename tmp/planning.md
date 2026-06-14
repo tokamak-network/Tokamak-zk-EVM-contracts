@@ -210,8 +210,13 @@ mint-notes --tx-submitter` generated the L2 note proof locally, submitted transa
 `txSubmitterSource: browser-wallet`, created one unused `0.00005` note, reduced channel deposit to `0.00005`, wrote no
 local Sepolia L1 private key, and exited naturally. One UX observation remains: the mint command's final
 send-transaction request triggered the relay page pickup reminder and auto-reopened the same Signing URL before the
-wallet approval completed. The next active manual verification target is `wallet transfer-notes --tx-submitter`, while
-watching whether that relay pickup reminder repeats.
+wallet approval completed. The follow-up `wallet transfer-notes --tx-submitter` self-transfer also passed: the CLI
+spent the minted note, created a new unused `0.00005` note, submitted transaction
+`0xee51231d4e918a96b7f9c4bedcbd0e4600086f284de84e6e67a4b4853adb9caf` through the browser wallet with
+`txSubmitterSource: browser-wallet`, wrote no local Sepolia L1 private key, and exited naturally. The relay pickup
+reminder repeated on the final send-transaction request and the CLI again auto-reopened the same Signing URL before
+wallet approval completed. The next active manual verification target is `wallet redeem-notes --tx-submitter`, but the
+repeated relay pickup reminder is now a concrete UX issue to investigate before or alongside redeem verification.
 
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look

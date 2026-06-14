@@ -682,6 +682,30 @@ Relay pickup follow-up on 2026-06-14:
 - Next check: `wallet redeem-notes --tx-submitter` should confirm whether the final send-transaction request is picked
   up without the relay pickup reminder.
 
+Manual redeem-notes retry after relay pickup fix on 2026-06-14:
+
+- Result: failed closed at wallet response timeout. The final send-transaction relay pickup reminder did not reappear,
+  which supports the relay retry fix, but the browser wallet did not return a send-transaction result to the CLI before
+  the 10-minute wallet-request timeout.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs wallet redeem-notes --wallet browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1 --network sepolia --note-ids '["0x0e0abed1eda5134edf38edddc8aee13fbb068cb3da751d883621819ab152dc6d"]' --tx-submitter`.
+- Pre-check redeem target note commitment: `0x0e0abed1eda5134edf38edddc8aee13fbb068cb3da751d883621819ab152dc6d`.
+- Pre-check redeem target note nullifier: `0x3ddffcf994dc54bfad8c17952cf3f71003bab877ac508bf96f98dbab599641f5`.
+- Pre-check channel deposit: `0.00005`.
+- Failure message:
+  `wallet redeem-notes transaction submission failed. ... Provider error: Timed out waiting for browser wallet send transaction.`
+- Operation directory:
+  `/Users/jehyuk/tokamak-private-channels/workspace/sepolia/browser-wallet-test-20260614-funded-a1/wallets/browser-wallet-test-20260614-funded-a1-0x094ac5364ee8b6db0e5b1e1c588be8617fd499a1/epochs/join-0x49e67519a09cb33578431d100bc79f808df958a0da439c0e642854283c25e503-615/operations/20260614T050815Z-wallet-redeem-notes-50a7857a`.
+- Operation file check found pre-submission artifacts including `transaction.json`, `previous_state_snapshot.json`,
+  `wallet redeem-notes.zip`, and Tokamak proof logs; no bridge submission receipt was written.
+- Post-check notes: unchanged. The redeem target note remains unused with bridge commitment present, bridge nullifier
+  unused, and wallet status matching bridge state.
+- Post-check channel deposit: unchanged at `0.00005`.
+- No Sepolia local account secret directory or local L1 private-key file was found after the command.
+- Next check: retry redeem with the wallet confirmation UI visible. If the verifier approved the wallet transaction
+  during this failed run, investigate why the page/provider did not return the result to `/result`; otherwise treat this
+  run as an unapproved wallet request timeout rather than a CLI submission failure.
+
 ### Channel Exit
 
 Command:

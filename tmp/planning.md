@@ -227,6 +227,15 @@ they persist for more than 60 seconds, which is long enough to avoid treating sh
 command completion. The next `wallet redeem-notes --tx-submitter` manual verification should confirm that the final
 send-transaction request is picked up without the relay pickup reminder.
 
+The first `wallet redeem-notes --tx-submitter` attempt after that relay retry change failed closed at wallet response
+timeout. The final send-transaction relay pickup reminder did not reappear, which supports the relay retry fix, but the
+browser wallet did not return a send-transaction result to the CLI before the 10-minute wallet-request timeout. The
+redeem target note remains unused, the channel deposit remains `0.00005`, no bridge submission receipt was written, and
+no local Sepolia L1 private key was created. The next active target remains redeem verification: retry
+`wallet redeem-notes --tx-submitter` with the wallet confirmation UI visible. If the verifier approved the wallet
+transaction during the failed run, investigate why the page/provider did not return the result to `/result`; otherwise
+treat the run as an unapproved wallet request timeout.
+
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look
 like a wallet or transaction failure. The relay session now has a closing state, wakes pending `/request` long-polls

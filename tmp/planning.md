@@ -204,6 +204,17 @@ submitted only the bridge `fund` transaction, increased available bridge balance
 private-key file, and exited naturally. The next active manual verification target is `wallet deposit-channel` for the
 joined wallet, followed by note-command verification.
 
+Before continuing broad manual verification, fix the browser relay completion UX. A stale relay page can currently show
+`Failed to fetch` after the CLI command has already completed and closed its localhost server. That browser message can
+look like a wallet or transaction failure even when the terminal command succeeded. The relay session should publish a
+command-complete state before shutdown: set a closing state, wake pending `/request` long-polls, return an explicit
+completion response such as `{ done: true }`, let the page stop its polling loop, and show a stable message like
+`Command finished. You can return to the terminal.`. If an old page still sees a network failure after the server has
+already closed, the page should treat it as a likely ended CLI session and show a non-alarming stale-session message
+instead of surfacing raw `Failed to fetch`. Keep active wallet request failures distinct from post-completion stale-page
+failures. Verify this with a no-gas browser-wallet command such as `account get-l1-address --network sepolia` before
+resuming `wallet deposit-channel`.
+
 The CLI should continue to preserve structured diagnostic data from browser-wallet failures without exposing secrets or
 raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:
 

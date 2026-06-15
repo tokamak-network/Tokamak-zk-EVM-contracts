@@ -253,6 +253,24 @@ pickup reminder still appeared during redeem, so the relay page final-request pi
 active target is to investigate and fix that relay pickup UX issue before continuing to `wallet withdraw-channel` and
 `channel exit`.
 
+The relay pickup fix has been tightened. The previous short fetch retry still allowed the browser page to infer session
+completion from repeated `/request` fetch failures. That is too aggressive during long proof work because it can stop
+the relay loop before the final transaction request exists. The page now treats only the explicit `{ done: true }`
+completion response as a terminal condition. Transient `/request` failures and 30-second request timeouts keep the page
+alive and polling; after 60 seconds of repeated failures the page shows a non-raw diagnostic message but still continues
+polling. The next browser-wallet transaction command should verify that the final send-transaction request is picked up
+without the relay pickup reminder.
+
+The follow-up `wallet withdraw-channel` verification on 2026-06-15 passed after an initial human-rejected account
+connection failed closed with MetaMask code `4001`. The successful retry moved `0.00005` from channel balance back to
+the shared bridge vault, submitted transaction `0x81c44108f2b3c6e0e576fc0e195cac1bbdee5598a47481b85e2fde0f4e31e5c5`
+through the browser wallet, reduced channel deposit from `0.0001` to `0.00005`, wrote no local Sepolia L1 private-key
+file, and exited naturally. This run also verified the tightened relay pickup fix: the final send-transaction request
+was picked up without the relay pickup reminder or Signing URL reopen. A post-check `wallet get-notes` attempt was
+blocked by the wallet note recovery index exceeding the 7200-block automatic pre-command budget, which is a workspace
+freshness issue rather than a withdrawal failure. The next active target is to withdraw the remaining `0.00005` channel
+balance to reach zero, then run `channel exit` through the browser wallet.
+
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look
 like a wallet or transaction failure. The relay session now has a closing state, wakes pending `/request` long-polls
@@ -260,8 +278,7 @@ before shutdown, returns an explicit completion response with `{ done: true }`, 
 shows `Command finished. You can return to the terminal.`. If an old page still sees a network failure after the server
 has already closed, the page treats it as an ended CLI session and shows a non-alarming stale-session message instead of
 surfacing raw `Failed to fetch`. Active wallet request failures remain distinct from post-completion stale-page
-failures. Verify this with a no-gas browser-wallet command such as `account get-l1-address --network sepolia` before
-resuming `wallet deposit-channel`. The terminal side of that check passed on 2026-06-14 with
+failures. The terminal side of that check passed on 2026-06-14 with
 `account get-l1-address --network sepolia`, returning `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1` and exiting with
 code `0`; direct browser final-state visual inspection still needs a human verifier because the automation environment
 could not read the Chrome window state.

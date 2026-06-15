@@ -547,6 +547,52 @@ Manual deposit-channel result on 2026-06-14:
 - Post-check channel deposit: `0.0001`.
 - No Sepolia local account secret directory or local L1 private-key file was found after the command.
 
+Manual withdraw-channel rejection check on 2026-06-15:
+
+- Result: failed closed at browser-wallet account connection after the human verifier rejected the request.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs wallet withdraw-channel --wallet browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1 --network sepolia --amount 0.00005`.
+- Failure message:
+  `Browser wallet connect failed: User rejected the request. Wallet error code: 4001 Wallet error data: {"cause":"rejectAllApprovals"}`.
+- Post-check channel deposit: unchanged at `0.0001`.
+- No Sepolia local L1 private-key file was found after the rejected request.
+
+Manual withdraw-channel retry result on 2026-06-15:
+
+- Result: passed. The CLI used the browser wallet for L1 owner authority without a local Sepolia L1 private key,
+  generated the L2 accounting proof locally with the wallet spending key, submitted the L1 channel withdrawal
+  transaction through the browser wallet, persisted the operation, and exited naturally with code `0`.
+- Test channel name: `browser-wallet-test-20260614-funded-a1`.
+- Wallet name: `browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs wallet withdraw-channel --wallet browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1 --network sepolia --amount 0.00005`.
+- Pre-check channel deposit: `0.0001`.
+- Amount input: `0.00005`.
+- Amount base units: `50000000000000`.
+- L1 address: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- L2 address: `0x50A7857Ad460D3e303a196Cf673dac5de3dA6078`.
+- Current root vector:
+  `0x4c20d7050177bc381f133368bca01bc81b4a8ed46f709449402d1b6df8cff0d5`,
+  `0x221ae45575931b5d5915675dca6207def3870db1e4b8e0e168c7c1f2a8cdcf3f`.
+- Updated root: `0x44ed405561cfe2a389e3082ff310562f09c9a3dcc9320f9824360577c2a727f0`.
+- Transaction hash: `0x81c44108f2b3c6e0e576fc0e195cac1bbdee5598a47481b85e2fde0f4e31e5c5`.
+- Transaction URL:
+  `https://sepolia.etherscan.io/tx/0x81c44108f2b3c6e0e576fc0e195cac1bbdee5598a47481b85e2fde0f4e31e5c5`.
+- Block number: `11065460`.
+- Gas used: `343234`.
+- Transaction status: `1`.
+- Operation directory:
+  `/Users/jehyuk/tokamak-private-channels/workspace/sepolia/browser-wallet-test-20260614-funded-a1/wallets/browser-wallet-test-20260614-funded-a1-0x094ac5364ee8b6db0e5b1e1c588be8617fd499a1/epochs/join-0x49e67519a09cb33578431d100bc79f808df958a0da439c0e642854283c25e503-615/operations/20260615T121756Z-wallet-withdraw-channel-094ac536`.
+- Operation file check found `input.json`, `state_snapshot.json`, `state_snapshot.normalized.json`, and
+  `wallet withdraw-channel-receipt.json`.
+- Post-check channel deposit: `0.00005`.
+- `wallet get-notes` post-check was not run to completion because the wallet note recovery index was 9179 blocks behind
+  and exceeded the 7200-block automatic pre-command budget. This is a wallet recovery freshness issue, not a withdrawal
+  failure.
+- No Sepolia local L1 private-key file was found after the command.
+- UX observation: the final send-transaction request was picked up without the relay pickup reminder or reopening the
+  Signing URL. This supports the tightened relay polling fix.
+
 ### Note Commands With Browser Submitter
 
 Commands:
@@ -772,6 +818,17 @@ Manual redeem-notes funded retry on 2026-06-14:
 - UX observation: the final send-transaction relay pickup reminder still appeared, and the CLI reopened the same Signing
   URL before the wallet approval completed. The browser-wallet note-command flow works end to end, but the relay pickup
   issue remains unresolved.
+
+Relay pickup follow-up after funded redeem on 2026-06-15:
+
+- Diagnosis refinement: repeated `/request` fetch failures should not be treated as implicit command completion. During
+  long proof work, that inference can stop the relay loop before the final transaction request exists.
+- Implementation change under test: the relay page now treats only an explicit `{ "done": true }` response as terminal.
+  `/request` fetch failures and 30-second request timeouts keep the page alive and polling. After 60 seconds of repeated
+  failures, the page displays a non-raw diagnostic message but continues polling.
+- Follow-up result: `wallet withdraw-channel` picked up the final send-transaction request without the relay pickup
+  reminder or Signing URL reopen. Continue watching this behavior on `channel exit`, but the previously observed
+  reminder is no longer reproduced by the latest browser-wallet transaction command.
 
 ### Channel Exit
 

@@ -12179,21 +12179,22 @@ function browserWalletSigningHtml({ token }) {
     }
     async function readNextRequest() {
       let response;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30_000);
       try {
         response = await fetch("/request?token=" + encodeURIComponent(request.token), {
           cache: "no-store",
+          signal: controller.signal,
         });
       } catch {
         const now = Date.now();
         requestReadFailureStartedAt = requestReadFailureStartedAt ?? now;
-        if (now - requestReadFailureStartedAt > 60_000) {
-          return {
-            done: true,
-            message: "The CLI session has ended. You can close this page.",
-          };
-        }
-        status.textContent = "Waiting for the CLI relay to respond...";
+        status.textContent = now - requestReadFailureStartedAt > 60_000
+          ? "The CLI relay is not responding. Check the terminal for the command result."
+          : "Waiting for the CLI relay to respond...";
         return null;
+      } finally {
+        clearTimeout(timeout);
       }
       noteRequestReadSuccess();
       if (response.status === 204) {

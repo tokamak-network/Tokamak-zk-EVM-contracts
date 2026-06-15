@@ -11528,7 +11528,7 @@ async function requireBrowserWalletSigner({ role, expectedAddress = null, provid
 }
 
 function browserWalletSafeRejectCopy() {
-  return "You can reject this in MetaMask. The CLI command will stop and will not switch to another signing method behind your back.";
+  return "Approve or reject in MetaMask whenever you're ready.";
 }
 
 function browserWalletAccountRequirement(expectedAddress, fallbackAddress = null) {
@@ -11617,6 +11617,10 @@ function browserWalletTransactionTargetSummary(params) {
   return lines.join(" ");
 }
 
+function browserWalletNoteParagraphs({ purpose, result, reassurance }) {
+  return [purpose, result, reassurance].filter((text) => typeof text === "string" && text.trim().length > 0);
+}
+
 function buildBrowserWalletRequestExplanation({
   role,
   action,
@@ -11631,60 +11635,80 @@ function buildBrowserWalletRequestExplanation({
   const channelName = transactionContext?.channelName ?? null;
   const signerAddress = diagnostics?.signerAddress ?? params?.[0]?.from ?? null;
   if (method === "eth_requestAccounts") {
+    const purpose = "MetaMask is asking which account you want to use for this command.";
+    const result = "If you approve, the CLI will use that address for this run.";
+    const reassurance = "Your MetaMask private key stays inside MetaMask, and this page never sees it. Approve or reject in MetaMask when you're ready.";
     return {
       title: "Connect your wallet",
-      whatThisDoes: "MetaMask will ask which account to use for this CLI command.",
-      approvalEffect: "The CLI will use the selected address for this command only.",
+      noteParagraphs: browserWalletNoteParagraphs({ purpose, result, reassurance }),
+      whatThisDoes: purpose,
+      approvalEffect: result,
       publicDisclosure: "No Ethereum transaction is sent by connecting.",
-      privacyEffect: "The CLI does not receive your MetaMask private key.",
+      privacyEffect: reassurance,
       accountRequirement: browserWalletAccountRequirement(expectedAddress),
       networkRequirement: browserWalletNetworkRequirement(expectedChainId),
       safeToReject: browserWalletSafeRejectCopy(),
     };
   }
   if (method === "eth_chainId") {
+    const purpose = "MetaMask is checking that it's on the same network as the command in your terminal.";
+    const result = "If the network matches, the CLI can keep going.";
+    const reassurance = "This does not send a transaction. Your MetaMask private key stays inside MetaMask, and this page never sees it.";
     return {
       title: action === "recheck network" ? "Check network again" : "Check network",
-      whatThisDoes: "The CLI is checking that MetaMask is on the same network selected in the terminal.",
-      approvalEffect: "If the network matches, the command can continue.",
+      noteParagraphs: browserWalletNoteParagraphs({ purpose, result, reassurance }),
+      whatThisDoes: purpose,
+      approvalEffect: result,
       publicDisclosure: "No Ethereum transaction is sent by this check.",
-      privacyEffect: "No wallet secret or note data is shared by this check.",
+      privacyEffect: reassurance,
       accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
       networkRequirement: browserWalletNetworkRequirement(expectedChainId),
       safeToReject: browserWalletSafeRejectCopy(),
     };
   }
   if (method === "wallet_switchEthereumChain") {
+    const purpose = "MetaMask is asking to switch to the network selected in your terminal.";
+    const result = "If you approve, MetaMask will use that network and the CLI can keep going.";
+    const reassurance = "This does not send a transaction or change your channel. Your MetaMask private key stays inside MetaMask.";
     return {
       title: "Switch network",
-      whatThisDoes: `MetaMask will switch to chain ${expectedChainId ?? "the selected network"}.`,
-      approvalEffect: "This only changes the active MetaMask network so the CLI command can continue.",
+      noteParagraphs: browserWalletNoteParagraphs({ purpose, result, reassurance }),
+      whatThisDoes: purpose,
+      approvalEffect: result,
       publicDisclosure: "No Ethereum transaction is sent by switching networks.",
-      privacyEffect: "No wallet secret or note data is shared by switching networks.",
+      privacyEffect: reassurance,
       accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
       networkRequirement: browserWalletNetworkRequirement(expectedChainId),
       safeToReject: browserWalletSafeRejectCopy(),
     };
   }
   if (method === "personal_sign") {
+    const purpose = "MetaMask is asking for a signature so the CLI can set up your channel wallet.";
+    const result = "This does not send a transaction. It just helps the CLI set up this channel wallet on your computer.";
+    const reassurance = "Your MetaMask private key stays inside MetaMask, and this page does not see your wallet secret or private note details. Approve or reject in MetaMask.";
     return {
       title: "Set up your channel wallet",
-      whatThisDoes: "MetaMask will ask you to sign a short setup message.",
-      approvalEffect: "The CLI uses this signature locally to set up your channel wallet key.",
+      noteParagraphs: browserWalletNoteParagraphs({ purpose, result, reassurance }),
+      whatThisDoes: purpose,
+      approvalEffect: result,
       publicDisclosure: "No Ethereum transaction is sent by this signature.",
-      privacyEffect: "The CLI does not receive your MetaMask private key. The new channel key stays in local CLI storage.",
+      privacyEffect: reassurance,
       accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
       networkRequirement: browserWalletNetworkRequirement(expectedChainId),
       safeToReject: browserWalletSafeRejectCopy(),
     };
   }
   if (method === "eth_signTypedData_v4") {
+    const purpose = "MetaMask is asking for one more signature so the CLI can set up note viewing for this wallet.";
+    const result = "This does not send a transaction. It helps the CLI find your notes later.";
+    const reassurance = "Your MetaMask private key stays inside MetaMask, and this page does not show your note contents, wallet secret, or private keys. Approve or reject in MetaMask.";
     return {
       title: "Set up note viewing",
-      whatThisDoes: "MetaMask will ask you to sign typed data for this channel wallet.",
-      approvalEffect: "The CLI uses this signature locally to set up or recover note viewing for this wallet.",
+      noteParagraphs: browserWalletNoteParagraphs({ purpose, result, reassurance }),
+      whatThisDoes: purpose,
+      approvalEffect: result,
       publicDisclosure: "No Ethereum transaction is sent by this signature.",
-      privacyEffect: "This helps the CLI find notes for this wallet when local wallet state is available.",
+      privacyEffect: reassurance,
       accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
       networkRequirement: browserWalletNetworkRequirement(expectedChainId),
       safeToReject: browserWalletSafeRejectCopy(),
@@ -11692,26 +11716,35 @@ function buildBrowserWalletRequestExplanation({
   }
   if (method === "eth_sendTransaction") {
     const targetSummary = browserWalletTransactionTargetSummary(params);
+    const title = browserWalletOperationTitle(operationName);
+    const purpose = `${title}. MetaMask is ready to send the transaction you reviewed in the terminal.`;
+    const result = browserWalletOperationEffect(operationName);
+    const reassurance = "Your MetaMask private key stays inside MetaMask, and this page does not show your wallet secret, private keys, or private note details. Approve or reject in MetaMask.";
     return {
-      title: browserWalletOperationTitle(operationName),
+      title,
+      noteParagraphs: browserWalletNoteParagraphs({ purpose, result, reassurance }),
       whatThisDoes: channelName
         ? `MetaMask will send the transaction for ${operationName ?? "this command"} on channel ${channelName}.`
         : "MetaMask will send the transaction prepared by the CLI.",
-      approvalEffect: browserWalletOperationEffect(operationName),
+      approvalEffect: result,
       publicDisclosure: "This sends an Ethereum transaction from your selected account.",
-      privacyEffect: "This page does not show your wallet secrets, keys, or private note details.",
+      privacyEffect: reassurance,
       accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
       networkRequirement: browserWalletNetworkRequirement(expectedChainId),
       transactionSummary: targetSummary,
       safeToReject: browserWalletSafeRejectCopy(),
     };
   }
+  const purpose = "MetaMask is asking for the wallet step needed by this CLI command.";
+  const result = "If you approve, the CLI command can continue.";
+  const reassurance = "Your MetaMask private key stays inside MetaMask, and this page never sees it. Approve or reject in MetaMask.";
   return {
     title: action || "Wallet request",
-    whatThisDoes: "MetaMask will handle the wallet request needed by this CLI command.",
-    approvalEffect: "If you approve, the CLI command can continue.",
+    noteParagraphs: browserWalletNoteParagraphs({ purpose, result, reassurance }),
+    whatThisDoes: purpose,
+    approvalEffect: result,
     publicDisclosure: "Check MetaMask for whether this request sends a transaction.",
-    privacyEffect: "The CLI does not receive your MetaMask private key.",
+    privacyEffect: reassurance,
     accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
     networkRequirement: browserWalletNetworkRequirement(expectedChainId),
     safeToReject: browserWalletSafeRejectCopy(),
@@ -12366,9 +12399,8 @@ function browserWalletSigningHtml({ token }) {
     .panel { border: 1px solid color-mix(in srgb, CanvasText 20%, transparent); border-radius: 8px; padding: 20px; }
     pre { overflow: auto; padding: 12px; border-radius: 6px; background: color-mix(in srgb, CanvasText 8%, transparent); }
     .muted { color: color-mix(in srgb, CanvasText 70%, transparent); }
-    .request-copy { display: grid; gap: 10px; margin: 16px 0; }
+    .request-copy { display: grid; gap: 12px; margin: 16px 0; font-size: 1.02rem; line-height: 1.5; }
     .request-copy p { margin: 0; }
-    .request-copy .label { font-weight: 600; }
   </style>
 </head>
 <body>
@@ -12394,16 +12426,9 @@ function browserWalletSigningHtml({ token }) {
     function clearNode(node) {
       while (node.firstChild) node.removeChild(node.firstChild);
     }
-    function appendCopyLine(parent, label, value, muted = false) {
+    function appendNoteParagraph(parent, value) {
       if (!value) return;
       const line = document.createElement("p");
-      if (muted) line.className = "muted";
-      if (label) {
-        const labelNode = document.createElement("span");
-        labelNode.className = "label";
-        labelNode.textContent = label + ": ";
-        line.appendChild(labelNode);
-      }
       line.appendChild(document.createTextNode(value));
       parent.appendChild(line);
     }
@@ -12411,14 +12436,12 @@ function browserWalletSigningHtml({ token }) {
       const explanation = activeRequest.explanation || {};
       description.textContent = explanation.title || activeRequest.description || "Review the MetaMask request";
       clearNode(meta);
-      appendCopyLine(meta, null, explanation.whatThisDoes);
-      appendCopyLine(meta, "Result", explanation.approvalEffect);
-      appendCopyLine(meta, "Public", explanation.publicDisclosure, true);
-      appendCopyLine(meta, "Privacy", explanation.privacyEffect, true);
-      appendCopyLine(meta, "Account", explanation.accountRequirement, true);
-      appendCopyLine(meta, "Network", explanation.networkRequirement, true);
-      appendCopyLine(meta, "Transaction", explanation.transactionSummary, true);
-      appendCopyLine(meta, "Rejecting", explanation.safeToReject, true);
+      const paragraphs = Array.isArray(explanation.noteParagraphs) && explanation.noteParagraphs.length > 0
+        ? explanation.noteParagraphs
+        : [explanation.whatThisDoes, explanation.approvalEffect, explanation.privacyEffect, explanation.safeToReject];
+      for (const paragraph of paragraphs) {
+        appendNoteParagraph(meta, paragraph);
+      }
     }
     function noteRequestReadSuccess() {
       requestReadFailureStartedAt = null;

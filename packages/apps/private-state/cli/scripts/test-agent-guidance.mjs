@@ -1163,12 +1163,19 @@ function testChannelJoinBrowserWalletFlowCoverage() {
       && runtimeSource.includes("publicDisclosure")
       && runtimeSource.includes("privacyEffect")
       && runtimeSource.includes("safeToReject")
+      && runtimeSource.includes("noteParagraphs")
       && browserBridgeSessionSource.includes("explanation: this.pending.explanation")
       && browserSigningPageSource.includes("renderRequestExplanation")
       && browserSigningPageSource.includes("activeRequest.explanation")
+      && browserSigningPageSource.includes("appendNoteParagraph")
       && !browserSigningPageSource.includes("Role: ")
-      && !browserSigningPageSource.includes("Action: "),
-    "Browser wallet signing page should render friendly user-facing request explanations instead of developer role/action labels.",
+      && !browserSigningPageSource.includes("Action: ")
+      && !browserSigningPageSource.includes("\"Result\"")
+      && !browserSigningPageSource.includes("\"Public\"")
+      && !browserSigningPageSource.includes("\"Privacy\"")
+      && !browserSigningPageSource.includes("\"Account\"")
+      && !browserSigningPageSource.includes("\"Network\""),
+    "Browser wallet signing page should render friendly note-style request explanations instead of developer labels or information-table labels.",
   );
   expect(
     browserSigningPageSource.includes("activeRequest && activeRequest.done")

@@ -168,9 +168,11 @@ shorter and contextual to the single pending MetaMask request. Terminal warning 
 pre-command disclosure. Browser relay summaries are per-request explanations that help the user connect the MetaMask
 popup to the CLI command they just ran.
 
-Implementation status: the browser relay page now receives per-request explanation fields, renders friendly request
-copy instead of `Role: ... Action: ...`, and keeps raw calldata, proof artifacts, wallet secrets, keys, and note
-plaintext out of the browser UI. Transaction requests also receive the current CLI operation name from
+Implementation status: the browser relay page now receives per-request explanation fields and renders them as short
+note-style paragraphs instead of `Role: ... Action: ...` or labeled rows such as `Result`, `Public`, `Privacy`,
+`Account`, and `Network`. The copy focuses on why MetaMask opened, what approval does, and the privacy/security
+reassurance that the MetaMask private key stays inside MetaMask and that the page does not show wallet secrets, private
+keys, or private note details. Transaction requests also receive the current CLI operation name from
 `dryRunThenSubmitTransaction` so the browser page can describe the command-level effect instead of only saying
 `send transaction`.
 

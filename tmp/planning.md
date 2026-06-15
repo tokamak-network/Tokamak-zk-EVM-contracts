@@ -62,8 +62,12 @@ The browser relay page is user-facing and must not expose developer-oriented lab
 primary explanation. Those labels are useful internal state, but they are not enough for an ordinary user to understand
 why MetaMask opened, what the requested approval does, or what changes if the user approves it.
 
-Replace the current role/action presentation with a plain-language request explanation model. For every browser-wallet
-request, the CLI should send the relay page a sanitized user-facing summary with these fields:
+Replace the current role/action presentation with a plain-language request explanation model. The internal request
+payload may keep structured fields, but the browser UI must not present those fields as an information table or
+checklist. The rendered copy should read like a short note from the CLI to the user: a clear purpose, the expected
+result of approval, and a reassuring privacy/security sentence.
+
+For every browser-wallet request, the CLI should be able to derive these internal copy inputs:
 
 - `title`: a short human title, for example `Connect your wallet`, `Switch network`, `Create channel`, `Join channel`,
   `Sign channel wallet key`, `Sign note viewing key`, `Submit private note transaction`, or `Exit channel`.
@@ -88,6 +92,53 @@ channel wallet`, or `This sends the transaction you reviewed in the terminal`. A
 `irreversible public disclosure`, `authority delegation`, `cryptographic commitment`, `accepted transition surface`, or
 `regulatory risk`. Those details belong in terminal warning summaries, docs, or diagnostics, not in the per-request
 browser relay copy. If a request has a real consequence, state it plainly and briefly without amplifying fear.
+
+The privacy/security reassurance must be stronger than a terse disclaimer. Most request notes should explicitly say
+that the user's MetaMask private key stays inside MetaMask. Signature requests should also say that no Ethereum
+transaction is sent by that signature. Transaction requests should say that the transaction was reviewed in the
+terminal and that this browser page does not show wallet secrets, private keys, or private note details. Avoid claiming
+absolute safety or promising outcomes that the CLI cannot guarantee; reassure by clearly naming what this page and the
+CLI do not see.
+
+The browser UI should render the copy as two or three short note-style paragraphs, not as labeled rows such as
+`Result`, `Public`, `Privacy`, `Account`, or `Network`. The default shape should be:
+
+```text
+MetaMask is asking ...
+
+If you approve, ...
+
+Your MetaMask private key stays inside MetaMask, and this page does not show ...
+```
+
+Example copy:
+
+```text
+MetaMask is asking which account you want to use for this command.
+
+If you approve, the CLI will use that address for this run. Your MetaMask private key stays inside MetaMask, and this
+page never sees it.
+
+Approve or reject in MetaMask when you're ready.
+```
+
+```text
+MetaMask is asking for a signature so the CLI can set up your channel wallet.
+
+This does not send a transaction. Your MetaMask private key stays inside MetaMask, and this page does not see your
+wallet secret or private note details.
+
+Approve or reject in MetaMask.
+```
+
+```text
+MetaMask is ready to send the transaction you reviewed in the terminal.
+
+If you approve, the channel update will be submitted from your selected account. Your MetaMask private key stays inside
+MetaMask, and this page does not show your wallet secret, private keys, or private note details.
+
+Approve or reject in MetaMask.
+```
 
 The relay page should still make clear that it is not an approval surface: it should say that the user must approve or
 reject only in MetaMask. The relay page should not duplicate MetaMask buttons, should not ask the user to trust the

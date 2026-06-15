@@ -949,6 +949,31 @@ Expected result:
 - The error identifies the selected address and the required wallet owner address.
 - The CLI does not retry with another account or local private key.
 
+Manual wrong-account result on 2026-06-15:
+
+- Result: passed. The CLI failed immediately after browser-wallet account selection and before any transaction
+  submission request.
+- Setup: a fresh active zero-balance test epoch was created with a random wallet secret source for the existing
+  `browser-wallet-test-20260614-funded-a1` channel.
+- Setup join transaction hash: `0x9f65cded587c31fbadcde5083cd072b250042a7dbce8e846360fcb0b250cbcfb`.
+- Setup epoch id: `join-0x9f65cded587c31fbadcde5083cd072b250042a7dbce8e846360fcb0b250cbcfb-143`.
+- Setup L2 address: `0xe80cBc4Ba0928Bf2742503b79255cA42175250B5`.
+- Triggering command:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel exit --wallet browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1 --network sepolia`.
+- Browser wallet selected address: `0x3C5515f88A2b7403549Ec87AcC747D446Cdb698a`.
+- Required wallet owner address: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Failure message:
+  `Browser wallet selected 0x3C5515f88A2b7403549Ec87AcC747D446Cdb698a, but this command requires 0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1.`
+- No transaction hash was produced for the wrong-account attempt.
+- No Sepolia local L1 private-key file was found after the failed attempt.
+- Cleanup: after switching back to the required owner account, the same epoch exited successfully with transaction
+  `0x4afd1e36c7866aa2b295f47dfa0ee8f7ad399729f29ea15dbb68e6fc8f5a2c93`.
+- Cleanup block number: `11065667`.
+- Cleanup gas used: `92671`.
+- Post-cleanup wallet lifecycle status: `exited`.
+- Post-cleanup on-chain registration: `Registration Exists: false`.
+- No Sepolia local L1 private-key file was found after cleanup.
+
 ### User Rejection
 
 Procedure:

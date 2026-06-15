@@ -279,8 +279,13 @@ longer exists, wrote no local Sepolia L1 private-key file, and exited naturally.
 completed without the relay pickup reminder or Signing URL reopen. This completes the main browser-wallet success-path
 verification set for `channel join`, `wallet deposit-channel`, `wallet mint-notes`, `wallet transfer-notes`,
 `wallet redeem-notes`, `wallet withdraw-channel`, and `channel exit` without importing an L1 private key. Remaining
-release checks should focus on documented failure paths, a representative local-account regression path, and any second
-MetaMask-capable browser coverage that is available.
+release checks should focus on the still-unverified documented failure paths, a representative local-account regression
+path, and any second MetaMask-capable browser coverage that is available. The wrong-account failure path passed on
+2026-06-15: `channel exit` failed before transaction submission when MetaMask selected
+`0x3C5515f88A2b7403549Ec87AcC747D446Cdb698a` but the wallet required
+`0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`. The temporary active epoch created for that check was then exited with
+transaction `0x4afd1e36c7866aa2b295f47dfa0ee8f7ad399729f29ea15dbb68e6fc8f5a2c93`, leaving no active registration and no
+local Sepolia L1 private-key file.
 
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look

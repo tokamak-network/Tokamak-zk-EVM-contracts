@@ -1157,6 +1157,20 @@ function testChannelJoinBrowserWalletFlowCoverage() {
     "Browser wallet signing page should keep one relay loop, wait for provider injection, and start provider requests from the page.",
   );
   expect(
+    runtimeSource.includes("buildBrowserWalletRequestExplanation")
+      && runtimeSource.includes("whatThisDoes")
+      && runtimeSource.includes("approvalEffect")
+      && runtimeSource.includes("publicDisclosure")
+      && runtimeSource.includes("privacyEffect")
+      && runtimeSource.includes("safeToReject")
+      && browserBridgeSessionSource.includes("explanation: this.pending.explanation")
+      && browserSigningPageSource.includes("renderRequestExplanation")
+      && browserSigningPageSource.includes("activeRequest.explanation")
+      && !browserSigningPageSource.includes("Role: ")
+      && !browserSigningPageSource.includes("Action: "),
+    "Browser wallet signing page should render friendly user-facing request explanations instead of developer role/action labels.",
+  );
+  expect(
     browserSigningPageSource.includes("activeRequest && activeRequest.done")
       && browserSigningPageSource.includes("markComplete(activeRequest.message)")
       && browserSigningPageSource.includes("AbortController")

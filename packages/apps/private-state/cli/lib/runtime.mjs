@@ -9892,7 +9892,15 @@ async function dryRunThenSubmitTransaction({
     });
   }
   try {
-    return await waitForReceipt(await call.submit());
+    return await withBrowserWalletTransactionContext(
+      {
+        operationName,
+        channelName: context?.workspace?.channelName ?? null,
+        channelId: context?.workspace?.channelId ?? null,
+        walletName,
+      },
+      async () => await waitForReceipt(await call.submit()),
+    );
   } catch (error) {
     throw transactionPreflightOrSubmitError({
       phase: "submit",
@@ -11519,6 +11527,197 @@ async function requireBrowserWalletSigner({ role, expectedAddress = null, provid
   });
 }
 
+function browserWalletSafeRejectCopy() {
+  return "You can reject this in MetaMask. The CLI command will stop and will not switch to another signing method behind your back.";
+}
+
+function browserWalletAccountRequirement(expectedAddress, fallbackAddress = null) {
+  const address = expectedAddress ?? fallbackAddress;
+  return address ? `Use account ${getAddress(address)}.` : "Use the MetaMask account you want for this command.";
+}
+
+function browserWalletNetworkRequirement(expectedChainId) {
+  return expectedChainId ? `Use the selected network, chain ${expectedChainId}.` : "";
+}
+
+function browserWalletOperationTitle(operationName) {
+  switch (operationName) {
+    case "account deposit-bridge":
+      return "Add funds to the bridge";
+    case "account withdraw-bridge":
+      return "Withdraw bridge funds";
+    case "channel create":
+      return "Create channel";
+    case "channel set-workspace-mirror":
+      return "Update channel mirror";
+    case "channel abandon-operation":
+      return "Stop new channel activity";
+    case "channel join":
+      return "Join channel";
+    case "channel exit":
+      return "Exit channel";
+    case "wallet deposit-channel":
+      return "Move funds into channel";
+    case "wallet withdraw-channel":
+      return "Move funds out of channel";
+    case "wallet mint-notes":
+      return "Create private notes";
+    case "wallet transfer-notes":
+      return "Send private notes";
+    case "wallet redeem-notes":
+      return "Redeem private note";
+    default:
+      return "Send transaction";
+  }
+}
+
+function browserWalletOperationEffect(operationName) {
+  switch (operationName) {
+    case "account deposit-bridge":
+      return "If you approve, MetaMask sends the bridge funding transaction you reviewed in the terminal.";
+    case "account withdraw-bridge":
+      return "If you approve, MetaMask sends the withdrawal transaction back to your Ethereum account.";
+    case "channel create":
+      return "If you approve, MetaMask creates this channel on Ethereum.";
+    case "channel set-workspace-mirror":
+      return "If you approve, MetaMask updates the channel mirror URL on Ethereum.";
+    case "channel abandon-operation":
+      return "If you approve, MetaMask stops new joins and new channel deposits for this channel.";
+    case "channel join":
+      return "If you approve, MetaMask registers your channel wallet on Ethereum.";
+    case "channel exit":
+      return "If you approve, MetaMask exits this channel wallet and the CLI marks the wallet epoch as exited.";
+    case "wallet deposit-channel":
+      return "If you approve, MetaMask moves bridge balance into your channel balance.";
+    case "wallet withdraw-channel":
+      return "If you approve, MetaMask moves channel balance back to your bridge balance.";
+    case "wallet mint-notes":
+      return "If you approve, MetaMask submits the private note transaction prepared by the CLI.";
+    case "wallet transfer-notes":
+      return "If you approve, MetaMask submits the private note transfer prepared by the CLI.";
+    case "wallet redeem-notes":
+      return "If you approve, MetaMask submits the note redemption prepared by the CLI.";
+    default:
+      return "If you approve, MetaMask sends the Ethereum transaction prepared by the CLI.";
+  }
+}
+
+function browserWalletTransactionTargetSummary(params) {
+  const tx = params?.[0] ?? {};
+  const lines = [];
+  if (tx.from) {
+    lines.push(`From ${getAddress(tx.from)}.`);
+  }
+  if (tx.to) {
+    lines.push(`To ${getAddress(tx.to)}.`);
+  }
+  if (tx.value && ethers.toBigInt(tx.value) > 0n) {
+    lines.push(`Value ${ethers.formatEther(tx.value)} ETH.`);
+  }
+  return lines.join(" ");
+}
+
+function buildBrowserWalletRequestExplanation({
+  role,
+  action,
+  method,
+  params,
+  expectedAddress = null,
+  expectedChainId = null,
+  transactionContext = null,
+  diagnostics = null,
+}) {
+  const operationName = transactionContext?.operationName ?? null;
+  const channelName = transactionContext?.channelName ?? null;
+  const signerAddress = diagnostics?.signerAddress ?? params?.[0]?.from ?? null;
+  if (method === "eth_requestAccounts") {
+    return {
+      title: "Connect your wallet",
+      whatThisDoes: "MetaMask will ask which account to use for this CLI command.",
+      approvalEffect: "The CLI will use the selected address for this command only.",
+      publicDisclosure: "No Ethereum transaction is sent by connecting.",
+      privacyEffect: "The CLI does not receive your MetaMask private key.",
+      accountRequirement: browserWalletAccountRequirement(expectedAddress),
+      networkRequirement: browserWalletNetworkRequirement(expectedChainId),
+      safeToReject: browserWalletSafeRejectCopy(),
+    };
+  }
+  if (method === "eth_chainId") {
+    return {
+      title: action === "recheck network" ? "Check network again" : "Check network",
+      whatThisDoes: "The CLI is checking that MetaMask is on the same network selected in the terminal.",
+      approvalEffect: "If the network matches, the command can continue.",
+      publicDisclosure: "No Ethereum transaction is sent by this check.",
+      privacyEffect: "No wallet secret or note data is shared by this check.",
+      accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
+      networkRequirement: browserWalletNetworkRequirement(expectedChainId),
+      safeToReject: browserWalletSafeRejectCopy(),
+    };
+  }
+  if (method === "wallet_switchEthereumChain") {
+    return {
+      title: "Switch network",
+      whatThisDoes: `MetaMask will switch to chain ${expectedChainId ?? "the selected network"}.`,
+      approvalEffect: "This only changes the active MetaMask network so the CLI command can continue.",
+      publicDisclosure: "No Ethereum transaction is sent by switching networks.",
+      privacyEffect: "No wallet secret or note data is shared by switching networks.",
+      accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
+      networkRequirement: browserWalletNetworkRequirement(expectedChainId),
+      safeToReject: browserWalletSafeRejectCopy(),
+    };
+  }
+  if (method === "personal_sign") {
+    return {
+      title: "Set up your channel wallet",
+      whatThisDoes: "MetaMask will ask you to sign a short setup message.",
+      approvalEffect: "The CLI uses this signature locally to set up your channel wallet key.",
+      publicDisclosure: "No Ethereum transaction is sent by this signature.",
+      privacyEffect: "The CLI does not receive your MetaMask private key. The new channel key stays in local CLI storage.",
+      accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
+      networkRequirement: browserWalletNetworkRequirement(expectedChainId),
+      safeToReject: browserWalletSafeRejectCopy(),
+    };
+  }
+  if (method === "eth_signTypedData_v4") {
+    return {
+      title: "Set up note viewing",
+      whatThisDoes: "MetaMask will ask you to sign typed data for this channel wallet.",
+      approvalEffect: "The CLI uses this signature locally to set up or recover note viewing for this wallet.",
+      publicDisclosure: "No Ethereum transaction is sent by this signature.",
+      privacyEffect: "This helps the CLI find notes for this wallet when local wallet state is available.",
+      accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
+      networkRequirement: browserWalletNetworkRequirement(expectedChainId),
+      safeToReject: browserWalletSafeRejectCopy(),
+    };
+  }
+  if (method === "eth_sendTransaction") {
+    const targetSummary = browserWalletTransactionTargetSummary(params);
+    return {
+      title: browserWalletOperationTitle(operationName),
+      whatThisDoes: channelName
+        ? `MetaMask will send the transaction for ${operationName ?? "this command"} on channel ${channelName}.`
+        : "MetaMask will send the transaction prepared by the CLI.",
+      approvalEffect: browserWalletOperationEffect(operationName),
+      publicDisclosure: "This sends an Ethereum transaction from your selected account.",
+      privacyEffect: "This page does not show your wallet secrets, keys, or private note details.",
+      accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
+      networkRequirement: browserWalletNetworkRequirement(expectedChainId),
+      transactionSummary: targetSummary,
+      safeToReject: browserWalletSafeRejectCopy(),
+    };
+  }
+  return {
+    title: action || "Wallet request",
+    whatThisDoes: "MetaMask will handle the wallet request needed by this CLI command.",
+    approvalEffect: "If you approve, the CLI command can continue.",
+    publicDisclosure: "Check MetaMask for whether this request sends a transaction.",
+    privacyEffect: "The CLI does not receive your MetaMask private key.",
+    accountRequirement: browserWalletAccountRequirement(expectedAddress, signerAddress),
+    networkRequirement: browserWalletNetworkRequirement(expectedChainId),
+    safeToReject: browserWalletSafeRejectCopy(),
+  };
+}
+
 class BrowserWalletSigner {
   static async connect({ role, expectedAddress = null, provider = null } = {}) {
     const accounts = await requestBrowserWallet({
@@ -11527,6 +11726,7 @@ class BrowserWalletSigner {
       method: "eth_requestAccounts",
       params: [],
       description: "Connect the browser wallet account that should approve this CLI command.",
+      expectedAddress,
     });
     expect(Array.isArray(accounts) && accounts.length > 0, "Browser wallet did not return any account.");
     const address = getAddress(accounts[0]);
@@ -11537,17 +11737,16 @@ class BrowserWalletSigner {
       );
     }
     if (provider) {
-      const [initialWalletChainIdHex, providerNetwork] = await Promise.all([
-        requestBrowserWallet({
-          role,
-          action: "check network",
-          method: "eth_chainId",
-          params: [],
-          description: "Verify that the browser wallet is connected to the selected network.",
-        }),
-        provider.getNetwork(),
-      ]);
+      const providerNetwork = await provider.getNetwork();
       const expectedChainId = Number(providerNetwork.chainId);
+      const initialWalletChainIdHex = await requestBrowserWallet({
+        role,
+        action: "check network",
+        method: "eth_chainId",
+        params: [],
+        description: "Verify that the browser wallet is connected to the selected network.",
+        expectedChainId,
+      });
       let walletChainId = Number(ethers.toBigInt(initialWalletChainIdHex));
       if (walletChainId !== expectedChainId) {
         await requestBrowserWallet({
@@ -11556,6 +11755,7 @@ class BrowserWalletSigner {
           method: "wallet_switchEthereumChain",
           params: [{ chainId: ethers.toQuantity(expectedChainId) }],
           description: `Switch the browser wallet to the selected network chain ${expectedChainId}.`,
+          expectedChainId,
         });
         const switchedWalletChainIdHex = await requestBrowserWallet({
           role,
@@ -11563,6 +11763,7 @@ class BrowserWalletSigner {
           method: "eth_chainId",
           params: [],
           description: "Verify that the browser wallet switched to the selected network.",
+          expectedChainId,
         });
         walletChainId = Number(ethers.toBigInt(switchedWalletChainIdHex));
       }
@@ -11571,12 +11772,13 @@ class BrowserWalletSigner {
         `Browser wallet chain ${walletChainId} does not match selected network chain ${expectedChainId}.`,
       );
     }
-    return new BrowserWalletSigner({ address, provider });
+    return new BrowserWalletSigner({ address, provider, role });
   }
 
-  constructor({ address, provider = null }) {
+  constructor({ address, provider = null, role = "L1 account" }) {
     this.address = getAddress(address);
     this.provider = provider;
+    this.role = role;
   }
 
   async getAddress() {
@@ -11584,7 +11786,7 @@ class BrowserWalletSigner {
   }
 
   connect(provider) {
-    return new BrowserWalletSigner({ address: this.address, provider });
+    return new BrowserWalletSigner({ address: this.address, provider, role: this.role });
   }
 
   async signMessage(message) {
@@ -11637,7 +11839,7 @@ class BrowserWalletSigner {
       from: this.address,
     });
     const hash = await requestBrowserWallet({
-      role: "transaction submitter",
+      role: this.role,
       action: "send transaction",
       method: "eth_sendTransaction",
       params: [tx],
@@ -11645,6 +11847,7 @@ class BrowserWalletSigner {
       diagnostics: {
         signerAddress: this.address,
       },
+      transactionContext: currentBrowserWalletTransactionContext,
     });
     return {
       hash,
@@ -11658,6 +11861,17 @@ class BrowserWalletSigner {
 }
 
 let browserWalletBridgeSession = null;
+let currentBrowserWalletTransactionContext = null;
+
+async function withBrowserWalletTransactionContext(context, callback) {
+  const previous = currentBrowserWalletTransactionContext;
+  currentBrowserWalletTransactionContext = context;
+  try {
+    return await callback();
+  } finally {
+    currentBrowserWalletTransactionContext = previous;
+  }
+}
 
 function getBrowserWalletBridgeSession() {
   if (!browserWalletBridgeSession) {
@@ -11696,6 +11910,9 @@ class BrowserWalletBridgeSession {
     method,
     params,
     description,
+    expectedAddress = null,
+    expectedChainId = null,
+    transactionContext = null,
     diagnostics = null,
   }) {
     await this.ensureStarted();
@@ -11715,6 +11932,16 @@ class BrowserWalletBridgeSession {
         method,
         params,
         description,
+        explanation: buildBrowserWalletRequestExplanation({
+          role,
+          action,
+          method,
+          params,
+          expectedAddress,
+          expectedChainId,
+          transactionContext,
+          diagnostics,
+        }),
         diagnostics,
         signingUrl,
         settled: false,
@@ -11871,6 +12098,7 @@ class BrowserWalletBridgeSession {
             method: this.pending.method,
             params: this.pending.params,
             description: this.pending.description,
+            explanation: this.pending.explanation,
             diagnostics: this.pending.diagnostics,
           }),
         );
@@ -12138,6 +12366,9 @@ function browserWalletSigningHtml({ token }) {
     .panel { border: 1px solid color-mix(in srgb, CanvasText 20%, transparent); border-radius: 8px; padding: 20px; }
     pre { overflow: auto; padding: 12px; border-radius: 6px; background: color-mix(in srgb, CanvasText 8%, transparent); }
     .muted { color: color-mix(in srgb, CanvasText 70%, transparent); }
+    .request-copy { display: grid; gap: 10px; margin: 16px 0; }
+    .request-copy p { margin: 0; }
+    .request-copy .label { font-weight: 600; }
   </style>
 </head>
 <body>
@@ -12145,7 +12376,7 @@ function browserWalletSigningHtml({ token }) {
     <section class="panel">
       <h1>Browser Wallet Request Relay</h1>
       <p id="description">Waiting for the next CLI wallet request.</p>
-      <p id="meta" class="muted"></p>
+      <div id="meta" class="request-copy"></div>
       <p id="status" class="muted">Keep this page open. Approve or reject only in your wallet UI.</p>
       <details>
         <summary>Request details</summary>
@@ -12160,6 +12391,35 @@ function browserWalletSigningHtml({ token }) {
     const meta = document.getElementById("meta");
     const details = document.getElementById("details");
     let requestReadFailureStartedAt = null;
+    function clearNode(node) {
+      while (node.firstChild) node.removeChild(node.firstChild);
+    }
+    function appendCopyLine(parent, label, value, muted = false) {
+      if (!value) return;
+      const line = document.createElement("p");
+      if (muted) line.className = "muted";
+      if (label) {
+        const labelNode = document.createElement("span");
+        labelNode.className = "label";
+        labelNode.textContent = label + ": ";
+        line.appendChild(labelNode);
+      }
+      line.appendChild(document.createTextNode(value));
+      parent.appendChild(line);
+    }
+    function renderRequestExplanation(activeRequest) {
+      const explanation = activeRequest.explanation || {};
+      description.textContent = explanation.title || activeRequest.description || "Review the MetaMask request";
+      clearNode(meta);
+      appendCopyLine(meta, null, explanation.whatThisDoes);
+      appendCopyLine(meta, "Result", explanation.approvalEffect);
+      appendCopyLine(meta, "Public", explanation.publicDisclosure, true);
+      appendCopyLine(meta, "Privacy", explanation.privacyEffect, true);
+      appendCopyLine(meta, "Account", explanation.accountRequirement, true);
+      appendCopyLine(meta, "Network", explanation.networkRequirement, true);
+      appendCopyLine(meta, "Transaction", explanation.transactionSummary, true);
+      appendCopyLine(meta, "Rejecting", explanation.safeToReject, true);
+    }
     function noteRequestReadSuccess() {
       requestReadFailureStartedAt = null;
     }
@@ -12207,13 +12467,13 @@ function browserWalletSigningHtml({ token }) {
     }
     function markComplete(message) {
       description.textContent = "Command finished.";
-      meta.textContent = "";
+      clearNode(meta);
       status.textContent = message || "You can return to the terminal.";
       details.textContent = "{}";
     }
     function markRelayStopped(error) {
       description.textContent = "Browser wallet relay stopped.";
-      meta.textContent = "";
+      clearNode(meta);
       status.textContent = "The relay could not contact the CLI. Check the terminal for the command result.";
       details.textContent = JSON.stringify({
         error: error && error.message ? error.message : String(error),
@@ -12300,8 +12560,7 @@ function browserWalletSigningHtml({ token }) {
     async function requestWallet(activeRequest) {
       let failureDiagnostics = null;
       try {
-        description.textContent = activeRequest.description;
-        meta.textContent = "Role: " + activeRequest.role + ". Action: " + activeRequest.action + ".";
+        renderRequestExplanation(activeRequest);
         details.textContent = JSON.stringify({ method: activeRequest.method }, null, 2);
         await postStatus(activeRequest, "loaded");
         const provider = await waitForEthereumProvider();

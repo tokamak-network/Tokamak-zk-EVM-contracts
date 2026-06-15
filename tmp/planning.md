@@ -262,14 +262,25 @@ polling. The next browser-wallet transaction command should verify that the fina
 without the relay pickup reminder.
 
 The follow-up `wallet withdraw-channel` verification on 2026-06-15 passed after an initial human-rejected account
-connection failed closed with MetaMask code `4001`. The successful retry moved `0.00005` from channel balance back to
-the shared bridge vault, submitted transaction `0x81c44108f2b3c6e0e576fc0e195cac1bbdee5598a47481b85e2fde0f4e31e5c5`
+connection failed closed with MetaMask code `4001`. The first successful retry moved `0.00005` from channel balance back
+to the shared bridge vault, submitted transaction `0x81c44108f2b3c6e0e576fc0e195cac1bbdee5598a47481b85e2fde0f4e31e5c5`
 through the browser wallet, reduced channel deposit from `0.0001` to `0.00005`, wrote no local Sepolia L1 private-key
-file, and exited naturally. This run also verified the tightened relay pickup fix: the final send-transaction request
-was picked up without the relay pickup reminder or Signing URL reopen. A post-check `wallet get-notes` attempt was
-blocked by the wallet note recovery index exceeding the 7200-block automatic pre-command budget, which is a workspace
-freshness issue rather than a withdrawal failure. The next active target is to withdraw the remaining `0.00005` channel
-balance to reach zero, then run `channel exit` through the browser wallet.
+file, and exited naturally. A post-check `wallet get-notes` attempt was blocked by the wallet note recovery index
+exceeding the 7200-block automatic pre-command budget, which is a workspace freshness issue rather than a withdrawal
+failure. A second successful retry submitted transaction
+`0x73b69b6c0ef6037ca7760f0f4280408ce7d860d9c5c5bc89d65855276bfdc754` through the browser wallet and reduced channel
+deposit from `0.00005` to zero. Both successful withdraw runs picked up the final send-transaction request without the
+relay pickup reminder or Signing URL reopen.
+
+The browser-wallet `channel exit` verification also passed on 2026-06-15 after the channel balance reached zero. The
+CLI submitted transaction `0x1f4a6112de01f4af79227a91ab5bb1cbcded20e2f5e0762d5482cf6a42d75dce` through the browser
+wallet, received status `1`, marked the local wallet epoch as `exited`, confirmed that the on-chain registration no
+longer exists, wrote no local Sepolia L1 private-key file, and exited naturally. The exit send-transaction request also
+completed without the relay pickup reminder or Signing URL reopen. This completes the main browser-wallet success-path
+verification set for `channel join`, `wallet deposit-channel`, `wallet mint-notes`, `wallet transfer-notes`,
+`wallet redeem-notes`, `wallet withdraw-channel`, and `channel exit` without importing an L1 private key. Remaining
+release checks should focus on documented failure paths, a representative local-account regression path, and any second
+MetaMask-capable browser coverage that is available.
 
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look

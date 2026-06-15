@@ -593,6 +593,34 @@ Manual withdraw-channel retry result on 2026-06-15:
 - UX observation: the final send-transaction request was picked up without the relay pickup reminder or reopening the
   Signing URL. This supports the tightened relay polling fix.
 
+Manual final withdraw-channel result on 2026-06-15:
+
+- Result: passed. The CLI used the browser wallet for L1 owner authority without a local Sepolia L1 private key,
+  generated the L2 accounting proof locally with the wallet spending key, submitted the final channel withdrawal
+  transaction through the browser wallet, persisted the operation, and exited naturally with code `0`.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs wallet withdraw-channel --wallet browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1 --network sepolia --amount 0.00005`.
+- Pre-check channel deposit: `0.00005`.
+- Amount input: `0.00005`.
+- Amount base units: `50000000000000`.
+- Current root vector:
+  `0x4c20d7050177bc381f133368bca01bc81b4a8ed46f709449402d1b6df8cff0d5`,
+  `0x44ed405561cfe2a389e3082ff310562f09c9a3dcc9320f9824360577c2a727f0`.
+- Updated root: `0x32fe7eab871c48cbc0c5c1b6444be3d71bfba4056511b49dd0ceb179c8807bc6`.
+- Transaction hash: `0x73b69b6c0ef6037ca7760f0f4280408ce7d860d9c5c5bc89d65855276bfdc754`.
+- Transaction URL:
+  `https://sepolia.etherscan.io/tx/0x73b69b6c0ef6037ca7760f0f4280408ce7d860d9c5c5bc89d65855276bfdc754`.
+- Block number: `11065596`.
+- Gas used: `363340`.
+- Transaction status: `1`.
+- Operation directory:
+  `/Users/jehyuk/tokamak-private-channels/workspace/sepolia/browser-wallet-test-20260614-funded-a1/wallets/browser-wallet-test-20260614-funded-a1-0x094ac5364ee8b6db0e5b1e1c588be8617fd499a1/epochs/join-0x49e67519a09cb33578431d100bc79f808df958a0da439c0e642854283c25e503-615/operations/20260615T123943Z-wallet-withdraw-channel-094ac536`.
+- Post-check channel deposit: `0.0`.
+- No Sepolia local L1 private-key file was found after the command.
+- UX observation: the final send-transaction request again completed without the relay pickup reminder or Signing URL
+  reopen. The wallet took several minutes to return the approved transaction result, but the relay did not lose the
+  request.
+
 ### Note Commands With Browser Submitter
 
 Commands:
@@ -846,6 +874,31 @@ Expected result:
 - The browser wallet owner approval is requested once before transaction submission.
 - The selected browser wallet address must match the wallet `l1Address`.
 - The wallet epoch is marked exited after the accepted transaction.
+
+Manual channel-exit result on 2026-06-15:
+
+- Result: passed. After the channel balance reached zero, the CLI used the browser wallet for L1 owner authority,
+  submitted the exit transaction, marked the local wallet epoch as exited, and exited naturally with code `0`.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel exit --wallet browser-wallet-test-20260614-funded-a1-0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1 --network sepolia`.
+- Pre-check channel deposit: `0.0`.
+- L1 address: `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- Current user value: `0`.
+- Refund amount: `0.0`.
+- Refund bps: `2500`.
+- Transaction hash: `0x1f4a6112de01f4af79227a91ab5bb1cbcded20e2f5e0762d5482cf6a42d75dce`.
+- Transaction URL:
+  `https://sepolia.etherscan.io/tx/0x1f4a6112de01f4af79227a91ab5bb1cbcded20e2f5e0762d5482cf6a42d75dce`.
+- Block number: `11065602`.
+- Gas used: `92741`.
+- Transaction status: `1`.
+- Epoch id: `join-0x49e67519a09cb33578431d100bc79f808df958a0da439c0e642854283c25e503-615`.
+- Post-check wallet lifecycle status: `exited`.
+- Post-check on-chain registration: `Registration Exists: false`.
+- Archived wallet directory:
+  `/Users/jehyuk/tokamak-private-channels/workspace/sepolia/browser-wallet-test-20260614-funded-a1/wallets/browser-wallet-test-20260614-funded-a1-0x094ac5364ee8b6db0e5b1e1c588be8617fd499a1/epochs/join-0x49e67519a09cb33578431d100bc79f808df958a0da439c0e642854283c25e503-615`.
+- No Sepolia local L1 private-key file was found after the command.
+- UX observation: the exit send-transaction request completed without the relay pickup reminder or Signing URL reopen.
 
 ## Failure Path Checks
 

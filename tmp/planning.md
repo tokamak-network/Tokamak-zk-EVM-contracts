@@ -56,6 +56,59 @@ permissions are origin-scoped. The request id may change per approval, but the h
 remain stable for that command. The preferred browser bridge shape is one persistent relay page that polls the CLI for
 the next request and performs all provider calls from the same browser JavaScript context.
 
+## Browser Relay UX Copy
+
+The browser relay page is user-facing and must not expose developer-oriented labels such as `role` and `action` as the
+primary explanation. Those labels are useful internal state, but they are not enough for an ordinary user to understand
+why MetaMask opened, what the requested approval does, or what changes if the user approves it.
+
+Replace the current role/action presentation with a plain-language request explanation model. For every browser-wallet
+request, the CLI should send the relay page a sanitized user-facing summary with these fields:
+
+- `title`: a short human title, for example `Connect your wallet`, `Switch network`, `Create channel`, `Join channel`,
+  `Sign channel wallet key`, `Sign note viewing key`, `Submit private note transaction`, or `Exit channel`.
+- `whatThisDoes`: one or two sentences explaining what the MetaMask request will do in ordinary language.
+- `approvalEffect`: the concrete consequence of approval, such as connecting the selected account to this CLI session,
+  switching MetaMask to Sepolia, deriving the channel-bound L2 spending key from a signature, deriving the note viewing
+  key from typed data, sending a public Ethereum transaction, changing channel balance, creating or spending private
+  notes, or marking the wallet epoch exited.
+- `publicDisclosure`: what becomes public on Ethereum when the request submits a transaction. This should be omitted or
+  explicitly say `No Ethereum transaction is sent by this request` for connect, network, and signature-only requests.
+- `privacyEffect`: what private-state data is or is not revealed by the request. This must stay consistent with the
+  command warning summary.
+- `accountRequirement`: the expected account when the command requires a specific owner, channel leader, or submitter.
+- `networkRequirement`: the selected network and chain id when relevant.
+- `safeToReject`: a short statement that rejecting cancels or stops the CLI command and does not authorize a fallback
+  local private key path.
+
+The relay page should still make clear that it is not an approval surface: it should say that the user must approve or
+reject only in MetaMask. The relay page should not duplicate MetaMask buttons, should not ask the user to trust the
+localhost page instead of MetaMask, and should not hide that the actual wallet request is controlled by the extension UI.
+
+The request explanations must be specific to the command and request type:
+
+- `eth_requestAccounts`: explain that the CLI is asking MetaMask which account the user wants to use for this command,
+  and that no transaction or signature is sent by connecting.
+- `eth_chainId`: explain that the CLI is checking that MetaMask is on the same network selected in the terminal.
+- `wallet_switchEthereumChain`: explain which network MetaMask will switch to and that no channel state changes merely
+  from switching networks.
+- `personal_sign` during `channel join`: explain that approval signs a deterministic message used locally to derive the
+  channel-bound L2 spending key; it does not send an Ethereum transaction, but the derived key can authorize future
+  private note actions.
+- `eth_signTypedData_v4` during `channel join` or recovery: explain that approval signs typed data used locally to
+  derive or recover note viewing authority; it does not send an Ethereum transaction, but the derived viewing key can
+  read notes addressed to the wallet when the required local state is available.
+- `eth_sendTransaction`: explain the exact command-level effect. Examples include creating a channel, joining a channel,
+  depositing bridge funds, withdrawing bridge funds, moving balance into or out of a channel, submitting a private note
+  state transition, or exiting a channel. The page should show the public account, channel name, amount when available,
+  and transaction target summary, but must not show raw calldata, proof artifacts, wallet secrets, L2 private keys,
+  viewing keys, note plaintext, or full note secret material.
+
+The implementation should reuse the existing warning-summary source of truth where possible, but the relay copy must be
+shorter and contextual to the single pending MetaMask request. Terminal warning summaries remain the comprehensive
+pre-command disclosure. Browser relay summaries are per-request explanations that help the user connect the MetaMask
+popup to the CLI command they just ran.
+
 ## Command Surface
 
 Do not add a new public browser-wallet option. Extend the existing account-selection grammar instead:
@@ -341,6 +394,12 @@ failures.
      show only relay status, so the user's click target is the wallet extension UI, not CLI-provided UI.
    - Report relay page load and provider-request-start status back to the CLI so browser launch, provider injection, and
      wallet-response failures are distinguishable.
+   - Replace the developer-oriented relay page `Role: ... Action: ...` text with the user-facing request explanation
+     model described in "Browser Relay UX Copy". Keep role/action fields internal for diagnostics if useful, but do not
+     use them as the primary browser UI copy.
+   - Generate request explanations from command context and sanitized warning-summary data. Transaction requests should
+     explain the command effect and public consequence; signature requests should explain local key derivation or
+     recovery effects; account and network requests should explain that no Ethereum transaction is sent by that request.
    - Do not add extra account-permission prompts around signatures or transaction submission. After the initial wallet
      connection, forward the requested signature or transaction to the wallet and fail clearly on `Unauthorized`, wrong
      account, rejection, or malformed wallet responses.

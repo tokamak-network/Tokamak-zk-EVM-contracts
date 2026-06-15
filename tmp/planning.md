@@ -81,6 +81,14 @@ request, the CLI should send the relay page a sanitized user-facing summary with
 - `safeToReject`: a short statement that rejecting cancels or stops the CLI command and does not authorize a fallback
   local private key path.
 
+The copy must be calm, friendly, and short. The relay page should help the user recognize the MetaMask request, not make
+the request feel more dangerous than it is. Avoid legalistic, alarmist, or developer-heavy language in the browser UI.
+Prefer simple wording such as `MetaMask will ask which account to use`, `This signs a message so the CLI can set up your
+channel wallet`, or `This sends the transaction you reviewed in the terminal`. Avoid browser-page phrasing such as
+`irreversible public disclosure`, `authority delegation`, `cryptographic commitment`, `accepted transition surface`, or
+`regulatory risk`. Those details belong in terminal warning summaries, docs, or diagnostics, not in the per-request
+browser relay copy. If a request has a real consequence, state it plainly and briefly without amplifying fear.
+
 The relay page should still make clear that it is not an approval surface: it should say that the user must approve or
 reject only in MetaMask. The relay page should not duplicate MetaMask buttons, should not ask the user to trust the
 localhost page instead of MetaMask, and should not hide that the actual wallet request is controlled by the extension UI.

@@ -987,6 +987,28 @@ Expected result:
 - The error reports that the browser wallet request failed.
 - No transaction is submitted.
 
+Manual user-rejection attempt on 2026-06-15:
+
+- Result: inconclusive. The intended rejection did not occur because the MetaMask signature and transaction requests
+  were approved.
+- Initial low-risk trigger: `account get-l1-address --network sepolia` did not show a rejectable MetaMask prompt because
+  the localhost origin already had account access; it returned the connected address successfully.
+- Follow-up trigger:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel join --channel-name browser-wallet-test-20260614-funded-a1 --network sepolia --wallet-secret-path /Users/jehyuk/tokamak-private-channels/tmp/browser-wallet-rejection-20260615.secret`.
+- Join transaction hash: `0xf04d3f232fbc653ae857954cd268717e885720d0a1c2b69f1e6eabe0301fd067`.
+- Join block number: `11066110`.
+- Temporary L2 address: `0x5AB83d1d0eed4b67437449056738f87342E39324`.
+- Cleanup: the temporary active epoch exited successfully with transaction
+  `0x7bc95eff19dcd4b6b6daf1d47a09d21091a21a60ab853a526f75c0240141d752`.
+- Cleanup block number: `11066118`.
+- Cleanup gas used: `92671`.
+- Post-cleanup wallet lifecycle status: `exited`.
+- Post-cleanup on-chain registration: `Registration Exists: false`.
+- No Sepolia local L1 private-key file was found after the attempt and cleanup.
+- User rejection remains unverified. The next retry must use a prompt that is actually rejected in MetaMask; a
+  signature-only request is preferred over a transaction request to avoid unnecessary on-chain cleanup if the request is
+  approved accidentally.
+
 ### No Provider
 
 Procedure:

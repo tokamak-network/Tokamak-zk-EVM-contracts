@@ -354,6 +354,13 @@ path, and any second MetaMask-capable browser coverage that is available. The wr
 transaction `0x4afd1e36c7866aa2b295f47dfa0ee8f7ad399729f29ea15dbb68e6fc8f5a2c93`, leaving no active registration and no
 local Sepolia L1 private-key file.
 
+The first user-rejection retry on 2026-06-15 was inconclusive because the MetaMask requests were approved instead of
+rejected. `account get-l1-address --network sepolia` reused an existing origin permission and returned the address
+without a rejectable prompt. A follow-up `channel join` created temporary epoch
+`join-0xf04d3f232fbc653ae857954cd268717e885720d0a1c2b69f1e6eabe0301fd067-17`, which was cleaned up with exit
+transaction `0x7bc95eff19dcd4b6b6daf1d47a09d21091a21a60ab853a526f75c0240141d752`. User rejection remains unverified;
+the next retry should use a signature-only request where the verifier explicitly rejects the MetaMask prompt.
+
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look
 like a wallet or transaction failure. The relay session now has a closing state, wakes pending `/request` long-polls

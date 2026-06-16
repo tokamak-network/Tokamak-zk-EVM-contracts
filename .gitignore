@@ -75,5 +75,6 @@ scripts/output/zk-artifacts/*/
 client_secret_*.json
 google-drive-oauth-token.json
 # Temporary files
+/tmp/
 checklist.md
 checklist_eng.md

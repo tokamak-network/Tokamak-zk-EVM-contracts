@@ -444,6 +444,10 @@ private-key file exists in the CLI secret workspace, and creating or importing o
 The command returned `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`, opened no browser-wallet relay, and requested no
 Ethereum transaction.
 
+The second MetaMask-capable browser coverage item is currently not available in this environment. A 2026-06-16
+application scan found only Google Chrome under `/Applications` and `~/Applications`, so no Firefox, Brave, Edge,
+Chromium, Arc, Opera, or Vivaldi browser was available for a second-browser MetaMask check.
+
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look
 like a wallet or transaction failure. The relay session now has a closing state, wakes pending `/request` long-polls

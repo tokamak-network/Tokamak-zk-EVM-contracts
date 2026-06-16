@@ -70,8 +70,8 @@ Run the success and failure checks in at least two MetaMask-capable browsers whe
 
 | Browser | Provider | Result | Notes |
 | --- | --- | --- | --- |
-| Google Chrome | MetaMask-compatible provider | Partially passed | Account address discovery and browser-wallet `channel create` transaction submission passed with user-controlled wallet approval. Key-derivation and later note-operation checks are still not run. |
-| Second browser | MetaMask-compatible provider | Not run | No second browser application was detected during automated preflight. |
+| Google Chrome | MetaMask-compatible provider | Passed | Browser-wallet success paths, documented failure paths, and relay completion visual check passed with user-controlled wallet approval. |
+| Second browser | MetaMask-compatible provider | Not available | Rechecked on 2026-06-16; only Google Chrome was found under `/Applications` and `~/Applications`. |
 
 ## Success Path Checks
 

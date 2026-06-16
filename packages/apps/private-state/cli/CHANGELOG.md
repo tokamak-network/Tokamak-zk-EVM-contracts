@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 3.0.0 - 2026-06-16
 
 - Expanded the installed-package E2E to cover raw evidence export ZIP validation, investigator asset smoke checks,
   installed `help commands` and `help guide --json` checks, `channel get-meta`, `help observer`, and final

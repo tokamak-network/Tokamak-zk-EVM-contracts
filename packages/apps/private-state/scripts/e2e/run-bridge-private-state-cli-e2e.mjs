@@ -6,6 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import AdmZip from "adm-zip";
 import {
   HDNodeWallet,
   JsonRpcProvider,
@@ -492,6 +493,90 @@ function runJsonCommand(command, args, options = {}) {
   }
 }
 
+function runJsonCommandAllowFailure(command, args, {
+  cwd = repoRoot,
+  env = process.env,
+  quiet = true,
+  label = null,
+} = {}) {
+  const jsonArgs = [...args, "--json"];
+  const printable = [command, ...jsonArgs].join(" ");
+  const commandLabel = label ?? printable;
+  const startedAtMs = Date.now();
+  const startedAt = new Date(startedAtMs).toISOString();
+  updateCurrentCommand({
+    label: commandLabel,
+    command,
+    args: jsonArgs,
+    cwd,
+    captureStdout: true,
+    quiet,
+    startedAt,
+  });
+  appendCommandHistory({
+    event: "start",
+    label: commandLabel,
+    command,
+    args: jsonArgs,
+    cwd,
+    captureStdout: true,
+    quiet,
+    startedAt,
+  });
+  console.log(`E2E CLI: ${printable}`);
+  const result = spawnSync(command, jsonArgs, {
+    cwd,
+    env,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", quiet ? "pipe" : "inherit"],
+  });
+  const finishedAtMs = Date.now();
+  const finishedAt = new Date(finishedAtMs).toISOString();
+  const completedEntry = {
+    label: commandLabel,
+    command,
+    args: jsonArgs,
+    cwd,
+    captureStdout: true,
+    quiet,
+    startedAt,
+    finishedAt,
+    durationMs: finishedAtMs - startedAtMs,
+    exitCode: result.status,
+    signal: result.signal ?? null,
+    stdoutLength: (result.stdout ?? "").length,
+    stderrLength: (result.stderr ?? "").length,
+  };
+  writeJson(lastCommandPath, completedEntry);
+  appendCommandHistory({
+    event: result.status === 0 ? "success" : "failure",
+    ...completedEntry,
+  });
+  clearCurrentCommand();
+
+  const stdout = String(result.stdout ?? "").trim();
+  let payload = null;
+  if (stdout.length > 0) {
+    try {
+      payload = JSON.parse(stdout);
+    } catch (error) {
+      throw new Error(
+        [
+          `Expected JSON output from ${command} ${args.join(" ")}.`,
+          `stdout:\n${stdout}`,
+        ].join("\n"),
+      );
+    }
+  }
+  return {
+    exitCode: result.status,
+    signal: result.signal ?? null,
+    stdout,
+    stderr: result.stderr ?? "",
+    payload,
+  };
+}
+
 function installPrivateStateCliPackageForE2E() {
   cleanDir(cliInstallRoot);
   writeJson(path.join(cliInstallRoot, "package.json"), {
@@ -918,6 +1003,19 @@ function runPrivateStateCli(args, options = {}) {
     `Missing npm-installed private-state-cli binary: ${cliBinPath}`,
   );
   return runJsonCommand(cliBinPath, args, {
+    ...options,
+    cwd: options.cwd ?? cliInstallRoot,
+    label: options.label ?? `private-state-cli:${args[0] ?? "unknown"}`,
+    quiet: options.quiet ?? true,
+  });
+}
+
+function runPrivateStateCliAllowFailure(args, options = {}) {
+  expect(
+    fs.existsSync(cliBinPath),
+    `Missing npm-installed private-state-cli binary: ${cliBinPath}`,
+  );
+  return runJsonCommandAllowFailure(cliBinPath, args, {
     ...options,
     cwd: options.cwd ?? cliInstallRoot,
     label: options.label ?? `private-state-cli:${args[0] ?? "unknown"}`,
@@ -1543,6 +1641,30 @@ function listWallets(args = []) {
   return runPrivateStateCli(["wallet", "list", ...args]);
 }
 
+function helpCommands() {
+  return runPrivateStateCli(["help", "commands"]);
+}
+
+function helpGuide(args = []) {
+  return runPrivateStateCli(["help", "guide", ...args]);
+}
+
+function helpObserver() {
+  return runPrivateStateCliAllowFailure([
+    "help", "observer",
+    "--network", workspaceNetworkName,
+    "--channel-name", channelName,
+  ], {
+    label: "private-state-cli:help-observer",
+  });
+}
+
+function getChannelMeta() {
+  return runAnvilBridgeCliCommand("channel get-meta", [
+    "--channel-name", channelName,
+  ]);
+}
+
 function getBridgeFund(participant) {
   return runAnvilBridgeCliCommand("account get-bridge-fund", signerCliArgs(participant));
 }
@@ -1584,9 +1706,102 @@ function exportWalletKey(participant, keyKind) {
   ]);
 }
 
+function exportWalletEvidence(participant) {
+  const outputPath = `${walletExportPath(participant, "raw-evidence")}.zip`;
+  fs.rmSync(outputPath, { force: true });
+  const result = runAnvilCliCommand("wallet get-notes", [
+    ...walletCliArgs(participant),
+    "--export-evidence", outputPath,
+  ]);
+  return assertWalletEvidenceBundle(result, participant, outputPath);
+}
+
+function readZipJson(archive, entryName) {
+  const entry = archive.getEntry(entryName);
+  expect(entry, `Evidence ZIP is missing ${entryName}.`);
+  return JSON.parse(entry.getData().toString("utf8"));
+}
+
+function assertWalletEvidenceBundle(result, participant, outputPath) {
+  const evidenceExport = result.evidenceExport;
+  expect(evidenceExport?.output === outputPath, "wallet get-notes must report the requested evidence ZIP path.");
+  expect(fs.existsSync(outputPath), `Evidence ZIP was not written: ${outputPath}`);
+  expect(evidenceExport.containsNotePlaintext === true, "Evidence export must declare plaintext note contents.");
+  expect(evidenceExport.containsSpendingKey === false, "Evidence export must not contain a spending key.");
+  expect(evidenceExport.containsViewingKey === false, "Evidence export must not contain a viewing key.");
+  expect(evidenceExport.containsWalletSecret === false, "Evidence export must not contain a wallet secret.");
+
+  const archive = new AdmZip(outputPath);
+  const entryNames = archive.getEntries().map((entry) => entry.entryName);
+  const entryNameSet = new Set(entryNames);
+  for (const requiredEntry of [
+    "manifest.json",
+    "indexes/by-commitment.json",
+    "indexes/by-nullifier.json",
+    "indexes/by-creation-tx.json",
+    "indexes/by-spend-tx.json",
+    "indexes/by-block-range.json",
+    "indexes/by-counterparty.json",
+  ]) {
+    expect(entryNameSet.has(requiredEntry), `Evidence ZIP is missing ${requiredEntry}.`);
+  }
+
+  const manifest = readZipJson(archive, "manifest.json");
+  expect(manifest.format === "tokamak-private-state-raw-evidence-bundle", "Evidence manifest format mismatch.");
+  expect(Number(manifest.formatVersion) === 2, "Evidence manifest formatVersion mismatch.");
+  expect(manifest.bundleType === "local-full-note-evidence", "Evidence manifest bundleType mismatch.");
+  expect(manifest.network === workspaceNetworkName, "Evidence manifest network mismatch.");
+  expect(manifest.channelName === channelName, "Evidence manifest channel name mismatch.");
+  expect(manifest.wallet === participant.walletName, "Evidence manifest wallet mismatch.");
+  expect(manifest.containsAllLocallyKnownNotes === true, "Evidence manifest must cover locally known notes.");
+  expect(manifest.containsAllLocalWalletEpochs === true, "Evidence manifest must cover retained local wallet epochs.");
+  expect(manifest.excludedSecrets?.spendingKey === true, "Evidence manifest must exclude spending keys.");
+  expect(manifest.excludedSecrets?.viewingKey === true, "Evidence manifest must exclude viewing keys.");
+  expect(manifest.excludedSecrets?.walletSecret === true, "Evidence manifest must exclude wallet secrets.");
+  expect(manifest.wallets?.some((wallet) => wallet.lifecycleStatus === "exited"), "Evidence manifest must include the retained exited wallet epoch.");
+
+  const noteEntries = entryNames.filter((entryName) =>
+    entryName.startsWith(`wallets/${slugifyPathComponent(participant.walletName)}/epochs/`)
+      && entryName.includes("/notes/")
+      && entryName.endsWith(".json"));
+  expect(noteEntries.length === Number(manifest.noteCount), "Evidence note entry count must match the manifest.");
+  expect(noteEntries.length > 0, "Evidence ZIP must include at least one note evidence record.");
+
+  const transactionEntries = entryNames.filter((entryName) => entryName.startsWith("transactions/") && entryName.endsWith(".json"));
+  const receiptEntries = entryNames.filter((entryName) => entryName.startsWith("receipts/") && entryName.endsWith(".json"));
+  const eventEntries = entryNames.filter((entryName) => entryName.startsWith("events/") && entryName.endsWith(".json"));
+  expect(transactionEntries.length === Number(manifest.transactionCount), "Evidence transaction entry count must match the manifest.");
+  expect(receiptEntries.length === Number(manifest.transactionCount), "Evidence receipt entry count must match the manifest.");
+  expect(eventEntries.length === Number(manifest.transactionCount), "Evidence event entry count must match the manifest.");
+  expect(transactionEntries.length > 0, "Evidence ZIP must include transaction evidence.");
+
+  return {
+    ...result,
+    evidenceManifest: {
+      format: manifest.format,
+      formatVersion: manifest.formatVersion,
+      bundleType: manifest.bundleType,
+      network: manifest.network,
+      channelName: manifest.channelName,
+      wallet: manifest.wallet,
+      noteCount: manifest.noteCount,
+      walletEpochCount: manifest.wallets.length,
+      transactionCount: manifest.transactionCount,
+      excludedSecrets: manifest.excludedSecrets,
+    },
+    evidenceZipEntries: {
+      notes: noteEntries.length,
+      transactions: transactionEntries.length,
+      receipts: receiptEntries.length,
+      events: eventEntries.length,
+    },
+  };
+}
+
 function importWalletBackup(inputPath) {
   return runPrivateStateCli([
     "wallet", "import", "backup",
+    "--network", workspaceNetworkName,
     "--input", inputPath,
   ]);
 }
@@ -1594,6 +1809,7 @@ function importWalletBackup(inputPath) {
 function importWalletKey(inputPath, keyKind) {
   return runPrivateStateCli([
     "wallet", "import", `${keyKind}-key`,
+    "--network", workspaceNetworkName,
     "--input", inputPath,
   ]);
 }
@@ -1794,6 +2010,107 @@ function withdrawBridge(participant, amount) {
 
 function exitChannel(participant) {
   return runAnvilCliCommand("channel exit", walletCliArgs(participant));
+}
+
+function abandonChannelOperation() {
+  return runAnvilBridgeCliCommand("channel abandon-operation", [
+    "--channel-name", channelName,
+    "--account", txSubmitterAccount,
+  ]);
+}
+
+function smokeInvestigator() {
+  const result = runPrivateStateCli(["investigator"], {
+    label: "private-state-cli:investigator",
+  });
+  expect(result.action === "investigator", "investigator must report action=investigator.");
+  expect(fs.existsSync(result.htmlPath), `Investigator HTML is missing: ${result.htmlPath}`);
+  const html = fs.readFileSync(result.htmlPath, "utf8");
+  expect(html.includes("Export plain-text report"), "Investigator HTML must include the current plain-text report label.");
+  return {
+    action: result.action,
+    htmlPath: result.htmlPath,
+    fileUrl: result.fileUrl,
+    browserOpened: result.browserOpened,
+    labelPresent: true,
+  };
+}
+
+function verifyInstalledHelpAndMetadata(participant) {
+  const commands = helpCommands();
+  const commandIds = new Set((commands.commands ?? []).map((entry) => entry.id));
+  for (const commandId of [
+    "help-guide",
+    "help-observer",
+    "channel-get-meta",
+    "channel-abandon-operation",
+    "wallet-get-notes",
+    "investigator",
+  ]) {
+    expect(commandIds.has(commandId), `help commands must include ${commandId}.`);
+  }
+
+  const guideAfterRpc = helpGuide(["--network", workspaceNetworkName]);
+  expect(guideAfterRpc.action === "guide", "help guide --network anvil must report action=guide.");
+  const guideWithWallet = helpGuide([
+    "--network", workspaceNetworkName,
+    "--channel-name", channelName,
+    ...signerCliArgs(participant),
+    ...walletCliArgs(participant),
+  ]);
+  expect(guideWithWallet.action === "guide", "help guide with account and wallet selectors must report action=guide.");
+
+  const channelMeta = getChannelMeta();
+  expect(channelMeta.action === "channel get-meta", "channel get-meta must report action=channel get-meta.");
+  expect(channelMeta.exists === true, "channel get-meta must find the E2E channel.");
+  expect(channelMeta.channelName === channelName, "channel get-meta channelName mismatch.");
+  expect(channelMeta.joinTollBaseUnits === joinTollBaseUnits.toString(), "channel get-meta Join Toll mismatch.");
+  expect(channelMeta.manager, "channel get-meta must report the channel manager.");
+  expect(channelMeta.bridgeTokenVault, "channel get-meta must report the bridge token vault.");
+  expect(channelMeta.policySnapshot, "channel get-meta must report the immutable policy snapshot.");
+  expect(channelMeta.channelOperation?.isAbandoned === false, "channel must not be abandoned before the final abandonment phase.");
+
+  const observer = helpObserver();
+  if (observer.exitCode === 0) {
+    expect(observer.payload?.action === "observer", "help observer success must report action=observer.");
+    expect(observer.payload?.url, "help observer success must report an observer URL.");
+  } else {
+    expect(observer.payload?.ok === false, "help observer failure must return a JSON error payload.");
+    expect(
+      observer.payload?.error?.code === "MISSING_CHANNEL_OBSERVER",
+      "help observer failure must clearly report a missing channel observer.",
+    );
+  }
+
+  return {
+    commandCount: commands.commands?.length ?? 0,
+    guideAfterRpc: {
+      action: guideAfterRpc.action,
+      nextAction: guideAfterRpc.nextAction ?? null,
+    },
+    guideWithWallet: {
+      action: guideWithWallet.action,
+      nextAction: guideWithWallet.nextAction ?? null,
+    },
+    channelMeta: {
+      channelName: channelMeta.channelName,
+      channelId: channelMeta.channelId,
+      manager: channelMeta.manager,
+      bridgeTokenVault: channelMeta.bridgeTokenVault,
+      joinTollBaseUnits: channelMeta.joinTollBaseUnits,
+      operationStatus: channelMeta.channelOperation,
+    },
+    observer: observer.exitCode === 0
+      ? {
+        ok: true,
+        url: observer.payload.url,
+      }
+      : {
+        ok: false,
+        code: observer.payload?.error?.code ?? null,
+        message: observer.payload?.error?.message ?? null,
+      },
+  };
 }
 
 function assertExitedWalletWorkspace(result, participant) {
@@ -2096,7 +2413,10 @@ async function main() {
   let walletExportBackup = null;
   let walletExportViewingKey = null;
   let walletExportSpendingKey = null;
+  let walletEvidenceExport = null;
   let walletImportBackup = null;
+  let investigatorSmoke = null;
+  let helpAndMetadataChecks = null;
   let notesAfterMintA = null;
   let notesAfterMintB = null;
   let notesAfterMintC = null;
@@ -2110,6 +2430,9 @@ async function main() {
   let bridgeDepositAfterClaim = null;
   let l1BalanceBeforeClaim = null;
   let l1BalanceAfterClaim = null;
+  let channelMetaBeforeAbandon = null;
+  let abandonOperationResult = null;
+  let channelMetaAfterAbandon = null;
   let rawHistoryBeforeCatchUp = null;
   let succeeded = false;
   const commandResults = {
@@ -2585,6 +2908,35 @@ async function main() {
     });
     commandResults.participants[participants[2].alias].exitChannel = exitPhase.exitChannelResult;
 
+    checkpoint.run("phase:installed-package-smoke", "installed package evidence and helper smoke checks", () => {
+      walletEvidenceExport = checkpoint.run(
+        "state:participant-c:evidence-export",
+        "participant-c wallet get-notes evidence export",
+        () => exportWalletEvidence(participants[2]),
+      );
+      investigatorSmoke = checkpoint.run(
+        "state:investigator-smoke",
+        "private-state-cli investigator smoke",
+        smokeInvestigator,
+      );
+      helpAndMetadataChecks = checkpoint.run(
+        "state:help-and-metadata-checks",
+        "installed package help and metadata checks",
+        () => verifyInstalledHelpAndMetadata(participants[2]),
+      );
+      return {
+        walletEvidenceExport,
+        investigatorSmoke,
+        helpAndMetadataChecks,
+      };
+    }, {
+      apply(result) {
+        walletEvidenceExport = result.walletEvidenceExport;
+        investigatorSmoke = result.investigatorSmoke;
+        helpAndMetadataChecks = result.helpAndMetadataChecks;
+      },
+    });
+
     checkpoint.run("phase:withdraw-bridge", "bridge withdraw and final balance scenario", () => {
       withdrawBridgeResult = checkpoint.run("state:participant-c:withdraw-bridge", "participant-c account withdraw-bridge", () =>
         withdrawBridge(participants[2], claimAmountTokens));
@@ -2616,6 +2968,53 @@ async function main() {
       },
     });
 
+    checkpoint.run("phase:abandon-operation", "final channel abandon-operation scenario", () => {
+      channelMetaBeforeAbandon = checkpoint.run(
+        "state:channel-meta-before-abandon",
+        "channel get-meta before abandon-operation",
+        getChannelMeta,
+      );
+      expect(
+        channelMetaBeforeAbandon.channelOperation?.isAbandoned === false,
+        "channel must be operating before abandon-operation.",
+      );
+      abandonOperationResult = checkpoint.run(
+        "state:channel-abandon-operation",
+        "channel abandon-operation",
+        abandonChannelOperation,
+      );
+      expect(
+        abandonOperationResult.channelOperation?.isAbandoned === true,
+        "channel abandon-operation must report an abandoned channel operation status.",
+      );
+      expect(
+        Array.isArray(abandonOperationResult.blockedCommands)
+          && abandonOperationResult.blockedCommands.includes("channel join")
+          && abandonOperationResult.blockedCommands.includes("wallet deposit-channel"),
+        "channel abandon-operation must report the blocked post-abandonment commands.",
+      );
+      channelMetaAfterAbandon = checkpoint.run(
+        "state:channel-meta-after-abandon",
+        "channel get-meta after abandon-operation",
+        getChannelMeta,
+      );
+      expect(
+        channelMetaAfterAbandon.channelOperation?.isAbandoned === true,
+        "channel get-meta must report abandoned operation after abandon-operation.",
+      );
+      return {
+        channelMetaBeforeAbandon,
+        abandonOperationResult,
+        channelMetaAfterAbandon,
+      };
+    }, {
+      apply(result) {
+        channelMetaBeforeAbandon = result.channelMetaBeforeAbandon;
+        abandonOperationResult = result.abandonOperationResult;
+        channelMetaAfterAbandon = result.channelMetaAfterAbandon;
+      },
+    });
+
     const summary = {
       providerUrl,
       channelName,
@@ -2634,8 +3033,10 @@ async function main() {
         backupImport: walletImportBackup,
         viewingKeyExport: walletExportViewingKey,
         spendingKeyExport: walletExportSpendingKey,
-        evidenceExport: null,
+        evidenceExport: walletEvidenceExport,
       },
+      investigatorSmoke,
+      helpAndMetadataChecks,
       localWallets: localWalletList,
       participants: participants.map((participant) => ({
         alias: participant.alias,
@@ -2672,6 +3073,11 @@ async function main() {
         before: ethers.toBigInt(l1BalanceBeforeClaim).toString(),
         after: ethers.toBigInt(l1BalanceAfterClaim).toString(),
         delta: (ethers.toBigInt(l1BalanceAfterClaim) - ethers.toBigInt(l1BalanceBeforeClaim)).toString(),
+      },
+      finalChannelOperation: {
+        beforeAbandon: channelMetaBeforeAbandon?.channelOperation ?? null,
+        abandonOperation: abandonOperationResult?.channelOperation ?? null,
+        afterAbandon: channelMetaAfterAbandon?.channelOperation ?? null,
       },
     };
     writeJson(summaryPath, summary);

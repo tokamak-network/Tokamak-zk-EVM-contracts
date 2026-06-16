@@ -366,8 +366,11 @@ nullifiers, and encrypted note payloads only; `owner`, `value`, and `salt` are e
 Importing this backup restores encrypted tracking state and channel cache files, not wallet authority.
 
 ```bash
-private-state-cli wallet import backup --input ./wallet-backup.zip
+private-state-cli wallet import backup --network mainnet --input ./wallet-backup.zip
 ```
+
+Mainnet imports, and imports without a network selector, require current Service Terms acceptance. Sepolia and anvil
+imports can pass `--network sepolia` or `--network anvil` to run without interactive Terms acceptance.
 
 Export viewing and spending authority separately:
 
@@ -385,8 +388,8 @@ exported key files to User-Controlled AI Agents, support channels, or untrusted 
 Import those capabilities only when the target machine should receive them:
 
 ```bash
-private-state-cli wallet import viewing-key --input ./wallet-viewing.key
-private-state-cli wallet import spending-key --input ./wallet-spending.key
+private-state-cli wallet import viewing-key --network mainnet --input ./wallet-viewing.key
+private-state-cli wallet import spending-key --network mainnet --input ./wallet-spending.key
 ```
 
 A backup plus a viewing key can reconstruct the wallet's readable note view from encrypted events, but it still cannot
@@ -498,7 +501,7 @@ private-state-cli secret create-wallet-secret-source --output ./wallet-secret.tx
 private-state-cli wallet list --network mainnet --channel-name <CHANNEL>
 private-state-cli wallet get-meta --wallet <WALLET_NAME> --network mainnet
 private-state-cli wallet export backup --network mainnet --wallet <WALLET_NAME> --output ./wallet-backup.zip
-private-state-cli wallet import backup --input ./wallet-backup.zip
+private-state-cli wallet import backup --network mainnet --input ./wallet-backup.zip
 ```
 
 `secret create-private-key-source` prompts in the terminal with masked input and creates a local source file for

@@ -19,6 +19,8 @@
   while Sepolia and anvil installs can run without interactive Terms acceptance for test and E2E workflows.
 - Changed consent-gated CLI commands to require Terms acceptance only for mainnet-targeted runs. Sepolia and anvil runs
   skip Terms prompts while preserving mainnet protections.
+- Added optional `--network` selectors to wallet backup/key import commands so Sepolia and anvil restore flows can run
+  non-interactively while mainnet and network-omitted imports remain Terms-gated.
 - Updated the packaged Service Terms, public Terms, Privacy Notice, and Monitoring Packet wording for the corrected
   Provider and Channel Provider responsibility model, including Channel-scoped observer and workspace mirror services.
 - Added Channel observer URL output to the Monitoring Packet policy snapshot generator and current

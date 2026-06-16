@@ -361,6 +361,8 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - restore backup metadata, viewing authority, and spending authority independently
 - refuse to overwrite existing protected key files or backup metadata files
 - validate manifests or key payloads before writing files
+- accept optional `--network`; mainnet imports and imports without a network selector require current Service Terms
+  acceptance, while Sepolia and anvil imports do not
 - together form a full operational restore only when all three artifacts are imported
 
 ### 6. Inspect wallet-to-channel registration

@@ -13418,10 +13418,16 @@ function assertWalletExportKeyArgs(args, commandName) {
 
 function assertWalletImportBackupArgs(args) {
   assertAllowedCommandSchema(args, "wallet-import-backup");
+  if (args.network !== undefined) {
+    requireNetworkName(args);
+  }
 }
 
 function assertWalletImportKeyArgs(args, commandName) {
   assertAllowedCommandSchema(args, commandName);
+  if (args.network !== undefined) {
+    requireNetworkName(args);
+  }
 }
 
 function assertWithdrawBridgeArgs(args) {

@@ -414,6 +414,12 @@ without a rejectable prompt. A follow-up `channel join` created temporary epoch
 transaction `0x7bc95eff19dcd4b6b6daf1d47a09d21091a21a60ab853a526f75c0240141d752`. User rejection remains unverified;
 the next retry should use a signature-only request where the verifier explicitly rejects the MetaMask prompt.
 
+The second user-rejection retry on 2026-06-16 was also inconclusive because the MetaMask requests were approved again.
+The retry created temporary epoch `join-0xc6b45a72b275bbd806bd620a03960cfb2c773dc1aa4c4a218a9e45d9083be0b0-120`, which
+was cleaned up with exit transaction `0xa9f8640706993c76766fe8c88cff97263a9d91ffbbc15cc5f92f98ea3df77f5d`. User
+rejection remains unverified. Do not repeat the same `channel join` path unless the verifier is ready to reject the
+first signature request; otherwise it can create another temporary active epoch that must be cleaned up.
+
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look
 like a wallet or transaction failure. The relay session now has a closing state, wakes pending `/request` long-polls

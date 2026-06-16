@@ -1009,6 +1009,25 @@ Manual user-rejection attempt on 2026-06-15:
   signature-only request is preferred over a transaction request to avoid unnecessary on-chain cleanup if the request is
   approved accidentally.
 
+Manual user-rejection retry on 2026-06-16:
+
+- Result: inconclusive. The intended rejection did not occur because the MetaMask signature and transaction requests
+  were approved again.
+- Trigger:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel join --channel-name browser-wallet-test-20260614-funded-a1 --network sepolia --wallet-secret-path /Users/jehyuk/tokamak-private-channels/tmp/browser-wallet-rejection-20260616.secret`.
+- Join transaction hash: `0xc6b45a72b275bbd806bd620a03960cfb2c773dc1aa4c4a218a9e45d9083be0b0`.
+- Join block number: `11069956`.
+- Temporary L2 address: `0x3de295936434f639c37B0555F019bE13Dcc97a4F`.
+- Cleanup: the temporary active epoch exited successfully with transaction
+  `0xa9f8640706993c76766fe8c88cff97263a9d91ffbbc15cc5f92f98ea3df77f5d`.
+- Cleanup block number: `11069959`.
+- Cleanup gas used: `92671`.
+- Post-cleanup wallet lifecycle status: `exited`.
+- Post-cleanup on-chain registration: `Registration Exists: false`.
+- No Sepolia local L1 private-key file was found after the attempt and cleanup.
+- User rejection remains unverified. Do not repeat this path unless the verifier is ready to reject the first signature
+  request; otherwise the command can create another temporary active epoch that must be cleaned up.
+
 ### No Provider
 
 Procedure:

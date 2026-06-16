@@ -1,18 +1,18 @@
-# Tonnel Privacy Notice
+# Tonigma Privacy Notice
 
-Last updated: June 11, 2026
+Last updated: June 16, 2026
 
 ## 1. Overview
 
 This Privacy Notice explains how personal data and related technical data may be processed when a user accesses or uses
-the private-state DApp, Tonnel, The Great First Channel, the private-state CLI, Channel-scoped observer services,
+the private-state DApp, Tonigma, The Great First Channel, the private-state CLI, Channel-scoped observer services,
 Channel-scoped workspace mirror services, official documentation, official support channels, and related official
 artifact distribution surfaces.
 
-This Privacy Notice should be read together with the [Tonnel Terms of Service](terms.md).
+This Privacy Notice should be read together with the [Tonigma Terms of Service](terms.md).
 
-This Privacy Notice applies to the Service. The Service web surfaces include `tonnel.io` and `www.tonnel.io`. The Service
-scope does not include `airdrop.tonnel.io`.
+This Privacy Notice applies to the Service. The Service web surfaces include `tonigma.network` and `www.tonigma.network`. The Service
+scope does not include `airdrop.tonigma.network`.
 
 The Service uses public blockchain infrastructure. Public blockchain records are public by design and may be copied,
 indexed, stored, analyzed, or redistributed by anyone.
@@ -31,8 +31,8 @@ The Provider's residential address is not published.
 
 For this Privacy Notice:
 
-- **Service** means the private-state DApp, Tonnel, The Great First Channel, Bridge workflows, the CLI, official
-  Tonnel-level documentation, official support channels, official deployment artifacts, official proof-runtime artifacts,
+- **Service** means the private-state DApp, Tonigma, The Great First Channel, Bridge workflows, the CLI, official
+  Tonigma-level documentation, official support channels, official deployment artifacts, official proof-runtime artifacts,
   and related software or interfaces officially made available for the private-state DApp. Channel-scoped observer
   services and workspace mirror services are part of the Service only for the Channel to which they are registered or
   otherwise made available by the applicable Channel Provider.
@@ -40,8 +40,8 @@ For this Privacy Notice:
 - **Channel Provider** means the person or entity that provides or operates Channel-specific services for a Channel,
   including Channel-scoped observer services or workspace mirror services when those services are registered on-chain or
   otherwise made available for that Channel.
-- **Tonnel** means the branded user-facing name for Tokamak Private App Channels.
-- **The Great First Channel** means the dedicated initial Tonnel Channel identified as `the-great-first-channel`.
+- **Tonigma** means the branded user-facing name for Tokamak Private App Channels.
+- **The Great First Channel** means the dedicated initial Tonigma Channel identified as `the-great-first-channel`.
 - **Official Public Observer** means a public observer service registered in a Channel's on-chain metadata or otherwise
   made available by that Channel's Channel Provider for that Channel.
 - **Official Workspace Mirror** means a workspace mirror URL registered in a Channel's on-chain metadata or otherwise
@@ -68,10 +68,10 @@ Ethereum mainnet records or public Channel records.
 ## 5. Channel-Scoped Observer Services
 
 Observer services are Channel-scoped. A Channel's observer URL is read from that Channel's on-chain metadata when
-registered. A URL shown in documentation for a specific Channel is a Channel-specific example and is not a Tonnel-wide
+registered. A URL shown in documentation for a specific Channel is a Channel-specific example and is not a Tonigma-wide
 default for every Channel.
 
-The current registered observer URL for The Great First Channel is `https://observer.tonnel.io`. It is a Vercel-hosted
+The current registered observer URL for The Great First Channel is `https://observer.tonigma.network`. It is a Vercel-hosted
 Next.js deployment operated by Jehyuk Jang as The Great First Channel Provider. It serves public observer pages and APIs,
 monitors public Channel state, and provides public monitoring for The Great First Channel.
 
@@ -93,7 +93,7 @@ policy.
 
 Workspace mirror services are Channel-scoped. A Channel's workspace mirror URL is read from that Channel's on-chain
 metadata when registered. A URL shown in documentation for a specific Channel is a Channel-specific example and is not a
-Tonnel-wide default for every Channel.
+Tonigma-wide default for every Channel.
 
 The Great First Channel has an official workspace mirror operated by Jehyuk Jang as The Great First Channel Provider.
 The workspace mirror publishes verified mirror checkpoints and related recovery data used by CLI recovery flows.
@@ -118,11 +118,11 @@ mirror artifacts, and raw RPC history currently have no repository-managed autom
 Official repository documentation is published through GitHub. GitHub may process page requests, GitHub account data if
 the user is signed in, repository paths viewed, comments, issues, pull requests, and other GitHub-controlled metadata.
 
-The Service web surfaces `tonnel.io` and `www.tonnel.io` are Vercel-hosted Tonnel web surfaces. Use of those surfaces may
+The Service web surfaces `tonigma.network` and `www.tonigma.network` are Vercel-hosted Tonigma web surfaces. Use of those surfaces may
 involve Vercel request metadata and Vercel Web Analytics data. Vercel controls its own platform logs, analytics,
 retention settings, and security practices.
 
-The Service scope does not include `airdrop.tonnel.io`.
+The Service scope does not include `airdrop.tonigma.network`.
 
 ## 8. Artifact Distribution Through Google Drive
 
@@ -153,7 +153,7 @@ npm APIs reviewed for this notice.
 
 ## 10. Support Channels
 
-Official support channels currently include GitHub issues and the Telegram channel `t.me/tonnel_ethereum`.
+Official support channels currently include GitHub issues and the Telegram channel `t.me/tonigma_network`.
 
 If a user submits support requests, issue reports, screenshots, logs, wallet addresses, transaction hashes, diagnostic
 files, Telegram messages, GitHub comments, or other information through support channels, that information may be
@@ -263,7 +263,7 @@ security practices, and any transfer safeguards described by those services.
 
 Current deployment information includes:
 
-- The Great First Channel observer and included Tonnel web surfaces are hosted on Vercel.
+- The Great First Channel observer and included Tonigma web surfaces are hosted on Vercel.
 - The Great First Channel mirror Neon database and Vercel Blob store are in region `iad1`.
 - The EC2 worker runs in AWS region `ap-southeast-1`.
 - End-user RPC traffic is sent to the RPC provider selected by the user.
@@ -322,4 +322,4 @@ Privacy contact:
 Official support channels:
 
 - GitHub issues for the repository.
-- Telegram channel: `t.me/tonnel_ethereum`.
+- Telegram channel: `t.me/tonigma_network`.

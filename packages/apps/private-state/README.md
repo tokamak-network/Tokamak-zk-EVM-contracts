@@ -2,7 +2,7 @@
 
 private-state is a bridge-coupled zk-note payment DApp for the Tokamak Network Token.
 Canonical asset custody remains on Ethereum mainnet. The DApp keeps accounting balances and note state as
-proof-backed confidential application state inside Tonnel private application state, while the bridge accepts
+proof-backed confidential application state inside Tonigma private application state, while the bridge accepts
 proof-backed state transitions.
 
 ## Scope

@@ -14,8 +14,8 @@ users can print the same Channel-scoped URL with
 `private-state-cli help observer --channel-name <CHANNEL> --network mainnet`.
 
 For `the-great-first-channel`, the currently registered observer URL is
-<https://observer.tonnel.io>. That URL is specific to The Great First Channel and is not a
-Tonnel-wide default observer for every Channel. The observer gives users, reviewers, and external
+<https://observer.tonigma.network>. That URL is specific to The Great First Channel and is not a
+Tonigma-wide default observer for every Channel. The observer gives users, reviewers, and external
 monitors a browser entrypoint for the public monitoring surface described by this packet. It does
 not receive wallet secrets, spending keys, viewing keys, or private note plaintext.
 

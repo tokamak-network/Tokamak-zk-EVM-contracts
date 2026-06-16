@@ -603,7 +603,7 @@ Failure recovery: if the channel exists but the local workspace is missing, foll
 and the user is not the creator, stop and ask for the correct channel.
 
 Optional explanation: channel creation fixes policy for that channel; joining means accepting that policy. Mirror and
-observer URLs are Channel-scoped metadata; do not infer them from Tonnel-level documentation or another Channel.
+observer URLs are Channel-scoped metadata; do not infer them from Tonigma-level documentation or another Channel.
 
 ### D.7 Recover channel workspace
 

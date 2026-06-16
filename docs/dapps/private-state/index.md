@@ -82,7 +82,7 @@ accepting that policy for the channel lifetime.
 ## Reading Order
 
 1. [Private-State Background Theory](background-theory.md)
-   Start here. Defines the custody model, Tonnel private application state assumptions, liquid
+   Start here. Defines the custody model, Tonigma private application state assumptions, liquid
    accounting balance, notes, note commitments, nullifiers, and the ownership-versus-readability
    distinction.
 2. [Private-State Contract Specification](contract-spec.md)
@@ -93,17 +93,17 @@ accepting that policy for the channel lifetime.
    each mint, transfer, and redeem shape must satisfy.
 4. [Private-State Security Model](security-model.md)
    Documents bridge-inherited security assumptions, finite leaf collision risk, future nullifier
-   collision probability, separated wallet capabilities, channel-bound Tonnel private application
+   collision probability, separated wallet capabilities, channel-bound Tonigma private application
    state derivation, note-receive key derivation, and recovery behavior.
 5. [Private-State Workflow](workflow.md)
    Describes the CLI workflow, wallet/workspace artifacts, bridge registration metadata, proof input bundle format, event recovery flow, and bridge-DApp execution coupling.
 6. [Channel Workspace Mirror Protocol](channel-workspace-mirror-protocol.md)
    Defines the optional static server protocol that channel leaders can use to publish signed
    workspace checkpoints and delta bundles for old channels.
-7. [Tonnel Terms of Service](terms.md)
+7. [Tonigma Terms of Service](terms.md)
    Defines the Service scope, user responsibilities, Self-Custody duties, public Ethereum mainnet
    records, risk disclosures, liability limits, Third-Party Services, and dispute provisions.
-8. [Tonnel Privacy Notice](privacy-notice.md)
+8. [Tonigma Privacy Notice](privacy-notice.md)
    Explains Service data processing, public blockchain records, Channel-scoped observer and mirror processing,
    third-party services, retention, user choices, and the Provider privacy contact.
 

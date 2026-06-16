@@ -732,11 +732,11 @@ function testHelpObserverUsesChannelScopedSelectors() {
   );
   expect(
     !runtimeSource.includes("PRIVATE_STATE_OBSERVER_URL"),
-    "Runtime must not keep a Tonnel-level observer URL constant.",
+    "Runtime must not keep a Tonigma-level observer URL constant.",
   );
   expect(
-    !runtimeSource.includes("https://observer.tonnel.io"),
-    "Runtime must not hardcode observer.tonnel.io as the user-visible observer URL.",
+    !runtimeSource.includes("https://observer.tonigma.network"),
+    "Runtime must not hardcode observer.tonigma.network as the user-visible observer URL.",
   );
 }
 
@@ -840,8 +840,8 @@ function testReadmeJsonPurposeIsAgentSafe() {
     "README should explain Channel-scoped observer URLs.",
   );
   expect(
-    normalizedReadme.includes("The CLI does not use a Tonnel-wide observer URL"),
-    "README should reject Tonnel-wide observer URL defaults.",
+    normalizedReadme.includes("The CLI does not use a Tonigma-wide observer URL"),
+    "README should reject Tonigma-wide observer URL defaults.",
   );
   expect(!normalizedReadme.includes("agent's full machine-readable state"), "README should avoid implementation-centered agent-state wording.");
   expect(!normalizedReadme.includes("LLM Agent Guidance"), "README should not use stale LLM agent terminology.");

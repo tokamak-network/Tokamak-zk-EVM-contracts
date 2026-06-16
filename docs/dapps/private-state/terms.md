@@ -1,16 +1,16 @@
-# Tonnel Terms of Service
+# Tonigma Terms of Service
 
-Last updated: June 12, 2026
+Last updated: June 16, 2026
 
 ## 1. Definitions
 
 For purposes of these Terms:
 
 - **Terms** means these Terms of Service.
-- **Service** means Tonnel, the Private-State DApp, related Bridge workflows, official software, official interfaces,
+- **Service** means Tonigma, the Private-State DApp, related Bridge workflows, official software, official interfaces,
   official documentation, and related materials made available by the Provider.
-- **Tonnel** means the branded user-facing name for Tokamak Private App Channels.
-- **Channel** means an opt-in Tonnel application environment with its own policy, membership rules, accounting records,
+- **Tonigma** means the branded user-facing name for Tokamak Private App Channels.
+- **Channel** means an opt-in Tonigma application environment with its own policy, membership rules, accounting records,
   and Private Note records.
 - **Join Toll** means a Channel entry charge paid when a user joins a Channel.
 - **Ethereum mainnet** means the public Ethereum network.
@@ -35,10 +35,10 @@ For purposes of these Terms:
 
 These Terms govern access to and use of the Service.
 
-Tonnel is an opt-in private application-channel system used from a Self-Custody Ethereum Account. A Channel is not an
+Tonigma is an opt-in private application-channel system used from a Self-Custody Ethereum Account. A Channel is not an
 exchange deposit or withdrawal network. A Private Note is not an exchange-depositable asset.
 
-Tonnel does not alter TON transfer rules on Ethereum mainnet. Provider Parties do not provide exchange deposit services,
+Tonigma does not alter TON transfer rules on Ethereum mainnet. Provider Parties do not provide exchange deposit services,
 exchange withdrawal services, brokerage, custodial wallet services, hosted transfer services, asset recovery services,
 compliance services, or tax services.
 
@@ -76,10 +76,10 @@ The Service must not be used or described as a way to hide exchange-facing TON t
 
 ## 5. Private Application-State Limits
 
-Tonnel is designed so public contract state does not, by itself, reconstruct some internal Private Note sender-recipient
+Tonigma is designed so public contract state does not, by itself, reconstruct some internal Private Note sender-recipient
 relationships, Private Note plaintext, or Private Note provenance by default.
 
-Tonnel does not make all user activity secret. Public records, metadata, timing, amounts, user behavior, Third-Party
+Tonigma does not make all user activity secret. Public records, metadata, timing, amounts, user behavior, Third-Party
 Services, wallet software, browser behavior, user disclosure, or compromised devices may reveal information.
 
 No privacy, anonymity, unlinkability, confidentiality, exchange acceptance, compliance result, legal result, tax result,
@@ -114,7 +114,7 @@ exchange-monitoring evasion, unauthorized access, cybersecurity abuse, harassmen
 infringement of intellectual-property, publicity, privacy, or data-protection rights, or any activity prohibited by
 applicable law.
 
-The user must not attempt to use Tonnel to make an unlawful transaction appear lawful or to conceal the source,
+The user must not attempt to use Tonigma to make an unlawful transaction appear lawful or to conceal the source,
 ownership, control, or destination of assets.
 
 ## 8. User Responsibilities
@@ -173,7 +173,7 @@ Provider Parties may operate official interfaces that process logs, device infor
 contact information, or other data.
 
 Provider Parties process certain data through official interfaces as described in the Privacy Notice. The current Privacy
-Notice is published at [Tonnel Privacy Notice](https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/docs/dapps/private-state/privacy-notice.md).
+Notice is published at [Tonigma Privacy Notice](https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/docs/dapps/private-state/privacy-notice.md).
 
 Third-Party Services may collect or process user data under their own terms and privacy policies.
 

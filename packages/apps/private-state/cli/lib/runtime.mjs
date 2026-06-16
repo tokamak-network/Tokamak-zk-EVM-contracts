@@ -151,7 +151,7 @@ const PRIVATE_STATE_UNINSTALL_PRESERVE_KEYS_CONFIRMATION =
 const PRIVATE_STATE_UNINSTALL_INCLUDE_KEYS_CONFIRMATION =
   "I understand that uninstall will delete wallet keys and they cannot be recovered";
 const PRIVATE_STATE_TERMS_ACCEPTANCE_CONFIRMATION =
-  "I accept the Tonnel Service Terms";
+  "I accept the Tonigma Service Terms";
 const L1_SIGNER_MODES = Object.freeze({
   LOCAL_ACCOUNT: "local-account",
   BROWSER_WALLET: "browser-wallet",
@@ -3061,7 +3061,7 @@ function browserTermsAcceptanceHtml({ terms, termsText, nonce }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tonnel Service Terms</title>
+  <title>Tonigma Service Terms</title>
   <style>
     :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     * { box-sizing: border-box; }
@@ -3096,7 +3096,7 @@ function browserTermsAcceptanceHtml({ terms, termsText, nonce }) {
 <body>
   <main>
     <header>
-      <h1>Tonnel Service Terms</h1>
+      <h1>Tonigma Service Terms</h1>
       <p class="lead">Please review these Terms. Installation continues only after you accept them yourself.</p>
       <div class="meta">
         <div><strong>Terms version:</strong> ${escapeHtml(terms.termsVersion)}</div>
@@ -3264,7 +3264,7 @@ async function requireTerminalTermsAcceptance({
   }));
   try {
     const lines = [
-      "SERVICE TERMS: Tonnel Service Terms",
+      "SERVICE TERMS: Tonigma Service Terms",
       `Terms version: ${terms.termsVersion}`,
       ...contextLines,
       "",

@@ -457,8 +457,9 @@ code `0`; direct browser final-state visual inspection still needs a human verif
 could not read the Chrome window state. A 2026-06-16 recheck also returned
 `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1` with exit code `0`, but direct browser inspection was still unavailable:
 Computer Use hit macOS Apple event error `-1743`, `screencapture` could not create a display image, and no local
-Playwright, Puppeteer, or jsdom package was available for a headless DOM-state check. The remaining check is a human
-visual confirmation that the relay page shows the command-finished state instead of raw `Failed to fetch`.
+Playwright, Puppeteer, or jsdom package was available for a headless DOM-state check. The 2026-06-16 human visual check
+passed: the relay page showed `Command finished.` and `Command finished. You can return to the terminal.`, with no raw
+`Failed to fetch` text.
 
 The CLI should continue to preserve structured diagnostic data from browser-wallet failures without exposing secrets or
 raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:

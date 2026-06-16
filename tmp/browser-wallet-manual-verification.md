@@ -137,6 +137,15 @@ Manual relay completion UX recheck attempt on 2026-06-16:
 - Remaining human check: confirm that the relay page shows `Command finished. You can return to the terminal.` or
   `The CLI session has ended. You can close this page.` instead of raw `Failed to fetch`.
 
+Manual relay completion UX human visual check on 2026-06-16:
+
+- Result: passed. The human verifier confirmed that the relay page showed the command-finished state after the
+  successful browser-wallet command.
+- Observed relay page title: `Browser Wallet Request Relay`.
+- Observed body text: `Command finished.`
+- Observed status text: `Command finished. You can return to the terminal.`
+- No raw `Failed to fetch` text was shown.
+
 ### Create A New Test Channel Without `--account`
 
 Use this step before `channel join` when no verified named test channel already exists. Choose a unique channel name

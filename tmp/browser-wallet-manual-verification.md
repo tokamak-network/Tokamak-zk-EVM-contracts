@@ -1045,6 +1045,22 @@ Manual user-rejection verification on 2026-06-16:
 
 ### No Provider
 
+Manual no-provider verification on 2026-06-16:
+
+- Result: passed. The CLI failed closed when the Signing URL was opened in Safari without a MetaMask-compatible
+  injected provider.
+- Trigger:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs account get-l1-address --network sepolia`.
+- The default-browser opener was temporarily disabled for this run so the MetaMask-enabled browser could not consume the
+  pending request first.
+- A disabled-extension Chrome profile did not pick up the relay request during this run; Safari picked up the same
+  Signing URL and returned the no-provider failure.
+- CLI error:
+  `Browser wallet connect failed: No MetaMask-compatible browser wallet provider was found.`
+- Wallet error data: `null`.
+- No Ethereum transaction was requested or submitted.
+- No Sepolia local L1 private-key file was found after the failed request.
+
 Procedure:
 
 1. Open the printed localhost signing URL in a browser without MetaMask or an equivalent provider.

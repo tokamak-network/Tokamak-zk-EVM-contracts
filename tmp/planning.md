@@ -454,7 +454,11 @@ surfacing raw `Failed to fetch`. Active wallet request failures remain distinct 
 failures. The terminal side of that check passed on 2026-06-14 with
 `account get-l1-address --network sepolia`, returning `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1` and exiting with
 code `0`; direct browser final-state visual inspection still needs a human verifier because the automation environment
-could not read the Chrome window state.
+could not read the Chrome window state. A 2026-06-16 recheck also returned
+`0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1` with exit code `0`, but direct browser inspection was still unavailable:
+Computer Use hit macOS Apple event error `-1743`, `screencapture` could not create a display image, and no local
+Playwright, Puppeteer, or jsdom package was available for a headless DOM-state check. The remaining check is a human
+visual confirmation that the relay page shows the command-finished state instead of raw `Failed to fetch`.
 
 The CLI should continue to preserve structured diagnostic data from browser-wallet failures without exposing secrets or
 raw proof data. At minimum, an `eth_sendTransaction` failure should report or record:

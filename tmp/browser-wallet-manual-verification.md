@@ -123,6 +123,20 @@ Manual relay completion UX retry on 2026-06-14:
   that the relay page shows `Command finished. You can return to the terminal.` or `The CLI session has ended. You can
   close this page.` instead of raw `Failed to fetch`.
 
+Manual relay completion UX recheck attempt on 2026-06-16:
+
+- Result: terminal path passed again; browser final-state visual inspection remained unavailable from this automation
+  environment.
+- Command run from the repository checkout:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs account get-l1-address --network sepolia`.
+- The CLI returned the selected browser wallet address as `0x094Ac5364EE8b6Db0e5b1E1C588be8617Fd499A1`.
+- The command exited naturally with code `0` after printing the result.
+- Computer Use could not read the Chrome window because macOS returned Apple event error `-1743`.
+- `screencapture` could not create an image from the display.
+- Local Playwright, Puppeteer, and jsdom packages were not installed, so no headless DOM-state check was available.
+- Remaining human check: confirm that the relay page shows `Command finished. You can return to the terminal.` or
+  `The CLI session has ended. You can close this page.` instead of raw `Failed to fetch`.
+
 ### Create A New Test Channel Without `--account`
 
 Use this step before `channel join` when no verified named test channel already exists. Choose a unique channel name

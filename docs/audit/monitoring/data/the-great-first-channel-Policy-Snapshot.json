@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T14:41:53.344Z",
+  "generatedAt": "2026-06-16T18:15:49.335Z",
   "chainId": 1,
   "channelName": "the-great-first-channel",
   "channelId": "108336797649051254585401751173864353497144788660297920004548699607442466523065",
@@ -11,7 +11,7 @@
   "asset": "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5",
   "joinToll": "4000000000000000000",
   "joinTollPolicy": {
-    "burnAddress": null,
+    "burnAddress": "0x000000000000000000000000000000000000dEaD",
     "refundSchedule": {
       "cutoff1Seconds": "21600",
       "cutoff2Seconds": "86400",
@@ -24,8 +24,8 @@
     "nonRefundablePortionHandling": "transferred-to-burn-address-on-future-channel-exit"
   },
   "operationStatus": {
-    "abandoned": null,
-    "abandonedAt": null,
+    "abandoned": false,
+    "abandonedAt": "0",
     "abandonmentEffect": "New joins and channel deposits are rejected after abandonment; note activity, redeem, withdraw, and exit remain unrestricted by abandonment."
   },
   "currentRootVectorHash": "0x26a15ddca33503bd7886b6d1e7c898aa89d91085582a4d43b87d0cd3b7701598",

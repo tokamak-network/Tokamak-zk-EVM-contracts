@@ -16,9 +16,9 @@ deployment. The external policy model for upgrades and per-channel immutability 
 
 | Proxy | Address | Implementation | EIP-1967 admin slot | Admin slot status |
 | --- | --- | --- | --- | --- |
-| bridgeCore | [0x992E2Ae206620d811832a8F697c526c4f95974b6](https://etherscan.io/address/0x992E2Ae206620d811832a8F697c526c4f95974b6) | [0x1713171adc06BF82b4f05945d742FFd351a8d1bD](https://etherscan.io/address/0x1713171adc06BF82b4f05945d742FFd351a8d1bD) |  | empty-admin-slot |
-| dAppManager | [0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA](https://etherscan.io/address/0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA) | [0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5](https://etherscan.io/address/0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5) |  | empty-admin-slot |
-| l1TokenVault | [0xf127Aef661c815ad46c5159146078f6F1E9f5F61](https://etherscan.io/address/0xf127Aef661c815ad46c5159146078f6F1E9f5F61) | [0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710](https://etherscan.io/address/0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710) |  | empty-admin-slot |
+| bridgeCore | [0x992E2Ae206620d811832a8F697c526c4f95974b6](https://etherscan.io/address/0x992E2Ae206620d811832a8F697c526c4f95974b6) | [0xB1815dF9382449F48E2c26cAd75a07a51E3d72Fa](https://etherscan.io/address/0xB1815dF9382449F48E2c26cAd75a07a51E3d72Fa) |  | empty-admin-slot |
+| dAppManager | [0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA](https://etherscan.io/address/0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA) | [0xB04F5137707aC1747aA3a92110B8cd084Db8f7F0](https://etherscan.io/address/0xB04F5137707aC1747aA3a92110B8cd084Db8f7F0) |  | empty-admin-slot |
+| l1TokenVault | [0xf127Aef661c815ad46c5159146078f6F1E9f5F61](https://etherscan.io/address/0xf127Aef661c815ad46c5159146078f6F1E9f5F61) | [0xfF78b4395E4e37E4d107c4CCC98380A51bD0FebF](https://etherscan.io/address/0xfF78b4395E4e37E4d107c4CCC98380A51bD0FebF) |  | empty-admin-slot |
 
 ## Notes
 

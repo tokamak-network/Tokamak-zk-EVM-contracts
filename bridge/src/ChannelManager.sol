@@ -218,18 +218,30 @@ contract ChannelManager {
     }
 
     modifier onlyBridgeCore() {
-        if (msg.sender != bridgeCore) revert OnlyBridgeCore();
+        _onlyBridgeCore();
         _;
     }
 
     modifier onlyBridgeTokenVault() {
-        if (msg.sender != bridgeTokenVault) revert OnlyBridgeTokenVault();
+        _onlyBridgeTokenVault();
         _;
     }
 
     modifier onlyLeader() {
-        if (msg.sender != leader) revert OnlyLeader();
+        _onlyLeader();
         _;
+    }
+
+    function _onlyBridgeCore() private view {
+        if (msg.sender != bridgeCore) revert OnlyBridgeCore();
+    }
+
+    function _onlyBridgeTokenVault() private view {
+        if (msg.sender != bridgeTokenVault) revert OnlyBridgeTokenVault();
+    }
+
+    function _onlyLeader() private view {
+        if (msg.sender != leader) revert OnlyLeader();
     }
 
     function bindBridgeTokenVault(address bridgeTokenVault_) external onlyBridgeCore {

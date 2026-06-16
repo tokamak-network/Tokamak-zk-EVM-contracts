@@ -4,13 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  createDriveClient,
-  createExclusiveFolderPath,
-  preflightExclusiveFolderPath,
   resolveDriveUploadConfigWithFolderId,
   updateBridgeArtifactIndex,
-  uploadFilesByRelativePath,
-  writeUploadReceipt,
+  uploadArtifactBundle,
 } from "../../scripts/drive/lib/google-drive-upload.mjs";
 import {
   bridgeArtifactPaths,
@@ -154,45 +150,39 @@ async function main() {
   }
 
   const config = resolveBridgeDriveUploadConfig();
-  const drive = await createDriveClient(config);
-  const timestamp = options.timestamp ?? createTimestampLabel();
   const targetSegments = [`chain-id-${chainId}`, "bridge"];
 
-  if (options.preflight) {
-    await preflightExclusiveFolderPath(drive, config.folderId, targetSegments, timestamp);
-    console.log(`Drive preflight succeeded for chain-id-${chainId}/bridge/${timestamp}.`);
-    return;
-  }
-
-  const files = collectBridgeArtifactFiles(options);
-  const { leafId, leafUrl } = await createExclusiveFolderPath(drive, config.folderId, targetSegments, timestamp);
-
-  const uploadedFiles = await uploadFilesByRelativePath(drive, leafId, files);
-  await updateBridgeArtifactIndex({
-    drive,
+  await uploadArtifactBundle({
     config,
-    chainId: Number(chainId),
-    timestamp,
-    folderId: leafId,
-    folderUrl: leafUrl,
-    uploadedFiles,
-  });
-
-  if (options.receiptOut) {
-    writeUploadReceipt(options.receiptOut, {
+    timestamp: options.timestamp,
+    createTimestampLabel,
+    targetSegments,
+    preflight: options.preflight,
+    preflightSuccessMessage: (timestamp) => `Drive preflight succeeded for chain-id-${chainId}/bridge/${timestamp}.`,
+    collectFiles: () => collectBridgeArtifactFiles(options),
+    updateArtifactIndex: ({ drive, config, timestamp, folderId, folderUrl, uploadedFiles }) =>
+      updateBridgeArtifactIndex({
+        drive,
+        config,
+        chainId: Number(chainId),
+        timestamp,
+        folderId,
+        folderUrl,
+        uploadedFiles,
+      }),
+    receiptOut: options.receiptOut,
+    createReceipt: ({ timestamp, folderUrl, driveRootUrl, files }) => ({
       kind: "bridge",
       chainId: Number(chainId),
       timestamp,
-      folderUrl: leafUrl,
-      driveRootUrl: config.folderUrl,
+      folderUrl,
+      driveRootUrl,
       uploadedAt: new Date().toISOString(),
       files: files.map(({ relativePath }) => relativePath),
       artifactIndex: "artifact-index.json",
-    });
-  }
-
-  console.log(`Uploaded bridge artifacts to: ${leafUrl}`);
-  console.log(`Drive root: ${config.folderUrl}`);
+    }),
+    uploadSuccessMessage: (folderUrl) => `Uploaded bridge artifacts to: ${folderUrl}`,
+  });
 }
 
 main().catch((error) => {

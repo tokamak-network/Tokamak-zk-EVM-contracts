@@ -539,3 +539,59 @@ export function writeUploadReceipt(receiptPath, receipt) {
   fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
   fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
 }
+
+export async function uploadArtifactBundle({
+  config,
+  timestamp,
+  createTimestampLabel,
+  targetSegments,
+  preflight,
+  preflightSuccessMessage,
+  collectFiles,
+  updateArtifactIndex,
+  receiptOut,
+  createReceipt,
+  uploadSuccessMessage,
+}) {
+  const drive = await createDriveClient(config);
+  const resolvedTimestamp = timestamp ?? createTimestampLabel();
+
+  if (preflight) {
+    await preflightExclusiveFolderPath(drive, config.folderId, targetSegments, resolvedTimestamp);
+    console.log(preflightSuccessMessage(resolvedTimestamp));
+    return;
+  }
+
+  const files = collectFiles();
+  const { leafId, leafUrl } = await createExclusiveFolderPath(
+    drive,
+    config.folderId,
+    targetSegments,
+    resolvedTimestamp,
+  );
+
+  const uploadedFiles = await uploadFilesByRelativePath(drive, leafId, files);
+  await updateArtifactIndex({
+    drive,
+    config,
+    timestamp: resolvedTimestamp,
+    folderId: leafId,
+    folderUrl: leafUrl,
+    uploadedFiles,
+  });
+
+  if (receiptOut) {
+    writeUploadReceipt(
+      receiptOut,
+      createReceipt({
+        timestamp: resolvedTimestamp,
+        folderUrl: leafUrl,
+        driveRootUrl: config.folderUrl,
+        files,
+      }),
+    );
+  }
+
+  console.log(uploadSuccessMessage(leafUrl));
+  console.log(`Drive root: ${config.folderUrl}`);
+}

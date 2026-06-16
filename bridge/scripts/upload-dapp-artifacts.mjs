@@ -3,13 +3,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
-  createDriveClient,
-  createExclusiveFolderPath,
-  preflightExclusiveFolderPath,
   resolveDriveUploadConfig,
   updateDappArtifactIndex,
-  uploadFilesByRelativePath,
-  writeUploadReceipt,
+  uploadArtifactBundle,
 } from "../../scripts/drive/lib/google-drive-upload.mjs";
 import { createTimestampLabel } from "../../scripts/deployment/lib/deployment-layout.mjs";
 
@@ -165,49 +161,44 @@ async function main() {
   }
 
   const config = resolveDriveUploadConfig();
-  const drive = await createDriveClient(config);
-  const timestamp = options.timestamp ?? createTimestampLabel();
   const targetSegments = [`chain-id-${options.bridgeChainId}`, "dapps", options.dappName];
 
-  if (options.preflight) {
-    await preflightExclusiveFolderPath(drive, config.folderId, targetSegments, timestamp);
-    console.log(`Drive preflight succeeded for chain-id-${options.bridgeChainId}/dapps/${options.dappName}/${timestamp}.`);
-    return;
-  }
-
-  const files = collectDappArtifactFiles(options);
-  const { leafId, leafUrl } = await createExclusiveFolderPath(drive, config.folderId, targetSegments, timestamp);
-
-  const uploadedFiles = await uploadFilesByRelativePath(drive, leafId, files);
-  await updateDappArtifactIndex({
-    drive,
+  await uploadArtifactBundle({
     config,
-    dappName: options.dappName,
-    bridgeChainId: options.bridgeChainId,
-    appChainId: options.appChainId,
-    timestamp,
-    folderId: leafId,
-    folderUrl: leafUrl,
-    uploadedFiles,
-  });
-
-  if (options.receiptOut) {
-    writeUploadReceipt(options.receiptOut, {
+    timestamp: options.timestamp,
+    createTimestampLabel,
+    targetSegments,
+    preflight: options.preflight,
+    preflightSuccessMessage: (timestamp) =>
+      `Drive preflight succeeded for chain-id-${options.bridgeChainId}/dapps/${options.dappName}/${timestamp}.`,
+    collectFiles: () => collectDappArtifactFiles(options),
+    updateArtifactIndex: ({ drive, config, timestamp, folderId, folderUrl, uploadedFiles }) =>
+      updateDappArtifactIndex({
+        drive,
+        config,
+        dappName: options.dappName,
+        bridgeChainId: options.bridgeChainId,
+        appChainId: options.appChainId,
+        timestamp,
+        folderId,
+        folderUrl,
+        uploadedFiles,
+      }),
+    receiptOut: options.receiptOut,
+    createReceipt: ({ timestamp, folderUrl, driveRootUrl, files }) => ({
       kind: "dapp",
       dappName: options.dappName,
       bridgeChainId: options.bridgeChainId,
       appChainId: options.appChainId,
       timestamp,
-      folderUrl: leafUrl,
-      driveRootUrl: config.folderUrl,
+      folderUrl,
+      driveRootUrl,
       uploadedAt: new Date().toISOString(),
       files: files.map(({ relativePath }) => relativePath),
       artifactIndex: "artifact-index.json",
-    });
-  }
-
-  console.log(`Uploaded DApp artifacts to: ${leafUrl}`);
-  console.log(`Drive root: ${config.folderUrl}`);
+    }),
+    uploadSuccessMessage: (folderUrl) => `Uploaded DApp artifacts to: ${folderUrl}`,
+  });
 }
 
 main().catch((error) => {

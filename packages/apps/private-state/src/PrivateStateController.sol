@@ -583,16 +583,6 @@ contract PrivateStateController {
         }
     }
 
-    function _prepareOutputNote(Note calldata outputNote)
-        internal
-        pure
-        returns (uint256 outputValue, bytes32 outputCommitment)
-    {
-        (address outputOwner, uint256 value, bytes32 outputSalt) = _loadValidatedNote(outputNote);
-        outputValue = value;
-        outputCommitment = _computeNoteCommitmentUnchecked(value, outputOwner, outputSalt);
-    }
-
     function _prepareMintOutput(MintOutput calldata output, address owner)
         internal
         pure

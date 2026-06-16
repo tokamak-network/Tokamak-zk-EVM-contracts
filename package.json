@@ -39,13 +39,9 @@
     "@tokamak-private-dapps/groth16": "file:packages/groth16",
     "@tokamak-zk-evm/cli": "^2.1.0",
     "@tokamak-zk-evm/subcircuit-library": "^2.1.0",
-    "@tokamak-zk-evm/synthesizer-node": "^2.1.0",
     "dotenv": "^16.4.7",
     "ethers": "^6.14.1",
-    "fs": "^0.0.1-security",
     "googleapis": "^171.4.0",
-    "js-sha3": "^0.9.3",
-    "msgpackr": "^1.11.3",
     "snarkjs": "^0.7.5",
     "tokamak-l2js": "^0.1.4",
     "yazl": "^3.3.1"

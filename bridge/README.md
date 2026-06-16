@@ -190,9 +190,9 @@ private-state app first and then register it with `bridge/scripts/admin-add-dapp
 
 Current constraint:
 
-- `DAppManager.deleteDApp(...)` is available only on Sepolia
+- `DAppManager.deleteDApp(...)` is available only on Sepolia and local Anvil
 - DApp deletion ignores active channel count, so channel managers can outlive their parent DApp registration
-- mainnet and every non-Sepolia network reject `deleteDApp(...)` outright
+- mainnet and every network other than Sepolia or local Anvil reject `deleteDApp(...)` outright
 - `DAppManager.updateDAppMetadata(...)` is available on mainnet, but keeps the existing `dappId` and `labelHash`
 - channels keep the DApp metadata and verifier snapshot that existed at channel creation time
 

@@ -306,9 +306,9 @@ private key to decide whether a candidate encrypted payload belongs to them.
 
 For `wallet redeem-notes`, the CLI:
 
-1. chooses the fixed redeem arity from the selected note count
+1. requires exactly one selected unused note in the current wallet flow
 2. reconstructs plaintext notes from wallet state
-3. submits the matching `redeemNotesN` call
+3. submits the `redeemNotes1` call
 
 Redemption converts notes back into liquid accounting balance rather than directly into L1 custody.
 

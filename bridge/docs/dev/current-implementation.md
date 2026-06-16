@@ -41,7 +41,7 @@ Bridge-side DApp metadata registration is handled by:
 - [admin-add-dapp.mjs](../../scripts/admin-add-dapp.mjs)
 
 That script runs `tokamak-cli --synthesize --tokamak-ch-tx` and `tokamak-cli --preprocess` for a
-selected example group such as `privateStateMint`, `privateStateTransfer`, or `privateStateRedeem`.
+selected example group such as `mintNotes`, `transferNotes`, or `redeemNotes`.
 It derives the function metadata from `instance.json` and `instance_description.json`, then
 registers the resulting DApp metadata on an already deployed bridge.
 

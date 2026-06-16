@@ -173,7 +173,7 @@ Provider Parties may operate official interfaces that process logs, device infor
 contact information, or other data.
 
 Provider Parties process certain data through official interfaces as described in the Privacy Notice. The current Privacy
-Notice is published at [Tonnel Privacy Notice](privacy-notice.md).
+Notice is published at [Tonnel Privacy Notice](https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/docs/dapps/private-state/privacy-notice.md).
 
 Third-Party Services may collect or process user data under their own terms and privacy policies.
 

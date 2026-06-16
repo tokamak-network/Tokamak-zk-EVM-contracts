@@ -43,11 +43,12 @@ Required variables:
 - `APPS_DEPLOYER_PRIVATE_KEY`
 - `APPS_ETHERSCAN_API_KEY` when block explorer verification is needed
 
-Pass the deployment network as `--network <anvil|sepolia|mainnet>` when running
-`scripts/deploy/deploy-private-state.mjs`. Sepolia and mainnet deployments also
-require an explicit `--rpc-url <URL>` so the deployment endpoint is visible at
-the command boundary. For `--network anvil`, scripts default to
-`http://127.0.0.1:8545`.
+Pass the deployment network as `--network <name>` when running
+`scripts/deploy/deploy-private-state.mjs`. The deploy script accepts the shared app network names
+from `APP_NETWORKS`: `anvil`, `sepolia`, `mainnet`, `base-sepolia`, `base-mainnet`,
+`arb-sepolia`, `arb-mainnet`, `op-sepolia`, and `op-mainnet`. Every non-`anvil` deployment
+requires an explicit `--rpc-url <URL>` so the deployment endpoint is visible at the command
+boundary. For `--network anvil`, scripts default to `http://127.0.0.1:8545`.
 
 After a successful broadcast, `deploy-private-state.mjs` automatically
 materializes deployment artifacts into
@@ -262,7 +263,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - reads RPC settings from `~/tokamak-private-channels/workspace/<network>/rpc-config.env`
 - resumes RPC log scanning from the saved recovery index by default
 - fails instead of silently replaying from channel genesis when no usable recovery index exists
-- accepts `--source mirror` to recover from a registered workspace mirror before falling back to a full RPC genesis rebuild
+- accepts `--source mirror` to recover from a registered workspace mirror without falling back to a full RPC genesis rebuild
 - accepts `--source rpc --from-genesis` only when no compatible mirror is available and the user intentionally wants to ignore the local index and replay the channel from its creation block
 
 `channel get-meta`

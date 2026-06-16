@@ -94,11 +94,18 @@ The controller emits:
 
 ```solidity
 event NoteValueEncrypted(bytes32[3] encryptedNoteValue);
+event StorageKeyObserved(bytes32 storageKey);
+```
+
+The accounting vault emits:
+
+```solidity
+event LiquidBalanceStorageWriteObserved(address l2Address, bytes32 value);
 ```
 
 One event is emitted for each encrypted output in mint and transfer paths.
 
-The event intentionally does not include:
+The encrypted-note event intentionally does not include:
 
 - recipient owner
 - commitment

@@ -239,8 +239,8 @@ Bridge tests keep Tokamak proof fixtures under [bridge/test/fixtures/](./bridge/
 ### Bridge ZK Workflow
 
 Bridge deployment and DApp registration consume `@tokamak-zk-evm/cli`,
-`@tokamak-zk-evm/subcircuit-library`, `@tokamak-zk-evm/synthesizer-node`, `tokamak-l2js`, and
-the repository Groth16 package from npm-linked packages. Current implementation details live in
+`@tokamak-zk-evm/subcircuit-library`, `tokamak-l2js`, and the repository Groth16 package from
+npm-linked packages. Current implementation details live in
 [bridge/docs/dev/current-implementation.md](./bridge/docs/dev/current-implementation.md).
 
 ## Notes On Scope

@@ -64,6 +64,8 @@ Options:
   --channel <name>             Channel name. Default: the-great-first-channel.
   --rpc-url <url>              Mainnet RPC URL. Defaults to RPC_URL, MAINNET_RPC_URL, ETHEREUM_RPC_URL, or Alchemy env keys.
   --drive-folder-id <id>       Google Drive root folder ID. Defaults to TOKAMAK_MPC_DRIVE_FOLDER_ID.
+  --bridge-artifact-dir <dir>  Bridge deployment artifact directory. Defaults to the latest local bridge deployment.
+  --dapp-artifact-dir <dir>    DApp deployment artifact directory. Defaults to the latest local DApp deployment.
   --output <dir>               Internal validation output directory. Default: scripts/monitoring-packet/output.
   --skip-drive                 Skip Google Drive artifact metadata reads.
   --skip-etherscan             Skip source verification status reads.
@@ -96,6 +98,8 @@ function parseArgs(argv) {
     else if (arg === "--channel") args.channel = value();
     else if (arg === "--rpc-url") args.rpcUrl = value();
     else if (arg === "--drive-folder-id") args.driveFolderId = value();
+    else if (arg === "--bridge-artifact-dir") args.bridgeArtifactDir = path.resolve(value());
+    else if (arg === "--dapp-artifact-dir") args.dappArtifactDir = path.resolve(value());
     else if (arg === "--output") args.output = path.resolve(value());
     else if (arg === "--skip-drive") args.skipDrive = true;
     else if (arg === "--skip-etherscan") args.skipEtherscan = true;
@@ -194,11 +198,11 @@ function requireFile(filePath) {
   return filePath;
 }
 
-function loadLocalArtifacts({ chainId, dapp }) {
+function loadLocalArtifacts({ chainId, dapp, bridgeArtifactDir, dappArtifactDir }) {
   const bridgeRoot = path.join(REPO_ROOT, "deployment", `chain-id-${chainId}`, "bridge");
   const dappRoot = path.join(REPO_ROOT, "deployment", `chain-id-${chainId}`, "dapps", dapp);
-  const bridgeDir = findLatestDir(bridgeRoot, `bridge.${chainId}.json`);
-  const dappDir = findLatestDir(dappRoot, `deployment.${chainId}.latest.json`);
+  const bridgeDir = bridgeArtifactDir ?? findLatestDir(bridgeRoot, `bridge.${chainId}.json`);
+  const dappDir = dappArtifactDir ?? findLatestDir(dappRoot, `deployment.${chainId}.latest.json`);
   const bridgeDeploymentPath = requireFile(path.join(bridgeDir, `bridge.${chainId}.json`));
   const bridgeAbiManifestPath = requireFile(path.join(bridgeDir, `bridge-abi-manifest.${chainId}.json`));
   const dappDeploymentPath = requireFile(path.join(dappDir, `deployment.${chainId}.latest.json`));

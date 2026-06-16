@@ -36,6 +36,24 @@ node scripts/monitoring-packet/generate.mjs \
   --drive-folder-id "$TOKAMAK_MPC_DRIVE_FOLDER_ID"
 ```
 
+For final publication regeneration, pass the exact artifact directories that the packet must
+represent:
+
+```bash
+node scripts/monitoring-packet/generate.mjs \
+  --chain-id 1 \
+  --dapp private-state \
+  --channel the-great-first-channel \
+  --bridge-artifact-dir deployment/chain-id-1/bridge/20260511T065651Z \
+  --dapp-artifact-dir deployment/chain-id-1/dapps/private-state/20260504T003212Z \
+  --rpc-url "$MAINNET_RPC_URL" \
+  --drive-folder-id "$TOKAMAK_MPC_DRIVE_FOLDER_ID"
+```
+
+When either artifact directory option is omitted, the generator keeps the historical behavior and
+selects the latest matching local artifact directory for that side. When an explicit directory is
+provided, the generator reads that directory and fails if the required files are not present.
+
 The default public output directory is:
 
 ```text
@@ -48,7 +66,7 @@ Passing `--output <dir>` changes only the script's internal validation output di
 
 The generator performs the following steps:
 
-1. Locates the latest local bridge and private-state DApp deployment artifacts for the selected chain.
+1. Locates the selected bridge and private-state DApp deployment artifacts for the selected chain.
 2. Reads mainnet state through RPC, including channel state, owner state, proxy implementation slots, verifier pointers, root-vector state, and bytecode hashes.
 3. Reads Etherscan source verification status, using the API when available and falling back to Etherscan's public contract page status when the API cannot be read.
 4. Reads Google Drive artifact metadata from the configured artifact publication folder.

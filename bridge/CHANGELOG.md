@@ -63,6 +63,25 @@ deployment artifact.
 
 ### Local Pending
 
+#### Internal bridge hashing and upload-tooling refactors
+
+Status: **Local pending**
+
+Deployment requirement: **No bridge deployment required**
+
+Summary:
+
+- Centralizes DApp function metadata hashing in `DAppFunctionMetadataHasher` so registration-time
+  leaves and execution-time function proof verification share the same domain constants and field
+  order.
+- Adds behavior-equivalence coverage for the function metadata leaf and Merkle root formulas.
+- Wraps repeated `ChannelManager` access checks in private helper functions while preserving custom
+  errors, public ABI, and storage layout.
+- Centralizes bridge and DApp Drive upload orchestration in a shared upload helper while preserving
+  script-local artifact collection, receipt payloads, index updates, and console summaries.
+- Treats these changes as behavior-preserving maintenance; no mainnet bridge deployment is required
+  unless operators separately choose to deploy a new source-synchronization release.
+
 #### Safe-based bridge upgrade flow
 
 Status: **Local pending**

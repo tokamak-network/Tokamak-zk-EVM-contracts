@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Expanded the installed-package E2E to cover raw evidence export ZIP validation, investigator asset smoke checks,
+  installed `help commands` and `help guide --json` checks, `channel get-meta`, `help observer`, and final
+  `channel abandon-operation` behavior.
+- Updated README, command help, and investigator guidance to describe selected-network transaction submission and
+  mainnet-only evidence/key export confirmations.
 - Simplified the packaged Service Terms for ordinary users and judicial or regulatory readers by removing excessive
   implementation and operation details while preserving self-custody, public-record, risk, liability, and Channel policy
   disclosures.

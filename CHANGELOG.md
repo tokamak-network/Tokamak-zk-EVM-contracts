@@ -14,6 +14,10 @@ This project follows a package-oriented changelog model:
 
 ### Workspace
 
+- Removed tracked local planning and manual-verification notes from the remote clone surface while
+  keeping local-only notes ignored.
+- Aligned public documentation with current private-state CLI behavior, bridge event paths, and
+  current bridge gas/test/size measurements.
 - Revised public private-state README terminology to use ordinary-user Ethereum mainnet wording for bridge boundaries.
 - Added an automatic npm publish workflow for the private DApp packages.
 - Added package-level release readiness checks for npm deployment.
@@ -33,6 +37,13 @@ This project follows a package-oriented changelog model:
 
 ### Private-State CLI
 
+- Added network-scoped install and consent behavior so anvil and Sepolia installs and sensitive
+  exports can run non-interactively while mainnet and network-omitted flows remain protected.
+- Expanded the installed-package private-state CLI E2E to cover raw evidence export, investigator
+  packaging, help/metadata commands, channel metadata inspection, and final channel operation
+  abandonment.
+- Updated CLI and DApp documentation to describe selected-network transaction submission and
+  mainnet-only evidence/export confirmations.
 - Revised user-facing CLI terminology in help, guide, README, fee descriptions, and agent guidance to avoid unnecessary
   developer shorthand around Ethereum mainnet, channel-local addresses, and Join Tolls.
 - Added npm package metadata, release readiness, and automated publishing coverage.
@@ -42,6 +53,12 @@ This project follows a package-oriented changelog model:
 
 ### Bridge
 
+- Centralized DApp function metadata hashing for registration and execution-time proof checks while
+  preserving the public ABI, storage layout, and proof acceptance behavior.
+- Refactored bridge artifact upload orchestration and access-check helpers without changing deployed
+  bridge behavior.
+- Updated bridge audit, monitoring, and gas documentation to match current tests, contract sizes,
+  event paths, and E2E receipt measurements.
 - Added a bridge deployment `.env.example`.
 - Updated bridge documentation references to point at existing documents.
 - Added `bridge/CHANGELOG.md` to track mainnet bridge deployments, deployed source commits,

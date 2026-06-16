@@ -1028,6 +1028,21 @@ Manual user-rejection retry on 2026-06-16:
 - User rejection remains unverified. Do not repeat this path unless the verifier is ready to reject the first signature
   request; otherwise the command can create another temporary active epoch that must be cleaned up.
 
+Manual user-rejection verification on 2026-06-16:
+
+- Result: passed. The CLI failed closed after the human verifier rejected the MetaMask typed-data signature request.
+- Trigger:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs wallet recover-workspace --channel-name browser-wallet-test-20260614-funded-a1 --network sepolia`.
+- Wallet request sequence before rejection: account connection, network check, typed-data signature.
+- Rejected request: `eth_signTypedData_v4` for wallet note-viewing recovery.
+- CLI error:
+  `Browser wallet sign typed data failed: User rejected the request.`
+- Wallet error code: `4001`.
+- Wallet error data: `{"location":"confirmation","cause":null}`.
+- No Ethereum transaction was requested or submitted.
+- No Sepolia local L1 private-key file was found after the rejected request.
+- This completes the browser-wallet user-rejection failure-path check for a signature-only request.
+
 ### No Provider
 
 Procedure:

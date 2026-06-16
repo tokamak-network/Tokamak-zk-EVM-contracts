@@ -420,6 +420,12 @@ was cleaned up with exit transaction `0xa9f8640706993c76766fe8c88cff97263a9d91ff
 rejection remains unverified. Do not repeat the same `channel join` path unless the verifier is ready to reject the
 first signature request; otherwise it can create another temporary active epoch that must be cleaned up.
 
+The signature-only user-rejection check passed on 2026-06-16 with
+`wallet recover-workspace --channel-name browser-wallet-test-20260614-funded-a1 --network sepolia`. The verifier rejected
+the MetaMask `eth_signTypedData_v4` note-viewing signature request, and the CLI failed closed with wallet error code
+`4001` and no Ethereum transaction request. No Sepolia local L1 private-key file was found after the rejected request.
+This covers the browser-wallet user-rejection failure path without creating another temporary channel epoch.
+
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look
 like a wallet or transaction failure. The relay session now has a closing state, wakes pending `/request` long-polls

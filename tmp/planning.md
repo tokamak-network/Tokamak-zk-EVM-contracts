@@ -173,69 +173,148 @@ index so a fresh remote clone will not receive it. The local file remains ignore
   appropriate as public product, legal, compliance, developer, or operator documentation in
   its current form.
 
-## Fix Plan
+## Behavior-Preserving Fix Plan
 
-1. Remove non-public local notes from the remote clone surface.
-   - Commit the staged removal of `checklist.md`.
-   - Keep `checklist.md` ignored in `.gitignore`.
-   - Verify `git ls-files checklist.md` returns no tracked path and
-     `git check-ignore -v checklist.md` reports the ignore rule.
+The fixes must preserve the current contract, CLI, deployment-script, and document routing
+behavior unless a later request explicitly authorizes a behavior change. Documentation mismatches
+are resolved by updating documentation to match the implementation, not by changing implementation
+behavior.
 
-2. Clean source code without changing optimized assembly or Circom circuits.
-   - Remove the unused `_prepareOutputNote(...)` helper from
-     `PrivateStateController.sol`.
-   - Decide whether private-state deployment code should reject non-`anvil|sepolia|mainnet`
-     app networks at the deploy-script boundary or whether public deployment docs should
-     explicitly document the broader accepted set. Prefer rejecting unsupported networks
-     if those networks are not operationally supported for private-state.
-   - Consolidate DApp function metadata hashing into a shared bridge library or otherwise
-     add a stronger equivalence guard so `DAppManager` and `ChannelManager` cannot drift.
-   - Wrap repeated `ChannelManager` access-check modifier logic in internal helper
-     functions if bytecode-size impact is worth the additional internal functions.
-   - Remove or de-export the unused duplicate `createTimestampLabel(...)` helper from
-     `scripts/drive/lib/google-drive-upload.mjs`.
-   - Consider extracting the shared Drive upload orchestration used by bridge and DApp
-     artifact upload scripts while keeping artifact collection script-specific.
-   - Remove unused root dependencies `fs`, `@tokamak-zk-evm/synthesizer-node`,
-     `msgpackr`, and `js-sha3` from the root manifest and lockfile after confirming
-     package scripts still pass.
+### 1. Remove Non-Public Local Notes From The Remote Clone Surface
 
-3. Update implementation-mismatch documentation to match current code.
-   - Change `bridge/README.md` to say `DAppManager.deleteDApp(...)` is Sepolia/local
-     only.
-   - Change `bridge/docs/dev/current-implementation.md` group names to `mintNotes`,
-     `transferNotes`, and `redeemNotes`.
-   - Expand `docs/dapps/private-state/contract-spec.md` event documentation to include
-     `StorageKeyObserved` and `LiquidBalanceStorageWriteObserved`, with their public
-     monitoring role.
-   - Change `docs/dapps/private-state/workflow.md` to state that the current CLI
-     user-facing redeem flow supports one selected note, even though Solidity exposes
-     multiple redeem arities.
-   - Fix the packaged service Terms privacy-notice reference so npm package readers can
-     reach the canonical Privacy Notice.
-   - Remove `@tokamak-zk-evm/synthesizer-node` from the root README dependency narrative
-     unless a direct repo-owned consumption path is added.
-   - Reword the private-state README workspace-mirror recovery section so mirror recovery
-     and explicit RPC genesis recovery are separate user actions, matching CLI behavior.
+- Keep the already-completed `checklist.md` Git-index removal.
+- Keep `checklist.md` ignored in `.gitignore`.
+- Remove `tmp/browser-wallet-manual-verification.md` from the tracked remote-clone surface, or move a
+  sanitized release-verification template to a public documentation path if that template is still
+  needed.
+- Behavior preservation check:
+  - No runtime, deployment, package, ABI, storage, or CLI command file is changed.
+  - `git ls-files checklist.md tmp/browser-wallet-manual-verification.md` must return no tracked
+    local working-log path after the cleanup.
+  - `git check-ignore -v checklist.md` must continue to report the ignore rule.
 
-4. Rewrite audience-inappropriate public documentation.
-   - Replace editorial guidance in the private-state index, background theory, and
-     security model with factual statements suitable for readers.
-   - Simplify the Privacy Notice by replacing infrastructure inspection details with
-     plain data categories, user impact, third-party service boundaries, and retention
-     summaries.
-   - Replace "ASCII-art linkage report" with "plain-text linkage report" across evidence,
-     monitoring, CLI, and investigator documentation.
-   - Add explicit audience labels or reading paths in `docs/index.md` and
-     `docs/dapps/private-state/index.md` so ordinary users, legal/compliance readers,
-     auditors, operators, developers, and user-controlled AI agents are routed to the
-     correct depth.
+### 2. Make Public Documentation Match Current Implementation
 
-5. Verify after edits.
-   - Run Markdown link checks for local repository links, excluding code placeholders.
-   - Run `git diff --check`.
-   - Run focused tests for touched Solidity and package-manifest changes.
-   - Confirm `checklist.md` remains ignored and untracked.
-   - Decide whether `tmp/browser-wallet-manual-verification.md` should be removed from the
-     tracked remote-clone surface or converted into a sanitized release-verification
-     template under a public documentation path.
+- Change `bridge/README.md` to say `DAppManager.deleteDApp(...)` is Sepolia/local only.
+- Change `bridge/docs/dev/current-implementation.md` group names to `mintNotes`,
+  `transferNotes`, and `redeemNotes`.
+- Expand `docs/dapps/private-state/contract-spec.md` event documentation to include
+  `StorageKeyObserved` and `LiquidBalanceStorageWriteObserved`, with their public monitoring role.
+- Change `docs/dapps/private-state/workflow.md` to state that the current CLI user-facing
+  `wallet redeem-notes` flow supports one selected note, even though Solidity exposes multiple
+  redeem arities.
+- Fix the packaged service Terms privacy-notice reference so npm package readers can reach the
+  canonical Privacy Notice.
+- Remove `@tokamak-zk-evm/synthesizer-node` from the root README dependency narrative unless a
+  direct repo-owned consumption path is added later.
+- Reword the private-state README workspace-mirror recovery section so mirror recovery and explicit
+  RPC genesis recovery are separate user actions, matching CLI behavior.
+- Document the broader accepted private-state deployment network names if the source continues to
+  accept `APP_NETWORKS`; do not add deploy-script rejection for `base-*`, `arb-*`, or `op-*` in this
+  pass.
+- Behavior preservation check:
+  - Only documentation and packaged documentation assets are changed.
+  - No CLI argument parsing, network selection, recovery fallback, Terms acceptance, contract event,
+    or deployment-script behavior is changed.
+  - Local Markdown links still resolve.
+
+### 3. Rewrite Audience-Inappropriate Public Documentation
+
+- Replace editorial guidance in the private-state index, background theory, and security model with
+  factual statements suitable for their readers.
+- Simplify the Privacy Notice by replacing infrastructure inspection details with plain data
+  categories, user impact, third-party service boundaries, and retention summaries.
+- Replace "ASCII-art linkage report" with "plain-text linkage report" across evidence,
+  monitoring, CLI, and investigator documentation.
+- Add explicit audience labels or reading paths in `docs/index.md` and
+  `docs/dapps/private-state/index.md` so ordinary users, legal/compliance readers, auditors,
+  operators, developers, and user-controlled AI agents are routed to the correct depth.
+- Behavior preservation check:
+  - Text changes must not rename CLI commands, options, JSON fields, contract events, contract
+    methods, npm package names, or public URLs unless the referenced implementation already uses the
+    replacement.
+  - Legal/user-facing simplification must preserve the current risk allocation, self-custody
+    boundary, no-master-viewing-key statement, and third-party service boundary.
+  - The packaged Terms asset and canonical Terms stay text-aligned except for path-context link
+    differences that are required by packaging.
+
+### 4. Clean Source Code Only Where No Runtime Path Changes
+
+- Remove the unused `_prepareOutputNote(...)` helper from `PrivateStateController.sol`.
+- Remove or de-export the unused duplicate `createTimestampLabel(...)` helper from
+  `scripts/drive/lib/google-drive-upload.mjs`; keep the canonical helper in
+  `scripts/deployment/lib/deployment-layout.mjs`.
+- Remove unused root dependencies `fs`, `@tokamak-zk-evm/synthesizer-node`, `msgpackr`, and
+  `js-sha3` from the root manifest and lockfile only after confirming no repo-owned source imports,
+  resolves, or executes them directly.
+- Do not convert optimized inline assembly to high-level Solidity.
+- Do not change Circom circuits unless a constraint-count reduction is certain and separately
+  approved for a circuit pass.
+- Behavior preservation check:
+  - `forge build` and focused private-state contract tests must pass.
+  - Public ABI, storage layout, event signatures, revert selectors, command names, command options,
+    and generated deployment artifact schema must remain unchanged.
+  - Package cleanup must pass package smoke tests and must not remove dependencies required by
+    workspace packages through their own manifests.
+  - If removing a root direct dependency changes the resolved version of a package that repo-owned
+    source actually uses, keep the dependency in place or split that package-resolution change into a
+    separately reviewed dependency-maintenance pass.
+
+### 5. Add Drift Guards Instead Of Protocol Refactors
+
+- For duplicated DApp function metadata hashing in `DAppManager` and `ChannelManager`, prefer an
+  equivalence guard over a runtime refactor in this pass.
+- Add tests or a deterministic comparison fixture that proves registration-time function leaves and
+  execution-time function proof verification use the same domain constants and field order.
+- Do not move the hashing into a shared Solidity library unless a later implementation pass proves:
+  - the same inputs produce the same hashes before and after the refactor,
+  - all existing bridge tests pass,
+  - public ABI and storage layout remain unchanged,
+  - gas or bytecode impact is reviewed, and
+  - the refactor does not change failure modes.
+- Behavior preservation check:
+  - The first safe correction is test coverage or static verification only.
+  - Any future code refactor must be treated as a separate behavior-preservation review, not as an
+    automatic part of this documentation/source cleanup plan.
+
+### 6. Defer Optional Refactors Unless They Can Be Proven Behavior-Neutral
+
+- `ChannelManager` modifier wrapping can be considered only if bytecode-size benefit is measured and
+  access-control behavior, custom errors, revert locations relevant to tests, ABI, and storage layout
+  remain unchanged.
+- Shared Drive upload orchestration can be considered only if bridge and DApp upload scripts keep
+  the same CLI flags, validation errors, preflight behavior, folder paths, upload file lists, receipt
+  JSON fields, artifact-index updates, and console summaries.
+- Behavior preservation check:
+  - If exact behavior cannot be asserted from tests or golden fixtures, leave the duplicated code in
+    place and document the duplication as accepted until a dedicated refactor pass.
+
+### 7. Final Verification Gate
+
+- Run local Markdown link existence checks for tracked public docs.
+- Run `git diff --check`.
+- Run focused Solidity and Node/package tests for touched files.
+- Confirm `checklist.md` remains ignored and untracked.
+- Confirm no runtime behavior changes by reviewing the final diff against this checklist before
+  committing.
+
+## Behavior Preservation Self-Check
+
+First review result: the original plan was not behavior-preserving because it considered rejecting
+currently accepted private-state deployment network names. The plan was revised to update
+documentation to match the current `APP_NETWORKS` acceptance behavior instead.
+
+Second review result: the original plan could have changed protocol code by consolidating
+duplicated DApp function metadata hashing. The plan was revised to add equivalence guards first and
+to require a separate behavior-preservation review before any runtime refactor.
+
+Third review result: the original plan could have changed script behavior by extracting shared
+Drive upload orchestration without specifying exact compatibility requirements. The plan was revised
+to defer that refactor unless golden behavior for flags, errors, folder paths, receipts, artifact
+index updates, and console output is preserved.
+
+Final self-check result: the revised plan preserves existing behavior by default. Required fixes are
+documentation alignment, removal of non-public tracked notes, unused-code removal, unused direct
+dependency cleanup, and drift-guard tests. Any item that might change runtime behavior is either
+converted into documentation that matches current implementation, constrained by explicit
+behavior-preservation gates, or deferred to a separately approved refactor pass.

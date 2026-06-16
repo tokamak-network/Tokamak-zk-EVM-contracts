@@ -18,7 +18,7 @@ contract TokamakVerifierRootTest is Test {
     TokamakVerifier internal verifier;
 
     function setUp() public {
-        verifier = new TokamakVerifier();
+        verifier = new TokamakVerifier("2.1");
     }
 
     function testRejectsStaleMintNotes1Fixture() public {

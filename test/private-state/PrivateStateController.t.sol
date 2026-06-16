@@ -68,13 +68,10 @@ contract PrivateStateControllerTest is Test {
         assertTrue(controller.commitmentExists(outputCommitments[0]));
 
         _seedLiquidBalance(bob, 30 ether);
+        PrivateStateController.Note memory dummyNote = _mintNote(bob, 30 ether, bytes32("bob-4-dummy-1"));
 
-        vm.startPrank(bob);
-        controller.mintNotes1(_mintOutputArray1(_mintOutput(_note(bob, 30 ether, bytes32("bob-4-dummy-1")))));
-        controller.redeemNotes2(
-            _notes2(_noteFromTransferOutput(outputs[0]), _note(bob, 30 ether, bytes32("bob-4-dummy-1"))), bob
-        );
-        vm.stopPrank();
+        vm.prank(bob);
+        controller.redeemNotes2(_notes2(_noteFromTransferOutput(outputs[0]), dummyNote), bob);
 
         assertEq(l2AccountingVault.liquidBalances(bob), 90 ether);
 
@@ -258,17 +255,22 @@ contract PrivateStateControllerTest is Test {
         controller.transferNotes1To2(outputs, inputNotes);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        assertEq(entries.length, 2);
-        assertEq(entries[0].topics.length, 1);
-        assertEq(entries[1].topics.length, 1);
-        assertEq(entries[0].topics[0], NOTE_VALUE_ENCRYPTED_TOPIC);
-        assertEq(entries[1].topics[0], NOTE_VALUE_ENCRYPTED_TOPIC);
+        uint256 encryptedEventIndex;
+        for (uint256 i = 0; i < entries.length; ++i) {
+            if (entries[i].topics.length != 1 || entries[i].topics[0] != NOTE_VALUE_ENCRYPTED_TOPIC) {
+                continue;
+            }
 
-        bytes32[3] memory event0 = abi.decode(entries[0].data, (bytes32[3]));
-        bytes32[3] memory event1 = abi.decode(entries[1].data, (bytes32[3]));
+            bytes32[3] memory eventPayload = abi.decode(entries[i].data, (bytes32[3]));
+            if (encryptedEventIndex == 0) {
+                _assertEncryptedNoteValueEq(eventPayload, outputs[0].encryptedNoteValue);
+            } else if (encryptedEventIndex == 1) {
+                _assertEncryptedNoteValueEq(eventPayload, outputs[1].encryptedNoteValue);
+            }
+            encryptedEventIndex += 1;
+        }
 
-        _assertEncryptedNoteValueEq(event0, outputs[0].encryptedNoteValue);
-        _assertEncryptedNoteValueEq(event1, outputs[1].encryptedNoteValue);
+        assertEq(encryptedEventIndex, 2);
     }
 
     function testRedeemNotes1OwnerCanRedeemDirectly() public {
@@ -354,12 +356,14 @@ contract PrivateStateControllerTest is Test {
 
     function testMintNotes1EmitsCommitmentStorageKeyObserved() public {
         _seedLiquidBalance(alice, 10 ether);
-        PrivateStateController.Note memory note = _note(alice, 10 ether, bytes32("alice-commitment-storage-key"));
+        PrivateStateController.MintOutput memory output =
+            _mintOutput(_note(alice, 10 ether, bytes32("alice-commitment-storage-key")));
+        PrivateStateController.Note memory note = _noteFromMintOutput(alice, output);
         bytes32 expectedStorageKey = keccak256(abi.encode(_commitmentOf(note), COMMITMENT_EXISTS_SLOT));
 
         vm.recordLogs();
         vm.prank(alice);
-        controller.mintNotes1(_mintOutputArray1(_mintOutput(note)));
+        controller.mintNotes1(_mintOutputArray1(output));
 
         _assertSingleControllerStorageKeyObserved(vm.getRecordedLogs(), expectedStorageKey);
     }
@@ -553,9 +557,10 @@ contract PrivateStateControllerTest is Test {
         internal
         returns (PrivateStateController.Note memory note)
     {
-        note = _note(noteOwner, value, salt);
+        PrivateStateController.MintOutput memory output = _mintOutput(_note(noteOwner, value, salt));
         vm.prank(noteOwner);
-        controller.mintNotes1(_mintOutputArray1(_mintOutput(note)));
+        controller.mintNotes1(_mintOutputArray1(output));
+        note = _noteFromMintOutput(noteOwner, output);
     }
 
     function _seedLiquidBalance(address account, uint256 amount) internal {
@@ -626,6 +631,18 @@ contract PrivateStateControllerTest is Test {
         return PrivateStateController.MintOutput({
             value: note.value,
             encryptedNoteValue: _mintEncryptedNoteValue(note.salt)
+        });
+    }
+
+    function _noteFromMintOutput(address owner_, PrivateStateController.MintOutput memory output)
+        internal
+        pure
+        returns (PrivateStateController.Note memory)
+    {
+        return PrivateStateController.Note({
+            owner: owner_,
+            value: output.value,
+            salt: _encryptedNoteSalt(output.encryptedNoteValue)
         });
     }
 
@@ -865,8 +882,12 @@ contract PrivateStateControllerTest is Test {
         return PrivateStateController.Note({
             owner: output.owner,
             value: output.value,
-            salt: keccak256(abi.encode(output.encryptedNoteValue))
+            salt: _encryptedNoteSalt(output.encryptedNoteValue)
         });
+    }
+
+    function _encryptedNoteSalt(bytes32[3] memory encryptedNoteValue) internal pure returns (bytes32) {
+        return keccak256(abi.encode(encryptedNoteValue));
     }
 
     function _encryptedNoteValue(string memory label) internal pure returns (bytes32[3] memory encryptedNoteValue) {

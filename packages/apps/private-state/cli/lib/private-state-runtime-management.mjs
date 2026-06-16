@@ -1367,6 +1367,7 @@ async function installPrivateStateCliArtifacts({
     ?? DEFAULT_PUBLIC_ARTIFACT_INDEX_FILE_ID,
   cacheBaseRoot,
   localDeploymentBaseRoot,
+  chainIds = null,
   localChainIds = null,
   groth16CrsVersion,
 } = {}) {
@@ -1376,10 +1377,16 @@ async function installPrivateStateCliArtifacts({
   const normalizedLocalDeploymentBaseRoot = localDeploymentBaseRoot
     ? path.resolve(localDeploymentBaseRoot)
     : null;
+  const selectedChainIds = chainIds === null
+    ? null
+    : new Set(chainIds.map((chainId) => String(requireChainId(chainId))));
   const index = await fetchPublicArtifactIndex(indexFileId);
   const installedByChainId = new Map();
 
   for (const chainId of Object.keys(index.chains).sort(compareChainIds)) {
+    if (selectedChainIds !== null && !selectedChainIds.has(String(requireChainId(chainId)))) {
+      continue;
+    }
     const chain = index.chains[chainId];
     if (!chain?.bridge?.timestamp || !chain?.bridge?.files || !chain.dapps?.[normalizedDappName]) {
       continue;
@@ -1397,10 +1404,10 @@ async function installPrivateStateCliArtifacts({
   }
 
   if (normalizedLocalDeploymentBaseRoot) {
-    const discoveredLocalChainIds = localChainIds ?? discoverLocalPrivateStateDeploymentChainIds({
+    const discoveredLocalChainIds = (localChainIds ?? discoverLocalPrivateStateDeploymentChainIds({
       localDeploymentBaseRoot: normalizedLocalDeploymentBaseRoot,
       dappName: normalizedDappName,
-    });
+    })).filter((chainId) => selectedChainIds === null || selectedChainIds.has(String(requireChainId(chainId))));
     if (discoveredLocalChainIds.length === 0) {
       throw new Error(
         `No local ${normalizedDappName} deployment artifacts found under ${normalizedLocalDeploymentBaseRoot}.`,

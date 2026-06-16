@@ -2714,10 +2714,20 @@ async function handleInstallZkEvm({ args }) {
   const installMode = args.readOnly === true
     ? PRIVATE_STATE_INSTALL_MODES.READ_ONLY
     : PRIVATE_STATE_INSTALL_MODES.FULL;
+  const installNetworkName = args.network === undefined ? null : requireNetworkName(args);
+  const installNetwork = installNetworkName === null
+    ? null
+    : {
+      ...resolveCliNetwork(installNetworkName),
+      name: installNetworkName,
+    };
+  const installChainIds = installNetwork === null ? null : [installNetwork.chainId];
+  const requiresTermsAcceptance = networkRequiresUserConsent(installNetworkName);
   const terms = readPrivateStateTermsMetadata();
-  if (isJsonOutputRequested()) {
+  if (requiresTermsAcceptance && isJsonOutputRequested()) {
     cliOutput.result({
       action: "install",
+      network: installNetworkName,
       installMode,
       terms,
       installed: false,
@@ -2726,18 +2736,27 @@ async function handleInstallZkEvm({ args }) {
       termsAcceptanceCanBeProvidedByJson: false,
       terms_refs: privateStateTermsRefsForOutput(),
       terms_acceptance_action: "accept_terms_and_continue_installation_button",
-      nextSafeAction: args.readOnly === true ? "private-state-cli install --read-only" : "private-state-cli install",
+      nextSafeAction: [
+        "private-state-cli install",
+        installNetworkName === null ? null : `--network ${installNetworkName}`,
+        args.readOnly === true ? "--read-only" : null,
+      ].filter(Boolean).join(" "),
       message: "Run the install command again without --json. The CLI will open a local browser Terms page for the human user to review and accept before installation proceeds.",
     });
     return;
   }
-  const termsAcceptance = await requireInstallTermsAcceptance({
-    terms,
-    installMode,
-    terminalTerms: args.terminalTerms === true,
-  });
+  const termsAcceptance = requiresTermsAcceptance
+    ? await requireInstallTermsAcceptance({
+      terms,
+      installMode,
+      terminalTerms: args.terminalTerms === true,
+    })
+    : null;
   const progress = createInstallProgressReporter(installMode);
   progress.info(`Install mode: ${installMode}.`);
+  if (installNetwork !== null) {
+    progress.info(`Network scope: ${installNetwork.name} (${installNetwork.chainId}).`);
+  }
   let selectedVersions = null;
   let tokamakCliRuntime = null;
   let groth16Runtime = null;
@@ -2768,6 +2787,7 @@ async function handleInstallZkEvm({ args }) {
     dappName: PRIVATE_STATE_DAPP_LABEL,
     installMode,
     localDeploymentBaseRoot,
+    chainIds: installChainIds,
     groth16CrsVersion: groth16Runtime?.compatibleBackendVersion ?? null,
   });
   progress.done(`Deployment artifacts installed for ${deploymentArtifacts.installed.length} chain${deploymentArtifacts.installed.length === 1 ? "" : "s"}.`);
@@ -2786,6 +2806,8 @@ async function handleInstallZkEvm({ args }) {
   progress.done("Local install manifest is written.");
   cliOutput.result({
     action: "install",
+    network: installNetworkName,
+    chainIds: installChainIds,
     installMode,
     terms,
     termsAcceptance,
@@ -3280,6 +3302,9 @@ function privateStateTermsRefsForOutput() {
 }
 
 function commandRequiresTermsAcceptance(args) {
+  if (!networkRequiresUserConsent(args.network)) {
+    return false;
+  }
   if (args.command === "install") {
     return false;
   }
@@ -3290,6 +3315,13 @@ function commandRequiresTermsAcceptance(args) {
     return args.exportEvidence !== undefined;
   }
   return TERMS_GATED_COMMAND_IDS.has(args.command);
+}
+
+function networkRequiresUserConsent(networkName) {
+  if (networkName === undefined || networkName === null || String(networkName).trim() === "") {
+    return true;
+  }
+  return requireNetworkName({ network: networkName }) === "mainnet";
 }
 
 function termsAcceptanceMatchesCurrent(record, terms) {
@@ -4480,7 +4512,7 @@ async function handleWalletExportKey({ args, keyKind }) {
     ? walletSpendingKeySecretPath(networkName, walletName)
     : walletViewingKeySecretPath(networkName, walletName);
   expect(fs.existsSync(secretPath), `Wallet ${walletName} is missing its ${keyKind} key.`);
-  await requireWalletKeyExportConfirmation({ keyKind });
+  await requireWalletKeyExportConfirmation({ keyKind, networkName });
   const payload = JSON.parse(readSecretFile(secretPath, `${keyKind} key`));
   validateWalletKeyPayload(payload, keyKind);
   fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
@@ -6472,7 +6504,7 @@ async function handleWalletGetNotes({ args, provider }) {
   const spentTotal = canComputeTotals ? spentTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n) : null;
   const evidenceExport = args.exportEvidence
     ? await (async () => {
-      await requirePlaintextEvidenceExportConfirmation();
+      await requirePlaintextEvidenceExportConfirmation({ networkName: walletMetadata.network });
       return exportWalletGetNotesEvidenceBundle({
         args,
         provider,
@@ -6511,7 +6543,10 @@ async function handleWalletGetNotes({ args, provider }) {
   });
 }
 
-async function requirePlaintextEvidenceExportConfirmation() {
+async function requirePlaintextEvidenceExportConfirmation({ networkName }) {
+  if (!networkRequiresUserConsent(networkName)) {
+    return;
+  }
   const confirmation = "I understand this export contains plaintext note evidence";
   const lines = [
     "WARNING SUMMARY: wallet get-notes --export-evidence",
@@ -6542,7 +6577,10 @@ async function requirePlaintextEvidenceExportConfirmation() {
   }
 }
 
-async function requireWalletKeyExportConfirmation({ keyKind }) {
+async function requireWalletKeyExportConfirmation({ keyKind, networkName }) {
+  if (!networkRequiresUserConsent(networkName)) {
+    return;
+  }
   const confirmation = `I understand this export contains my ${keyKind} private key`;
   const authority = keyKind === "spending"
     ? "spend, transfer, or redeem Private Notes when other required wallet state is available"
@@ -13149,6 +13187,9 @@ function assertWalletChannelMoveArgs(args, commandName) {
 
 function assertInstallZkEvmArgs(args) {
   assertAllowedCommandSchema(args, "install");
+  if (args.network !== undefined) {
+    requireNetworkName(args);
+  }
   assertBooleanFlag(args, "readOnly", "install option --read-only");
   assertBooleanFlag(args, "terminalTerms", "install option --terminal-terms");
   if (args.readOnly === true && args.docker !== undefined) {

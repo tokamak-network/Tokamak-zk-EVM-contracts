@@ -926,11 +926,10 @@ function runPrivateStateCli(args, options = {}) {
 }
 
 function installPrivateStateCliRuntimeForE2E() {
-  return run(cliBinPath, ["install", "--include-local-artifacts"], {
+  return runPrivateStateCli(["install", "--network", "anvil", "--include-local-artifacts"], {
     // Local anvil artifacts are generated under the repository deployment/ tree during bootstrap.
     cwd: repoRoot,
     label: "private-state-cli:install",
-    quiet: true,
   });
 }
 
@@ -952,7 +951,7 @@ function verifyReadOnlyInstallForE2E() {
     ...process.env,
     PRIVATE_STATE_ARTIFACT_CACHE_ROOT: readOnlyArtifactCacheRoot,
   };
-  const install = runPrivateStateCli(["install", "--read-only", "--include-local-artifacts"], {
+  const install = runPrivateStateCli(["install", "--network", "anvil", "--read-only", "--include-local-artifacts"], {
     cwd: repoRoot,
     env,
     label: "private-state-cli:install-read-only",

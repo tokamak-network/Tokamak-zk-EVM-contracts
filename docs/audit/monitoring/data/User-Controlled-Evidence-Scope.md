@@ -52,11 +52,12 @@ not, by themselves, prove the full private note path.
 ## User-Held Evidence A User May Voluntarily Submit
 
 A user may voluntarily generate wallet-derived facts that they can inspect locally. The CLI provides
-`wallet get-notes --export-evidence <PATH>` as a local raw evidence bundle export after interactive confirmation. When
-the selected wallet has retained exited epochs, those local epochs are included so the user can still inspect historical
-notes after channel exit. This raw bundle is not the final exchange submission package. The local investigator opened by
-`private-state-cli investigator`, or directly at `packages/apps/private-state/cli/investigator/index.html`, filters the
-raw bundle into a narrower user-consent package for the specific request.
+`wallet get-notes --export-evidence <PATH>` as a local raw evidence bundle export. Mainnet evidence export requires
+interactive confirmation; Sepolia and anvil evidence export do not. When the selected wallet has retained exited epochs,
+those local epochs are included so the user can still inspect historical notes after channel exit. This raw bundle is
+not the final exchange submission package. The local investigator opened by `private-state-cli investigator`, or
+directly at `packages/apps/private-state/cli/investigator/index.html`, filters the raw bundle into a narrower
+user-consent package for the specific request.
 
 User-Controlled AI Agents must not confirm the raw evidence export for the user and must not receive the raw evidence
 ZIP. Provider Parties cannot recover leaked plaintext evidence or undo third-party disclosure.

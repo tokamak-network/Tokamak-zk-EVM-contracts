@@ -126,14 +126,15 @@ artifacts needed by transaction-sending channel commands:
 private-state-cli install
 ```
 
-`install` opens a local browser page for the current Service Terms and requires explicit human acceptance before
-installation proceeds. The page is served from `127.0.0.1`, uses a one-time local token, and lets the user review the
-Terms in the browser. After browser acceptance succeeds, the CLI immediately prints that
-installation is starting before any long-running install work begins. Use `--terminal-terms` only when the local browser
-flow cannot be used. The CLI package includes the canonical Terms Markdown and reports its `termsVersion` and
-deterministic `termsHash` in install results. JSON mode cannot accept Terms for the user, and
-`private-state-cli install --json` reports that browser-based interactive installation is required and includes Terms
-references without installing artifacts.
+`install` accepts optional `--network <NAME>` to install only that network's deployment artifacts. Mainnet install, and
+install without `--network`, opens a local browser page for the current Service Terms and requires explicit human
+acceptance before installation proceeds. Sepolia and anvil installs do not require Terms acceptance. The browser page is
+served from `127.0.0.1`, uses a one-time local token, and lets the user review the Terms in the browser. After browser
+acceptance succeeds, the CLI immediately prints that installation is starting before any long-running install work
+begins. Use `--terminal-terms` only when the local browser flow cannot be used for a Terms-gated install. The CLI package
+includes the canonical Terms Markdown and reports its `termsVersion` and deterministic `termsHash` in install results.
+JSON mode cannot accept Terms for the user. For Terms-gated installs, `private-state-cli install --json` reports that
+browser-based interactive installation is required and includes Terms references without installing artifacts.
 The acceptance record is stored in the user's local private-state CLI workspace and is not sent to the Provider by
 default.
 
@@ -375,10 +376,11 @@ private-state-cli wallet export viewing-key --network mainnet --wallet <WALLET> 
 private-state-cli wallet export spending-key --network mainnet --wallet <WALLET> --output ./wallet-spending.key
 ```
 
-These export commands are intentionally interactive. They print a warning summary and require the user to type the exact
-confirmation phrase before writing secret-bearing `.key` files. A viewing-key export can reveal readable note history
-when other required wallet state is available. A spending-key export can authorize note use when other required wallet
-state is available. Do not send exported key files to User-Controlled AI Agents, support channels, or untrusted parties.
+On mainnet, these export commands are intentionally interactive. They print a warning summary and require the user to
+type the exact confirmation phrase before writing secret-bearing `.key` files. Sepolia and anvil key exports do not
+require interactive confirmation. A viewing-key export can reveal readable note history when other required wallet state
+is available. A spending-key export can authorize note use when other required wallet state is available. Do not send
+exported key files to User-Controlled AI Agents, support channels, or untrusted parties.
 
 Import those capabilities only when the target machine should receive them:
 
@@ -398,8 +400,9 @@ Export a local full-note evidence bundle with:
 private-state-cli wallet get-notes --network mainnet --wallet <WALLET> --export-evidence ./wallet-evidence.zip
 ```
 
-This export is intentionally interactive. The CLI prints a warning summary and requires the user to type the exact
-confirmation phrase before writing plaintext evidence. The raw ZIP is an input for `private-state-cli investigator`. It
+On mainnet, this export is intentionally interactive. The CLI prints a warning summary and requires the user to type the
+exact confirmation phrase before writing plaintext evidence. Sepolia and anvil evidence exports do not require
+interactive confirmation. The raw ZIP is an input for `private-state-cli investigator`. It
 contains plaintext for all locally known notes, derived commitments and nullifiers, creation and spend transaction
 references, transaction calldata, receipts, events, and indexes for filtering by note, nullifier, transaction, block
 range, or available counterparty metadata. It includes all local epochs for the selected wallet, including exited epochs
@@ -571,11 +574,11 @@ secret source used at `channel join`. `wallet recover-workspace --wallet-secret-
 rederivation only for active channel registrations. Importing `wallet-viewing.key` or `wallet-spending.key` restores the
 corresponding capability without rerunning derivation, but a backup ZIP alone never restores either capability.
 
-`wallet get-notes --export-evidence <PATH>` writes a local raw evidence ZIP after interactive confirmation. The bundle
-is not a key export. It includes plaintext note facts for locally known notes and may include retained exited epochs for
-the selected wallet, so it can reveal sensitive wallet history. `private-state-cli investigator` can create narrower
-consent-disclosure packages without requiring viewing-key or spending-key sharing. User-Controlled AI Agents must not
-confirm the export or receive the raw ZIP.
+`wallet get-notes --export-evidence <PATH>` writes a local raw evidence ZIP. Mainnet export requires interactive
+confirmation; Sepolia and anvil export do not. The bundle is not a key export. It includes plaintext note facts for
+locally known notes and may include retained exited epochs for the selected wallet, so it can reveal sensitive wallet
+history. `private-state-cli investigator` can create narrower consent-disclosure packages without requiring viewing-key
+or spending-key sharing. User-Controlled AI Agents must not confirm the export or receive the raw ZIP.
 
 ## Workspace
 
@@ -661,8 +664,8 @@ When `--json` is used, the CLI follows one output contract for all commands:
 - command failures are one JSON object on stdout with `ok: false`
 - progress, warning, and informational events are JSON Lines on stderr
 - human-readable mode remains the default when `--json` is omitted
-- `install --json` reports that browser-based interactive Terms acceptance is required, includes Terms references, and
-  does not install artifacts
+- Terms-gated `install --json` reports that browser-based interactive Terms acceptance is required, includes Terms
+  references, and does not install artifacts
 - install results include canonical Terms metadata: `termsVersion`, `termsHash`, `termsHashAlgorithm`, and Terms source
   paths
 

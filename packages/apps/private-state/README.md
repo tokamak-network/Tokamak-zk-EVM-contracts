@@ -199,8 +199,11 @@ Join Toll means the one-time Channel entry fee paid when a user joins a Channel.
 - installs the latest public Groth16 MPC `circuit_final.zkey` from the Groth16 CRS Drive folder in full mode
 - writes Groth16 proof outputs only under the fixed runtime workspace proof directory in full mode
 - refreshes shared bridge constants derived from `tokamak-l2js`
-- displays the current Service Terms and requires explicit human acceptance before installation proceeds
-- reports that interactive Terms acceptance is required without installing artifacts when run with `--json`
+- accepts optional `--network <NAME>` to install only that network's artifacts
+- requires explicit human Service Terms acceptance for mainnet install and for install without `--network`
+- does not require Service Terms acceptance for Sepolia or anvil install
+- reports that interactive Terms acceptance is required without installing artifacts when a Terms-gated install is run
+  with `--json`
 
 `uninstall`
 
@@ -350,6 +353,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 
 - write secret `.key` files for viewing and spending authority respectively
 - include public metadata derived from the secret, but do not include additional derivation material
+- require interactive confirmation on mainnet, but not on Sepolia or anvil
 - should be exported only when the target machine or custodian should receive that specific authority
 
 `wallet import backup`, `wallet import viewing-key`, and `wallet import spending-key`
@@ -425,7 +429,8 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - reports both unused and spent note sets plus bridge-consistency status
 - reports whether a viewing key is available; without it, the command can show encrypted-only tracked note state but cannot refresh or decrypt received-note events
 - accepts `--wallet` and `--network`
-- accepts `--export-evidence <PATH>` to write a raw evidence ZIP for `private-state-cli investigator` after interactive confirmation
+- accepts `--export-evidence <PATH>` to write a raw evidence ZIP for `private-state-cli investigator`; mainnet export
+  requires interactive confirmation, while Sepolia and anvil export do not
 
 ### 11. Redeem notes
 

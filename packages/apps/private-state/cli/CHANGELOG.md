@@ -15,6 +15,10 @@
   stdout and stderr in failure diagnostics.
 - Fixed `install --include-local-artifacts` to scan local `deployment/chain-id-*` artifacts for the selected DApp,
   install local artifacts per chain, and let local artifacts override downloaded artifacts for the same chain.
+- Added optional `install --network <NAME>` scoping. Mainnet install and install without `--network` remain Terms-gated,
+  while Sepolia and anvil installs can run without interactive Terms acceptance for test and E2E workflows.
+- Changed consent-gated CLI commands to require Terms acceptance only for mainnet-targeted runs. Sepolia and anvil runs
+  skip Terms prompts while preserving mainnet protections.
 - Updated the packaged Service Terms, public Terms, Privacy Notice, and Monitoring Packet wording for the corrected
   Provider and Channel Provider responsibility model, including Channel-scoped observer and workspace mirror services.
 - Added Channel observer URL output to the Monitoring Packet policy snapshot generator and current
@@ -29,8 +33,8 @@
   package version, acceptance source, acceptance method, and Terms coverage metadata in the install manifest.
 - Added a packaged canonical Service Terms source and deterministic Terms metadata so install flows report the current
   `termsVersion` and `termsHash` from the same source in human and JSON modes.
-- Changed `install --json` to report that browser-based interactive Terms acceptance is required, include Terms
-  references, avoid installing artifacts, and provide agent guidance for Terms and safety-context explanation.
+- Changed Terms-gated `install --json` to report that browser-based interactive Terms acceptance is required, include
+  Terms references, avoid installing artifacts, and provide agent guidance for Terms and safety-context explanation.
 - Added renewed Terms acceptance enforcement for terms-gated commands, including JSON-mode refusal when the current
   Terms version or hash has not been accepted by the human user.
 - Aligned the CLI README RPC example with the recommended Ankr provider and removed chat-oriented wording from the
@@ -48,7 +52,7 @@
 - Fixed `uninstall` execution by awaiting the CLI runner entrypoint and importing the Tokamak zk-EVM runtime cache root
   resolver used by the removal path.
 - Changed wallet viewing-key and spending-key exports to require interactive secret-bearing export confirmation before
-  writing `.key` files.
+  writing `.key` files on mainnet. Sepolia and anvil key exports can run non-interactively for test and E2E workflows.
 - Updated human guide, command reference, README, and `agents.md` wording to align with install-time Terms acceptance and
   interactive sensitive-action confirmations instead of per-command action-impact acknowledgement flags.
 - Changed transaction-sending command warning handling to print warning summaries without requiring

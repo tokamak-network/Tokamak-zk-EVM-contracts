@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-11T14:52:10.755Z",
+  "generatedAt": "2026-06-16T14:11:48.529Z",
   "chainId": 1,
   "chain": "ethereum-mainnet",
   "canonicalTonContractAddress": "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5",
@@ -13,18 +13,18 @@
     "creationBlockNumber": 25018368,
     "latestAcceptedTransition": {
       "eventName": "CurrentRootVectorObserved",
-      "transactionHash": "0x5e080b836148591330a0f37e67e94a8204e3150d29c1070e04c4bf01506352e5",
-      "blockNumber": 25249135,
-      "blockHash": "0xd3e181039733a9374dd9043c7ad6d5ca1bfaa6b5b0248dc6db04e679063e6a3a",
-      "logIndex": 1602,
-      "transactionIndex": 393,
-      "timestamp": 1780637795,
-      "rootVectorHash": "0x59674fc8c54f11b6e7bb79d93ca2c850a262c330237d32de8b806c776f9c4ded",
+      "transactionHash": "0x1be48cb014e7a8208019b8d0fe5c819ccded681c85276de331737cb9b38e495c",
+      "blockNumber": 25299747,
+      "blockHash": "0xfdc69a589148b78a41f8f73ab3dad965c2dc0a9004ff4983b7779f2698f7995d",
+      "logIndex": 474,
+      "transactionIndex": 124,
+      "timestamp": 1781247527,
+      "rootVectorHash": "0x26a15ddca33503bd7886b6d1e7c898aa89d91085582a4d43b87d0cd3b7701598",
       "rootVector": [
-        "0x2f45ba09d2530e2d559c6fe348c851fca67ec0495740831a6038273b19c0e5f0",
-        "0x38ac97f4a2c71b11ca9fc8066d19e43114abb2e1ec036d6f3755a249ebc6046b"
+        "0x5cb2a44ad61588d4381fce65c3d83bb43ccb64a36b7c1b0d45c01a2b2fb18e44",
+        "0x28ca79a58dee7ebd317ba0f00dff04f61257f9db8d89ee63933247060b120889"
       ],
-      "explorerUrl": "https://etherscan.io/tx/0x5e080b836148591330a0f37e67e94a8204e3150d29c1070e04c4bf01506352e5#eventlog",
+      "explorerUrl": "https://etherscan.io/tx/0x1be48cb014e7a8208019b8d0fe5c819ccded681c85276de331737cb9b38e495c#eventlog",
       "checkedVia": "etherscan-api"
     },
     "latestPolicyVersion": "channel-creation-snapshot-v1",
@@ -42,8 +42,8 @@
     "storageLayoutHashAlgorithm": "keccak256(file bytes)"
   },
   "verifierContractAddresses": {
-    "grothVerifier": "0xbabb061b0c536C6e733E1E3D47e9392AC1C7AA1C",
-    "tokamakVerifier": "0x65DA1c78e5E78D55177c867F16ed10b143Eab7A1"
+    "grothVerifier": "0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5",
+    "tokamakVerifier": "0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626"
   },
   "proxyAddresses": {
     "bridgeCore": "0x992E2Ae206620d811832a8F697c526c4f95974b6",
@@ -51,9 +51,9 @@
     "l1TokenVault": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61"
   },
   "implementationAddresses": {
-    "bridgeCore": "0xCd96A6205207470E293E0dd770EA74d736b7F5bf",
-    "dAppManager": "0xd1894e950EaA7bc4D1b164F3dD164965Db136860",
-    "l1TokenVault": "0x66bF7E0dC10129b5108719f2744DF58B8BC54647",
+    "bridgeCore": "0x1713171adc06BF82b4f05945d742FFd351a8d1bD",
+    "dAppManager": "0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5",
+    "l1TokenVault": "0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710",
     "channelManager": "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7",
     "privateStateController": "0x67c6233a99d9f122fef9dc111e89948107b34c2f",
     "l2AccountingVault": "0x9a6c9eb158269bbed8885649f95acefa8aafc3aa"
@@ -75,7 +75,7 @@
       "bridgeTokenVault": "0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3"
     },
     "deployer": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7",
-    "configuredOwner": "0xBE637160D21975EF1e0270D32Bfc547c2EA8DcC3",
+    "configuredOwner": "0x850dD0721B93D455b55bdf1324595fA1BD2B3ce7",
     "multisig": null,
     "timelock": null,
     "note": "Current artifacts expose a single owner address. No multisig or timelock address is recorded in the deployment artifact."
@@ -91,7 +91,7 @@
     "bridgeProxyDeploymentBlockNumber": null,
     "note": "Plain RPC does not expose contract creation block discovery without an indexer. Channel and DApp deployment anchors are included where available."
   },
-  "deployedGitCommitHash": "1f350c52d18033a4e6872e0005d0b3c8684718e2",
+  "deployedGitCommitHash": "b3910b39d49cd4d13bb167999dca48c917878b56",
   "npmPackageVersions": {
     "privateStateCliAtDappRegistration": "0.1.9",
     "bridgePackageVersion": null,
@@ -99,7 +99,7 @@
     "tokamakVerifierCompatibleBackendVersion": "2.1"
   },
   "sourceVerificationStatus": {
-    "status": "partial",
+    "status": "ok",
     "entries": {
       "bridgeCore": {
         "address": "0x992E2Ae206620d811832a8F697c526c4f95974b6",
@@ -112,13 +112,13 @@
         "checkedVia": "etherscan-api"
       },
       "bridgeCoreImplementation": {
-        "address": "0xCd96A6205207470E293E0dd770EA74d736b7F5bf",
-        "contractName": "",
-        "compilerVersion": "",
+        "address": "0x1713171adc06BF82b4f05945d742FFd351a8d1bD",
+        "contractName": "BridgeCore",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
         "proxy": "0",
         "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0xCd96A6205207470E293E0dd770EA74d736b7F5bf#code",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x1713171adc06BF82b4f05945d742FFd351a8d1bD#code",
         "checkedVia": "etherscan-api"
       },
       "dAppManager": {
@@ -132,13 +132,13 @@
         "checkedVia": "etherscan-api"
       },
       "dAppManagerImplementation": {
-        "address": "0xd1894e950EaA7bc4D1b164F3dD164965Db136860",
-        "contractName": "",
-        "compilerVersion": "",
+        "address": "0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5",
+        "contractName": "DAppManager",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
         "proxy": "0",
         "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0xd1894e950EaA7bc4D1b164F3dD164965Db136860#code",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5#code",
         "checkedVia": "etherscan-api"
       },
       "bridgeTokenVault": {
@@ -152,13 +152,13 @@
         "checkedVia": "etherscan-api"
       },
       "bridgeTokenVaultImplementation": {
-        "address": "0x66bF7E0dC10129b5108719f2744DF58B8BC54647",
-        "contractName": "",
-        "compilerVersion": "",
+        "address": "0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710",
+        "contractName": "L1TokenVault",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
         "proxy": "0",
         "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x66bF7E0dC10129b5108719f2744DF58B8BC54647#code",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710#code",
         "checkedVia": "etherscan-api"
       },
       "channelManager": {
@@ -202,96 +202,45 @@
         "checkedVia": "etherscan-api"
       },
       "grothVerifier": {
-        "address": "0xbabb061b0c536C6e733E1E3D47e9392AC1C7AA1C",
-        "contractName": "",
-        "compilerVersion": "",
+        "address": "0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5",
+        "contractName": "Groth16Verifier",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
         "proxy": "0",
         "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0xbabb061b0c536C6e733E1E3D47e9392AC1C7AA1C#code",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5#code",
         "checkedVia": "etherscan-api"
       },
       "tokamakVerifier": {
-        "address": "0x65DA1c78e5E78D55177c867F16ed10b143Eab7A1",
-        "contractName": "",
-        "compilerVersion": "",
+        "address": "0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626",
+        "contractName": "TokamakVerifier",
+        "compilerVersion": "v0.8.29+commit.ab55807c",
         "proxy": "0",
         "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x65DA1c78e5E78D55177c867F16ed10b143Eab7A1#code",
+        "verified": true,
+        "explorerUrl": "https://etherscan.io/address/0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626#code",
         "checkedVia": "etherscan-api"
       }
     },
-    "allCheckedAddressesVerified": false,
-    "uncheckedOrFailedAddresses": [
-      {
-        "address": "0xCd96A6205207470E293E0dd770EA74d736b7F5bf",
-        "contractName": "",
-        "compilerVersion": "",
-        "proxy": "0",
-        "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0xCd96A6205207470E293E0dd770EA74d736b7F5bf#code",
-        "checkedVia": "etherscan-api"
-      },
-      {
-        "address": "0xd1894e950EaA7bc4D1b164F3dD164965Db136860",
-        "contractName": "",
-        "compilerVersion": "",
-        "proxy": "0",
-        "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0xd1894e950EaA7bc4D1b164F3dD164965Db136860#code",
-        "checkedVia": "etherscan-api"
-      },
-      {
-        "address": "0x66bF7E0dC10129b5108719f2744DF58B8BC54647",
-        "contractName": "",
-        "compilerVersion": "",
-        "proxy": "0",
-        "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x66bF7E0dC10129b5108719f2744DF58B8BC54647#code",
-        "checkedVia": "etherscan-api"
-      },
-      {
-        "address": "0xbabb061b0c536C6e733E1E3D47e9392AC1C7AA1C",
-        "contractName": "",
-        "compilerVersion": "",
-        "proxy": "0",
-        "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0xbabb061b0c536C6e733E1E3D47e9392AC1C7AA1C#code",
-        "checkedVia": "etherscan-api"
-      },
-      {
-        "address": "0x65DA1c78e5E78D55177c867F16ed10b143Eab7A1",
-        "contractName": "",
-        "compilerVersion": "",
-        "proxy": "0",
-        "implementation": "",
-        "verified": false,
-        "explorerUrl": "https://etherscan.io/address/0x65DA1c78e5E78D55177c867F16ed10b143Eab7A1#code",
-        "checkedVia": "etherscan-api"
-      }
-    ],
+    "allCheckedAddressesVerified": true,
+    "uncheckedOrFailedAddresses": [],
     "warnings": []
   },
   "abiLinks": {
-    "bridgeAbiManifestLocalPath": "deployment/chain-id-1/bridge/20260611T091000Z/bridge-abi-manifest.1.json",
+    "bridgeAbiManifestLocalPath": "deployment/chain-id-1/bridge/20260511T065651Z/bridge-abi-manifest.1.json",
     "privateStateControllerCallableAbiLocalPath": "deployment/chain-id-1/dapps/private-state/20260504T003212Z/PrivateStateController.callable-abi.json",
     "l2AccountingVaultCallableAbiLocalPath": "deployment/chain-id-1/dapps/private-state/20260504T003212Z/L2AccountingVault.callable-abi.json"
   },
   "bytecodeHashes": {
     "0x992E2Ae206620d811832a8F697c526c4f95974b6": "0xdd9a51cef324c756a15a95900a9cbe3bf3e9d280087f1a367c801c9d682f3e20",
-    "0xCd96A6205207470E293E0dd770EA74d736b7F5bf": "0x1ad6cd5907028ebbebec95ee82e4b85bfb5a9751dff309862f608bf132cbe049",
+    "0x1713171adc06BF82b4f05945d742FFd351a8d1bD": "0x40633cd225e4ccf230177768f6d2bfff61df421a47b128250a0e125e893efb0e",
     "0x88Ab290a9dc0a169240EBC282Ec1F7C8524645aA": "0xdd9a51cef324c756a15a95900a9cbe3bf3e9d280087f1a367c801c9d682f3e20",
-    "0xd1894e950EaA7bc4D1b164F3dD164965Db136860": "0x37fb969524fe663d48d56218f1f0bb1ebb6c92a4fca7a8219a6d4b4ada18d382",
+    "0x76f0e95c0E5c9bA26289062637c68aEc1199ddc5": "0x8904e6155012c6531523fbda934bd9b7c04ea90669ed31dddcff952166045fb5",
     "0xf127Aef661c815ad46c5159146078f6F1E9f5F61": "0xdd9a51cef324c756a15a95900a9cbe3bf3e9d280087f1a367c801c9d682f3e20",
-    "0x66bF7E0dC10129b5108719f2744DF58B8BC54647": "0x1435100a6d7d4f68152bb836a38df07783cd40625cceb56628f783096441c62d",
-    "0xd62B4D56dbDeCADC6942Ae890bA840D807204665": "0x1f4a1d1f9a3a01aaade49af8773ee08423dea65e2cc99b859964f17e7b2564c1",
-    "0xbabb061b0c536C6e733E1E3D47e9392AC1C7AA1C": "0x4f1ea5063abcedfa2e720ba0a3104ad45369ed59e493ad6fa8504b1519c001fc",
-    "0x65DA1c78e5E78D55177c867F16ed10b143Eab7A1": "0x01f45ce4d7066e68c07e5bcaa6d94d4ddc664bb2cc83a4d1817e8a6e19d13034",
+    "0x4c6dDcf807309d49Ac9a1f6583B5A19ef6c6a710": "0x3dce454312f4136ec62da7472ab1c1368cd9f917bc96ed2eac55c94d1b361a1c",
+    "0xEB8eBE0E09bb897785a3bB9A60f93cef7b1AEf78": "0x06154c95b63fc4fd1a71583979b49c1a3e69a2e89dcbd2f0032f76c41a6bb5b0",
+    "0x21cfF039c1FC4FC621923Db18D8E4ca746C287D5": "0xc33eaeebf798180bb8c4ade42c9a80adb475f1971f4ee3134c84f02cb7dc68a0",
+    "0x0C467a5082323Cc6F4b7077A9dFb0bbdaf6eC626": "0x1f32149fbb82adbc55660f40217928213ef1c033594100d14efb2bc6bb442989",
     "0x3108d92A38bFb4B3396DE7ad4D92318a8fbE61D7": "0x5001f76838dfa26cd326452874453f6f8861d4980d4b9155f2b25a7b80071313",
     "0x67C6233A99D9f122Fef9DC111e89948107b34c2F": "0x9b69bbab76f74edf1eeb2fd83045b3c178ff6f6e79fbed59868300196ddd68fe",
     "0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA": "0x6b849696e5bcecd98d0139cd899ac0ffef6eec7fd8669191187202a733cb0074"
@@ -366,16 +315,16 @@
       "observableAs": "ChannelExitTollBurned",
       "contractAddress": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
       "eventName": "ChannelExitTollBurned",
-      "availability": "event-present",
-      "topic0": "0x4d4e412c0b218bb8ed03cfdcd67d74b7a1ca6d75dcf0a5c113d10aef47e288fb"
+      "availability": "no-dedicated-event",
+      "topic0": null
     },
     {
       "checklistItem": "channel operation abandonment event",
       "observableAs": "ChannelOperationAbandoned plus channelOperationAbandonedAt getter",
       "contractAddress": "0xf127Aef661c815ad46c5159146078f6F1E9f5F61",
       "eventName": "ChannelOperationAbandoned",
-      "availability": "event-present",
-      "topic0": "0x9ac47cc33171b4f616cb71b06ed21a1cfa32f9353d34d817e1e00b0a11829320"
+      "availability": "no-dedicated-event",
+      "topic0": null
     },
     {
       "checklistItem": "note commitment created event",

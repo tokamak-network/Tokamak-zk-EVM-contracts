@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-11T14:52:10.756Z",
+  "generatedAt": "2026-06-16T14:11:48.530Z",
   "chainId": 1,
   "channelName": "the-great-first-channel",
   "channelId": "108336797649051254585401751173864353497144788660297920004548699607442466523065",
@@ -11,7 +11,7 @@
   "asset": "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5",
   "joinToll": "4000000000000000000",
   "joinTollPolicy": {
-    "burnAddress": "0x000000000000000000000000000000000000dEaD",
+    "burnAddress": null,
     "refundSchedule": {
       "cutoff1Seconds": "21600",
       "cutoff2Seconds": "86400",
@@ -24,25 +24,25 @@
     "nonRefundablePortionHandling": "transferred-to-burn-address-on-future-channel-exit"
   },
   "operationStatus": {
-    "abandoned": false,
-    "abandonedAt": "0",
+    "abandoned": null,
+    "abandonedAt": null,
     "abandonmentEffect": "New joins and channel deposits are rejected after abandonment; note activity, redeem, withdraw, and exit remain unrestricted by abandonment."
   },
-  "currentRootVectorHash": "0x59674fc8c54f11b6e7bb79d93ca2c850a262c330237d32de8b806c776f9c4ded",
+  "currentRootVectorHash": "0x26a15ddca33503bd7886b6d1e7c898aa89d91085582a4d43b87d0cd3b7701598",
   "latestAcceptedTransition": {
     "eventName": "CurrentRootVectorObserved",
-    "transactionHash": "0x5e080b836148591330a0f37e67e94a8204e3150d29c1070e04c4bf01506352e5",
-    "blockNumber": 25249135,
-    "blockHash": "0xd3e181039733a9374dd9043c7ad6d5ca1bfaa6b5b0248dc6db04e679063e6a3a",
-    "logIndex": 1602,
-    "transactionIndex": 393,
-    "timestamp": 1780637795,
-    "rootVectorHash": "0x59674fc8c54f11b6e7bb79d93ca2c850a262c330237d32de8b806c776f9c4ded",
+    "transactionHash": "0x1be48cb014e7a8208019b8d0fe5c819ccded681c85276de331737cb9b38e495c",
+    "blockNumber": 25299747,
+    "blockHash": "0xfdc69a589148b78a41f8f73ab3dad965c2dc0a9004ff4983b7779f2698f7995d",
+    "logIndex": 474,
+    "transactionIndex": 124,
+    "timestamp": 1781247527,
+    "rootVectorHash": "0x26a15ddca33503bd7886b6d1e7c898aa89d91085582a4d43b87d0cd3b7701598",
     "rootVector": [
-      "0x2f45ba09d2530e2d559c6fe348c851fca67ec0495740831a6038273b19c0e5f0",
-      "0x38ac97f4a2c71b11ca9fc8066d19e43114abb2e1ec036d6f3755a249ebc6046b"
+      "0x5cb2a44ad61588d4381fce65c3d83bb43ccb64a36b7c1b0d45c01a2b2fb18e44",
+      "0x28ca79a58dee7ebd317ba0f00dff04f61257f9db8d89ee63933247060b120889"
     ],
-    "explorerUrl": "https://etherscan.io/tx/0x5e080b836148591330a0f37e67e94a8204e3150d29c1070e04c4bf01506352e5#eventlog",
+    "explorerUrl": "https://etherscan.io/tx/0x1be48cb014e7a8208019b8d0fe5c819ccded681c85276de331737cb9b38e495c#eventlog",
     "checkedVia": "etherscan-api"
   },
   "managedStorageAddresses": [
@@ -50,7 +50,7 @@
     "0x9A6c9eb158269BBEd8885649F95aCEFA8AAfC3aA"
   ],
   "workspaceMirrorUrl": "https://project-scw1r.vercel.app",
-  "channelObserverUrl": "https://observer.tonnel.io",
+  "channelObserverUrl": "https://observer.tonigma.network",
   "channelObserverUrlReadError": null,
   "aPubBlockHash": "0x10e3a83d65f08c7effcdbb79a78d185a4059069919469e7d1ccd7058c09ca64e",
   "dappMetadataDigestSchema": "0xc2d8278e5129f8263782de4f76198a90fe23bf8f776c3f3bbe2835174c5cad92",

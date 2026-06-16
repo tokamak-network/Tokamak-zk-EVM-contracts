@@ -111,13 +111,15 @@ Deployment requirement: **Bridge UUPS upgrade required**
 
 Summary:
 
-- Changes the default Join Toll refund schedule to a time-based policy. Exact Bridge
-  default values are available through the `BridgeCore.defaultJoinTollRefundCutoff*`
-  and `BridgeCore.defaultJoinTollRefundBps*` getters, while each Channel's fixed
-  policy is available through that Channel's `ChannelManager.joinTollRefundCutoff*`
-  and `ChannelManager.joinTollRefundBps*` getters.
+- Changes the existing time-based Join Toll refund schedule from the deployed
+  `6 hours -> 75%`, `24 hours -> 50%`, `3 days -> 25%`, and later `0%` default to
+  `24 hours -> 0%`, `3 days -> 25%`, `7 days -> 50%`, and later `75%`.
 - Inverts Join Toll refund schedule validation so configured refund percentages must stay
-  flat or increase as participation time increases.
+  flat or increase as participation time increases, instead of staying flat or decreasing.
+- Keeps the exact Bridge default values available through the
+  `BridgeCore.defaultJoinTollRefundCutoff*` and `BridgeCore.defaultJoinTollRefundBps*`
+  getters, while each Channel's fixed policy remains available through that Channel's
+  `ChannelManager.joinTollRefundCutoff*` and `ChannelManager.joinTollRefundBps*` getters.
 - Updates `L1TokenVault.exitChannel(...)` so future exits transfer the refundable portion
   to the exiting user and transfer the non-refundable portion to
   `0x000000000000000000000000000000000000dEaD`.

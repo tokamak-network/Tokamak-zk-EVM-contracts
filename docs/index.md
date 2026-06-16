@@ -4,6 +4,17 @@ This index is the public entrypoint for repository documentation. It links only 
 documents: either a section index or a document that links onward to the other public documents in
 its folder.
 
+## Audience Guide
+
+- Users and legal or compliance reviewers should start with the private-state DApp index, Terms,
+  Privacy Notice, and Monitoring Packet.
+- Auditors and protocol reviewers should read the white paper, bridge documents, private-state
+  contract documents, and monitoring documents.
+- Operators and developers should use the package READMEs, bridge implementation notes, workflow
+  documents, and script help output for operational detail.
+- User-controlled AI agents should use the CLI agent instructions only after the human user has
+  selected the channel, wallet, and disclosure scope.
+
 ## Main Document
 
 - [Tokamak Private App Channels White Paper](whitepaper.md)

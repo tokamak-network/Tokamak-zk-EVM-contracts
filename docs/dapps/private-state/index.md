@@ -42,9 +42,9 @@ note `owner`, `value`, and `salt` fields. Viewing keys and spending keys are exp
 as separate protected `.key` files so read access and spend authority can be shared or restored
 independently.
 
-### How should this DApp be positioned?
+### How is the DApp described in public materials?
 
-Use the following positioning terms consistently:
+The public description of the DApp uses the following concepts:
 
 - `proof-backed confidential application state`: private-state activity is accepted through proofs,
   not through a trusted operator transcript.
@@ -60,6 +60,17 @@ Use the following positioning terms consistently:
   custody boundary while channel-local state records accounting and notes.
 - `internal note transfer privacy, transparent Ethereum mainnet entry/exit`: note-transfer provenance is private
   by design, while bridge entry and exit remain public Ethereum mainnet events.
+
+## Audience Guide
+
+- Ordinary users should read the Quick Answers, Terms, Privacy Notice, and Workflow sections that
+  describe self-custody, public blockchain records, backups, and recovery.
+- Legal, compliance, exchange, and investigator readers should read the Terms, Privacy Notice,
+  Monitoring Packet, and user-controlled evidence documentation.
+- Auditors and protocol reviewers should read the Background Theory, Contract Specification,
+  Function Constraints, Security Model, and Workflow documents.
+- Operators and developers should read the app README, CLI README, channel mirror protocol, and
+  script help output before deploying or operating a channel.
 
 ### What should users check before joining a channel?
 

@@ -66,9 +66,9 @@ rewritten by a later bridge upgrade.
 
 ## 3. Public Policy And Operator Authority
 
-The current `private-state` DApp adopts a user-controlled privacy and disclosure model. It should be
-presented as an opt-in application channel used from self-custody wallets, not as a private
-exchange deposit network and not as a change to TON's L1 transfer rules.
+The current `private-state` DApp adopts a user-controlled privacy and disclosure model. It is an
+opt-in application channel used from self-custody wallets. It is not a private exchange deposit
+network and does not change TON's L1 transfer rules.
 
 For this DApp, the public monitoring surface includes:
 
@@ -100,9 +100,8 @@ new `wallet deposit-channel` actions. It does not block existing note activity, 
 exchange-control, or user-level blocking mechanism.
 
 Selective disclosure is therefore user-controlled in the current DApp. A user may disclose selected
-wallet-derived evidence where implemented tooling supports it. Documentation and external
-communication should not imply that Tokamak, a channel leader, an exchange, or an auditor
-can reconstruct every private-state transfer from public logs alone.
+wallet-derived evidence where implemented tooling supports it. Tokamak, a channel leader, an
+exchange, or an auditor cannot reconstruct every private-state transfer from public logs alone.
 
 ## 4. Finite Leaf Projection Inherited From The Bridge
 

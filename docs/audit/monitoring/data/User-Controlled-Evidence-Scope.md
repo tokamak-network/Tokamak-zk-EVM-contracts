@@ -109,7 +109,7 @@ The repository provides a static HTML investigator under
 `packages/apps/private-state/cli/investigator/`. It runs in the user's browser and does not require a
 server. The user loads a local raw evidence ZIP, chooses the disclosure request type, inspects an
 interactive note-linkage graph, and exports a new user-consent disclosure ZIP or a Markdown
-ASCII-art linkage report.
+plain-text linkage report.
 
 The investigator supports purpose-first request presets and can filter by:
 
@@ -123,7 +123,7 @@ The investigator supports purpose-first request presets and can filter by:
 The graph view renders matched notes as nodes and shows external creation edges, external spend
 edges, and locally recoverable note-to-note linkage edges. Clicking a note shows that note's
 commitment, nullifier, value, status, creation reference, spend reference, direction, and available
-counterparty metadata. The ASCII-art report separates the compact graph from per-note detail
+counterparty metadata. The plain-text report separates the compact graph from per-note detail
 sections for text-based dispute records.
 
 The output package contains only the selected note records, directly referenced transaction calldata,

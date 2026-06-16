@@ -77,18 +77,17 @@ monitors public Channel state, and provides public monitoring for The Great Firs
 
 Use of a Channel-scoped Official Public Observer may involve the following data:
 
-- Vercel request metadata, including request paths, timestamps, status information, host information, user agent,
+- Hosting request metadata, including request paths, timestamps, status information, host information, user agent,
   search parameters, region, cache status, and function metadata.
 - Vercel Web Analytics data for observer pages.
 - Public blockchain records and public Channel records.
-- Neon-stored observer metadata, including contract addresses, wallet addresses visible in public events, transaction
-  hashes, block data, decoded event data, raw topics, raw event data, observer sync state, runtime RPC configuration,
-  and indexer run state.
+- Observer database records needed to display and verify public Channel state, including public contract addresses,
+  transaction identifiers, block data, decoded event data, observer sync state, runtime RPC configuration, and indexer
+  run state.
 
-The confirmed Vercel team settings for The Great First Channel observer surface are: Hobby plan, 1 hour runtime-log
-retention, 1 month Web Analytics reporting window, Observability Plus disabled, and no configured Vercel Log Drains.
-
-The Great First Channel Neon observer tables currently have no repository-managed automatic deletion policy.
+Observer service providers and database providers control their own platform logs, analytics, retention settings, and
+security practices. Provider-controlled observer database rows currently have no repository-managed automatic deletion
+policy.
 
 ## 6. Channel-Scoped Workspace Mirror Services
 
@@ -102,23 +101,17 @@ The workspace mirror publishes verified mirror checkpoints and related recovery 
 Use of a Channel-scoped Official Workspace Mirror may involve the following data:
 
 - Mirror manifest, checkpoint, and delta request metadata.
-- Public mirror paths and Vercel Blob URLs.
-- Neon mirror publish rows, checkpoint block numbers, recovery root vector hashes, checkpoint hashes and sizes, leader
+- Public mirror paths and object-storage URLs.
+- Mirror database records, checkpoint block numbers, recovery root vector hashes, checkpoint hashes and sizes, leader
   metadata, and publish timestamps.
-- EC2 worker operational logs, raw RPC history paths, and Telegram mirror publish status messages when configured.
+- Worker operational logs, raw RPC history paths, and mirror publish status messages when configured.
 
 The Great First Channel mirror uses Vercel, Vercel Blob, Neon, AWS EC2, and Telegram where configured. Neon mirror data
-and Vercel Blob objects are stored in region `iad1` according to the confirmed deployment settings. The EC2 worker runs
-in AWS region `ap-southeast-1`.
+and Vercel Blob objects are stored in region `iad1` according to the current deployment settings. The EC2 worker runs in
+AWS region `ap-southeast-1`.
 
-The current repository-managed mirror cleanup command for The Great First Channel is dry-run only. Neon mirror rows,
-Vercel Blob mirror artifacts, and raw RPC history currently have no repository-managed automatic deletion policy.
-
-The inspected EC2 worker uses a 30 GB gp3 root EBS volume with `DeleteOnTermination=true`. No self-owned EBS snapshots,
-AWS DLM lifecycle policies, or AWS Backup plans were found for the worker volume during inspection. The inspected root
-EBS volume is not encrypted. The current host timer uses a 3 hour observer cadence. The inspected systemd journal had no
-explicit retention override and used 175.3 MB at inspection time. The worker workspace contained 160 raw RPC history
-files at inspection time.
+The current repository-managed mirror cleanup command for The Great First Channel is dry-run only. Mirror database rows,
+mirror artifacts, and raw RPC history currently have no repository-managed automatic deletion policy.
 
 ## 7. Official Documentation And Web Surfaces
 
@@ -126,9 +119,8 @@ Official repository documentation is published through GitHub. GitHub may proces
 the user is signed in, repository paths viewed, comments, issues, pull requests, and other GitHub-controlled metadata.
 
 The Service web surfaces `tonnel.io` and `www.tonnel.io` are Vercel-hosted Tonnel web surfaces. Use of those surfaces may
-involve Vercel request metadata and Vercel Web Analytics data. The confirmed Vercel team settings for those surfaces are:
-Hobby plan, 1 hour runtime-log retention, 1 month Web Analytics reporting window, Observability Plus disabled, and no
-configured Vercel Log Drains.
+involve Vercel request metadata and Vercel Web Analytics data. Vercel controls its own platform logs, analytics,
+retention settings, and security practices.
 
 The Service scope does not include `airdrop.tonnel.io`.
 
@@ -253,13 +245,10 @@ Retention depends on the data surface:
   prevention, debugging, evidence integrity, and legal purposes, subject to technical limits.
 - Public Ethereum mainnet records and public Channel records are public blockchain records and cannot be deleted by the
   Provider.
-- Vercel runtime logs for the confirmed Hobby plan are retained for 1 hour.
-- Vercel Web Analytics for the confirmed Hobby plan has a 1 month reporting window.
-- Neon observer tables currently have no repository-managed automatic deletion policy.
-- Neon mirror rows and Vercel Blob mirror artifacts currently have no repository-managed automatic deletion policy.
-- EC2 worker raw RPC history currently has no repository-managed automatic deletion policy.
-- The EC2 worker systemd journal uses operating-system defaults with no explicit retention override found during
-  inspection.
+- Provider-controlled observer database rows, mirror database rows, mirror artifacts, and raw RPC history currently have
+  no repository-managed automatic deletion policy unless a specific Channel notice states otherwise.
+- Hosting providers, database providers, object-storage providers, worker-hosting providers, and messaging providers
+  retain their own platform logs and service records under their own terms, plan settings, and technical controls.
 - Google Drive, GitHub, Telegram, npm, CoinGecko, user-selected RPC providers, wallets, browsers, operating systems, and
   other Third-Party Services control their own retention.
 - Local CLI workspace files remain on the user's device until the user deletes them or runs a removal flow.
@@ -272,7 +261,7 @@ Official hosting, support, repository, package-distribution, artifact-distributi
 providers may process data outside the user's country. Third-Party Services apply their own terms, privacy notices,
 security practices, and any transfer safeguards described by those services.
 
-Confirmed current deployment information includes:
+Current deployment information includes:
 
 - The Great First Channel observer and included Tonnel web surfaces are hosted on Vercel.
 - The Great First Channel mirror Neon database and Vercel Blob store are in region `iad1`.
@@ -321,9 +310,8 @@ reported incidents and notify affected persons or authorities when required by a
 The Provider may update this Privacy Notice when the Service scope, data practices, operational settings, Third-Party
 Services, support routes, publication surfaces, or applicable requirements change.
 
-If operational settings or Service-scope domains change, including EC2 raw-history deletion, EBS encryption, backup
-policy, observer cadence, Vercel plan, analytics, logging, or Service web surfaces, this Privacy Notice will be updated
-to reflect the changed state.
+If Service-scope domains, data categories, retention practices, Third-Party Services, or user-facing processing
+boundaries change, this Privacy Notice will be updated to reflect the changed state.
 
 ## 22. Contact
 

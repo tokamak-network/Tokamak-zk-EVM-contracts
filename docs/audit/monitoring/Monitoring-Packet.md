@@ -76,7 +76,7 @@ by `wallet get-notes --export-evidence`, including retained exited wallet epochs
 choose a purpose-first disclosure request, inspect an interactive note-linkage graph, filter by note,
 nullifier, transaction, block range, status, available counterparty metadata, or user-provided bridge
 transaction context, and export either a narrower user-consent disclosure ZIP or a Markdown
-ASCII-art linkage report.
+plain-text linkage report.
 
 This tool supports exceptional exchange-dispute or compliance-response workflows without giving
 Provider Parties, Tokamak Network PTE. LTD., a Channel Provider, a channel operator, or an exchange a viewing key,

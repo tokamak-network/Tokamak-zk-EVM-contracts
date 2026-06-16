@@ -16,7 +16,7 @@ installed CLI package, `private-state-cli investigator` prints the bundled HTML 
 
 The tool does not run a server and does not send files over the network. It reads the selected ZIP in
 the browser. It can write a new ZIP with selected note records plus directly referenced transaction,
-receipt, and event files, and it can export a Markdown ASCII-art linkage report.
+receipt, and event files, and it can export a Markdown plain-text linkage report.
 
 The raw evidence bundle contains plaintext for all locally known notes and may include retained exited epochs for the
 selected wallet. Do not submit the raw bundle as an exchange or auditor package unless full wallet-history disclosure is
@@ -34,7 +34,7 @@ workspace with `wallet recover-workspace` and export a new evidence ZIP with `wa
 - graph edges for external note creation, external note spend, and locally recoverable note-to-note linkage
 - node detail overlays showing commitment, nullifier, value, status, creation reference, spend reference, direction, and
   available counterparty metadata
-- a Markdown ASCII-art report with a compact graph section and separate note detail sections
+- a Markdown plain-text report with a compact graph section and separate note detail sections
 
 ## Supported Filtering Inputs
 

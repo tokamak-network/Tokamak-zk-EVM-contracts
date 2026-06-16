@@ -21,10 +21,10 @@ is held by the L1 vault. The L2 accounting balance records that the user can min
 withdraw through the bridge path. It is not a separate token contract that independently owns the
 canonical asset.
 
-The DApp should therefore be described as an opt-in application-state layer, not as a change to the
-TON asset itself. TON remains a transparent L1 asset at exchange and bridge custody
-edges. A private-state note is a channel-local representation inside this DApp, and it is not a
-separate asset that an exchange supports as a deposit network.
+The DApp is therefore an opt-in application-state layer, not a change to the TON asset itself. TON
+remains a transparent L1 asset at exchange and bridge custody edges. A private-state note is a
+channel-local representation inside this DApp, and it is not a separate asset that an exchange
+supports as a deposit network.
 
 Users are expected to enter a channel from a self-custody L1 wallet. An exchange deposit
 address should not be treated as a private-state wallet address because the exchange does not hold

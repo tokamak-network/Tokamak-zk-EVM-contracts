@@ -188,7 +188,7 @@
 - Fixed raw evidence spend linkage so nullifier observation transactions are used as the spend
   transition references and included with their transaction, receipt, and event evidence.
 - Redesigned the bundled investigator GUI around purpose-first disclosure requests, an interactive
-  SVG note-linkage graph, node detail overlays, and Markdown ASCII-art linkage report export.
+  SVG note-linkage graph, node detail overlays, and Markdown plain-text linkage report export.
 - Updated private-state documentation to reflect `set rpc` as the only CLI RPC configuration path
   for ordinary bridge-facing and wallet commands.
 - Split the CLI entrypoint into command dispatch modules and moved the shared runtime implementation

@@ -121,6 +121,15 @@ index so a fresh remote clone will not receive it. The local file remains ignore
 - `packages/apps/private-state/cli/assets/service-terms.md` links to
   `privacy-notice.md`, but no such file exists beside the packaged Terms asset. The
   canonical notice lives at `docs/dapps/private-state/privacy-notice.md`.
+- `README.md` says bridge deployment and DApp registration consume
+  `@tokamak-zk-evm/synthesizer-node`, but repo-owned source does not import, resolve, or
+  execute that package directly. Current registration flows invoke synthesis through
+  `tokamak-cli --synthesize`.
+- `packages/apps/private-state/README.md` says `channel recover-workspace` accepts
+  `--source mirror` to recover from a registered workspace mirror "before falling back to
+  a full RPC genesis rebuild". The CLI guidance and runtime fail closed instead of
+  automatically falling back; users must explicitly run
+  `--source rpc --from-genesis` only when no compatible mirror is available.
 
 ### Audience And Expression Issues
 
@@ -157,6 +166,12 @@ index so a fresh remote clone will not receive it. The local file remains ignore
 - `checklist.md` was tracked despite being local/internal material and ignored by
   `.gitignore`. It has been removed from the Git index in this pass. The next commit must
   include that deletion so remote clones do not receive it.
+- `tmp/browser-wallet-manual-verification.md` is tracked and therefore included in fresh
+  remote clones even though it is a release-verification working log. It contains local
+  machine paths, browser availability notes, Sepolia wallet addresses, transaction-level
+  manual retry history, hypotheses, and unfinished follow-up notes. That material is not
+  appropriate as public product, legal, compliance, developer, or operator documentation in
+  its current form.
 
 ## Fix Plan
 
@@ -198,6 +213,10 @@ index so a fresh remote clone will not receive it. The local file remains ignore
      multiple redeem arities.
    - Fix the packaged service Terms privacy-notice reference so npm package readers can
      reach the canonical Privacy Notice.
+   - Remove `@tokamak-zk-evm/synthesizer-node` from the root README dependency narrative
+     unless a direct repo-owned consumption path is added.
+   - Reword the private-state README workspace-mirror recovery section so mirror recovery
+     and explicit RPC genesis recovery are separate user actions, matching CLI behavior.
 
 4. Rewrite audience-inappropriate public documentation.
    - Replace editorial guidance in the private-state index, background theory, and
@@ -217,3 +236,6 @@ index so a fresh remote clone will not receive it. The local file remains ignore
    - Run `git diff --check`.
    - Run focused tests for touched Solidity and package-manifest changes.
    - Confirm `checklist.md` remains ignored and untracked.
+   - Decide whether `tmp/browser-wallet-manual-verification.md` should be removed from the
+     tracked remote-clone surface or converted into a sanitized release-verification
+     template under a public documentation path.

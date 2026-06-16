@@ -67,12 +67,32 @@ index so a fresh remote clone will not receive it. The local file remains ignore
   `ChannelManager` uses a local copy to verify execution-time function metadata proofs.
   This repeated protocol logic must remain byte-identical across registration and
   execution.
+- `bridge/src/ChannelManager.sol` keeps the access-check logic inline in the
+  `onlyBridgeCore`, `onlyBridgeTokenVault`, and `onlyLeader` modifiers. Foundry flags
+  these as repeated modifier bodies that can increase deployed bytecode when reused
+  across functions.
+
+### Deployment And Upload Scripts
+
+- `scripts/drive/lib/google-drive-upload.mjs` exports `createTimestampLabel(...)`, but
+  repo-owned callers import the same helper from
+  `scripts/deployment/lib/deployment-layout.mjs`. The Drive helper copy has the same
+  implementation and no repo-owned import, so it is a duplicated unused export.
+- `bridge/scripts/upload-bridge-artifacts.mjs` and
+  `bridge/scripts/upload-dapp-artifacts.mjs` repeat the same Drive upload orchestration:
+  parse timestamp/preflight/receipt flags, resolve Drive config, preflight the exclusive
+  folder, create the folder, upload relative-path files, update the artifact index, write
+  a receipt, and print the same Drive summary. The artifact collection differs, but the
+  orchestration is duplicated across both scripts.
 
 ### Package Manifests
 
 - The root `package.json` declares `"fs": "^0.0.1-security"` even though repo-owned
   source uses Node's built-in filesystem module through `node:fs` or the built-in `fs`
   specifier.
+- The root `package.json` declares `@tokamak-zk-evm/synthesizer-node`, but repo-owned
+  source references only the manifest and README entries. Current synthesis flows invoke
+  `tokamak-cli --synthesize`; they do not import or resolve this package directly.
 - The root `package.json` declares `msgpackr`, but repo-owned source references only
   the manifest and lockfile entries.
 - The root `package.json` declares `js-sha3`, but repo-owned source references only the
@@ -155,8 +175,15 @@ index so a fresh remote clone will not receive it. The local file remains ignore
      if those networks are not operationally supported for private-state.
    - Consolidate DApp function metadata hashing into a shared bridge library or otherwise
      add a stronger equivalence guard so `DAppManager` and `ChannelManager` cannot drift.
-   - Remove unused root dependencies `fs`, `msgpackr`, and `js-sha3` from the root
-     manifest and lockfile after confirming package scripts still pass.
+   - Wrap repeated `ChannelManager` access-check modifier logic in internal helper
+     functions if bytecode-size impact is worth the additional internal functions.
+   - Remove or de-export the unused duplicate `createTimestampLabel(...)` helper from
+     `scripts/drive/lib/google-drive-upload.mjs`.
+   - Consider extracting the shared Drive upload orchestration used by bridge and DApp
+     artifact upload scripts while keeping artifact collection script-specific.
+   - Remove unused root dependencies `fs`, `@tokamak-zk-evm/synthesizer-node`,
+     `msgpackr`, and `js-sha3` from the root manifest and lockfile after confirming
+     package scripts still pass.
 
 3. Update implementation-mismatch documentation to match current code.
    - Change `bridge/README.md` to say `DAppManager.deleteDApp(...)` is Sepolia/local

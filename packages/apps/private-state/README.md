@@ -9,14 +9,14 @@ proof-backed state transitions.
 
 The user-facing state machine is:
 
-1. fund the shared Ethereum mainnet bridge vault
+1. fund the shared bridge vault on the selected network
 2. join a channel-specific private application identity
 3. move value into the channel accounting vault
 4. mint notes from liquid accounting balance
 5. transfer notes by consuming input notes and creating encrypted output payloads
 6. recover received notes from bridge-propagated event logs
 7. redeem notes back into liquid accounting balance
-8. move value back from the channel accounting vault into the shared Ethereum mainnet bridge vault
+8. move value back from the channel accounting vault into the shared bridge vault on the selected network
 9. claim the shared Ethereum mainnet bridge deposit back into the user's Ethereum wallet
 
 This repository does not implement note-ownership privacy inside the DApp contracts themselves.
@@ -277,7 +277,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 
 `channel abandon-operation`
 
-- is a channel leader command that immediately records Channel Operation Abandonment on Ethereum mainnet
+- is a channel leader command that immediately records Channel Operation Abandonment on the selected network
 - disables new `channel join` and `wallet deposit-channel` actions for the selected channel
 - does not block existing note activity, `wallet redeem-notes`, `wallet withdraw-channel`, or `channel exit`
 - should be used only when the channel leader intends to stop onboarding and new channel deposits for that channel
@@ -318,7 +318,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs channel create
 - fails and asks for `channel recover-workspace` first when the channel workspace is missing, unusable, or too stale for automatic recovery
 - accepts `--from-genesis` to restart received-note scanning from channel genesis; it does not rebuild the channel workspace from genesis
 
-### 5. Fund the shared Ethereum mainnet bridge vault
+### 5. Fund the shared bridge vault on the selected network
 
 `account deposit-bridge`
 
@@ -396,7 +396,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - mints one or two notes owned by the wallet's channel-local address with the currently registered private-state DApp metadata
 - builds self-mint ciphertext outputs and lets the controller derive note salts from the ciphertext hash
 - accepts `--wallet`, `--network`, and `--amounts`
-- accepts optional `--tx-submitter <ACCOUNT>` so a separate local Ethereum account can submit the Ethereum mainnet transaction and pay gas
+- accepts optional `--tx-submitter <ACCOUNT>` so a separate local Ethereum account can submit the transaction on the selected network and pay gas
 - maps the amount-vector length to the fixed-arity `mintNotes<N>` contract entrypoint
 - requires both viewing and spending key capability so the accepted mint can be recovered through the normal note event path
 - uses the registered note-receive public key to create self-mint ciphertext outputs for later recovery
@@ -413,7 +413,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 - requires `--recipients` as a JSON array of recipient channel-local addresses, for example `--recipients '["0xRECIPIENT1","0xRECIPIENT2"]'`
 - requires `--amounts` as a JSON array of token amounts, preferably quoted for decimals, for example `--amounts '["1.5","2"]'`
 - requires `--recipients` length to equal `--amounts` length, and requires the output amount sum to equal the selected input note value sum
-- accepts optional `--tx-submitter <ACCOUNT>` so a separate local Ethereum account can submit the Ethereum mainnet transaction and pay gas
+- accepts optional `--tx-submitter <ACCOUNT>` so a separate local Ethereum account can submit the transaction on the selected network and pay gas
 - supports only `1->1`, `1->2`, and `2->1` note transfer shapes
 - refreshes local workspace state after the accepted transaction and relies on recipient-side event-log recovery rather than local recipient inbox files
 - requires both the viewing key and the spending key: the viewing key reconstructs the plaintext input notes, and the spending key authorizes the proof-backed spend
@@ -440,12 +440,12 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 
 - redeems one tracked note back into liquid accounting balance
 - accepts `--wallet`, `--network`, and `--note-ids`
-- accepts optional `--tx-submitter <ACCOUNT>` so a separate local Ethereum account can submit the Ethereum mainnet transaction and pay gas
+- accepts optional `--tx-submitter <ACCOUNT>` so a separate local Ethereum account can submit the transaction on the selected network and pay gas
 - requires both the viewing key and the spending key for the same reason as `wallet transfer-notes`
 - prints an additional warning when the selected channel has been abandoned, but abandonment does not block this command
 - prints a command-specific warning summary before transaction submission
 
-### 12. Move value back to the shared Ethereum mainnet bridge vault
+### 12. Move value back to the shared bridge vault on the selected network
 
 `wallet withdraw-channel`
 

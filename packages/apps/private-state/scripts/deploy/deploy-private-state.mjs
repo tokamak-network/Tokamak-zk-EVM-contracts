@@ -5,13 +5,14 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parse as parseDotenv } from "dotenv";
-import { deriveRpcUrl, resolveAppNetwork } from "@tokamak-private-dapps/common-library/network-config";
+import { APP_NETWORKS, deriveRpcUrl, resolveAppNetwork } from "@tokamak-private-dapps/common-library/network-config";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "../../../../..");
 const envFile = process.env.APPS_ENV_FILE ?? path.join(projectRoot, "packages", "apps", ".env");
 const writeDeployArtifactsScriptPath = path.join(__dirname, "write-deploy-artifacts.mjs");
+const supportedNetworkNames = Object.keys(APP_NETWORKS).join(", ");
 const inputEnv = pickInputEnv();
 const options = parseCliOptions(process.argv.slice(2));
 
@@ -135,11 +136,11 @@ function parseArgs(argv) {
       case "--help":
       case "-h":
         console.log(`Usage:
-  node packages/apps/private-state/scripts/deploy/deploy-private-state.mjs --network <anvil|sepolia|mainnet> [--rpc-url <url>] [--verify]
+  node packages/apps/private-state/scripts/deploy/deploy-private-state.mjs --network <name> [--rpc-url <url>] [--verify]
 
 Options:
-  --network <name>  Deployment network. Supported values: anvil, sepolia, mainnet
-  --rpc-url <url>   Explicit deployment RPC URL. Required for sepolia and mainnet
+  --network <name>  Deployment network. Supported values: ${supportedNetworkNames}
+  --rpc-url <url>   Explicit deployment RPC URL. Required for every network except anvil
   --verify          Verify contracts on Etherscan-compatible explorer`);
         process.exit(0);
       default:
@@ -148,10 +149,10 @@ Options:
   }
 
   if (!options.network) {
-    throw new Error("Missing required argument: --network <anvil|sepolia|mainnet>.");
+    throw new Error("Missing required argument: --network <name>.");
   }
   if (options.network !== "anvil" && !options.rpcUrl) {
-    throw new Error("--rpc-url is required for sepolia and mainnet deployments.");
+    throw new Error("--rpc-url is required for non-anvil deployments.");
   }
 
   return options;

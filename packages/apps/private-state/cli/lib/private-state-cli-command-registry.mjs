@@ -538,7 +538,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     help: [
       ACTION_IMPACT_HELP.browserWalletAccount,
       "Only the on-chain channel leader can abandon channel operation",
-      "Abandonment is immediate after the Ethereum mainnet transaction is accepted",
+      "Abandonment is immediate after the transaction on the selected network is accepted",
       "After abandonment, channel join and wallet deposit-channel are rejected for that channel",
       "Abandonment does not block existing note activity, wallet redeem-notes, wallet withdraw-channel, or channel exit",
     ],

@@ -278,8 +278,8 @@ Evidence:
 - Commits: `6751ad2`, `ab5e69b`, `f6ae5b3`.
 - Code: `bridge/src/BridgeCore.sol`, `bridge/src/ChannelDeployer.sol`,
   `bridge/src/ChannelManager.sol`.
-- Size check after the covered changes: `BridgeCore` runtime size `10,437 bytes`, margin
-  `14,139 bytes`.
+- Size check after the covered changes: `BridgeCore` runtime size `13,197 bytes`, margin
+  `11,379 bytes`.
 
 Upgradeability note: resolved before mainnet deployment.
 
@@ -340,7 +340,7 @@ Evidence:
   `packages/apps/private-state/cli/commands/channel.mjs`, and
   `packages/apps/private-state/cli/lib/runtime.mjs`.
 - Gas documentation: `docs/bridge/gas-assessment.md` records current `createChannel` full-path gas
-  as `2,731,347`, down from the earlier `3,884,651` deep-copy design measurement.
+  as `2,731,811`, down from the earlier `3,884,651` deep-copy design measurement.
 
 Security note: calldata-supplied function metadata is not trusted unless it proves against the
 channel root. Losing manifest proof material affects availability, not authorization.
@@ -587,7 +587,7 @@ The following were reviewed and classified as non-findings under the current mod
   only under the first-mainnet-deployment assumption. If a historical mainnet proxy is found, do not
   perform a blind upgrade.
 - `executeChannelTransaction` gas is dominated by the Tokamak verifier call and proof calldata.
-  Current CLI E2E receipts are about `827,621-861,608` gas; unit traces with the verifier mocked
+  Current CLI E2E receipts are about `827,691-861,699` gas; unit traces with the verifier mocked
   show bridge-side wrapper logic in the low tens of thousands of gas for tested paths. This is an
   optimization topic, not a security blocker.
 - The private-state DApp has no owner role and keeps `PrivateStateController` and
@@ -602,15 +602,15 @@ Verification was performed across the implementation series covered by this audi
 
 - `forge test --root bridge`
   - Passed after the channel-deployer split and again after permissionless channel creation.
-  - Latest covered suite size: 65 tests.
+  - Latest covered suite size: 85 tests.
 - `forge test --root bridge --gas-report`
   - Passed after permissionless channel creation.
-  - Current measured `BridgeCore.createChannel` successful full-path gas: `2,731,347`.
+  - Current measured `BridgeCore.createChannel` successful full-path gas: `2,731,811`.
 - `forge build --root bridge --sizes`
   - Passed after the latest covered commit.
-  - `BridgeCore`: `10,437 bytes`, margin `14,139 bytes`.
-  - `ChannelDeployer`: `15,003 bytes`, margin `9,573 bytes`.
-  - `ChannelManager`: `10,957 bytes`, margin `13,619 bytes`.
+  - `BridgeCore`: `13,197 bytes`, margin `11,379 bytes`.
+  - `ChannelDeployer`: `14,983 bytes`, margin `9,593 bytes`.
+  - `ChannelManager`: `10,937 bytes`, margin `13,639 bytes`.
   - `DAppManager`: `12,294 bytes`, margin `12,282 bytes`.
 - `forge fmt --root bridge --check`
   - Passed during the covered implementation series.

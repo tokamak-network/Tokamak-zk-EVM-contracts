@@ -77,14 +77,14 @@ remain in the original hex-encoded wei format returned by the RPC endpoint.
 
 | Function | Caller role | Measured gas used | Measurement source | USD at 0.106 gwei (Typical Block p50) | USD at 0.886 gwei (Typical Block p90) |
 |---|---|---:|---|---:|---:|
-| `BridgeCore.createChannel` | Channel creator | 2,731,347 | Forge gas report | $0.666 | $5.57 |
-| `L1TokenVault.fund` | User | 72,845-89,945 | CLI E2E receipts | $0.018-$0.022 | $0.149-$0.183 |
-| `L1TokenVault.joinChannel` | User | 323,747-326,559 | CLI E2E receipts | $0.079-$0.080 | $0.660-$0.666 |
-| `L1TokenVault.depositToChannelVault` | User | 336,387-336,467 | CLI E2E receipts | $0.082-$0.082 | $0.686-$0.686 |
-| `ChannelManager.executeChannelTransaction` | User | 827,621-861,608 | CLI E2E receipts | $0.202-$0.210 | $1.69-$1.76 |
-| `L1TokenVault.withdrawFromChannelVault` | User | 380,435 | CLI E2E receipt | $0.093 | $0.776 |
-| `L1TokenVault.exitChannel` | User | 130,168 | CLI E2E receipt | $0.032 | $0.265 |
-| `L1TokenVault.claimToWallet` | User | 52,317 | CLI E2E receipt | $0.013 | $0.107 |
+| `BridgeCore.createChannel` | Channel creator | 2,731,811 | Forge gas report | $0.67 | $5.57 |
+| `L1TokenVault.fund` | User | 72,947-90,047 | CLI E2E receipts | $0.018-$0.022 | $0.15-$0.18 |
+| `L1TokenVault.joinChannel` | User | 326,018-328,830 | CLI E2E receipts | $0.080-$0.080 | $0.66-$0.67 |
+| `L1TokenVault.depositToChannelVault` | User | 338,957-339,001 | CLI E2E receipts | $0.083-$0.083 | $0.69-$0.69 |
+| `ChannelManager.executeChannelTransaction` | User | 827,691-861,699 | CLI E2E receipts | $0.20-$0.21 | $1.69-$1.76 |
+| `L1TokenVault.withdrawFromChannelVault` | User | 380,767 | CLI E2E receipt | $0.093 | $0.78 |
+| `L1TokenVault.exitChannel` | User | 131,982 | CLI E2E receipt | $0.032 | $0.27 |
+| `L1TokenVault.claimToWallet` | User | 69,477 | CLI E2E receipt | $0.017 | $0.14 |
 
 Supporting ERC-20 approvals are not bridge contract calls, but the CLI E2E measured `ERC20.approve`
 at 45,957 gas, which is about $0.011 at 0.106 gwei and $0.094 at 0.886 gwei using the same ETH/USD
@@ -105,10 +105,10 @@ input.
 Before replacing per-channel function metadata deep copies with a channel-level function root,
 `BridgeCore.createChannel` measured 3,884,651 gas in CLI E2E. After making channel creation
 permissionless and deriving the leader from `msg.sender`, the current Forge gas report measures
-2,731,347 gas for the successful full channel-creation path, a reduction of 1,153,304 gas, or
-29.69%.
+2,731,811 gas for the successful full channel-creation path, a reduction of 1,152,840 gas, or
+29.68%.
 
 The user execution path now submits function metadata and a Merkle proof in calldata. The measured
-`ChannelManager.executeChannelTransaction` range is 827,621-861,608 gas, which is not higher than
+`ChannelManager.executeChannelTransaction` range is 827,691-861,699 gas, which is not higher than
 the previous 830,814-865,674 gas E2E range because the removed channel storage reads offset the
 additional proof verification and calldata.

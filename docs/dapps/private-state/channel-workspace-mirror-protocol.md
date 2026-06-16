@@ -103,18 +103,21 @@ clients use it as a hard download limit before verifying the bundle hash.
 
 ## Operator Publishing
 
-The CLI can build the static mirror files for the registered mirror URL:
+The CLI builds the static mirror files as part of channel workspace recovery. The channel leader
+runs recovery with mirror publishing enabled:
 
 ```bash
-private-state-cli channel publish-workspace-mirror \
+private-state-cli channel recover-workspace \
   --channel-name <CHANNEL> \
   --network mainnet \
-  --account <LEADER_ACCOUNT> \
+  --publish-workspace-mirror \
+  --leader-account <LEADER_ACCOUNT> \
   --output ./mirror-public
 ```
 
-The command does not upload to a remote server. It writes the static directory layout under
-`--output`, and the channel leader deploys that directory to the registered HTTPS mirror host.
+The command does not upload to a remote server. It recovers the channel workspace, writes the
+static directory layout under `--output`, and the channel leader deploys that directory to the
+registered HTTPS mirror host.
 If the registered URL contains a base path or directly points to a `.json` manifest, the output path
 mirrors that URL path so the generated files resolve at the same locations the CLI will fetch.
 Before writing files, the command fetches only the registered mirror manifest and compares its
@@ -130,10 +133,11 @@ If the existing remote manifest is unreadable or invalid, the operator can repai
 adding `--force`:
 
 ```bash
-private-state-cli channel publish-workspace-mirror \
+private-state-cli channel recover-workspace \
   --channel-name <CHANNEL> \
   --network mainnet \
-  --account <LEADER_ACCOUNT> \
+  --publish-workspace-mirror \
+  --leader-account <LEADER_ACCOUNT> \
   --output ./mirror-public \
   --force
 ```

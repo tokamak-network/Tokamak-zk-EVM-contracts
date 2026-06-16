@@ -449,7 +449,7 @@ private-state-cli wallet mint-notes --wallet <WALLET> --network mainnet --amount
 
 `--tx-submitter <ACCOUNT>` is available on `wallet mint-notes`, `wallet transfer-notes`, and `wallet redeem-notes`. The wallet still proves
 note ownership and builds the ZK proof, but the selected local account submits `executeChannelTransaction` and pays gas.
-Use this option when a separate imported local account should submit the Ethereum mainnet transaction and pay gas for a proof-backed
+Use this option when a separate imported local account should submit the transaction on the selected network and pay gas for a proof-backed
 note command. Use `--tx-submitter` without a value when the L1 submitter should be selected in a MetaMask-compatible
 browser wallet instead. In both cases, the local wallet spending key remains the authority for the private-state note
 transition.

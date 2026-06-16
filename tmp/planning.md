@@ -432,6 +432,12 @@ was opened in Safari without an injected EIP-1193 provider. The relay reported
 `No MetaMask-compatible browser wallet provider was found.`, the CLI failed closed at account connection, no Ethereum
 transaction was requested, and no Sepolia local L1 private-key file was found after the failed request.
 
+The closed-page timeout check passed on 2026-06-16 with `account get-l1-address --network sepolia`. The CLI
+default-browser opener was temporarily disabled, the Signing URL was not opened in any browser, and the pending
+browser-wallet connection request reached the production timeout. The CLI exited with code `1` and
+`Timed out waiting for browser wallet connect.`, no Ethereum transaction was requested, and no Sepolia local L1
+private-key file was found after the timeout.
+
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look
 like a wallet or transaction failure. The relay session now has a closing state, wakes pending `/request` long-polls

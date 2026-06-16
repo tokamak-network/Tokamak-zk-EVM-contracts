@@ -1073,6 +1073,20 @@ Expected result:
 
 ### Closed Browser Or Timeout
 
+Manual closed-page timeout verification on 2026-06-16:
+
+- Result: passed. The CLI failed closed after the browser-wallet connection request was left unanswered until the
+  production timeout.
+- Trigger:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs account get-l1-address --network sepolia`.
+- The default-browser opener was temporarily disabled for this run, and the Signing URL was not opened in any browser.
+- Reminder output appeared after the relay page did not pick up the pending request.
+- CLI error:
+  `Timed out waiting for browser wallet connect.`
+- Exit code: `1`.
+- No Ethereum transaction was requested or submitted.
+- No Sepolia local L1 private-key file was found after the timeout.
+
 Procedure:
 
 1. Start a browser-wallet command.

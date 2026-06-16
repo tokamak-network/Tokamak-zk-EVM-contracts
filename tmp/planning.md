@@ -2,23 +2,47 @@
 
 ## Scope
 
-This review covers repository-owned tracked source code and public documentation only.
+This review covers repository-owned tracked source code and public documentation.
 It excludes Git submodules, vendored third-party source, generated artifacts, build
-outputs, binary fixtures, deployment broadcasts, private environment files, and
-untracked files.
+outputs, binary fixtures, deployment broadcasts, private environment files, untracked
+files, and local-only ignored notes.
 
-## Audience Baseline
+`checklist.md` is not treated as public documentation. It was tracked even though
+`.gitignore` already contained `checklist.md`; it has now been removed from the Git
+index so a fresh remote clone will not receive it. The local file remains ignored.
 
-Public repository-level documentation is treated as developer-facing material for
-external integrators, auditors, operators, and contributors who need to understand,
-verify, run, or extend the contracts, bridge tooling, and DApp packages. DApp public
-documentation is additionally treated as user-facing or integrator-facing material
-when it describes privacy terms, workflow, or CLI behavior.
+## User Constraints Applied
 
-## Review Record
+- Do not convert intentionally optimized inline assembly into high-level Solidity.
+- Do not include `packages/apps/private-state/cli/lib/runtime.mjs` module splitting in
+  this review because it will be handled later in stages.
+- Do not include Circom circuit edits unless a constraint-count reduction is certain.
+- For documentation and implementation mismatches, update the documentation to match
+  the implementation.
+- Public documentation must not contain drafting instructions, writing guidance,
+  editing plans, or other editorial traces.
 
-Findings below were recorded during the review and then consolidated into this final
-record. This document intentionally does not include a remediation plan.
+## Audience Map Used For Review
+
+- Root README and public docs index: broad public entrypoints for users, developers,
+  auditors, operators, and external reviewers. They should stay short and route readers
+  to the right depth.
+- White paper: technically literate external reviewers, auditors, protocol developers,
+  operators, and policy reviewers. Detailed reasoning is acceptable, but it should not
+  read like a work plan.
+- Bridge developer docs and package docs: developers and operators. Detailed mechanics,
+  command references, and implementation notes are appropriate.
+- Private-state background, contract, constraint, security, and workflow docs:
+  integrators, auditors, advanced users, and operators. Technical detail is appropriate,
+  but user-facing sections should avoid unnecessary internal terminology.
+- Terms and Privacy Notice: ordinary users plus legal, compliance, exchange, and
+  investigator readers. They should be plain, accurate, and avoid unnecessary
+  implementation internals.
+- Monitoring Packet and evidence-scope docs: exchanges, compliance teams, investigators,
+  auditors, and users preparing selective disclosure. They should be precise and
+  professional, with minimal developer-only detail.
+- CLI README and agent instructions: CLI users, operators, and user-controlled AI agents.
+  Procedural detail is appropriate when it directly supports safe command execution.
 
 ## Source Code Findings
 
@@ -26,43 +50,14 @@ record. This document intentionally does not include a remediation plan.
 
 - `packages/apps/private-state/src/PrivateStateController.sol` contains an unused
   internal helper, `_prepareOutputNote(...)`. Repository-wide references only point to
-  its definition, while all active mint and transfer paths use `_prepareMintOutput(...)`
-  or `_prepareTransferOutput(...)`. This is dead code inside the final user-facing
-  DApp contract.
-- The private-state symbolic-path checker passed `mintNotes1` through `mintNotes6`
-  and `transferNotes1To1` through `transferNotes4To1`, but it crashed before checking
-  `redeemNotes1` through `redeemNotes4` because the redeem functions use inline
-  assembly `if` syntax for the zero-receiver guard. Manual review indicates those
-  redeem functions still have one successful path, but the current assembly shape
-  creates a tooling blind spot for the required user-facing path check.
+  its definition, while active mint and transfer paths use `_prepareMintOutput(...)` or
+  `_prepareTransferOutput(...)`.
 - `packages/common/src/network-config.mjs` exposes `base-*`, `arb-*`, and `op-*`
-  entries through `APP_NETWORKS`, and `packages/apps/private-state/scripts/deploy/deploy-private-state.mjs`
-  accepts any `resolveAppNetwork(...)` name even though its help text and public app
-  documentation restrict deployment to `anvil`, `sepolia`, and `mainnet`. The source
-  therefore contains over-broad network configuration that is not supported by the
-  public deployment surface.
-
-### Private-State CLI
-
-- `packages/apps/private-state/cli/lib/runtime.mjs` has grown into a 15,419-line
-  multi-responsibility module. It imports command parsing, human/JSON rendering,
-  runtime installation, terms gating, browser-wallet request helpers, wallet storage,
-  channel workspace recovery, note scanning, Groth16 proof execution, Tokamak snapshot
-  generation, and guidance rendering into one file. The command files under
-  `packages/apps/private-state/cli/commands/` are thin dispatch wrappers, so most
-  domain boundaries remain inside the monolithic runtime module. This is an
-  over-engineered maintenance surface rather than a small cohesive runtime layer.
-
-### Groth16 Tooling
-
-- Circuit rendering and setup helper logic is repeated across `packages/groth16/lib/circuit-install.mjs`,
-  `packages/groth16/mpc-setup/generate_update_tree_setup_from_dusk.mjs`, and
-  `packages/groth16/lib/local-trusted-setup.mjs`. The repeated responsibilities include
-  rendering `circuit_updateTree.circom`, ensuring circuit dependencies, stripping ANSI
-  output, and computing the next power-of-two exponent. These paths are security- and
-  reproducibility-sensitive because they determine the circuit and setup artifacts, so
-  duplicated implementations increase the chance that install-time and MPC-generation
-  behavior diverge.
+  entries through `APP_NETWORKS`, and
+  `packages/apps/private-state/scripts/deploy/deploy-private-state.mjs` accepts any
+  `resolveAppNetwork(...)` name. The public private-state deployment surface documents
+  only `anvil`, `sepolia`, and `mainnet`, so unsupported app networks are reachable
+  through source code.
 
 ### Bridge Contracts
 
@@ -70,69 +65,128 @@ record. This document intentionally does not include a remediation plan.
   implement the same DApp function metadata hash domains and `_hashFunctionMetadata(...)`
   procedure. `DAppManager` uses it to derive registered function leaves and roots, while
   `ChannelManager` uses a local copy to verify execution-time function metadata proofs.
-  This is repeated protocol logic inside the bridge trust boundary; any future change to
-  instance-layout or event-log metadata hashing would need to be kept byte-identical in
-  both contracts.
+  This repeated protocol logic must remain byte-identical across registration and
+  execution.
 
 ### Package Manifests
 
-- The root `package.json` declares `"fs": "^0.0.1-security"` even though repository
-  source imports Node's built-in filesystem module through `node:fs` or, in the
-  TypeScript synthesizer example, through the built-in `fs` specifier. The external
-  `fs` package is not used by repo-owned source.
-- The root `package.json` declares `msgpackr`, but repository-wide source references
-  only the manifest and lockfile entries. No repo-owned source imports or requires
-  `msgpackr`.
-- The root `package.json` declares `js-sha3`, but repository-wide source references only
-  the manifest and lockfile entries. No repo-owned source imports or requires `js-sha3`.
+- The root `package.json` declares `"fs": "^0.0.1-security"` even though repo-owned
+  source uses Node's built-in filesystem module through `node:fs` or the built-in `fs`
+  specifier.
+- The root `package.json` declares `msgpackr`, but repo-owned source references only
+  the manifest and lockfile entries.
+- The root `package.json` declares `js-sha3`, but repo-owned source references only the
+  manifest and lockfile entries.
 
 ## Public Documentation Findings
 
-### Bridge Documentation
+### Implementation Mismatches
 
 - `bridge/README.md` states that `DAppManager.deleteDApp(...)` is available only on
   Sepolia and that mainnet and every non-Sepolia network reject it. The implementation in
-  `bridge/src/DAppManager.sol` allows deletion on both Sepolia (`11155111`) and local
-  Anvil (`31337`), and `docs/bridge/gas-assessment.md` documents the operation as
-  "Sepolia/local only". The bridge README is therefore inconsistent with both code and
-  another public document.
+  `bridge/src/DAppManager.sol` allows deletion on Sepolia (`11155111`) and local Anvil
+  (`31337`), and `docs/bridge/gas-assessment.md` already says "Sepolia/local only".
 - `bridge/docs/dev/current-implementation.md` says DApp registration consumes selected
   example groups such as `privateStateMint`, `privateStateTransfer`, and
   `privateStateRedeem`. The active private-state registration materializer and public
-  README examples use the actual group names `mintNotes`, `transferNotes`, and
-  `redeemNotes`, so this developer reference is stale.
-
-### Private-State DApp Documentation
-
+  README examples use `mintNotes`, `transferNotes`, and `redeemNotes`.
 - `docs/dapps/private-state/contract-spec.md` documents `NoteValueEncrypted` as the
-  controller's event model but omits `StorageKeyObserved` from
+  controller event model but omits `StorageKeyObserved` from
   `PrivateStateController.sol` and `LiquidBalanceStorageWriteObserved` from
-  `L2AccountingVault.sol`. These events are asserted by `test/private-state/PrivateStateController.t.sol`,
-  decoded by `packages/apps/private-state/cli/lib/runtime.mjs`, consumed by
-  `bridge/src/ChannelManager.sol`, and included in the monitoring packet generator, so the
-  public contract spec is incomplete for integrators and auditors.
+  `L2AccountingVault.sol`. These events are used by tests, CLI recovery, bridge
+  observation, and the monitoring packet generator.
 - `docs/dapps/private-state/workflow.md` says `wallet redeem-notes` chooses the fixed
-  redeem arity from the selected note count and submits the matching `redeemNotesN` call.
-  The current CLI registry describes `wallet redeem-notes` as redeeming one tracked note,
-  and `packages/apps/private-state/cli/lib/runtime.mjs` rejects any note count other than
-  one with `wallet redeem-notes supports exactly one input note with the currently
-  registered DApp.` The workflow overstates the user-facing redeem support.
+  redeem arity from the selected note count and submits the matching `redeemNotesN`
+  call. The current CLI allows exactly one selected note for `wallet redeem-notes`.
 - `packages/apps/private-state/cli/assets/service-terms.md` links to
-  `privacy-notice.md`, but that file does not exist beside the packaged Terms asset. The
-  canonical privacy notice exists at `docs/dapps/private-state/privacy-notice.md`, so the
-  packaged Markdown link is broken when read from the CLI asset directory or an npm package
-  extraction.
+  `privacy-notice.md`, but no such file exists beside the packaged Terms asset. The
+  canonical notice lives at `docs/dapps/private-state/privacy-notice.md`.
 
-### Audience and Public-Document Quality
+### Audience And Expression Issues
 
-- `checklist.md` is a tracked Markdown document written mostly in Korean and framed as a
-  domestic exchange delisting-risk avoidance, promotional, and exchange-communication
-  checklist. Its contents target internal marketing, regulatory positioning, and exchange
-  submission preparation rather than the public repository audience of external
-  integrators, auditors, operators, and contributors. This audience and language level are
-  not appropriate for public technical documentation in this repository.
-- `checklist.md` also contains stale GitHub links to
-  `packages/apps/private-state/docs/security-model.md`,
-  `packages/apps/private-state/docs/workflow.md`, and `bridge/docs/whitepaper.md`. The
-  current public documents live at `docs/dapps/private-state/security-model.md`,
-  `docs/dapps/private-state/workflow.md`, and `docs/whitepaper.md`.
+- `docs/dapps/private-state/privacy-notice.md` is aimed at ordinary users and legal or
+  compliance readers, but it includes highly specific operational internals such as
+  Vercel plan settings, AWS region details, EBS volume size, encryption state, systemd
+  journal size, and raw RPC file counts. Those details are too implementation-specific
+  for a privacy notice and should be reduced to user-relevant data categories,
+  retention facts, and third-party service boundaries.
+- `docs/dapps/private-state/index.md` contains a "How should this DApp be positioned?"
+  section that tells writers which positioning terms to use. That is editorial guidance,
+  not end-user or integrator documentation.
+- `docs/dapps/private-state/background-theory.md` and
+  `docs/dapps/private-state/security-model.md` include phrasing such as "should be
+  described", "should be presented", and "Documentation and external communication
+  should not imply". These are public-document writing instructions and should be
+  rewritten as factual product or protocol statements.
+- `docs/audit/monitoring/Monitoring-Packet.md`,
+  `docs/audit/monitoring/data/User-Controlled-Evidence-Scope.md`,
+  `packages/apps/private-state/cli/README.md`, and
+  `packages/apps/private-state/cli/investigator/README.md` use the phrase
+  "ASCII-art linkage report". The evidence and monitoring audience includes exchanges,
+  compliance teams, investigators, auditors, and users preparing formal disclosure, so
+  that phrase is too informal. A neutral phrase such as "plain-text linkage report" is
+  more appropriate.
+- The public documentation set does not consistently label the target audience at each
+  document entrypoint. `docs/index.md` and `docs/dapps/private-state/index.md` provide
+  reading order, but they do not clearly separate ordinary-user, legal/compliance,
+  auditor, operator, AI-agent, and developer reading paths. This makes some highly
+  technical material look like required reading for non-expert users.
+
+## Non-Public Documentation Hygiene
+
+- `checklist.md` was tracked despite being local/internal material and ignored by
+  `.gitignore`. It has been removed from the Git index in this pass. The next commit must
+  include that deletion so remote clones do not receive it.
+
+## Fix Plan
+
+1. Remove non-public local notes from the remote clone surface.
+   - Commit the staged removal of `checklist.md`.
+   - Keep `checklist.md` ignored in `.gitignore`.
+   - Verify `git ls-files checklist.md` returns no tracked path and
+     `git check-ignore -v checklist.md` reports the ignore rule.
+
+2. Clean source code without changing optimized assembly or Circom circuits.
+   - Remove the unused `_prepareOutputNote(...)` helper from
+     `PrivateStateController.sol`.
+   - Decide whether private-state deployment code should reject non-`anvil|sepolia|mainnet`
+     app networks at the deploy-script boundary or whether public deployment docs should
+     explicitly document the broader accepted set. Prefer rejecting unsupported networks
+     if those networks are not operationally supported for private-state.
+   - Consolidate DApp function metadata hashing into a shared bridge library or otherwise
+     add a stronger equivalence guard so `DAppManager` and `ChannelManager` cannot drift.
+   - Remove unused root dependencies `fs`, `msgpackr`, and `js-sha3` from the root
+     manifest and lockfile after confirming package scripts still pass.
+
+3. Update implementation-mismatch documentation to match current code.
+   - Change `bridge/README.md` to say `DAppManager.deleteDApp(...)` is Sepolia/local
+     only.
+   - Change `bridge/docs/dev/current-implementation.md` group names to `mintNotes`,
+     `transferNotes`, and `redeemNotes`.
+   - Expand `docs/dapps/private-state/contract-spec.md` event documentation to include
+     `StorageKeyObserved` and `LiquidBalanceStorageWriteObserved`, with their public
+     monitoring role.
+   - Change `docs/dapps/private-state/workflow.md` to state that the current CLI
+     user-facing redeem flow supports one selected note, even though Solidity exposes
+     multiple redeem arities.
+   - Fix the packaged service Terms privacy-notice reference so npm package readers can
+     reach the canonical Privacy Notice.
+
+4. Rewrite audience-inappropriate public documentation.
+   - Replace editorial guidance in the private-state index, background theory, and
+     security model with factual statements suitable for readers.
+   - Simplify the Privacy Notice by replacing infrastructure inspection details with
+     plain data categories, user impact, third-party service boundaries, and retention
+     summaries.
+   - Replace "ASCII-art linkage report" with "plain-text linkage report" across evidence,
+     monitoring, CLI, and investigator documentation.
+   - Add explicit audience labels or reading paths in `docs/index.md` and
+     `docs/dapps/private-state/index.md` so ordinary users, legal/compliance readers,
+     auditors, operators, developers, and user-controlled AI agents are routed to the
+     correct depth.
+
+5. Verify after edits.
+   - Run Markdown link checks for local repository links, excluding code placeholders.
+   - Run `git diff --check`.
+   - Run focused tests for touched Solidity and package-manifest changes.
+   - Confirm `checklist.md` remains ignored and untracked.

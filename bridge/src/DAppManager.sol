@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { Initializable } from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
-import { UUPSUpgradeable } from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import { BridgeStructs } from "./BridgeStructs.sol";
-import { IGrothVerifier } from "./interfaces/IGrothVerifier.sol";
-import { ITokamakVerifier } from "./interfaces/ITokamakVerifier.sol";
+import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {BridgeStructs} from "./BridgeStructs.sol";
+import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
+import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
+import {DAppFunctionMetadataHasher} from "./lib/DAppFunctionMetadataHasher.sol";
 
 interface IBridgeVerifierSource {
     function grothVerifier() external view returns (IGrothVerifier);
@@ -16,23 +17,14 @@ interface IBridgeVerifierSource {
 contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 internal constant SEPOLIA_CHAIN_ID = 11155111;
     uint256 internal constant LOCAL_CHAIN_ID = 31337;
-    bytes32 public constant DAPP_METADATA_DIGEST_SCHEMA =
-        keccak256("tokamak.zk-evm.bridge.dapp-metadata-digest.v1");
+    bytes32 public constant DAPP_METADATA_DIGEST_SCHEMA = keccak256("tokamak.zk-evm.bridge.dapp-metadata-digest.v1");
     bytes32 private constant STORAGE_ROOT_DOMAIN = keccak256("dapp.metadata.v1.storage-root");
     bytes32 private constant STORAGE_ITEM_DOMAIN = keccak256("dapp.metadata.v1.storage-item");
     bytes32 private constant PREALLOC_ROOT_DOMAIN = keccak256("dapp.metadata.v1.prealloc-root");
     bytes32 private constant PREALLOC_ITEM_DOMAIN = keccak256("dapp.metadata.v1.prealloc-item");
     bytes32 private constant USER_SLOT_ROOT_DOMAIN = keccak256("dapp.metadata.v1.user-slot-root");
     bytes32 private constant USER_SLOT_ITEM_DOMAIN = keccak256("dapp.metadata.v1.user-slot-item");
-    bytes32 private constant FUNCTION_ROOT_DOMAIN = keccak256("dapp.metadata.v1.function-root");
-    bytes32 private constant FUNCTION_ITEM_DOMAIN = keccak256("dapp.metadata.v1.function-item");
-    bytes32 private constant FUNCTION_MERKLE_NODE_DOMAIN =
-        keccak256("dapp.metadata.v1.function-merkle-node");
-    bytes32 private constant INSTANCE_LAYOUT_DOMAIN = keccak256("dapp.metadata.v1.instance-layout");
-    bytes32 private constant EVENT_LOG_ROOT_DOMAIN = keccak256("dapp.metadata.v1.event-log-root");
-    bytes32 private constant EVENT_LOG_ITEM_DOMAIN = keccak256("dapp.metadata.v1.event-log-item");
-    bytes32 private constant VERIFIER_SNAPSHOT_DOMAIN =
-        keccak256("dapp.metadata.v1.verifier-snapshot");
+    bytes32 private constant VERIFIER_SNAPSHOT_DOMAIN = keccak256("dapp.metadata.v1.verifier-snapshot");
 
     error UnknownDApp(uint256 dappId);
     error DuplicateDApp(uint256 dappId);
@@ -50,9 +42,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     );
     error MissingPreprocessInputHash(uint256 dappId, address entryContract, bytes4 functionSig);
     error DuplicatePreprocessInputHash(uint256 dappId, bytes32 preprocessInputHash);
-    error InvalidFunctionEventTopicCount(
-        uint256 dappId, address entryContract, bytes4 functionSig, uint8 topicCount
-    );
+    error InvalidFunctionEventTopicCount(uint256 dappId, address entryContract, bytes4 functionSig, uint8 topicCount);
     error DAppDeletionDisabled();
     error InvalidBridgeCore();
     error BridgeCoreAlreadyBound(address existingBridgeCore);
@@ -84,15 +74,9 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     mapping(uint256 => mapping(address => bytes32[])) private _preAllocatedKeys;
     mapping(uint256 => mapping(address => uint8[])) private _userStorageSlots;
 
-    event DAppRegistered(
-        uint256 indexed dappId, bytes32 labelHash, uint256 storageCount, uint256 functionCount
-    );
-    event DAppMetadataUpdated(
-        uint256 indexed dappId, bytes32 labelHash, uint256 storageCount, uint256 functionCount
-    );
-    event DAppMetadataDigestUpdated(
-        uint256 indexed dappId, bytes32 indexed schema, bytes32 indexed digest
-    );
+    event DAppRegistered(uint256 indexed dappId, bytes32 labelHash, uint256 storageCount, uint256 functionCount);
+    event DAppMetadataUpdated(uint256 indexed dappId, bytes32 labelHash, uint256 storageCount, uint256 functionCount);
+    event DAppMetadataDigestUpdated(uint256 indexed dappId, bytes32 indexed schema, bytes32 indexed digest);
     event DAppDeleted(uint256 indexed dappId, bytes32 labelHash);
     event BridgeCoreBound(address indexed bridgeCore);
 
@@ -147,12 +131,9 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         if (labelHash == bytes32(0)) {
             revert InvalidDAppLabelHash(dappId);
         }
-        DAppMetadataDigestParts memory digestParts =
-            _storeDAppRuntimeMetadata(dappId, storages, functions);
-        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot =
-            _snapshotCurrentVerifiers(dappId);
-        bytes32 metadataDigest =
-            _computeDAppMetadataDigest(dappId, labelHash, digestParts, verifierSnapshot);
+        DAppMetadataDigestParts memory digestParts = _storeDAppRuntimeMetadata(dappId, storages, functions);
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot = _snapshotCurrentVerifiers(dappId);
+        bytes32 metadataDigest = _computeDAppMetadataDigest(dappId, labelHash, digestParts, verifierSnapshot);
         _dapps[dappId] = DAppInfo({
             exists: true,
             labelHash: labelHash,
@@ -172,12 +153,9 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     ) external onlyOwner {
         DAppInfo memory info = _requireDApp(dappId);
         _clearDAppRuntimeMetadata(dappId);
-        DAppMetadataDigestParts memory digestParts =
-            _storeDAppRuntimeMetadata(dappId, storages, functions);
-        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot =
-            _snapshotCurrentVerifiers(dappId);
-        bytes32 metadataDigest =
-            _computeDAppMetadataDigest(dappId, info.labelHash, digestParts, verifierSnapshot);
+        DAppMetadataDigestParts memory digestParts = _storeDAppRuntimeMetadata(dappId, storages, functions);
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot = _snapshotCurrentVerifiers(dappId);
+        bytes32 metadataDigest = _computeDAppMetadataDigest(dappId, info.labelHash, digestParts, verifierSnapshot);
         _dapps[dappId] = DAppInfo({
             exists: true,
             labelHash: info.labelHash,
@@ -197,20 +175,12 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         return _dapps[dappId];
     }
 
-    function getDAppVerifierSnapshot(uint256 dappId)
-        external
-        view
-        returns (BridgeStructs.DAppVerifierSnapshot memory)
-    {
+    function getDAppVerifierSnapshot(uint256 dappId) external view returns (BridgeStructs.DAppVerifierSnapshot memory) {
         _requireDApp(dappId);
         return _verifierSnapshots[dappId];
     }
 
-    function getManagedStorageAddresses(uint256 dappId)
-        external
-        view
-        returns (address[] memory out)
-    {
+    function getManagedStorageAddresses(uint256 dappId) external view returns (address[] memory out) {
         _requireDApp(dappId);
         address[] storage managedStorageAddresses = _managedStorageAddresses[dappId];
         out = new address[](managedStorageAddresses.length);
@@ -228,11 +198,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         return _requireDApp(dappId).channelTokenVaultTreeIndex;
     }
 
-    function getPreAllocKeys(uint256 dappId, address storageAddr)
-        external
-        view
-        returns (bytes32[] memory out)
-    {
+    function getPreAllocKeys(uint256 dappId, address storageAddr) external view returns (bytes32[] memory out) {
         _requireKnownStorage(dappId, storageAddr);
         bytes32[] storage preAllocatedKeys = _preAllocatedKeys[dappId][storageAddr];
         out = new bytes32[](preAllocatedKeys.length);
@@ -241,11 +207,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         }
     }
 
-    function getUserSlots(uint256 dappId, address storageAddr)
-        external
-        view
-        returns (uint8[] memory out)
-    {
+    function getUserSlots(uint256 dappId, address storageAddr) external view returns (uint8[] memory out) {
         _requireKnownStorage(dappId, storageAddr);
         uint8[] storage userStorageSlots = _userStorageSlots[dappId][storageAddr];
         out = new uint8[](userStorageSlots.length);
@@ -254,16 +216,12 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         }
     }
 
-    function isChannelTokenVaultStorageAddress(uint256 dappId, address storageAddr)
-        external
-        view
-        returns (bool)
-    {
+    function isChannelTokenVaultStorageAddress(uint256 dappId, address storageAddr) external view returns (bool) {
         _requireKnownStorage(dappId, storageAddr);
         return _isChannelTokenVaultStorage[dappId][storageAddr];
     }
 
-    function _authorizeUpgrade(address) internal override onlyOwner { }
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function _storeDAppRuntimeMetadata(
         uint256 dappId,
@@ -299,14 +257,10 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             storageMetadata.isChannelTokenVaultStorage;
 
             for (uint256 j = 0; j < storageMetadata.preAllocatedKeys.length; j++) {
-                _preAllocatedKeys[dappId][storageMetadata.storageAddr].push(
-                    storageMetadata.preAllocatedKeys[j]
-                );
+                _preAllocatedKeys[dappId][storageMetadata.storageAddr].push(storageMetadata.preAllocatedKeys[j]);
             }
             for (uint256 j = 0; j < storageMetadata.userStorageSlots.length; j++) {
-                _userStorageSlots[dappId][storageMetadata.storageAddr].push(
-                    storageMetadata.userStorageSlots[j]
-                );
+                _userStorageSlots[dappId][storageMetadata.storageAddr].push(storageMetadata.userStorageSlots[j]);
             }
 
             if (storageMetadata.isChannelTokenVaultStorage) {
@@ -318,9 +272,8 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                 channelTokenVaultStorageAddress = storageMetadata.storageAddr;
                 digestParts.channelTokenVaultTreeIndex = i;
             }
-            digestParts.storageRoot = keccak256(
-                abi.encode(digestParts.storageRoot, _hashStorageMetadata(storageMetadata))
-            );
+            digestParts.storageRoot =
+                keccak256(abi.encode(digestParts.storageRoot, _hashStorageMetadata(storageMetadata)));
         }
 
         if (channelTokenVaultStorageAddress == address(0)) {
@@ -331,11 +284,10 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         bytes32[] memory functionKeys = new bytes32[](functions.length);
         bytes32[] memory preprocessInputHashes = new bytes32[](functions.length);
         for (uint256 i = 0; i < functions.length; i++) {
-            functionHashes[i] = _validateAndHashFunctionMetadata(
-                dappId, functions[i], functionKeys, preprocessInputHashes, i
-            );
+            functionHashes[i] =
+                _validateAndHashFunctionMetadata(dappId, functions[i], functionKeys, preprocessInputHashes, i);
         }
-        digestParts.functionRoot = _computeFunctionMerkleRoot(functionHashes);
+        digestParts.functionRoot = DAppFunctionMetadataHasher.computeFunctionMerkleRoot(functionHashes);
     }
 
     function _validateAndHashFunctionMetadata(
@@ -347,19 +299,13 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     ) private view returns (bytes32 functionMetadataHash) {
         bytes32 functionKey = _computeFunctionKey(fnMetadata.entryContract, fnMetadata.functionSig);
         if (fnMetadata.entryContract == address(0)) {
-            revert InvalidFunctionEntryContract(
-                dappId, fnMetadata.entryContract, fnMetadata.functionSig
-            );
+            revert InvalidFunctionEntryContract(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
         }
         if (fnMetadata.entryContract.code.length == 0) {
-            revert InvalidFunctionEntryContract(
-                dappId, fnMetadata.entryContract, fnMetadata.functionSig
-            );
+            revert InvalidFunctionEntryContract(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
         }
         if (fnMetadata.preprocessInputHash == bytes32(0)) {
-            revert MissingPreprocessInputHash(
-                dappId, fnMetadata.entryContract, fnMetadata.functionSig
-            );
+            revert MissingPreprocessInputHash(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
         }
 
         for (uint256 i = 0; i < functionIndex; i++) {
@@ -375,8 +321,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         preprocessInputHashes[functionIndex] = fnMetadata.preprocessInputHash;
 
         for (uint256 j = 0; j < fnMetadata.instanceLayout.eventLogs.length; j++) {
-            BridgeStructs.EventLogMetadata calldata eventLog =
-                fnMetadata.instanceLayout.eventLogs[j];
+            BridgeStructs.EventLogMetadata calldata eventLog = fnMetadata.instanceLayout.eventLogs[j];
             if (eventLog.topicCount > 4) {
                 revert InvalidFunctionEventTopicCount(
                     dappId, fnMetadata.entryContract, fnMetadata.functionSig, eventLog.topicCount
@@ -384,7 +329,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             }
         }
 
-        functionMetadataHash = _hashFunctionMetadata(fnMetadata);
+        functionMetadataHash = DAppFunctionMetadataHasher.hashFunctionMetadata(fnMetadata);
     }
 
     function _clearDAppRuntimeMetadata(uint256 dappId) private {
@@ -441,25 +386,18 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         pure
         returns (bytes32)
     {
-        bytes32 preAllocatedKeysHash = keccak256(
-            abi.encode(PREALLOC_ROOT_DOMAIN, storageMetadata.preAllocatedKeys.length)
-        );
+        bytes32 preAllocatedKeysHash =
+            keccak256(abi.encode(PREALLOC_ROOT_DOMAIN, storageMetadata.preAllocatedKeys.length));
         for (uint256 i = 0; i < storageMetadata.preAllocatedKeys.length; i++) {
-            preAllocatedKeysHash = keccak256(
-                abi.encode(
-                    PREALLOC_ITEM_DOMAIN, preAllocatedKeysHash, storageMetadata.preAllocatedKeys[i]
-                )
-            );
+            preAllocatedKeysHash =
+                keccak256(abi.encode(PREALLOC_ITEM_DOMAIN, preAllocatedKeysHash, storageMetadata.preAllocatedKeys[i]));
         }
 
         bytes32 userStorageSlotsHash =
             keccak256(abi.encode(USER_SLOT_ROOT_DOMAIN, storageMetadata.userStorageSlots.length));
         for (uint256 i = 0; i < storageMetadata.userStorageSlots.length; i++) {
-            userStorageSlotsHash = keccak256(
-                abi.encode(
-                    USER_SLOT_ITEM_DOMAIN, userStorageSlotsHash, storageMetadata.userStorageSlots[i]
-                )
-            );
+            userStorageSlotsHash =
+                keccak256(abi.encode(USER_SLOT_ITEM_DOMAIN, userStorageSlotsHash, storageMetadata.userStorageSlots[i]));
         }
 
         return keccak256(
@@ -473,75 +411,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         );
     }
 
-    function _hashFunctionMetadata(BridgeStructs.DAppFunctionMetadata calldata fnMetadata)
-        private
-        pure
-        returns (bytes32)
-    {
-        bytes32 eventLogsHash = keccak256(
-            abi.encode(EVENT_LOG_ROOT_DOMAIN, fnMetadata.instanceLayout.eventLogs.length)
-        );
-        for (uint256 i = 0; i < fnMetadata.instanceLayout.eventLogs.length; i++) {
-            BridgeStructs.EventLogMetadata calldata eventLog =
-                fnMetadata.instanceLayout.eventLogs[i];
-            eventLogsHash = keccak256(
-                abi.encode(
-                    EVENT_LOG_ITEM_DOMAIN,
-                    eventLogsHash,
-                    eventLog.startOffsetWords,
-                    eventLog.topicCount
-                )
-            );
-        }
-
-        bytes32 instanceLayoutHash = keccak256(
-            abi.encode(
-                INSTANCE_LAYOUT_DOMAIN,
-                fnMetadata.instanceLayout.entryContractOffsetWords,
-                fnMetadata.instanceLayout.functionSigOffsetWords,
-                fnMetadata.instanceLayout.currentRootVectorOffsetWords,
-                fnMetadata.instanceLayout.updatedRootVectorOffsetWords,
-                eventLogsHash
-            )
-        );
-
-        return keccak256(
-            abi.encode(
-                FUNCTION_ITEM_DOMAIN,
-                fnMetadata.entryContract,
-                fnMetadata.functionSig,
-                fnMetadata.preprocessInputHash,
-                instanceLayoutHash
-            )
-        );
-    }
-
-    function _computeFunctionMerkleRoot(bytes32[] memory leaves) private pure returns (bytes32) {
-        uint256 levelLength = leaves.length;
-        while (levelLength > 1) {
-            uint256 nextLength = (levelLength + 1) / 2;
-            for (uint256 i = 0; i < nextLength; i++) {
-                uint256 leftIndex = i * 2;
-                uint256 rightIndex = leftIndex + 1;
-                bytes32 left = leaves[leftIndex];
-                bytes32 right = rightIndex < levelLength ? leaves[rightIndex] : left;
-                leaves[i] = _hashFunctionMerklePair(left, right);
-            }
-            levelLength = nextLength;
-        }
-        return leaves[0];
-    }
-
-    function _hashFunctionMerklePair(bytes32 left, bytes32 right) private pure returns (bytes32) {
-        (bytes32 first, bytes32 second) = left <= right ? (left, right) : (right, left);
-        return keccak256(abi.encode(FUNCTION_MERKLE_NODE_DOMAIN, first, second));
-    }
-
-    function _computeFunctionKey(address entryContract, bytes4 functionSig)
-        private
-        pure
-        returns (bytes32)
-    {
+    function _computeFunctionKey(address entryContract, bytes4 functionSig) private pure returns (bytes32) {
         return keccak256(abi.encode(entryContract, functionSig));
     }
 

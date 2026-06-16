@@ -1108,6 +1108,21 @@ Expected result:
 - Operation artifacts do not contain raw L1 private keys.
 - Evidence exports, if created, still exclude `.key` files and account private keys.
 
+## Local Account Regression
+
+Manual local-account regression check on 2026-06-16:
+
+- Result: passed. The existing local-account path still derives an L1 address from a protected local account private key.
+- Sepolia was not used for this check because no Sepolia local account private-key file exists in the CLI secret
+  workspace. Creating or importing a new Sepolia local account would expand the verification scope.
+- Trigger:
+  `node packages/apps/private-state/cli/private-state-bridge-cli.mjs account get-l1-address --account participant-a --network anvil`.
+- CLI result:
+  `L1 Address: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8`.
+- Account: `participant-a`.
+- No browser-wallet relay was opened for this command.
+- No Ethereum transaction was requested or submitted.
+
 ## Completion Criteria
 
 Manual verification is complete only when:

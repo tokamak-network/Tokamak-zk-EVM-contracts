@@ -438,6 +438,12 @@ browser-wallet connection request reached the production timeout. The CLI exited
 `Timed out waiting for browser wallet connect.`, no Ethereum transaction was requested, and no Sepolia local L1
 private-key file was found after the timeout.
 
+The representative local-account regression check passed on 2026-06-16 with
+`account get-l1-address --account participant-a --network anvil`. Sepolia was not used because no Sepolia local account
+private-key file exists in the CLI secret workspace, and creating or importing one would expand the verification scope.
+The command returned `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`, opened no browser-wallet relay, and requested no
+Ethereum transaction.
+
 The browser relay completion UX has an implementation path. A stale relay page could previously show `Failed to fetch`
 after the CLI command had already completed and closed its localhost server, making a successful terminal command look
 like a wallet or transaction failure. The relay session now has a closing state, wakes pending `/request` long-polls

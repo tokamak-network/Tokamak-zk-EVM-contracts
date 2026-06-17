@@ -2,8 +2,6 @@
 
 ## 3.0.0 - 2026-06-16
 
-- Validated the 3.0.0 CLI against the upgraded Sepolia bridge with the full value path:
-  `deposit-bridge -> deposit-channel -> mint-notes -> transfer-notes -> redeem-notes -> withdraw-channel -> withdraw-bridge`.
 - Expanded the installed-package E2E to cover raw evidence export ZIP validation, investigator asset smoke checks,
   installed `help commands` and `help guide --json` checks, `channel get-meta`, `help observer`, and final
   `channel abandon-operation` behavior.

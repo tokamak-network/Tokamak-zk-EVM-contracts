@@ -316,6 +316,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["includeWalletKeys"],
     usage: "optional --include-wallet-keys",
     help: [
+      "Requires current Service Terms acceptance before the destructive confirmation prompt",
       "Default uninstall preserves wallet spending-key and viewing-key files under the CLI secret root",
       "--include-wallet-keys deletes every local private-state CLI file, including wallet spending-key and viewing-key files",
       "Both modes remove local workspaces, account secrets, wallet secret source files stored under the CLI root, proof artifacts, Tokamak zk-EVM runtime data, and the global CLI package when installed",
@@ -340,6 +341,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["output"],
     usage: "--output",
     help: [
+      "Requires current Service Terms acceptance before prompting for the private key",
       "Prompts in the terminal with masked input and never prints the private key",
       "Writes the source file with restrictive permissions where the operating system supports it",
       "Refuses to overwrite an existing file",
@@ -354,6 +356,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     optionalFields: ["random"],
     usage: "--output and optional --random",
     help: [
+      "Requires current Service Terms acceptance before prompting for the wallet secret",
       "Prompts in the terminal with masked input by default so the user can type a memorable secret",
       "Use --random only when the user explicitly wants a random wallet secret",
       "Never prints the wallet secret and refuses to overwrite an existing file",
@@ -659,6 +662,7 @@ export const PRIVATE_STATE_CLI_COMMANDS = Object.freeze([
     fields: ["network", "wallet", "output"],
     usage: "--network, --wallet, and --output",
     help: [
+      "Requires current Service Terms acceptance on mainnet; Sepolia and anvil exports do not require Terms acceptance",
       "Includes wallet note-tracking metadata, public key metadata, and channel workspace cache",
       "Excludes Ethereum private keys, spending keys, viewing private keys, wallet secrets, owner, value, and salt",
     ],

@@ -207,6 +207,7 @@ Join Toll means the one-time Channel entry fee paid when a user joins a Channel.
 
 `uninstall`
 
+- requires current Service Terms acceptance before the destructive confirmation prompt
 - is intentionally interactive and requires typing the exact confirmation phrase printed by the command
 - by default, removes local workspaces, account secrets, wallet secret source files stored under the CLI root, installed private-state artifacts, Groth16 workspace files, and the Tokamak zk-EVM runtime workspace
 - by default, preserves wallet spending-key and viewing-key files under the CLI secret root
@@ -344,6 +345,7 @@ can still be restarted explicitly with `wallet recover-workspace --from-genesis`
 `wallet export backup`
 
 - writes a ZIP backup for one selected wallet with `--network`, `--wallet`, and `--output`
+- requires current Service Terms acceptance on mainnet; Sepolia and anvil backup exports do not
 - includes wallet note-tracking metadata and the channel workspace cache
 - excludes spending keys, viewing keys, key derivation material, and plaintext note `owner`, `value`, and `salt`
 - preserves commitments, nullifiers, and encrypted note payloads

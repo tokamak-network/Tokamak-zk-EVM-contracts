@@ -1,8 +1,8 @@
 import {
+  assertAllowedCommandSchema,
   assertProviderChainIdMatchesNetwork,
   assertListLocalWalletsArgs,
   assertRecoverWalletArgs,
-  assertWalletChannelMoveArgs,
   assertWalletExportBackupArgs,
   assertWalletExportKeyArgs,
   assertWalletGetChannelFundArgs,
@@ -76,13 +76,13 @@ export const walletCommands = Object.freeze({
     await handleWalletGetChannelFund({ args, provider });
   },
   "wallet-deposit-channel": async (args) => {
-    assertWalletChannelMoveArgs(args, "wallet-deposit-channel");
+    assertAllowedCommandSchema(args, "wallet-deposit-channel");
     await requireCurrentTermsAcceptanceForCommand(args);
     const { provider } = loadWalletCommandRuntime(args, { prepareArtifacts: true });
     await handleGrothVaultMove({ args, provider, direction: "deposit" });
   },
   "wallet-withdraw-channel": async (args) => {
-    assertWalletChannelMoveArgs(args, "wallet-withdraw-channel");
+    assertAllowedCommandSchema(args, "wallet-withdraw-channel");
     await requireCurrentTermsAcceptanceForCommand(args);
     const { provider } = loadWalletCommandRuntime(args, { prepareArtifacts: true });
     await handleGrothVaultMove({ args, provider, direction: "withdraw" });

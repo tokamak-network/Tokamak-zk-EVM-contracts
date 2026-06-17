@@ -209,10 +209,11 @@ Remove local private-state CLI data with:
 private-state-cli uninstall
 ```
 
-`uninstall` is intentionally interactive. By default, it deletes local workspaces, account secrets, wallet secret source
-files stored under the CLI root, installed private-state artifacts, the Groth16 workspace, the Tokamak zk-EVM runtime
-cache, and the global CLI npm package when npm reports that it is globally installed. It preserves wallet spending-key
-and viewing-key files under the CLI secret root.
+`uninstall` requires current Service Terms acceptance before the destructive confirmation prompt. It is intentionally
+interactive. By default, it deletes local workspaces, account secrets, wallet secret source files stored under the CLI
+root, installed private-state artifacts, the Groth16 workspace, the Tokamak zk-EVM runtime cache, and the global CLI npm
+package when npm reports that it is globally installed. It preserves wallet spending-key and viewing-key files under the
+CLI secret root.
 
 To delete every local private-state CLI file, including wallet spending-key and viewing-key files, run:
 
@@ -360,9 +361,10 @@ Back up a local wallet with:
 private-state-cli wallet export backup --network mainnet --wallet <WALLET> --output ./wallet-backup.zip
 ```
 
-The backup export stores note-tracking metadata and the channel workspace cache, but it does not include spending keys,
-viewing keys, key derivation material, or plaintext note secrets. Note records in the backup keep commitments,
-nullifiers, and encrypted note payloads only; `owner`, `value`, and `salt` are excluded.
+Mainnet backup export requires current Service Terms acceptance. Sepolia and anvil backup exports do not require Terms
+acceptance. The backup export stores note-tracking metadata and the channel workspace cache, but it does not include
+spending keys, viewing keys, key derivation material, or plaintext note secrets. Note records in the backup keep
+commitments, nullifiers, and encrypted note payloads only; `owner`, `value`, and `salt` are excluded.
 Importing this backup restores encrypted tracking state and channel cache files, not wallet authority.
 
 ```bash
@@ -504,14 +506,16 @@ private-state-cli wallet export backup --network mainnet --wallet <WALLET_NAME> 
 private-state-cli wallet import backup --network mainnet --input ./wallet-backup.zip
 ```
 
-`secret create-private-key-source` prompts in the terminal with masked input and creates a local source file for
-`account import`. `account import` is the only supported way to bring an Ethereum signing key into the CLI: it reads
-`--private-key-file` once and stores a protected local account secret for later `--account` use. The source file does
-not need `0600` permissions. `secret create-wallet-secret-source` prompts in the terminal with masked input by default
-and creates a local wallet secret source file for `channel join`. Use `--random` only when a random wallet secret is
-explicitly wanted. `channel join` reads `--wallet-secret-path <PATH>` once while creating the channel-bound spending key and then stores
-wallet backup metadata, viewing-key metadata, and spending-key metadata as separate files. `wallet list` reads only the local workspace and prints saved wallet names that can be reused with
-`--wallet`.
+The networkless `secret create-private-key-source` and `secret create-wallet-secret-source` helper commands require
+current Service Terms acceptance before they run. `secret create-private-key-source` prompts in the terminal with masked
+input and creates a local source file for `account import`. `account import` is the only supported way to bring an
+Ethereum signing key into the CLI: it reads `--private-key-file` once and stores a protected local account secret for
+later `--account` use. The source file does not need `0600` permissions. `secret create-wallet-secret-source` prompts in
+the terminal with masked input by default and creates a local wallet secret source file for `channel join`. Use
+`--random` only when a random wallet secret is explicitly wanted. `channel join` reads `--wallet-secret-path <PATH>` once
+while creating the channel-bound spending key and then stores wallet backup metadata, viewing-key metadata, and
+spending-key metadata as separate files. `wallet list` reads only the local workspace and prints saved wallet names that
+can be reused with `--wallet`.
 `wallet get-meta` opens the wallet metadata and reports the stored Ethereum/channel-local identity metadata plus the current
 on-chain channel registration match state, including the registered note-receive public key when present. On
 epoch-aware wallet workspaces it also reports the selected wallet epoch and whether that epoch is active or exited.
@@ -524,7 +528,7 @@ local account. Omitting `--account` opens the browser-wallet path and reports th
 line. The source file is secret text that the CLI reads once for channel-bound spending-key derivation. It is not
 persisted in the wallet workspace.
 
-Create one before joining a channel:
+After current Service Terms acceptance is recorded, create one before joining a channel:
 
 ```bash
 private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt

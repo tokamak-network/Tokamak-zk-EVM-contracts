@@ -68,6 +68,9 @@ private-state-cli secret create-private-key-source --output ./ethereum-private-k
 private-state-cli secret create-wallet-secret-source --output ./wallet-secret.txt
 ```
 
+Precondition: these networkless helper commands require current Service Terms acceptance before they run. If the CLI
+reports `TERMS_ACCEPTANCE_REQUIRED`, direct the user to complete the interactive Terms flow themselves.
+
 Success check: the helper reports `secretPrinted: false` and an `outputPath`.
 
 Failure recovery: if masked input is unavailable, tell the user to run the helper directly in an interactive terminal.
@@ -115,6 +118,9 @@ Minimal user actions: run one helper command in an interactive terminal and type
 AI may ask: whether to use the default path `./ethereum-private-key.txt` or an existing custom local path.
 
 AI must not ask: private key contents, seed phrase, wallet password, or screenshots showing the exported key.
+
+Precondition: this networkless helper requires current Service Terms acceptance before it runs. If the CLI reports
+`TERMS_ACCEPTANCE_REQUIRED`, direct the user to complete the interactive Terms flow themselves.
 
 Command template:
 
@@ -198,6 +204,9 @@ AI may ask: whether to use the default path `./wallet-secret.txt` or an existing
 
 AI must not ask: wallet secret contents, Ethereum private key contents, seed phrase, password/passphrase contents, or
 screenshots showing secrets.
+
+Precondition: this networkless helper requires current Service Terms acceptance before it runs. If the CLI reports
+`TERMS_ACCEPTANCE_REQUIRED`, direct the user to complete the interactive Terms flow themselves.
 
 Command template:
 

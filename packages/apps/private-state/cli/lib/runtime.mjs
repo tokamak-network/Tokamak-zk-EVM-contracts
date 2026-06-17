@@ -6602,22 +6602,12 @@ async function requirePlaintextEvidenceExportConfirmation({ networkName }) {
     `Type exactly: ${confirmation}`,
     "> ",
   ];
-  if (!process.stdin.isTTY || !process.stderr.isTTY) {
-    throw new Error("wallet get-notes --export-evidence requires an interactive terminal for plaintext evidence export confirmation.");
-  }
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stderr,
-    terminal: process.stdin.isTTY && process.stderr.isTTY,
+  await requireInteractiveExactPhraseConfirmation({
+    lines,
+    confirmation,
+    nonInteractiveMessage: "wallet get-notes --export-evidence requires an interactive terminal for plaintext evidence export confirmation.",
+    mismatchMessage: "wallet get-notes --export-evidence confirmation did not match. No evidence ZIP was written.",
   });
-  try {
-    const answer = await rl.question(lines.join("\n"));
-    if (answer !== confirmation) {
-      throw new Error("wallet get-notes --export-evidence confirmation did not match. No evidence ZIP was written.");
-    }
-  } finally {
-    rl.close();
-  }
 }
 
 async function requireWalletKeyExportConfirmation({ keyKind, networkName }) {
@@ -6638,8 +6628,22 @@ async function requireWalletKeyExportConfirmation({ keyKind, networkName }) {
     `Type exactly: ${confirmation}`,
     "> ",
   ];
+  await requireInteractiveExactPhraseConfirmation({
+    lines,
+    confirmation,
+    nonInteractiveMessage: `wallet export ${keyKind}-key requires an interactive terminal for secret-bearing export confirmation.`,
+    mismatchMessage: `wallet export ${keyKind}-key confirmation did not match. No key file was written.`,
+  });
+}
+
+async function requireInteractiveExactPhraseConfirmation({
+  lines,
+  confirmation,
+  nonInteractiveMessage,
+  mismatchMessage,
+}) {
   if (!process.stdin.isTTY || !process.stderr.isTTY) {
-    throw new Error(`wallet export ${keyKind}-key requires an interactive terminal for secret-bearing export confirmation.`);
+    throw new Error(nonInteractiveMessage);
   }
   const rl = readline.createInterface({
     input: process.stdin,
@@ -6649,7 +6653,7 @@ async function requireWalletKeyExportConfirmation({ keyKind, networkName }) {
   try {
     const answer = await rl.question(lines.join("\n"));
     if (answer !== confirmation) {
-      throw new Error(`wallet export ${keyKind}-key confirmation did not match. No key file was written.`);
+      throw new Error(mismatchMessage);
     }
   } finally {
     rl.close();
@@ -13224,10 +13228,6 @@ function assertBooleanFlag(args, key, label) {
   }
 }
 
-function assertWalletChannelMoveArgs(args, commandName) {
-  assertAllowedCommandSchema(args, commandName);
-}
-
 function assertInstallZkEvmArgs(args) {
   assertAllowedCommandSchema(args, "install");
   if (args.network !== undefined) {
@@ -14865,39 +14865,6 @@ function formatGuideSelector(value) {
   return value === null || value === undefined || value === "" ? "not selected" : String(value);
 }
 
-function formatGuideChecks(checks) {
-  if (!Array.isArray(checks) || checks.length === 0) {
-    return ["none"];
-  }
-  return checks.map((check) => {
-    const status = String(check.status ?? "unknown").toUpperCase().padEnd(7);
-    const detail = formatGuideCheckDetail(check);
-    return `- ${status} ${check.name ?? "unnamed check"}${detail ? ` - ${detail}` : ""}`;
-  });
-}
-
-function formatGuideCheckDetail(check) {
-  const parts = [];
-  for (const key of ["network", "chainId", "channelName", "account", "wallet", "l1Address", "rpcSource"]) {
-    if (check[key] !== null && check[key] !== undefined && check[key] !== "") {
-      parts.push(`${humanizeLabel(key)}: ${formatHumanValue(check[key])}`);
-    }
-  }
-  if (typeof check.localWorkspaceExists === "boolean") {
-    parts.push(`Local workspace: ${check.localWorkspaceExists ? "yes" : "no"}`);
-  }
-  if (typeof check.onchainExists === "boolean") {
-    parts.push(`On-chain: ${check.onchainExists ? "yes" : "no"}`);
-  }
-  if (Array.isArray(check.missingFiles) && check.missingFiles.length > 0) {
-    parts.push(`Missing files: ${check.missingFiles.length}`);
-  }
-  if (check.error) {
-    parts.push(`Error: ${check.error}`);
-  }
-  return parts.join("; ");
-}
-
 function printHumanResult(value) {
   const action = typeof value?.action === "string" && value.action.length > 0 ? value.action : "result";
   const entries = Object.entries(value ?? {}).filter(([key]) => key !== "action");
@@ -15425,6 +15392,7 @@ export {
   parseArgs,
   configureOutput,
   requireCurrentTermsAcceptanceForCommand,
+  assertAllowedCommandSchema,
   assertVersionArgs,
   printVersion,
   printHelp,
@@ -15452,7 +15420,6 @@ export {
   assertRedeemNotesArgs,
   assertWalletGetNotesArgs,
   assertTransferNotesArgs,
-  assertWalletChannelMoveArgs,
   assertWalletGetMetaArgs,
   assertWalletGetChannelFundArgs,
   assertExitChannelArgs,

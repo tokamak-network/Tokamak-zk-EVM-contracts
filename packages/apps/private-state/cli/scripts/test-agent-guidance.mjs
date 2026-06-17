@@ -471,6 +471,40 @@ function testInstallHumanProgressMessages() {
   );
 }
 
+function testBrowserTermsAcknowledgementIsAcceptancePathBound() {
+  const runtimeSource = fs.readFileSync(runtimePath, "utf8");
+  const browserTermsSource = runtimeSource.slice(
+    runtimeSource.indexOf("async function requireBrowserTermsAcceptance"),
+    runtimeSource.indexOf("async function openBrowserTermsAcceptancePage"),
+  );
+  const browserServerSource = runtimeSource.slice(
+    runtimeSource.indexOf("async function openBrowserTermsAcceptancePage"),
+    runtimeSource.indexOf("async function readRequestBodyText"),
+  );
+  expect(
+    !browserTermsSource.includes("process.stderr.write(`${finalAcknowledgement}\\n`);"),
+    "browser Terms acknowledgement must not wait for the local server close path.",
+  );
+  expect(
+    browserServerSource.includes("acknowledgeAcceptedTerms();"),
+    "browser Terms acknowledgement should be emitted from the accepted POST path.",
+  );
+  expect(
+    browserServerSource.indexOf("acknowledgeAcceptedTerms();")
+      < browserServerSource.indexOf("resolveAcceptance({ accepted: true });"),
+    "browser Terms acknowledgement should be printed before acceptance resolution.",
+  );
+  expect(
+    browserServerSource.includes("{ \"connection\": \"close\" }"),
+    "accepted browser Terms response should close the browser keep-alive connection.",
+  );
+  expect(
+    browserServerSource.includes("server.on(\"connection\"")
+      && browserServerSource.includes("closeLocalTermsServer(server, sockets)"),
+    "browser Terms server should track sockets and close them during shutdown.",
+  );
+}
+
 function testTerminalTermsFallbackRequiresInteractiveTermsAcceptance() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "private-state-cli-install-human-home-"));
   const failure = runCliExpectFailure(["install", "--read-only", "--terminal-terms"], { home });
@@ -1755,6 +1789,7 @@ async function main() {
   testHumanModeHasNoJsonObjectFallback();
   testBrowserTermsUsesMarkdownRendering();
   testInstallHumanProgressMessages();
+  testBrowserTermsAcknowledgementIsAcceptancePathBound();
   testTerminalTermsFallbackRequiresInteractiveTermsAcceptance();
   testInstallManifestPersistsTermsAcceptance();
   testTermsGatedJsonRequiresCurrentTermsAcceptance();

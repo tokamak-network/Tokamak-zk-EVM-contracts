@@ -2925,11 +2925,11 @@ async function requireBrowserTermsAcceptance({
     termsText,
     contextLines,
     nonce,
+    finalAcknowledgement,
   });
   if (acceptance.accepted !== true) {
     throw new Error("Browser Terms acceptance was not completed. Nothing was changed.");
   }
-  process.stderr.write(`${finalAcknowledgement}\n`);
   return {
     termsVersion: terms.termsVersion,
     termsHash: terms.termsHash,
@@ -2950,10 +2950,20 @@ async function openBrowserTermsAcceptancePage({
   termsText,
   contextLines,
   nonce,
+  finalAcknowledgement,
 }) {
   let resolveAcceptance;
   let rejectAcceptance;
   let accepted = false;
+  let acknowledgementPrinted = false;
+  const sockets = new Set();
+  const acknowledgeAcceptedTerms = () => {
+    if (acknowledgementPrinted) {
+      return;
+    }
+    acknowledgementPrinted = true;
+    process.stderr.write(`${finalAcknowledgement}\n`);
+  };
   const acceptancePromise = new Promise((resolve, reject) => {
     resolveAcceptance = resolve;
     rejectAcceptance = reject;
@@ -2983,13 +2993,17 @@ async function openBrowserTermsAcceptancePage({
           return;
         }
         accepted = true;
+        acknowledgeAcceptedTerms();
+        response.once("finish", () => {
+          resolveAcceptance({ accepted: true });
+        });
         writeBrowserTermsResponse(
           response,
           200,
           "text/html; charset=utf-8",
           browserTermsAcceptedHtml(),
+          { "connection": "close" },
         );
-        resolveAcceptance({ accepted: true });
         return;
       }
       writeBrowserTermsResponse(response, 404, "text/plain; charset=utf-8", "Not found.");
@@ -2997,6 +3011,12 @@ async function openBrowserTermsAcceptancePage({
       writeBrowserTermsResponse(response, 500, "text/plain; charset=utf-8", `Terms acceptance error: ${error.message}`);
       rejectAcceptance(error);
     }
+  });
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.on("close", () => {
+      sockets.delete(socket);
+    });
   });
   server.on("error", rejectAcceptance);
   const timeout = setTimeout(() => {
@@ -3027,15 +3047,37 @@ async function openBrowserTermsAcceptancePage({
     return await acceptancePromise;
   } finally {
     clearTimeout(timeout);
-    await closeLocalTermsServer(server);
+    await closeLocalTermsServer(server, sockets);
   }
 }
 
-async function closeLocalTermsServer(server) {
+async function closeLocalTermsServer(server, sockets = new Set()) {
   if (!server.listening) {
     return;
   }
-  await new Promise((resolve) => server.close(() => resolve()));
+  if (typeof server.closeIdleConnections === "function") {
+    server.closeIdleConnections();
+  }
+  for (const socket of sockets) {
+    socket.end();
+  }
+  let closeTimeout;
+  await Promise.race([
+    new Promise((resolve) => server.close(() => resolve())),
+    new Promise((resolve) => {
+      closeTimeout = setTimeout(() => {
+        for (const socket of sockets) {
+          socket.destroy();
+        }
+        if (typeof server.closeAllConnections === "function") {
+          server.closeAllConnections();
+        }
+        resolve();
+      }, 1_000);
+    }),
+  ]).finally(() => {
+    clearTimeout(closeTimeout);
+  });
 }
 
 async function readRequestBodyText(request) {
@@ -3046,10 +3088,11 @@ async function readRequestBodyText(request) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function writeBrowserTermsResponse(response, statusCode, contentType, body) {
+function writeBrowserTermsResponse(response, statusCode, contentType, body, headers = {}) {
   response.writeHead(statusCode, {
     "content-type": contentType,
     "cache-control": "no-store",
+    ...headers,
   });
   response.end(body);
 }

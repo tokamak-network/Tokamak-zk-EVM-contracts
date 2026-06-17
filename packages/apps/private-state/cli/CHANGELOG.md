@@ -2,6 +2,8 @@
 
 ## 3.0.0 - 2026-06-16
 
+- Validated the 3.0.0 CLI against the upgraded Sepolia bridge with the full value path:
+  `deposit-bridge -> deposit-channel -> mint-notes -> transfer-notes -> redeem-notes -> withdraw-channel -> withdraw-bridge`.
 - Expanded the installed-package E2E to cover raw evidence export ZIP validation, investigator asset smoke checks,
   installed `help commands` and `help guide --json` checks, `channel get-meta`, `help observer`, and final
   `channel abandon-operation` behavior.
@@ -38,6 +40,8 @@
   acceptance before installation proceeds, keep `--terminal-terms` as an explicit terminal fallback, print an immediate
   acknowledgement before long-running install work begins, and persist the accepted Terms version, hash, timestamp, CLI
   package version, acceptance source, acceptance method, and Terms coverage metadata in the install manifest.
+- Fixed browser Terms acceptance so the terminal acknowledgement is printed from the accepted browser POST path and the
+  short-lived localhost Terms server does not wait on browser keep-alive connections before installation continues.
 - Added a packaged canonical Service Terms source and deterministic Terms metadata so install flows report the current
   `termsVersion` and `termsHash` from the same source in human and JSON modes.
 - Changed Terms-gated `install --json` to report that browser-based interactive Terms acceptance is required, include

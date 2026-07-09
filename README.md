@@ -78,6 +78,7 @@ the [public documentation index](./docs/index.md) and the
 - Public documentation index: [docs/index.md](./docs/index.md)
 - Bridge white paper: [docs/whitepaper.md](./docs/whitepaper.md)
 - Bridge developer references: [bridge/docs/dev/](./bridge/docs/dev/)
+- Developer handoff notes: [DEVELOPER_NOTES.md](./DEVELOPER_NOTES.md)
 - App workspace guide: [packages/apps/README.md](./packages/apps/README.md)
 - Private-state DApp guide: [packages/apps/private-state/README.md](./packages/apps/private-state/README.md)
 - AI/search summary: [llms.txt](./llms.txt)
